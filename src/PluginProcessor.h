@@ -832,11 +832,22 @@ namespace lockstep
             if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0.0f;
             return trigPulse_[static_cast<std::size_t>(track)].exchange(0.0f, std::memory_order_relaxed);
         }
-        float takeMidiPulse(int track)
+        // MIDI-out VU (Part 3): note-ons sent to a MIDI-out track accumulate a
+        // velocity-proportional "loudness" (read-and-cleared, the UI applies the
+        // audio-like decay). A CC send trips a separate 0/1 pulse for the dot.
+        float takeMidiActivity(int track)
         {
             if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0.0f;
-            return midiPulse_[static_cast<std::size_t>(track)].exchange(0.0f, std::memory_order_relaxed);
+            return midiActivity_[static_cast<std::size_t>(track)].exchange(0.0f, std::memory_order_relaxed);
         }
+        float takeMidiCcPulse(int track)
+        {
+            if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0.0f;
+            return midiCcPulse_[static_cast<std::size_t>(track)].exchange(0.0f, std::memory_order_relaxed);
+        }
+
+        // True when the track's machine emits MIDI (no audio VU; uses the MIDI meter).
+        [[nodiscard]] bool isMidiOutTrack(int track) const;
 
         // 9.15 Stage 3 — audio→UI discrete bridge (DESIGN §35.9.2). The audio
         // thread sets this when it applies a queued param change (drainEngineCmds:
@@ -1169,6 +1180,9 @@ namespace lockstep
         // A2: after a track's chain, deposit its output into its bus (if routed
         // to one). Topo order guarantees the bus has not run yet.
         void depositToBus(std::size_t track, int numBlockSamples);
+        // MIDI-out VU (Part 3): accumulate note-on velocity + CC pulse from the
+        // buffer sent to the MIDI output, for the per-track MIDI meter.
+        void tapMidiOutActivity(int track, const juce::MidiBuffer& buf);
         // A2: sum every Master-routed track into the main output (the dest-aware
         // replacement for the old "sum all tracks" combine pass).
         void sumRoutedToMaster(juce::AudioBuffer<float>& buffer, int numBlockSamples);
@@ -1330,7 +1344,9 @@ namespace lockstep
         // [ATOMIC] diagnostic metering — audio thread writes, UI timer reads.
         std::array<std::atomic<float>, kNumTracks> trackPeak_{};
         std::array<std::atomic<float>, kNumTracks> trigPulse_{};
-        std::array<std::atomic<float>, kNumTracks> midiPulse_{};
+        // MIDI-out VU: velocity-loudness accumulator + CC-sent pulse (Part 3).
+        std::array<std::atomic<float>, kNumTracks> midiActivity_{};
+        std::array<std::atomic<float>, kNumTracks> midiCcPulse_{};
         std::atomic<float> masterPeak_{ 0.0f };
         std::atomic<float> masterPeakR_{ 0.0f };
 

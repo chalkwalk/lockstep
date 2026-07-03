@@ -1245,14 +1245,28 @@ namespace lockstep
                 dirty = true;
             }
 
-            if (processor_.takeMidiPulse(static_cast<int>(i)) > 0.5f)
+            // MIDI-out VU (Part 3): the velocity-loudness strip meter — same
+            // audio-like ballistics as trackMeter_ (attack to the new peak, 0.80
+            // decay per tick, floor). Only meaningful for MIDI-out tracks (audio
+            // tracks keep their trackMeter_ VU).
+            const float midiAct = processor_.takeMidiActivity(static_cast<int>(i));
+            const float newMidi = std::max(midiAct, midiLevel_[i] * 0.80f);
+            const float flooredMidi = (newMidi < kMeterFloor) ? 0.0f : newMidi;
+            if (std::abs(flooredMidi - midiLevel_[i]) > 0.0f)
             {
-                midiBlink_[i] = 1.0f;
+                midiLevel_[i] = flooredMidi;
                 dirty = true;
             }
-            else if (midiBlink_[i] > 0.0f)
+
+            // The former MIDI dot now signals CC activity.
+            if (processor_.takeMidiCcPulse(static_cast<int>(i)) > 0.5f)
             {
-                midiBlink_[i] = (midiBlink_[i] > kBlinkFloor) ? midiBlink_[i] * 0.70f : 0.0f;
+                ccBlink_[i] = 1.0f;
+                dirty = true;
+            }
+            else if (ccBlink_[i] > 0.0f)
+            {
+                ccBlink_[i] = (ccBlink_[i] > kBlinkFloor) ? ccBlink_[i] * 0.70f : 0.0f;
                 dirty = true;
             }
         }
@@ -1437,6 +1451,15 @@ namespace lockstep
         return juce::Colour::fromRGB(230, 80, 60);
     }
 
+    // MIDI-out VU (Part 3): a distinct magenta-family gradient so a MIDI-out
+    // track's velocity meter reads differently from an audio track's VU at a glance.
+    static juce::Colour midiMeterColour(float level)
+    {
+        if (level < 0.5f) return juce::Colour::fromRGB(150, 60, 190);
+        if (level < 0.85f) return juce::Colour::fromRGB(210, 70, 210);
+        return juce::Colour::fromRGB(240, 90, 200);
+    }
+
     void LockstepEditor::paintMeters(juce::Graphics& g)
     {
         // Determine which tracks are silenced (muted or solo-excluded) so the VU
@@ -1523,11 +1546,16 @@ namespace lockstep
             g.setColour(bg);
             g.fillRect(r);
 
-            const float level = juce::jlimit(0.0f, 1.0f, trackMeter_[i]);
+            // MIDI-out tracks meter their velocity-loudness (magenta) rather than
+            // audio peak — their machine produces no audio, so trackMeter_ is 0.
+            const bool midiOut = processor_.isMidiOutTrack(t);
+            const float level = juce::jlimit(0.0f, 1.0f,
+                                             midiOut ? midiLevel_[i] : trackMeter_[i]);
             if (level > 0.001f)
             {
                 const int fillW = juce::roundToInt(static_cast<float>(r.getWidth()) * level);
-                g.setColour(meterColour(level).withAlpha(0.55f));
+                const auto col = midiOut ? midiMeterColour(level) : meterColour(level);
+                g.setColour(col.withAlpha(0.55f));
                 g.fillRect(r.getX(), r.getY(), fillW, r.getHeight());
             }
 
@@ -1711,7 +1739,7 @@ namespace lockstep
         // return, else it vanishes at rest): dB VU meter + capture banner ----
         paintMasterMeter(g);
         paintCaptureStrip(g);
-        // Per-track trig (left, cyan) + MIDI-in (right, magenta) activity dots.
+        // Per-track trig (left, cyan) + MIDI-CC (right, magenta) activity dots.
         for (std::size_t i = 0; i < kNumTracks; ++i)
         {
             const auto r = trackBtns_[i].getBounds();
@@ -1724,9 +1752,11 @@ namespace lockstep
                 g.fillEllipse(static_cast<float>(r.getX() + 2),
                               static_cast<float>(r.getY() + 2), d, d);
             }
-            if (midiBlink_[i] > 0.02f)
+            // Top-right dot now signals CC activity (MIDI note velocity moved to
+            // the full-strip magenta meter behind the button).
+            if (ccBlink_[i] > 0.02f)
             {
-                g.setColour(juce::Colour::fromRGB(230, 80, 220).withAlpha(midiBlink_[i]));
+                g.setColour(juce::Colour::fromRGB(230, 80, 220).withAlpha(ccBlink_[i]));
                 g.fillEllipse(static_cast<float>(r.getRight() - 2 - d),
                               static_cast<float>(r.getY() + 2), d, d);
             }

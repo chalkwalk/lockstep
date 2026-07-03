@@ -2807,8 +2807,55 @@ namespace lockstep
               juce::String(loaded));
     }
 
+    // Part 3 MIDI-out VU: note-ons sent to a MIDI-out track accumulate a
+    // velocity-proportional loudness, and a CC send trips the dot pulse.
+    static void testMidiOutVuVelocityAndCc()
+    {
+        auto activityFor = [](int velocity) {
+            EngineHarness h;
+            installMachine(h.processor(), 0, MidiOutMachine::kMachineId);
+            CHECK(h.processor().isMidiOutTrack(0), "midi-vu: track 0 is MIDI-out");
+            auto& s0 = h.processor().sequence().tracks[0].steps[0];
+            s0.trig = true;
+            s0.trigOverride.noteCount = 1;
+            s0.trigOverride.notes[0] = 60;
+            s0.trigOverride.hasGate = true;
+            s0.trigOverride.gateValue = MusicalGate::G1_16;
+            s0.trigOverride.hasVelocity = true;
+            s0.trigOverride.velocity = velocity;
+            // Render enough blocks for step 0 to fire, accumulating activity.
+            float peak = 0.0f;
+            for (int b = 0; b < 30; ++b)
+            {
+                h.renderBlocks(1);
+                peak = std::max(peak, h.processor().takeMidiActivity(0));
+            }
+            return peak;
+        };
+
+        const float loud = activityFor(120);
+        const float soft = activityFor(30);
+        CHECK(loud > 0.0f, "midi-vu: a note-on registers velocity loudness");
+        CHECK(soft > 0.0f, "midi-vu: a soft note-on still registers");
+        CHECK(loud > soft, "midi-vu: louder velocity yields more loudness");
+
+        // CC pulse: MidiOutMachine emits its CC bank on the first block
+        // (prevCC_ = -1 forces emission), which must trip the CC pulse.
+        {
+            EngineHarness h;
+            installMachine(h.processor(), 0, MidiOutMachine::kMachineId);
+            h.renderBlocks(1);
+            CHECK(h.processor().takeMidiCcPulse(0) > 0.5f,
+                  "midi-vu: a CC send trips the CC pulse");
+            // Once taken, it clears until the next CC.
+            CHECK(h.processor().takeMidiCcPulse(0) < 0.5f,
+                  "midi-vu: CC pulse is read-and-cleared");
+        }
+    }
+
     void runEngineTests()
     {
+        testMidiOutVuVelocityAndCc();
         testTransposeTrack();
         testLoopGridSeamFeedsTrackLength();
         testLoopRecordLengthTracksTempo();

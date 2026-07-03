@@ -216,7 +216,11 @@ Phrase ──trigs──▶ Machine ──▶ Foundation (FILTER → AMP) ──
   only steps through valid destinations (Off / Master / current buses) and
   shows the target live as you turn — you never jog through unusable
   tracks. On the track/VU row, a bus and its feeders share a colour so
-  groups read at a glance. **Solo is routing-aware:** soloing a bus keeps
+  groups read at a glance. An audio track's button fills with its output
+  **VU**; a **MIDI-out track** instead fills with a *magenta velocity meter*
+  (note-ons add a velocity-proportional loudness that decays like audio), and
+  its top-right dot flashes on **CC** activity (the left cyan dot is the trig
+  pulse). **Solo is routing-aware:** soloing a bus keeps
   its feeders audible (you hear what flows in), and soloing a feeder keeps
   its downstream bus chain audible (so it still reaches master).
 - **Audio input** — a machine can *consume* audio instead of synthesising

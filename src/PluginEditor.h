@@ -394,7 +394,10 @@ namespace lockstep
         // updated each timerCallback() from the processor's atomic meters.
         std::array<float, kNumTracks> trackMeter_{};
         std::array<float, kNumTracks> trigBlink_{};
-        std::array<float, kNumTracks> midiBlink_{};
+        // MIDI-out VU (Part 3): midiLevel_ = the velocity-loudness strip meter
+        // (audio-like ballistics); ccBlink_ = the top-right dot, now CC activity.
+        std::array<float, kNumTracks> midiLevel_{};
+        std::array<float, kNumTracks> ccBlink_{};
         float masterMeter_  = 0.0f;
         float masterMeterR_ = 0.0f;
         void paintMeters(juce::Graphics& g);

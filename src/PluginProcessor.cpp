@@ -1594,7 +1594,9 @@ namespace lockstep
                 juce::MidiMessage::noteOn(1, midiNote,
                                           static_cast<juce::uint8>(velocity)),
                 sampleOffset);
-            midiPulse_[ti].store(1.0f, std::memory_order_relaxed);
+            // MIDI-out VU (Part 3): live pass-through notes on a MIDI-out track are
+            // metered downstream by tapMidiOutActivity after processMidi, alongside
+            // the sequencer's own output — no separate pulse here.
         };
 
         // Route external note-off directly into the track's buffer;
@@ -2034,6 +2036,7 @@ namespace lockstep
                 {
                     juce::MidiBuffer midiOutBuf;
                     mi->processMidi(trackMidi[i], frame, midiOutBuf);
+                    tapMidiOutActivity(static_cast<int>(i), midiOutBuf);  // Part 3 VU
                     // Plugin mode: forward to host MIDI output bus.
                     if (!isStandalone)
                         midi.addEvents(midiOutBuf, 0, numBlockSamples, 0);
@@ -2968,6 +2971,7 @@ namespace lockstep
             {
                 juce::MidiBuffer midiOutBuf;
                 mi->processMidi(trackMidi[i], frame, midiOutBuf);
+                tapMidiOutActivity(static_cast<int>(i), midiOutBuf);  // Part 3 VU
                 if (!isStandalone)
                     midi.addEvents(midiOutBuf, 0, numBlockSamples, 0);
             }
@@ -5901,6 +5905,43 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return true;
         const auto* m = machines_[static_cast<std::size_t>(track)].get();
         return m == nullptr || m->sequencesTrigs();
+    }
+
+    bool LockstepProcessor::isMidiOutTrack(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        const auto* m = machines_[static_cast<std::size_t>(track)].get();
+        return m != nullptr && m->isMidiOut();
+    }
+
+    // MIDI-out VU (Part 3): scan the buffer actually sent to the MIDI output for
+    // note-ons (accumulate a velocity-proportional loudness) and CCs (trip the
+    // dot pulse). Called on the audio thread right after MidiOutMachine::processMidi
+    // for both the running and idle transport paths, so it reflects sequencer
+    // output AND live pass-through equally. RT-safe: only relaxed atomic adds.
+    void LockstepProcessor::tapMidiOutActivity(int track, const juce::MidiBuffer& buf)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const auto ti = static_cast<std::size_t>(track);
+        constexpr float kMidiVuGain = 1.0f;   // full-velocity note → full deflection
+        float add = 0.0f;
+        bool ccSeen = false;
+        for (const auto& meta : buf)
+        {
+            const auto msg = meta.getMessage();
+            if (msg.isNoteOn())
+                add += static_cast<float>(msg.getVelocity()) / 127.0f * kMidiVuGain;
+            else if (msg.isController())
+                ccSeen = true;
+        }
+        if (add > 0.0f)
+        {
+            float cur = midiActivity_[ti].load(std::memory_order_relaxed);
+            const float next = std::min(1.0f, cur + add);
+            midiActivity_[ti].store(next, std::memory_order_relaxed);
+        }
+        if (ccSeen)
+            midiCcPulse_[ti].store(1.0f, std::memory_order_relaxed);
     }
 
     ConsoleMode LockstepProcessor::trackConsoleMode(int track) const
