@@ -1162,6 +1162,25 @@ namespace lockstep
             }
         }
 
+        // Multi-step hold (Part 2): long-press a LONE held step → StepInspector.
+        // Fires mid-hold so the P-Lock overview appears while still held. Two-plus
+        // held steps never open it (a bare multi-hold stays a pure edit context);
+        // any param write or a move during the hold cancels the arm (wasParamWritten).
+        {
+            auto& ctx = processor_.editContext();
+            const double nowMs = juce::Time::getMillisecondCounterHiRes();
+            if (!stepInspectorFiredMidHold_ && !uiState_.pLockClearMode
+                && ctx.heldSteps().size() == 1 && !ctx.wasParamWritten())
+            {
+                const int step = ctx.heldStepIndex();
+                if (gesture_.longPressElapsed(step, nowMs))
+                {
+                    stepInspectorFiredMidHold_ = true;
+                    openStepInspector(ctx.heldTrackIndex(), step);
+                }
+            }
+        }
+
         // ── Performance capture ───────────────────────────────────────────────
         // CAPTURE long-press fires mid-hold (discard in the just-saved window /
         // reveal folder when idle), then the per-tick finalize rule runs.
@@ -2920,6 +2939,94 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // Multi-step hold move + micro nudge (Part 2).
+
+    // Reflect a step-index change (from → to) into the editor's physical-key map so
+    // the held key keeps pointing at the moved step for subsequent presses/release.
+    static void remapHeldKey(std::vector<std::pair<int, int>>& keys, int from, int to)
+    {
+        for (auto& [code, idx] : keys)
+            if (idx == from) { idx = to; break; }
+    }
+
+    void LockstepEditor::openStepInspector(int track, int step)
+    {
+        uiState_.pLockClearStaged.clear();
+        uiState_.pLockClearMode = true;
+        uiState_.pLockClearTrack = track;
+        uiState_.pLockClearStep = step;
+        uiState_.stepMoveActive = false;   // inspector, never the move panel
+        setStatus("STEP " + juce::String(step + 1) + " — P-LOCK INSPECTOR");
+        refreshMetaBand();
+        refreshSurface();
+    }
+
+    bool LockstepEditor::moveHeldSteps(int track, int dir)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks) || dir == 0) return false;
+        auto& ctx = processor_.editContext();
+        const auto held = ctx.heldSteps();  // copy — we mutate ctx while iterating
+        if (held.empty()) return false;
+        const int len = processor_.sequence().tracks[static_cast<std::size_t>(track)].length;
+        if (len <= 1) return false;
+
+        if (held.size() == 1)
+        {
+            // Single step: keep the existing anchor-restore "carry" model so a step can
+            // be moved far while only disturbing anchor↔destination.
+            const int from = held.front();
+            const int to = from + dir;
+            if (to < 0 || to >= len) return false;   // clamp at the ends
+            processor_.relocateStepSwap(track, uiState_.stepMoveAnchor, from, to);
+            ctx.remapHeldStep(from, to);
+            remapHeldKey(heldStepKeys_, from, to);
+            uiState_.pLockClearStep = to;            // keep inspector/status in sync
+            return true;
+        }
+
+        // Block move: shift the whole held set by one, clamped so the leading edge stops
+        // at the boundary (no wrap, no collision). Direction-sorted swaps keep adjacent
+        // held steps from double-moving: descending for +1, ascending for -1.
+        std::vector<int> order = held;
+        if (dir > 0)
+        {
+            int maxS = *std::max_element(order.begin(), order.end());
+            if (maxS + dir >= len) return false;
+            std::sort(order.begin(), order.end(), std::greater<int>());
+        }
+        else
+        {
+            int minS = *std::min_element(order.begin(), order.end());
+            if (minS + dir < 0) return false;
+            std::sort(order.begin(), order.end(), std::less<int>());
+        }
+        for (const int s : order)
+        {
+            processor_.swapSteps(track, s, s + dir);
+            ctx.remapHeldStep(s, s + dir);
+            remapHeldKey(heldStepKeys_, s, s + dir);
+        }
+        return true;
+    }
+
+    float LockstepEditor::nudgeHeldMicro(int track, float delta)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0.0f;
+        auto& ctx = processor_.editContext();
+        const auto& held = ctx.heldSteps();
+        if (held.empty()) return 0.0f;
+        auto& trk = processor_.sequence().tracks[static_cast<std::size_t>(track)];
+        for (const int s : held)
+        {
+            if (s < 0 || s >= static_cast<int>(kMaxStepsPerTrack)) continue;
+            auto& step = trk.steps[static_cast<std::size_t>(s)];
+            step.microOffset = std::clamp(step.microOffset + delta, -0.5f, 0.5f);
+        }
+        ctx.markParamWritten();
+        return trk.steps[static_cast<std::size_t>(ctx.heldStepIndex())].microOffset;
+    }
+
+    // -------------------------------------------------------------------------
     // §39: density-sticky exit SSOT.
 
     void LockstepEditor::escapeDensitySticky()
@@ -3278,18 +3385,22 @@ namespace lockstep
         switch (ev.button)
         {
             case CB::Func:
-                // W7: hold-step + Func latches the P-Lock inspector so the finger is
-                // free to tap the held step's OWN cell (otherwise releasing to tap it
-                // exits the mode). No trig mutation — the latch is purely a virtual
-                // hold. Only fires while a step is PHYSICALLY held in the inspector and
-                // nothing is latched yet, so a later double-tap-Func still escapes.
-                if (uiState_.pLockClearMode && !heldStepKeys_.empty()
+                // W7: hold-step + Func latches the held step(s) so the finger is free
+                // (release no longer ends the edit). No trig mutation — a purely
+                // virtual hold. Fires whenever step(s) are PHYSICALLY held and nothing
+                // is latched yet, so a later double-tap-Func still escapes. Decoupled
+                // from the inspector (Part 2): a bare multi-hold latches too, keeping
+                // every held step editable hands-free; the long-press inspector adds
+                // the tap-to-clear slot flow on top.
+                if (!heldStepKeys_.empty()
                     && !processor_.editContext().hasAnyLatchedStep())
                 {
                     auto& ctx = processor_.editContext();
                     for (const auto& [code, idx] : heldStepKeys_)
                         ctx.setLatched(idx);
-                    setStatus("P-LOCK LATCHED — tap cells to clear, double-tap Func to apply");
+                    setStatus(uiState_.pLockClearMode
+                        ? "P-LOCK LATCHED — tap cells to clear, double-tap Func to apply"
+                        : "STEPS LATCHED — edit hands-free, double-tap Func to release");
                     refreshSurface();
                     return true;   // consume: no funcHeld, no Chance band
                 }
@@ -3577,20 +3688,23 @@ namespace lockstep
                     // section (e.g. Track+FLTR → section 2 = post-machine FLTR block).
                 }
 
-                // 9.14 Stage 3: SRC (section 1) tap while StepInspector is active
-                // → enter NoteEdit for the held step (dismisses P-lock view).
-                if (ev.index == 1 && uiState_.pLockClearMode
-                    && processor_.editContext().heldStepIndex() >= 0)
+                // 9.14 Stage 3 / Part 2: SRC (section 1) tap while step(s) are held
+                // → enter NoteEdit for ALL held steps (dismisses any P-lock view).
+                // Reachable from a bare multi-hold, not just the inspector, so the
+                // note editor edits every held step at once (Elektron flow).
+                if (ev.index == 1 && processor_.editContext().isActiveForEditing())
                 {
-                    const int heldStep = processor_.editContext().heldStepIndex();
+                    const auto& held = processor_.editContext().heldSteps();
+                    const int primary = processor_.editContext().heldStepIndex();
                     const int track = processor_.editContext().heldTrackIndex();
-                    uiState_.noteEditSteps = { heldStep };
+                    uiState_.noteEditSteps.clear();
+                    uiState_.noteEditSteps.insert(held.begin(), held.end());
                     uiState_.noteEditStaged.clear();
-                    if (track >= 0 && heldStep >= 0)
+                    if (track >= 0 && primary >= 0)
                     {
                         const auto& s = processor_.sequence()
                                             .tracks[static_cast<std::size_t>(track)]
-                                            .steps[static_cast<std::size_t>(heldStep)];
+                                            .steps[static_cast<std::size_t>(primary)];
                         if (s.trigOverride.noteCount > 0)
                             uiState_.noteEditOctave = s.trigOverride.notes[0] / 12 - 1;
                     }
@@ -4327,20 +4441,21 @@ namespace lockstep
                     lastTrigToggleApplied_ = false;
                     lastTrigToggleStep_ = -1;
                     lastTrigToggleTrack_ = -1;
+                    stepInspectorFiredMidHold_ = false;  // re-arm the long-press for this hold
 
-                    // 9.14 Stage 3: StepInspector entry — bare step-hold opens P-lock
-                    // overview. pLockClearMode drives KeyboardArea label rendering.
-                    // A second step tap (slot tap) is intercepted by the PLockClear
-                    // dispatch above. Func is NOT required.
-                    uiState_.pLockClearStaged.clear();
-                    uiState_.pLockClearMode = true;
-                    uiState_.pLockClearTrack = keyboardArea_.getActiveTrack();
-                    uiState_.pLockClearStep = absStep;
-                    uiState_.stepMoveAnchor = absStep;  // home for swap-with-destination moves
-                    // Fresh hold starts in the inspector, never the move panel — clear
-                    // any leftover move state and re-resolve the MZ band so a prior
+                    // Multi-step hold (Part 2): a bare step-hold builds a pure
+                    // multi-step edit context — several steps can be held and edited
+                    // at once (Elektron flow). It no longer auto-opens the StepInspector;
+                    // that now opens on a long-press of a SINGLE held step (armed below,
+                    // fired from the timer). Hold-step + Func still latches (W7, above).
+                    uiState_.stepMoveAnchor = absStep;  // home for single-step swap-moves
+                    // Fresh hold starts in neither the inspector nor the move panel —
+                    // clear leftover move state and re-resolve the MZ band so a prior
                     // Step-Position panel can't linger into this hold.
                     uiState_.stepMoveActive = false;
+                    // Arm the long-press → StepInspector gesture. Only a lone held step
+                    // (checked at fire time) opens it; a second press cancels the arm.
+                    gesture_.armLongPress(absStep, juce::Time::getMillisecondCounterHiRes());
                     refreshMetaBand();
 
                     repaint();
@@ -4551,37 +4666,33 @@ namespace lockstep
                 const int tl = keyboardArea_.getActiveTrack();
                 const bool chromL = tl >= 0 && tl < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(tl)] == TrackInputMode::Chromatic;
 
-                // 9.14 Stage 4: hold-step + Func+← = microOffset nudge backward.
-                if (uiState_.funcHeld && uiState_.pLockClearMode
-                    && uiState_.pLockClearStep >= 0 && tl >= 0)
+                // 9.14 Stage 4 / Part 2: hold-step + Func+← = microOffset nudge back.
+                // Applies to every held step (multi-hold aware).
+                if (uiState_.funcHeld && processor_.editContext().isActiveForEditing()
+                    && tl >= 0)
                 {
-                    auto& s = processor_.sequence()
-                                  .tracks[static_cast<std::size_t>(tl)]
-                                  .steps[static_cast<std::size_t>(uiState_.pLockClearStep)];
-                    s.microOffset = std::max(-0.5f, s.microOffset - 0.05f);
-                    processor_.editContext().markParamWritten();
+                    const float micro = nudgeHeldMicro(tl, -0.05f);
                     uiState_.stepMoveActive = true;  // flip grid → sequencer, MZ → Step-Position
                     refreshMetaBand();
-                    setStatus("step " + juce::String(uiState_.pLockClearStep + 1)
-                              + "  micro: " + juce::String(s.microOffset, 2));
+                    setStatus("micro: " + juce::String(micro, 2));
                     refreshSurface();
                     return true;
                 }
 
-                // 9.14: hold-step + ← = swap-with-destination toward lower index.
-                if (!uiState_.funcHeld && uiState_.pLockClearMode
-                    && uiState_.pLockClearStep > 0 && tl >= 0)
+                // 9.14 / Part 2: hold-step + ← = move held step(s) toward lower index.
+                // Single step = anchor-carry; multiple = block move (clamped at 0).
+                if (!uiState_.funcHeld && processor_.editContext().isActiveForEditing()
+                    && tl >= 0)
                 {
-                    const int from = uiState_.pLockClearStep;
-                    const int to = from - 1;
-                    processor_.relocateStepSwap(tl, uiState_.stepMoveAnchor, from, to);
-                    uiState_.pLockClearStep = to;  // follow the moved step
-                    processor_.editContext().markParamWritten();
-                    uiState_.stepMoveActive = true;  // flip grid → sequencer, MZ → Step-Position
-                    refreshMetaBand();
-                    setStatus("step moved to position " + juce::String(to + 1));
-                    refreshSurface();
-                    return true;
+                    if (moveHeldSteps(tl, -1))
+                    {
+                        processor_.editContext().markParamWritten();
+                        uiState_.stepMoveActive = true;  // grid → sequencer, MZ → Step-Position
+                        refreshMetaBand();
+                        setStatus("step(s) moved left");
+                        refreshSurface();
+                    }
+                    return true;  // consume while a step is held (never page-flip)
                 }
 
                 // Func+← = rotate the focused track's sequence one step left.
@@ -4609,42 +4720,33 @@ namespace lockstep
                 const int tr = keyboardArea_.getActiveTrack();
                 const bool chromR = tr >= 0 && tr < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(tr)] == TrackInputMode::Chromatic;
 
-                // 9.14 Stage 4: hold-step + Func+→ = microOffset nudge forward.
-                if (uiState_.funcHeld && uiState_.pLockClearMode
-                    && uiState_.pLockClearStep >= 0 && tr >= 0)
+                // 9.14 Stage 4 / Part 2: hold-step + Func+→ = microOffset nudge forward.
+                // Applies to every held step (multi-hold aware).
+                if (uiState_.funcHeld && processor_.editContext().isActiveForEditing()
+                    && tr >= 0)
                 {
-                    auto& s = processor_.sequence()
-                                  .tracks[static_cast<std::size_t>(tr)]
-                                  .steps[static_cast<std::size_t>(uiState_.pLockClearStep)];
-                    s.microOffset = std::min(0.5f, s.microOffset + 0.05f);
-                    processor_.editContext().markParamWritten();
+                    const float micro = nudgeHeldMicro(tr, +0.05f);
                     uiState_.stepMoveActive = true;  // flip grid → sequencer, MZ → Step-Position
                     refreshMetaBand();
-                    setStatus("step " + juce::String(uiState_.pLockClearStep + 1)
-                              + "  micro: " + juce::String(s.microOffset, 2));
+                    setStatus("micro: " + juce::String(micro, 2));
                     refreshSurface();
                     return true;
                 }
 
-                // 9.14: hold-step + → = swap-with-destination toward higher index.
-                if (!uiState_.funcHeld && uiState_.pLockClearMode
-                    && uiState_.pLockClearStep >= 0 && tr >= 0)
+                // 9.14 / Part 2: hold-step + → = move held step(s) toward higher index.
+                // Single step = anchor-carry; multiple = block move (clamped at end).
+                if (!uiState_.funcHeld && processor_.editContext().isActiveForEditing()
+                    && tr >= 0)
                 {
-                    const int from = uiState_.pLockClearStep;
-                    const int len = processor_.sequence()
-                                        .tracks[static_cast<std::size_t>(tr)].length;
-                    if (from < len - 1)
+                    if (moveHeldSteps(tr, +1))
                     {
-                        const int to = from + 1;
-                        processor_.relocateStepSwap(tr, uiState_.stepMoveAnchor, from, to);
-                        uiState_.pLockClearStep = to;  // follow the moved step
                         processor_.editContext().markParamWritten();
-                        setStatus("step moved to position " + juce::String(to + 1));
+                        uiState_.stepMoveActive = true;  // grid → sequencer, MZ → Step-Position
+                        refreshMetaBand();
+                        setStatus("step(s) moved right");
+                        refreshSurface();
                     }
-                    uiState_.stepMoveActive = true;  // flip grid → sequencer, MZ → Step-Position
-                    refreshMetaBand();
-                    refreshSurface();
-                    return true;
+                    return true;  // consume while a step is held (never page-flip)
                 }
 
                 // Func+→ = rotate the focused track's sequence one step right.
@@ -5681,6 +5783,8 @@ namespace lockstep
                 {
                     uiState_.stepHeld = false;
                     editMode_.setTrigHeld(false);
+                    stepInspectorFiredMidHold_ = false;   // hold ended — re-arm next time
+                    gesture_.cancelLongPress();           // drop any pending step long-press
                 }
                 repaint();
                 break;

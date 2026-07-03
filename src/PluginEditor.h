@@ -229,6 +229,7 @@ namespace lockstep
         int heldSectionIndex_ = -1;  // section index (0-5) while key held; -1 = none
         bool fxSectionPickerWantsMaster_ = false; // captured at Section-5 key-down
         bool fxPickerFiredMidHold_ = false;       // picker opened during the hold (not on key-up)
+        bool stepInspectorFiredMidHold_ = false;  // Part 2: StepInspector opened via long-press this hold
         bool fxPickerRemoveArmed_ = false;        // loaded-cell press deferred to key-up
         bool fxPickerRemoveMaster_ = false;       // which picker the armed press targets
         bool machineConsoleArmed_ = false;        // 7b: console-section press deferred to key-up
@@ -519,6 +520,24 @@ namespace lockstep
         // MHZ.9.4: release all modifier latches and latched steps in one gesture.
         // Only called when latch.any() || ctx.hasAnyLatchedStep().
         void escapeAllLatches();
+
+        // Multi-step hold (Part 2): shift every held step by dir (+1 / -1). A single
+        // held step keeps the anchor-restore "carry" semantics (relocateStepSwap);
+        // multiple held steps block-move together (direction-sorted swaps, clamped at
+        // the track boundary so the whole block stops rather than colliding/wrapping).
+        // Updates EditContext held indices and heldStepKeys_ so the held set follows.
+        // Returns true if anything moved.
+        bool moveHeldSteps(int track, int dir);
+
+        // Multi-step hold (Part 2): open the StepInspector (P-Lock overview) on a
+        // single held step — the long-press promotion of a bare hold. Sets the
+        // pLockClear* state the KeyboardArea label render + slot-tap flow read.
+        void openStepInspector(int track, int step);
+
+        // Multi-step hold (Part 2): nudge the micro-offset of every held step by delta
+        // (clamped to [-0.5, 0.5]). Returns the primary held step's new offset for the
+        // status line, or 0 if nothing was held.
+        float nudgeHeldMicro(int track, float delta);
 
         // §39: single source for "leave density-sticky mode". Invariant: density-sticky
         // and any foreign cluster scope (Track/Phrase/Scene/Morph/Mute/Fill) are

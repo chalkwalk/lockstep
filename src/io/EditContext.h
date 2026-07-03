@@ -52,6 +52,17 @@ namespace lockstep
                 heldSteps_.push_back(stepIndex);
         }
 
+        // Remap a held step to a new index after a move (block/single step-move).
+        // Preserves press order and latch membership so subsequent moves and the
+        // param-write fan-out keep following the step to its new position.
+        void remapHeldStep(int oldIndex, int newIndex)
+        {
+            for (auto& s : heldSteps_)
+                if (s == oldIndex) { s = newIndex; break; }
+            if (latchedSteps_.erase(oldIndex) > 0)
+                latchedSteps_.insert(newIndex);
+        }
+
         // Release a specific step.  Param-written flag is cleared when the
         // last step is released.
         void release(int stepIndex)
