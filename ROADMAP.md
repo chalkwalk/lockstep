@@ -1149,11 +1149,21 @@ DESIGN §29. Depends on 6.2.
 - [ ] Click-free overdub seams + transport-synced loop-length option — later
       refinement (loop length is free-running for now).
 
-### 6.4 — Cue bus + monitoring  *[planned]*  *(was MU)*
-DESIGN §31. Adds the monitor bus + the `Cue` scope (finally bound to a key).
-- [ ] Cue/monitor output bus (standalone ch 3–4 / plugin second bus).
-- [ ] `Cue + track` additive send (post-FLTR/AMP/Level); `Cue + Scene` preview;
-      `Cue + MIDI-out track` event copy. No cue output = no-op.
+### 6.4 — Cue + Aux output buses + monitoring  *[in progress]*  *(was MU)*
+DESIGN §31 / §31.1. Static output complement + the `Cue` scope (key TBD).
+- [ ] Static output complement: **Master + Cue + 6 Aux** stereo buses, non-main
+      declared disabled-by-default; `isBusesLayoutSupported` accepts each extra
+      bus stereo-or-disabled. No dynamic port rescan (host lottery — rejected).
+- [ ] **Aux mix routing**: the CHANNEL "Out" slot destination set grows to
+      `Off | Master | Bus(track) | Aux 1–6`; an Aux route whose host bus is
+      disabled **folds to Master** (never silent data loss). Serializer v26
+      (Out-destination encoding + cue-send flags round-trip; old files → Master).
+- [ ] Cue/monitor output bus DSP (standalone ch 3–4 / plugin Cue bus), additive
+      post-FLTR/AMP/Level send; excluded from `outputReachesMaster()`.
+- [ ] `Cue + track` / `Cue + Scene` / `Cue + MIDI-out` **gestures** — await the
+      `Cue`-scope key allocation (DSP + Out-slot routing ship first).
+- [ ] Live stem capture via Aux outs documented as the blessed stem-export path
+      (DESIGN §31.1) — the offline per-take stem-export item is demoted.
 
 ### 6.5 — Insert + master effects (FX system)  *[shipped]*  *(was MV)*
 DESIGN §32. Depends on 2.4 + the §14 path (independent of 6.1–6.4).

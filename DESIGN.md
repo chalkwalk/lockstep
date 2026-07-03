@@ -4351,6 +4351,43 @@ a second stereo output bus and a second MIDI output the host routes.
 Chrome shows "cue unavailable" when the host has not wired the cue
 output.
 
+### 31.1 Host integration — the static output complement
+
+Lockstep is a **co-equal standalone and plugin** instrument, not a
+standalone-first app that happens to load in a DAW. The output layout is fixed
+at build time so both hosts see the same thing:
+
+- **Master + Cue + 6 Aux stereo output buses (8 total).** The main **Master**
+  bus is always enabled; **Cue** and **Aux 1–6** are declared **disabled by
+  default** — a host enables the ones it wants to patch. This is deliberate:
+  JUCE builds the CLAP / VST3 port list from the *statically declared* buses, so
+  a fixed complement is the only reliable way to expose extra outputs. **Dynamic
+  port rescan is rejected** — it is a host lottery (many hosts ignore or
+  mishandle a mid-session port-count change), so we never resize the bus list at
+  runtime.
+- **Cue = additive monitor send** (unchanged from §31): it never affects the
+  Master sum and is excluded from `outputReachesMaster()`. Standalone maps Cue to
+  device channels 3–4.
+- **Aux = a mix routing destination.** The CHANNEL "Out" slot's destination set
+  grows from `Off | Master | Bus(track)` to also include **Aux 1–6**. A route
+  (bus) track can itself target an Aux — that is how an internal bus reaches a
+  physical/host output. **Fallback rule: an Aux route whose host bus is disabled
+  folds to Master**, so choosing an output the host hasn't enabled is never
+  silent data loss.
+
+**DAW-alongside-standalone workflows** worth naming (all first-class, none
+standalone-only):
+
+- **Direct controller → plugin.** A generic MIDI controller drives Lockstep in
+  the DAW without being registered as a DAW control surface — the same surface as
+  standalone. This already works and is kept un-registered on purpose.
+- **Host transport / tempo follow** — existing; the sequencer locks to the host
+  clock in Locked sync mode.
+- **Live stem capture via Aux outs.** Route buses/tracks to Aux outputs and
+  record them onto DAW tracks in real time — the blessed, host-native answer to
+  "stem export" (it supersedes a bespoke offline stem-export path).
+- **APVTS parameter automation** from the host.
+
 ## 32. Insert and Master Effects
 
 Effects are owned and managed by the sequencer foundation, not left
