@@ -1411,10 +1411,14 @@ drives colour on both surfaces (`ScopeSectionSelect.h::SecOrigin`,
   bands carry their origin scope too** — `COND` (Func+TRIG) reads Func
   and wraps the MZ in a Func border, `DIVIDER` (Track+TRIG) reads Track,
   `PHRASE LEN` (Phrase+TRIG) reads Phrase, `MASTER FX`/`GLOBAL` (Song+FX)
-  read Song. Generator/overlay pages (DENSITY, VEL, EUCLID, MELODY,
-  CHORD, KEY, …) and the step inspector (`MOVE`, `P-LOCK`, `FILL`) are a
-  **different axis** — they keep their own identity (violet / amber) and
-  name themselves in the banner. The Func border marks a page whose
+  read Song. `SWING`, `TIME`, and `KEY` target a scope chosen at
+  *runtime* rather than a fixed origin, so they tint by that active
+  **target** scope (`SWING` → Song/Scene/Track; `TIME`/`KEY` →
+  Set/Song/Scene, with Set/global reading neutral slate). The remaining
+  generator/overlay pages (DENSITY, VEL, EUCLID, MELODY, CHORD, …) and
+  the step inspector (`MOVE`, `P-LOCK`, `FILL`) are a **different axis**
+  — they keep their own identity (violet / amber) and name themselves in
+  the banner. The Func border marks a page whose
   *origin* is Func, mirroring the section-key marker — it is not tied to
   the transient Func hold (that governs the section-key *preview* row,
   which is a distinct surface).

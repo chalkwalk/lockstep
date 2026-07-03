@@ -826,7 +826,39 @@ namespace lockstep
             }
         };
         const bool isMetaPage = (band_ != MetaBand::None);
-        const BandScopeInfo bs = bandScopeInfo(band_);
+        BandScopeInfo bs = bandScopeInfo(band_);
+
+        // SWING / TIME / KEY target a scope chosen at runtime (not a fixed origin),
+        // so tint them by that active target scope. The scope-int meanings differ:
+        // swingScopeFor → 1 Song / 2 Scene / 3 Track; timeScopeFor → 1 Set / 2 Song
+        // / 3 Scene (KEY shares timeScopeFor). Set/global has no scope hue → slate.
+        if (uiState_ != nullptr)
+        {
+            const juce::Colour kSong { 0xFFD8B020u };  // kScopeSong (gold)
+            const juce::Colour kScene{ 0xFF20A060u };  // kScopeScene (green)
+            const juce::Colour kTrackC{ 0xFF30A0C0u }; // kScopeTrack (cyan)
+            const juce::Colour kSet  { 0xFF8898A8u };  // kScopeStep (neutral slate)
+            if (band_ == MetaBand::Swing)
+            {
+                switch (swingScopeFor(*uiState_))
+                {
+                    case 1: bs.colour = kSong;   break;
+                    case 2: bs.colour = kScene;  break;
+                    case 3: bs.colour = kTrackC; break;
+                    default: break;  // 0 = none → keep violet
+                }
+            }
+            else if (band_ == MetaBand::Time || band_ == MetaBand::Key)
+            {
+                switch (timeScopeFor(*uiState_))
+                {
+                    case 1: bs.colour = kSet;   break;
+                    case 2: bs.colour = kSong;  break;
+                    case 3: bs.colour = kScene; break;
+                    default: break;
+                }
+            }
+        }
         const bool funcOriginPage = isMetaPage && bs.funcOrigin;
 
         // §26.4.1 — Persistent header strip: always visible, shows active band / section.
