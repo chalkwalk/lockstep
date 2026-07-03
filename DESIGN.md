@@ -1401,14 +1401,23 @@ drives colour on both surfaces (`ScopeSectionSelect.h::SecOrigin`,
   steel; track-owned reads **cyan** (`scope.colour.track`) — even at
   rest, and even for a section that only *fell through* to the track
   layer. Under `Track` hold, machine-only sections dim.
-- **The ManipulationZone reflects the scope it is associated with**
-  (`scope.colour.<origin>`): a track-level DSP page washes cyan, and the
-  **banner always names the scope in text** — `MACHINE` / `TRACK` (and
-  `FUNC` in the Func stack) prefixes the page title, coloured by origin.
-  Colour is a learned shorthand; the word is the durable signal, so a
-  new user is never reliant on the palette alone. In the Func stack a
-  Func-coloured border wraps the whole MZ, mirroring the section-key
-  marker.
+- **The ManipulationZone reflects the scope of the page it is
+  *showing*** (`scope.colour.<origin>`) — the scope the page was reached
+  through, **not** whatever modifier is momentarily held. A normal
+  section page washes/labels by origin and the **banner names the scope
+  in text** (`MACHINE` / `TRACK` prefixes the page title); colour is a
+  learned shorthand, the word is the durable signal, so a new user is
+  never reliant on the palette alone. **Scoped section-secondary meta
+  bands carry their origin scope too** — `COND` (Func+TRIG) reads Func
+  and wraps the MZ in a Func border, `DIVIDER` (Track+TRIG) reads Track,
+  `PHRASE LEN` (Phrase+TRIG) reads Phrase, `MASTER FX`/`GLOBAL` (Song+FX)
+  read Song. Generator/overlay pages (DENSITY, VEL, EUCLID, MELODY,
+  CHORD, KEY, …) and the step inspector (`MOVE`, `P-LOCK`, `FILL`) are a
+  **different axis** — they keep their own identity (violet / amber) and
+  name themselves in the banner. The Func border marks a page whose
+  *origin* is Func, mirroring the section-key marker — it is not tied to
+  the transient Func hold (that governs the section-key *preview* row,
+  which is a distinct surface).
 
 **Reality note.** Only `Machine` and `Track` own per-section parameters
 today; `Phrase`/`Scene`/`Song`/`Global` are wired into the stack but

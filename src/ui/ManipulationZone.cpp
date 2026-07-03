@@ -804,7 +804,30 @@ namespace lockstep
             fxSlot >= 0 && processor_.trackInsertBypass(scopeTrk, fxSlot);
         const juce::Colour kBypassCol{ 0xFFFFB432u };  // amber (aligns with picker)
         const juce::Colour kFuncCol{ 0xFFD07820u };    // theme::kScopeFunc
-        const bool funcHeld = (uiState_ != nullptr && uiState_->funcHeld);
+
+        // Origin scope of the current page → header colour + (for a Func-origin
+        // page) a Func border. The MZ marks the scope of the page it is *showing*,
+        // reached via a scope+section selection — not whatever modifier is
+        // momentarily held. Scoped section-secondary meta bands map to their scope
+        // (COND=Func+TRIG, DIVIDER=Track+TRIG, PHRASE LEN=Phrase+TRIG, MASTER FX/
+        // GLOBAL=Song+FX); generator/overlay/step pages keep their own identity.
+        struct BandScopeInfo { juce::Colour colour; bool funcOrigin; };
+        const auto bandScopeInfo = [](MetaBand b) -> BandScopeInfo {
+            switch (b)
+            {
+                case MetaBand::Cond:                                                    // Func+TRIG
+                case MetaBand::Transport: return { juce::Colour(0xFFD07820u), true };   // Func
+                case MetaBand::Divider:   return { juce::Colour(0xFF30A0C0u), false };  // Track
+                case MetaBand::PhraseLen: return { juce::Colour(0xFF7050C8u), false };  // Phrase
+                case MetaBand::Global:                                                  // Song+FX master params
+                case MetaBand::MasterFx:  return { juce::Colour(0xFFD8B020u), false };  // Song
+                case MetaBand::Trig:      return { juce::Colour::fromRGB(180, 195, 210), false }; // Machine
+                default:                  return { juce::Colour::fromRGB(160, 120, 240), false }; // overlay → violet
+            }
+        };
+        const bool isMetaPage = (band_ != MetaBand::None);
+        const BandScopeInfo bs = bandScopeInfo(band_);
+        const bool funcOriginPage = isMetaPage && bs.funcOrigin;
 
         // §26.4.1 — Persistent header strip: always visible, shows active band / section.
         {
@@ -839,9 +862,7 @@ namespace lockstep
             {
                 // Banner always names the scope the params belong to. Colour is a
                 // learned shorthand; the word is the durable signal (DESIGN §6.1.1).
-                const char* scopeWord = funcHeld       ? "FUNC"
-                                      : trackScopePage ? "TRACK"
-                                                       : "MACHINE";
+                const char* scopeWord = trackScopePage ? "TRACK" : "MACHINE";
                 title = juce::String(scopeWord) + "  " + normalTitle_;
                 if (bypassedFxPage)
                     title += " (BYP)";
@@ -858,8 +879,7 @@ namespace lockstep
 
             // Title text and optional page indicator.
             const juce::Colour headerFg = isStepEdit    ? juce::Colour::fromRGB(255, 180, 50)
-                                        : isMeta        ? juce::Colour::fromRGB(160, 120, 240)
-                                        : funcHeld       ? kFuncCol
+                                        : isMeta        ? bs.colour
                                         : bypassedFxPage ? kBypassCol
                                         : trackScopePage ? kTrackScopeCol
                                                          : juce::Colour::fromRGB(180, 195, 210);
@@ -883,10 +903,12 @@ namespace lockstep
             g.setColour(editCol.withAlpha(0.18f));
             g.fillAll();
         }
-        else if (band_ != MetaBand::None)
+        else if (isMetaPage)
         {
-            // Cool/violet tint distinguishes meta-modal bands from P-Lock (amber) at a glance.
-            g.setColour(juce::Colour::fromRGB(120, 80, 200).withAlpha(0.07f));
+            // Meta bands wash in their origin-scope colour (scoped section-
+            // secondaries) or violet (generator/overlay), distinguishing them from
+            // P-Lock (amber) at a glance.
+            g.setColour(bs.colour.withAlpha(0.07f));
             g.fillAll();
         }
         else if (bypassedFxPage)
@@ -903,10 +925,10 @@ namespace lockstep
             g.fillAll();
         }
 
-        // Func parallel stack (DESIGN §6.1.1): a Func-coloured border wraps the
-        // whole MZ whenever Func is held, mirroring the section-key marker — the
-        // page keeps its origin fill/wash, the border says "this is the Func stack".
-        if (funcHeld)
+        // Func parallel stack (DESIGN §6.1.1): a Func-coloured border wraps the MZ
+        // when the *current page* is Func-origin (e.g. the COND band via Func+TRIG),
+        // mirroring the section-key marker — not merely when Func is held.
+        if (funcOriginPage)
         {
             g.setColour(kFuncCol.withAlpha(0.9f));
             g.drawRect(getLocalBounds(), 2);
