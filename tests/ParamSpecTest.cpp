@@ -124,6 +124,14 @@ namespace lockstep
         };
         checkGoldenIds(m, "AnalogMachine", golden);
         checkInvariants(m, "AnalogMachine");
+
+        // LFO rate must stay exponential (log-ish) so the slow end is reachable —
+        // guards against a silent regression back to the linear skew that made
+        // almost the whole encoder throw fast.
+        CHECK(m.paramSpec(33).id == "va_lfo_rate",
+              "AnalogMachine slot 33 should be va_lfo_rate");
+        CHECK(m.paramSpec(33).skew < 1.0f,
+              "AnalogMachine va_lfo_rate: skew must be < 1 (exponential/log rate)");
     }
 
     static void testFMMachineParams()

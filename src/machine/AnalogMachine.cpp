@@ -119,7 +119,7 @@ namespace lockstep
         { "va_retrig", "Retrig", 0.f, 1.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 3, 0, kVARetrigLabels }, // 31
         { "va_vel_sens", "Vel Sens", 0.f, 1.f, 0.f, 1.f, 0, va_u::Pct, va_r::None, 0, 3, 0, nullptr }, // 32
         // --- MOD/LFO (section 4, 6 slots, 1 page) ---
-        { "va_lfo_rate", "LFO Rate", 0.01f, 40.f, 3.f, 1.f, 0, va_u::None, va_r::LfoRat, 0, 4, 0, nullptr }, // 33
+        { "va_lfo_rate", "LFO Rate", 0.01f, 40.f, 3.f, 0.3f, 0, va_u::None, va_r::LfoRat, 0, 4, 0, nullptr }, // 33 (skew 0.3: log-ish, slow end reachable)
         { "va_lfo_depth", "LFO Depth", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::LfoDep, 0, 4, 0, nullptr }, // 34
         { "va_lfo_shape", "LFO Shape", 0.f, 5.f, 0.f, 1.f, 1, va_u::None, va_r::LfoShp, 0, 4, 0, kVALfoShapeLabels }, // 35
         { "va_lfo_target", "LFO Target", 0.f, 3.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 4, 0, kVALfoTargetLabels }, // 36
