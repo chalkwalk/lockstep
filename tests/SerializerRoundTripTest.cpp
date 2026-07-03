@@ -31,7 +31,10 @@
 #include "TestHarness.h"
 #include "../src/core/Phrase.h"
 #include "../src/core/Song.h"
+#include "../src/core/Scale.h"          // kAeolian / kDorian (key brightness)
 #include "../src/core/TrigCondition.h"
+#include "../src/state/StateKeys.h"     // 4.9 sample-analysis cache keys
+#include "../src/machine/SamplePool.h"  // CachedAnalysis (read-side reconstruction)
 #include <juce_data_structures/juce_data_structures.h>
 
 namespace lockstep
@@ -778,6 +781,53 @@ namespace lockstep
         CHECK(!song.scenes[5].initialised, "derivation stays a no-op on empty scenes");
     }
 
+    // 4.9: the cached sample-analysis properties (v26) survive an XML round-trip
+    // and reconstruct into the same CachedAnalysis the read path builds. Mirrors
+    // the writeSamplePool/readSamplePool property layout without a processor.
+    static void testSampleAnalysisCacheRoundTrip()
+    {
+        namespace k = keys;
+
+        // Build a pool Entry the way writeSamplePool does for an analysed entry.
+        juce::ValueTree entry(k::kEntry);
+        entry.setProperty("i", 0, nullptr);
+        entry.setProperty(k::kPath, "/samples/loop.wav", nullptr);
+        entry.setProperty(k::kHash, "abcd1234", nullptr);
+        entry.setProperty(k::kAnalysed, 1, nullptr);
+        entry.setProperty(k::kBpm, 128.0, nullptr);
+        entry.setProperty(k::kKeyRoot, 9, nullptr);            // A
+        entry.setProperty(k::kKeyBright, static_cast<int>(kDorian), nullptr);
+        entry.setProperty(k::kTuneCents, -12.5, nullptr);
+
+        // XML round-trip.
+        const auto xml = entry.createXml();
+        CHECK(xml != nullptr, "cache entry createXml succeeds");
+        const auto reparsed = juce::ValueTree::fromXml(*xml);
+        CHECK(reparsed.isValid(), "cache entry re-parses from XML");
+
+        // Reconstruct CachedAnalysis exactly as readSamplePool does.
+        CHECK(reparsed.hasProperty(k::kAnalysed), "analysed flag survives round-trip");
+        SamplePool::CachedAnalysis ca;
+        ca.bpm = static_cast<double>(reparsed.getProperty(k::kBpm, 0.0));
+        ca.keyRoot = static_cast<int>(reparsed.getProperty(k::kKeyRoot, -1));
+        ca.keyBrightness =
+            static_cast<int>(reparsed.getProperty(k::kKeyBright, static_cast<int>(kAeolian)));
+        ca.tuningCents = static_cast<double>(reparsed.getProperty(k::kTuneCents, 0.0));
+
+        CHECK(feq(static_cast<float>(ca.bpm), 128.0f), "cached bpm round-trips");
+        CHECK(ca.keyRoot == 9, "cached key root round-trips");
+        CHECK(ca.keyBrightness == kDorian, "cached key brightness round-trips");
+        CHECK(feq(static_cast<float>(ca.tuningCents), -12.5f), "cached tuning round-trips");
+
+        // An entry with NO analysis props (a legacy v25 entry) reconstructs to
+        // "no cache" — the read path re-analyses instead of adopting.
+        juce::ValueTree legacy(k::kEntry);
+        legacy.setProperty(k::kPath, "/samples/old.wav", nullptr);
+        legacy.setProperty(k::kHash, "0000", nullptr);
+        CHECK(!legacy.hasProperty(k::kAnalysed),
+              "legacy entry carries no analysed flag (triggers re-analysis)");
+    }
+
     void runSerializerRoundTripTests()
     {
         testCondRoundTrip();
@@ -788,5 +838,6 @@ namespace lockstep
         testMutationDetectability();
         testV15PLockFormat();
         testFileXmlRoundTrip();
+        testSampleAnalysisCacheRoundTrip();
     }
 }

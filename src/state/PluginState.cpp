@@ -1040,6 +1040,21 @@ namespace lockstep::PluginState
             entry.setProperty("i", i, nullptr);
             entry.setProperty(keys::kPath, juce::String(s->ref.path), nullptr);
             entry.setProperty(keys::kHash, hashToHex(s->ref.hashXX32), nullptr);
+            // 4.9: cache the fused analysis, keyed by the sample hash above. Only
+            // non-default fields are written; a hash match on load skips re-detect.
+            if (s->analysed)
+            {
+                entry.setProperty(keys::kAnalysed, 1, nullptr);
+                if (s->detectedBpm > 0.0)
+                    entry.setProperty(keys::kBpm, s->detectedBpm, nullptr);
+                if (s->keyRoot >= 0)
+                {
+                    entry.setProperty(keys::kKeyRoot, s->keyRoot, nullptr);
+                    entry.setProperty(keys::kKeyBright, s->keyBrightness, nullptr);
+                }
+                if (s->tuningCents != 0.0)
+                    entry.setProperty(keys::kTuneCents, s->tuningCents, nullptr);
+            }
             poolNode.appendChild(entry, nullptr);
         }
         root.appendChild(poolNode, nullptr);
@@ -1056,7 +1071,20 @@ namespace lockstep::PluginState
             const juce::String hex = entry.getProperty(keys::kHash).toString();
             const std::uint32_t savedHash = hexToHash(hex);
 
-            const int loaded = proc.samplePool().load(path);
+            // 4.9: reconstruct the cached analysis (if this entry carried one).
+            const bool hasCache = entry.hasProperty(keys::kAnalysed);
+            SamplePool::CachedAnalysis ca;
+            if (hasCache)
+            {
+                ca.hashXX32 = savedHash;
+                ca.bpm = static_cast<double>(entry.getProperty(keys::kBpm, 0.0));
+                ca.keyRoot = static_cast<int>(entry.getProperty(keys::kKeyRoot, -1));
+                ca.keyBrightness =
+                    static_cast<int>(entry.getProperty(keys::kKeyBright, static_cast<int>(kAeolian)));
+                ca.tuningCents = static_cast<double>(entry.getProperty(keys::kTuneCents, 0.0));
+            }
+
+            const int loaded = proc.samplePool().load(path, hasCache ? &ca : nullptr);
             if (loaded >= 0)
             {
                 // Warn if hash differs — file changed since last save, but still usable.
@@ -1070,7 +1098,11 @@ namespace lockstep::PluginState
                 SampleRef ref;
                 ref.path = path.toStdString();
                 ref.hashXX32 = savedHash;
-                proc.samplePool().addMissing(ref);
+                const int idx = proc.samplePool().addMissing(ref);
+                // Keep the cached analysis alive even though the file is absent,
+                // so it survives a round-trip through an offline session.
+                if (hasCache && idx >= 0)
+                    proc.samplePool().adoptCachedAnalysis(idx, ca);
                 DBG("PluginState: missing sample '" + path + "'");
             }
         }
@@ -1777,6 +1809,17 @@ namespace lockstep::PluginState
         return v25;
     }
 
+    static juce::ValueTree upgrade_v25_to_v26(const juce::ValueTree& v25)
+    {
+        // v26 (4.9): SamplePool entries may carry cached analysis (an/bpm/keyR/
+        // keyB/tune). A v25 tree simply has none; absent props read as
+        // "not analysed" and the entry is re-analysed on load — exactly v25
+        // behaviour. Trivial stamp bump.
+        juce::ValueTree v26 = v25.createCopy();
+        v26.setProperty(keys::kVersion, 26, nullptr);
+        return v26;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1810,6 +1853,7 @@ namespace lockstep::PluginState
         if (version < 23) tree = upgrade_v22_to_v23(tree);
         if (version < 24) tree = upgrade_v23_to_v24(tree);
         if (version < 25) tree = upgrade_v24_to_v25(tree);
+        if (version < 26) tree = upgrade_v25_to_v26(tree);
 
         return tree;
     }
@@ -2261,6 +2305,38 @@ namespace
                 const auto resultB = lockstep::PluginState::applyUpgrades(v24b);
                 expect(!resultB.getChildWithName(keys::kNewHierarchy).hasProperty(keys::kLaunchQuant),
                        "v24->v25: absent launchQuant stays absent (read defaults to Bar)");
+            }
+
+            beginTest("v25 -> v26: sample-pool entry survives, no analysis props invented");
+            {
+                // A v25 tree with a single pool entry (path + hash, no analysis
+                // props) upgrades to v26 with the entry intact and no cached
+                // analysis fabricated — the entry will simply be re-analysed on
+                // load (exact v25 behaviour).
+                juce::ValueTree v25(keys::kLockstepState);
+                v25.setProperty(keys::kVersion, 25, nullptr);
+                auto pool = juce::ValueTree(keys::kSamplePool);
+                auto entry = juce::ValueTree(keys::kEntry);
+                entry.setProperty("i", 0, nullptr);
+                entry.setProperty(keys::kPath, "/tmp/loop.wav", nullptr);
+                entry.setProperty(keys::kHash, "deadbeef", nullptr);
+                pool.appendChild(entry, nullptr);
+                v25.appendChild(juce::ValueTree(keys::kNewHierarchy), nullptr);
+                v25.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
+                v25.appendChild(pool, nullptr);
+                v25.appendChild(juce::ValueTree(keys::kMisc), nullptr);
+
+                const auto result = lockstep::PluginState::applyUpgrades(v25);
+                expectEquals(static_cast<int>(result.getProperty(keys::kVersion, 0)),
+                             26, "v25->v26: version stamp bumped to 26");
+                const auto poolR = result.getChildWithName(keys::kSamplePool);
+                expect(poolR.isValid() && poolR.getNumChildren() == 1,
+                       "v25->v26: pool entry survives");
+                const auto entryR = poolR.getChild(0);
+                expectEquals(entryR.getProperty(keys::kPath).toString(),
+                             juce::String("/tmp/loop.wav"), "v25->v26: entry path intact");
+                expect(!entryR.hasProperty(keys::kAnalysed),
+                       "v25->v26: no analysis props invented for a legacy entry");
             }
 
             beginTest("future version: valid tree returned without crash");

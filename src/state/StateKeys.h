@@ -156,6 +156,13 @@ namespace lockstep::keys
     inline constexpr const char* kEntry = "Entry";
     inline constexpr const char* kPath = "path";
     inline constexpr const char* kHash = "hash";
+    // 4.9 cached per-entry analysis (v26). Written only when analysed; a hash
+    // match on load lets SamplePool skip re-detection.
+    inline constexpr const char* kAnalysed = "an";
+    inline constexpr const char* kBpm = "bpm";
+    inline constexpr const char* kKeyRoot = "keyR";
+    inline constexpr const char* kKeyBright = "keyB";
+    inline constexpr const char* kTuneCents = "tune";
 
   // ── CCMappings + mapping node (M) ────────────────────────────────────────────
     inline constexpr const char* kCCMappings = "CCMappings";

@@ -58,7 +58,11 @@ namespace lockstep
         //      fields → D Dorian, no overrides; trivial stamp upgrade from v21.
         // v23: per-track Scale stage (DESIGN §4.10) — TrackKit::scaleMode
         //      (Off/Snap/Filter) in the Kit node. Missing → Off; trivial upgrade.
-        inline constexpr int kCurrentVersion = 25;
+        // v26: cached per-entry sample analysis (4.9) — SamplePool Entry nodes
+        //      gain an/bpm/keyR/keyB/tune, written only for analysed entries and
+        //      keyed by the existing sample hash. Missing props = "re-analyse on
+        //      load" = exact v25 behaviour; trivial stamp upgrade from v25.
+        inline constexpr int kCurrentVersion = 26;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);
