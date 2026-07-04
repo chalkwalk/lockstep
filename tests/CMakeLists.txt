@@ -61,12 +61,14 @@ add_executable(lockstep_tests
     RoutingGraphTest.cpp
     ScopeSectionSelectTest.cpp
     SectionStackTest.cpp
+    SectionResolveTest.cpp
     LaunchQuantTest.cpp
     # UI modules needed by MetaBandTest + ModeReducerTest + SurfaceModelTest
     # (live only in the plugin target otherwise)
     ../src/ui/MetaBand.cpp
     ../src/ui/MetaRotary.cpp
     ../src/ui/SurfaceModel.cpp
+    ../src/ui/SectionResolve.cpp
     ../src/ui/InspectorModel.cpp
     ../src/ui/mode/ModeReducer.cpp
     ../src/ui/mode/FuncReskin.cpp

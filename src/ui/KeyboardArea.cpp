@@ -5,6 +5,7 @@
 #include "PageNav.h"
 #include "ScopedSectionMatrix.h"
 #include "ScopeSectionSelect.h"
+#include "SectionResolve.h"
 #include "UITheme.h"
 #include "../command/ButtonLayers.h"
 #include "../PluginProcessor.h"
@@ -362,37 +363,12 @@ namespace lockstep
     std::vector<KeyboardArea::SecGroup>
     KeyboardArea::sectionsForKey(int track, int canonicalIdx, bool trackScope) const
     {
-        // Build classified candidates (machine-owned vs track-level), in display
-        // order (canonical first, then extensions), then let the pure scope filter
-        // pick the visible list. A group is machine-owned iff its first slot lives
-        // inside the machine's param range; track blocks (FLTR/AMP/FX inserts) and
-        // virtual extensions always live past numParams().
-        const int mnp = processor_.numParams(track);
-        std::vector<SecCandidate> candidates;
-
-        // A group inside the machine's param range is Machine-owned; track DSP
-        // blocks (FLTR/AMP/FX inserts) and virtual extensions live past numParams.
-        const auto originOf = [mnp](const SectionInfo& info) {
-            return (info.firstSlot >= 0 && info.firstSlot < mnp) ? SecOrigin::Machine
-                                                                 : SecOrigin::Track;
-        };
-
-        // Canonical section first.
-        {
-            const auto info = processor_.section(track, canonicalIdx);
-            if (info.firstSlot >= 0)
-                candidates.push_back({ canonicalIdx, std::max(1, info.pageCount),
-                                       originOf(info) });
-        }
-
-        // Extension sections: indices >= kMaxSections whose parentCanonical matches.
-        const int total = processor_.numSections(track);
-        for (int s = IMachine::kMaxSections; s < total; ++s)
-        {
-            const auto info = processor_.section(track, s);
-            if (info.parentCanonical == canonicalIdx && info.firstSlot >= 0)
-                candidates.push_back({ s, std::max(1, info.pageCount), originOf(info) });
-        }
+        // Classified machine/track candidates (Item 7: shared with the resolver
+        // via buildParamCandidates so both paths classify identically). A group is
+        // machine-owned iff its first slot lives inside the machine's param range;
+        // track blocks (FLTR/AMP/FX inserts) and virtual extensions live past
+        // numParams(). The pure scope filter then picks the visible list.
+        std::vector<SecCandidate> candidates = buildParamCandidates(processor_, track, canonicalIdx);
 
         // heldFloor: unqualified fills top-down (Machine); Track hold peels Machine.
         const SecOrigin heldFloor = trackScope ? SecOrigin::Track : SecOrigin::Machine;

@@ -134,6 +134,7 @@ target_sources(Lockstep
         ui/MetaBand.cpp
         ui/MetaRotary.cpp
         ui/SurfaceModel.cpp
+        ui/SectionResolve.cpp
         ui/InspectorModel.cpp
         ui/InspectorBar.cpp
         ui/InPluginTransport.cpp

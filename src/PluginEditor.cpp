@@ -19,6 +19,7 @@
 #include "ui/KeyLabel.h"
 #include "ui/MetaBand.h"
 #include "ui/ScopedSectionMatrix.h"
+#include "ui/SectionResolve.h"
 #include "ui/SurfaceModel.h"
 #include "ui/UITheme.h"
 #include "ui/mode/ModeReducer.h"
@@ -3775,33 +3776,43 @@ namespace lockstep
                     }
                 }
 
-                if (sectionScope != PS::None)
+                // Item 7: one resolver drives the section-key dispatch. Morph keeps
+                // its bespoke branch — it has no stack floor (the MZ writes the morph
+                // overlay while morphHeld, so a section press is a plain param nav).
+                // FX (index 5) never reaches here under Track/Song (armed + returned
+                // above); bare/Scene/Phrase + FX fall through to the resolver.
+                if (sectionScope == PS::Morph)
                 {
-                    // Dim under this scope — no content, block entirely.
-                    if (!scopedCell(sectionScope, ev.index).hasContent) return true;
+                    keyboardArea_.selectSection(ev.index, /*trackScope*/ false);
+                    if (heldSectionRawCode_ < 0)
+                    {
+                        heldSectionRawCode_ = rawCode;
+                        heldSectionIndex_ = ev.index;
+                        editMode_.setSectionHeld(true);
+                    }
+                    return true;
+                }
 
-                    // Scope-specific dispatch for cells whose content is implemented.
-                    if (sectionScope == PS::Phrase && ev.index == 0)
-                    {
-                        // Phrase+LEN: phrase length (PHRASELEN meta, index 4).
-                        keyboardArea_.selectMetaSection(4);
+                const int atSec = keyboardArea_.getActiveTrack();
+                const SecOrigin secFloor = sectionFloorForScope(sectionScope);
+                const auto secRes = resolveSectionKey(processor_, atSec, ev.index,
+                                                      secFloor, /*funcLayer*/ false);
+                if (!secRes.hasContent)
+                    return true;  // dim: nothing at/below the held floor owns this key
+
+                switch (secRes.action)
+                {
+                    case SecAction::MetaSection:
+                        // Track DIV (3), Phrase LEN (4), Song master FX (5), etc.
+                        keyboardArea_.selectMetaSection(secRes.metaIndex);
                         return true;
-                    }
-                    if (sectionScope == PS::Track && ev.index == 0)
-                    {
-                        // Track+DIV: kit divider (DIV meta, index 3).
-                        keyboardArea_.selectMetaSection(3);
-                        return true;
-                    }
-                    if (isTimeEntryChord(sectionScope, ev.index))
-                    {
-                        // Song+TRIG or Scene+TRIG: toggle TIME sticky mode (DESIGN §4.8).
+                    case SecAction::TimeSticky:
+                        // Song+TRIG or Scene+TRIG: toggle TIME sticky (DESIGN §4.8).
                         applyTimeEntry(uiState_);
                         refreshMetaBand();
                         return true;
-                    }
-                    // All other non-dim scope cells fall through to the machine's own
-                    // section (e.g. Track+FLTR → section 2 = post-machine FLTR block).
+                    case SecAction::ParamSection:
+                        break;  // machine/track param page — handled below
                 }
 
                 // 9.14 Stage 3 / Part 2: SRC (section 1) tap while step(s) are held
@@ -3830,10 +3841,10 @@ namespace lockstep
                     return true;
                 }
 
-                // KeyboardArea gates on machine slot availability. Track scope routes
-                // the page list to track-level params only (P6); every other scope
-                // (and unqualified) uses the machine-preferring view.
-                keyboardArea_.selectSection(ev.index, sectionScope == PS::Track);
+                // KeyboardArea gates on machine slot availability. A Track floor
+                // routes the page list to track-level params only (P6); every other
+                // scope (and unqualified) uses the machine-preferring view.
+                keyboardArea_.selectSection(ev.index, secFloor == SecOrigin::Track);
                 // Track section key hold for Section-scope verb dispatch (MD.3).
                 if (heldSectionRawCode_ < 0)
                 {

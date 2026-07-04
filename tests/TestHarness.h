@@ -117,6 +117,8 @@ namespace lockstep
     void runScopeSectionSelectTests();
     // Item 7: static section-stack table (meta/sticky chords)
     void runSectionStackTests();
+    // Item 7: the section-key resolver (schema + stack, scope peel)
+    void runSectionResolveTests();
     // 9.17: LaunchQuant authority — grid periods, boundary maths, legacy map
     void runLaunchQuantTests();
 }

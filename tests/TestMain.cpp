@@ -88,6 +88,7 @@ int main()
     // P6: scope-aware section page-list selection (grab-bag items 6+7)
     lockstep::runScopeSectionSelectTests();
     lockstep::runSectionStackTests();
+    lockstep::runSectionResolveTests();
     // 9.17: LaunchQuant authority (grid periods, boundary maths, legacy map)
     lockstep::runLaunchQuantTests();
 
