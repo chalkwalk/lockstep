@@ -79,5 +79,23 @@ namespace lockstep
         // A bad path is rejected and clears state.
         CHECK(!sm.setFilePath("/no/such/file_xyz.wav"), "missing file rejected");
         CHECK(sm.filePath().isEmpty(), "bad path clears the stored path");
+
+        // Item 6: the sample_id slot is what makes the MZ show a sample picker and
+        // lets the streamed source live in the SamplePool. Verify the schema.
+        CHECK(sm.numParams() == 2, "StreamMachine exposes start + sample_id");
+        bool foundSampleId = false;
+        for (int i = 0; i < sm.numParams(); ++i)
+        {
+            const auto spec = sm.paramSpec(i);
+            if (juce::String(spec.id) == "sample_id")
+            {
+                foundSampleId = true;
+                CHECK(spec.isStepped, "sample_id is stepped (picker index)");
+                CHECK(spec.sectionIndex == IMachine::kSrcSecIdx, "sample_id lives on SRC");
+            }
+        }
+        CHECK(foundSampleId, "StreamMachine has a sample_id slot");
+        CHECK(sm.numSections() == IMachine::kSrcSecIdx + 1,
+              "numSections keeps the SRC panel reachable");
     }
 }

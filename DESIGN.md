@@ -4360,7 +4360,18 @@ first is an ordinary playback engine; the latter three consume audio via
   into RAM. Same slot vocabulary as Flex where it overlaps
   (start/end, level), minus the RAM-only manipulations that streaming
   cannot cheaply support. Reinforces `PRINCIPLES.md` §12: the audio
-  never enters RAM wholesale, let alone the project state.
+  never enters RAM wholesale, let alone the project state. Its source
+  is a **Stream-origin `SamplePool` entry** — a path plus a light hash
+  of the file's first bytes and **no decoded PCM** — selected through
+  the ordinary `sample_id` picker on SRC, so a streamed source is a
+  first-class pool citizen (browsable, serialised as a reference) rather
+  than a per-Kit side-channel. The serializer marks the origin (`org`)
+  so a reload rebuilds it via `addStreamRef` and never decodes it; a
+  Flex sampler that later picks a Stream entry decodes it on demand
+  (`ensurePcm`, under the same length gate as analysis). Projects saved
+  before this (≤ serializer v27) carried the path in a per-Kit
+  `streamPath` property; v28 migrates that at load into a Stream pool
+  entry + the track's `sample_id`.
 - **Route.** Turns a track into a processing block: `input_source`
   feeds audio into the track's signal path, the machine passes it
   through at unity, and the canonical post-machine FILTER/AMP/FX (§14)

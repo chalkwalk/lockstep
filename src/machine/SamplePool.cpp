@@ -154,6 +154,92 @@ namespace lockstep
         return index;
     }
 
+    int SamplePool::addStreamRef(const juce::String& path)
+    {
+        const std::string p = path.toStdString();
+        // Dedupe against an existing Stream entry with the same path.
+        for (int i = 0; i < static_cast<int>(samples_.size()); ++i)
+        {
+            const auto& e = *samples_[static_cast<std::size_t>(i)];
+            if (e.origin == SampleOrigin::Stream && e.ref.path == p)
+                return i;
+        }
+
+        juce::File file(path);
+        auto sample = std::make_unique<Sample>();
+        sample->origin = SampleOrigin::Stream;
+        sample->ref.path = p;
+        sample->missing = !file.existsAsFile();
+
+        // Hash the first bytes of the file (NEVER decode the full PCM — the whole
+        // point of a stream reference is that the audio never enters RAM). The hash
+        // is a change-detector for the ref, not a content fingerprint of the audio.
+        if (!sample->missing)
+        {
+            juce::FileInputStream in(file);
+            if (in.openedOk())
+            {
+                constexpr int kHashBytes = 1 << 20;  // first ~1 MB
+                juce::MemoryBlock mb;
+                const auto want = static_cast<size_t>(
+                    std::min<juce::int64>(kHashBytes, file.getSize()));
+                mb.setSize(want);
+                const int got = in.read(mb.getData(), static_cast<int>(want));
+                if (got > 0)
+                    sample->ref.hashXX32 = Hash::xx32(mb.getData(),
+                                                      static_cast<std::size_t>(got));
+            }
+        }
+
+        const int index = static_cast<int>(samples_.size());
+        samples_.push_back(std::move(sample));
+        return index;
+    }
+
+    int SamplePool::ensurePcm(int index)
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return -1;
+        auto& s = *samples_[static_cast<std::size_t>(index)];
+        if (s.pcm.getNumSamples() > 0)
+            return index;  // already decoded
+        if (s.missing || s.ref.path.empty())
+            return -1;
+
+        juce::File file(juce::String(s.ref.path));
+        std::unique_ptr<juce::AudioFormatReader> reader(
+            formatManager_.createReaderFor(file));
+        if (reader == nullptr)
+        {
+            s.missing = true;
+            return -1;
+        }
+
+        // Length guard: a Stream entry may reference a full song. On-demand decode is
+        // only sane for reasonably short material; refuse anything longer than the
+        // analysis ceiling (~kMaxAnalysisSeconds worth) and leave the entry PCM-less.
+        const double sr = reader->sampleRate > 0.0 ? reader->sampleRate : 48000.0;
+        const auto maxSamples = static_cast<juce::int64>(kMaxAnalysisSeconds * sr);
+        if (reader->lengthInSamples > maxSamples)
+            return -1;
+
+        const auto numChannels = static_cast<int>(reader->numChannels);
+        const auto numSamples = static_cast<int>(reader->lengthInSamples);
+        s.pcm.setSize(numChannels, numSamples);
+        reader->read(&s.pcm, 0, numSamples, 0, true, true);
+        s.sampleRate = reader->sampleRate;
+        s.ref.hashXX32 = Hash::xx32(
+            s.pcm.getReadPointer(0),
+            static_cast<std::size_t>(numSamples) * sizeof(float));
+        s.analysis = analyseSample(s.pcm, s.sampleRate);
+        if (!s.analysed)
+        {
+            const SampleHints hints;  // no reader metadata retained here
+            analyseNewPcm(s, hints);
+        }
+        return index;
+    }
+
     int SamplePool::addVolatile()
     {
         auto sample = std::make_unique<Sample>();

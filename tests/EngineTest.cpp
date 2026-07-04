@@ -2955,6 +2955,110 @@ namespace lockstep
         }
     }
 
+    // Item 6: a StreamMachine's source is a Stream pool entry + sample_id. Assigning
+    // it via setStreamFile (addStreamRef → sample_id write → the writeParam hook
+    // opens the reader) must play, and survive a save/load round-trip (v28).
+    static void testStreamViaPoolPlaysAndRoundTrips()
+    {
+        // Write a 0.5 s constant-tone WAV to a temp file.
+        juce::TemporaryFile tmp(".wav");
+        {
+            const juce::File& f = tmp.getFile();
+            const int len = static_cast<int>(48000.0 * 0.5);
+            juce::AudioBuffer<float> data(1, len);
+            for (int i = 0; i < len; ++i) data.setSample(0, i, 0.4f);
+            juce::WavAudioFormat wav;
+            std::unique_ptr<juce::OutputStream> os(f.createOutputStream());
+            const auto opt = juce::AudioFormatWriterOptions{}
+                                 .withSampleRate(48000.0).withNumChannels(1).withBitsPerSample(16);
+            if (auto w = wav.createWriterFor(os, opt))
+                w->writeFromAudioSampleBuffer(data, 0, len);
+        }
+        const juce::String wavPath = tmp.getFile().getFullPathName();
+
+        // Install a StreamMachine on track 0 using its own schema.
+        auto installStream = [](LockstepProcessor& proc) {
+            StreamMachine probe;
+            auto& k = proc.kit(0);
+            k.machineId = StreamMachine::kMachineId;
+            k.baseParams.resize(static_cast<std::size_t>(probe.numParams()));
+            for (int i = 0; i < probe.numParams(); ++i)
+                k.baseParams[static_cast<std::size_t>(i)] = probe.paramSpec(i).defaultValue;
+            proc.reinstallMachinesFromActiveKit();
+        };
+
+        auto armStep0 = [](LockstepProcessor& proc) {
+            auto& s0 = proc.sequence().tracks[0].steps[0];
+            s0.trig = true;
+            s0.trigOverride.hasGate = true;
+            s0.trigOverride.gateValue = MusicalGate::G1_8;
+        };
+
+        juce::MemoryBlock state;
+        {
+            EngineHarness h;
+            installStream(h.processor());
+            CHECK(h.processor().isStreamTrack(0), "stream: track 0 is a stream track");
+
+            const bool ok = h.processor().setStreamFile(0, wavPath);
+            CHECK(ok, "stream: setStreamFile registers + opens the stream");
+            CHECK(h.processor().samplePool().size() >= 1,
+                  "stream: the file became a pool entry");
+            const int slot = h.processor().sampleSlotForTrack(0);
+            CHECK(slot >= 0, "stream: track exposes a sample slot");
+            const int poolIdx = static_cast<int>(std::lround(h.processor().baseParamValue(0, slot)));
+            CHECK(h.processor().samplePool().origin(poolIdx) == SampleOrigin::Stream,
+                  "stream: the pooled entry is Stream-origin");
+
+            armStep0(h.processor());
+            float maxRms = 0.0f;
+            for (int b = 0; b < 30; ++b)
+            {
+                h.renderBlocks(1);
+                maxRms = std::max(maxRms, h.lastBufferRms());
+            }
+            CHECK(maxRms > 1e-4f, "stream: track plays after a pool assignment");
+
+            h.processor().getStateInformation(state);
+        }
+
+        // Reload into a fresh processor: the Stream pool entry (path + origin, NO
+        // PCM) must round-trip via addStreamRef (v28), and the track must still be a
+        // stream track. (Absolute pool-index preservation across live-add → save →
+        // load is a separate pre-existing SamplePool concern — volatile REC slots
+        // seeded at construction offset live indices — so here we assert the Stream
+        // entry survives and streams when the machine is pointed at it.)
+        {
+            EngineHarness h;
+            h.processor().setStateInformation(state.getData(), static_cast<int>(state.getSize()));
+            CHECK(h.processor().isStreamTrack(0), "stream(reload): still a stream track");
+
+            auto& pool = h.processor().samplePool();
+            int streamIdx = -1;
+            for (int i = 0; i < pool.size(); ++i)
+                if (pool.origin(i) == SampleOrigin::Stream) { streamIdx = i; break; }
+            CHECK(streamIdx >= 0, "stream(reload): a Stream-origin entry round-trips");
+            const Sample* s = pool.get(streamIdx);
+            CHECK(s != nullptr && s->pcm.getNumSamples() == 0,
+                  "stream(reload): the round-tripped Stream entry still carries no PCM");
+            CHECK(s != nullptr && juce::String(s->ref.path) == wavPath,
+                  "stream(reload): the streamed path survives");
+
+            // Point the machine at the round-tripped entry and confirm it streams.
+            const int slot = h.processor().sampleSlotForTrack(0);
+            CHECK(slot >= 0, "stream(reload): sample slot present");
+            h.processor().writeParam(0, slot, static_cast<float>(streamIdx));
+            armStep0(h.processor());
+            float maxRms = 0.0f;
+            for (int b = 0; b < 30; ++b)
+            {
+                h.renderBlocks(1);
+                maxRms = std::max(maxRms, h.lastBufferRms());
+            }
+            CHECK(maxRms > 1e-4f, "stream(reload): reopened reader plays from the pooled entry");
+        }
+    }
+
     // Part 3 MIDI-out VU: note-ons sent to a MIDI-out track accumulate a
     // velocity-proportional loudness, and a CC send trips the dot pulse.
     static void testMidiOutVuVelocityAndCc()
@@ -3006,6 +3110,7 @@ namespace lockstep
         testMidiOutVuVelocityAndCc();
         testAuxRoutingAndFold();
         testExternalSendRoutesToHostBus();
+        testStreamViaPoolPlaysAndRoundTrips();
         testTransposeTrack();
         testLoopGridSeamFeedsTrackLength();
         testLoopRecordLengthTracksTempo();

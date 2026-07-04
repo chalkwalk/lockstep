@@ -122,7 +122,7 @@ namespace lockstep::keys
     inline constexpr const char* kMId = "mId";
     inline constexpr const char* kDId = "dId";
     inline constexpr const char* kMPreset = "mPreset";
-    inline constexpr const char* kStreamPath = "streamPath";  // StreamMachine streamed file (DESIGN §29.2)
+    inline constexpr const char* kStreamPath = "streamPath";  // LEGACY (≤v27): StreamMachine file; v28 migrates to a Stream pool entry + sample_id
     inline constexpr const char* kDiv = "div";
     inline constexpr const char* kDensMus = "dMus"; // Density::Musicality (uint8)
     inline constexpr const char* kDensSel = "dSel"; // Density::DensitySelection (uint8)
@@ -157,6 +157,9 @@ namespace lockstep::keys
     inline constexpr const char* kEntry = "Entry";
     inline constexpr const char* kPath = "path";
     inline constexpr const char* kHash = "hash";
+    // Item 6 (v28): SampleOrigin of a persisted entry. Absent = File (0); the only
+    // other persisted value is Stream (4) — a disk-streamed, PCM-less reference.
+    inline constexpr const char* kSampleOrigin = "org";
     // 4.9 cached per-entry analysis (v26). Written only when analysed; a hash
     // match on load lets SamplePool skip re-detection.
     inline constexpr const char* kAnalysed = "an";

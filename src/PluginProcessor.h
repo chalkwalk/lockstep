@@ -222,11 +222,19 @@ namespace lockstep
         [[nodiscard]] float looperPhase(int track) const;
         [[nodiscard]] bool looperPending(int track) const;
         // True when the track's machine is a StreamMachine (disk-stream sampler).
-        // setStreamFile assigns its streamed source path (held per-Kit, streamed
-        // from disk, never decoded into the SamplePool — DESIGN §29.2); it quiesces
-        // the engine to swap the reader. Returns true if the file opened.
+        // Item 6: the streamed source is now a Stream-origin SamplePool entry
+        // (path + light hash, never decoded — DESIGN §29.2). setStreamFile registers
+        // the file via SamplePool::addStreamRef and assigns the track's sample_id
+        // base param (which opens the reader through the writeParam hook, engine
+        // quiesced). Returns true if the reference was registered.
         [[nodiscard]] bool isStreamTrack(int track) const;
         bool setStreamFile(int track, const juce::String& path);
+
+        // Item 6: the sample-picker slot of `track` (a SampleMachine/SliceMachine
+        // sample_id or slicer_sample_id, or a StreamMachine sample_id), or -1 if the
+        // track's machine has no sample-picker slot. Lets the drop handler assign a
+        // freshly pooled sample to the focused track uniformly.
+        [[nodiscard]] int sampleSlotForTrack(int track) const;
 
         // D1 multi-capture: capture machines (Record/Loop) share the 8-slot
         // volatile REC bank via their "target_buffer" slot. captureTargetSlot
@@ -1337,6 +1345,11 @@ namespace lockstep
         // change: trackAnchorPpq_ is left as-is so tracks stay phase-locked to their
         // own anchor. Audio-thread only.
         void refloorAllCursors(double blockStart);
+
+        // Item 6: (re)open a StreamMachine's disk reader for the pool entry at
+        // poolIndex (File/Stream, present, non-volatile → stream it; otherwise
+        // clear to silence). Quiesces the engine to swap the reader. Message thread.
+        void openStreamReaderFor(int track, int poolIndex);
 
         // Per-track launch-boundary test. Bar-family grids resolve against the
         // absolute bar/beat grid; PhraseEnd resolves against the track's own

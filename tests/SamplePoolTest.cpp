@@ -289,5 +289,54 @@ namespace lockstep
             }
             wav.deleteFile();
         }
+
+        // Item 6: addStreamRef — path + light hash, NO PCM; dedupe; ensurePcm ---
+        {
+            const double sr = 44100.0;
+            auto buf = poolTones({ 0, 4, 7 }, { 2.0, 1.0, 1.0 }, sr, 1.0);
+            juce::File wav = writeTempWav(buf, sr, "lockstep_pooltest_stream");
+
+            SamplePool pool;
+            const int idx = pool.addStreamRef(wav.getFullPathName());
+            CHECK(idx == 0, "addStreamRef appends an entry");
+            const Sample* s = pool.get(idx);
+            CHECK(s != nullptr && s->origin == SampleOrigin::Stream,
+                  "stream entry is Stream-origin");
+            CHECK(s != nullptr && s->pcm.getNumSamples() == 0,
+                  "stream entry carries NO decoded PCM");
+            CHECK(s != nullptr && s->ref.hashXX32 != 0,
+                  "stream entry hashes the file's first bytes");
+            CHECK(!pool.isVolatileIndex(idx), "stream entry is not volatile");
+            CHECK(pool.displayName(idx) == wav.getFileNameWithoutExtension(),
+                  "stream entry displays the filename stem");
+
+            // Dedupe: the same path returns the same index, no second entry.
+            const int again = pool.addStreamRef(wav.getFullPathName());
+            CHECK(again == idx && pool.size() == 1, "addStreamRef dedupes by path");
+
+            // ensurePcm decodes on demand (a Flex sampler picking a Stream entry).
+            const int ep = pool.ensurePcm(idx);
+            CHECK(ep == idx, "ensurePcm returns the index on success");
+            const Sample* sd = pool.get(idx);
+            CHECK(sd != nullptr && sd->pcm.getNumSamples() > 0,
+                  "ensurePcm decodes the PCM on demand");
+            // Idempotent — a second call is a no-op that keeps the buffer.
+            const int ep2 = pool.ensurePcm(idx);
+            CHECK(ep2 == idx, "ensurePcm is idempotent");
+
+            wav.deleteFile();
+        }
+
+        // Item 6: a missing stream file still yields an entry (index/ref survive).
+        {
+            SamplePool pool;
+            const int idx = pool.addStreamRef("/nonexistent/lockstep_missing_stream.wav");
+            CHECK(idx == 0, "addStreamRef of a missing file still appends");
+            const Sample* s = pool.get(idx);
+            CHECK(s != nullptr && s->origin == SampleOrigin::Stream,
+                  "missing stream entry keeps Stream origin");
+            CHECK(pool.isMissing(idx), "missing stream file flags missing");
+            CHECK(pool.ensurePcm(idx) == -1, "ensurePcm refuses a missing entry");
+        }
     }
 }

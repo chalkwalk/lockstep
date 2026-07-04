@@ -17,16 +17,33 @@ namespace lockstep
 
     ParamSpec StreamMachine::paramSpec(int index) const
     {
-        if (index != kSlotStart) return {};
-        ParamSpec s;
-        s.id = "start";
-        s.label = "Start";
-        s.minValue = 0.0f;
-        s.maxValue = 1.0f;
-        s.defaultValue = 0.0f;
-        s.isStepped = false;
-        s.sectionIndex = kSrcSecIdx;
-        return s;
+        if (index == kSlotStart)
+        {
+            ParamSpec s;
+            s.id = "start";
+            s.label = "Start";
+            s.minValue = 0.0f;
+            s.maxValue = 1.0f;
+            s.defaultValue = 0.0f;
+            s.isStepped = false;
+            s.sectionIndex = kSrcSecIdx;
+            return s;
+        }
+        if (index == kSlotSampleId)
+        {
+            // Item 6: SamplePool handle. id "sample_id" makes the MZ swap the rotary
+            // for the sample-picker button automatically (ManipulationZone isSampleSlot).
+            ParamSpec s;
+            s.id = "sample_id";
+            s.label = "Sample";
+            s.minValue = 0.0f;
+            s.maxValue = 63.0f;
+            s.defaultValue = 0.0f;
+            s.isStepped = true;
+            s.sectionIndex = kSrcSecIdx;
+            return s;
+        }
+        return {};
     }
 
     bool StreamMachine::setFilePath(const juce::String& path)

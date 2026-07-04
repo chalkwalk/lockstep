@@ -19,7 +19,11 @@ namespace lockstep
     // Where a pool entry came from — drives the pool browser's grouping (W3a).
     // File entries are disk-backed; volatile entries start Empty and become
     // Record / Loop when a capture writes into them (a Clear reverts to Empty).
-    enum class SampleOrigin : std::uint8_t { File = 0, Empty, Record, Loop };
+    // Stream entries (Item 6) are disk-backed like File but reference-only: they
+    // carry a path + light hash and NO decoded PCM (StreamMachine streams from
+    // disk). ensurePcm() decodes one on demand when a Flex sampler picks it.
+    // Append-only — the value is serialised, so never renumber. (File=0.)
+    enum class SampleOrigin : std::uint8_t { File = 0, Empty, Record, Loop, Stream };
 
     struct Sample
     {
@@ -111,6 +115,21 @@ namespace lockstep
         // Preserves the pool index so P-Lock references remain valid.
         // Message-thread only.
         int addMissing(const SampleRef& ref);
+
+        // Item 6: append a disk-streamed reference (origin = Stream) — path plus a
+        // light hash of the file's first bytes, with NO decoded PCM (a StreamMachine
+        // streams it from disk; a full song must never enter RAM/state wholesale).
+        // Dedupes against an existing Stream entry with the same path. A missing file
+        // still produces an entry (missing = true) so the index/ref survive. Returns
+        // the pool index. Message-thread only.
+        int addStreamRef(const juce::String& path);
+
+        // Item 6: ensure the entry at index has decoded PCM, decoding it on demand
+        // (used when a Flex sampler picks a Stream-origin, PCM-less entry). No-op if
+        // PCM is already present. Refuses missing/pathless entries and files longer
+        // than an internal guard (returns -1; the entry stays PCM-less). Returns the
+        // index on success. Message-thread only.
+        int ensurePcm(int index);
 
         // Replace a missing (or any) entry in-place with the decoded file at newPath.
         // Does not shift indices; call when the sequencer is stopped to avoid races.

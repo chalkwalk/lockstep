@@ -359,8 +359,9 @@ namespace lockstep::PluginState
         node.setProperty(keys::kMId, juce::String(kit.machineId), nullptr);
         if (!kit.destinationId.empty())
             node.setProperty(keys::kDId, juce::String(kit.destinationId), nullptr);
-        if (!kit.streamPath.empty())
-            node.setProperty(keys::kStreamPath, juce::String(kit.streamPath), nullptr);
+        // Item 6 (v28): the streamed source is now a Stream pool entry + the track's
+        // sample_id base param — kStreamPath is no longer written. It is still read
+        // (below / readNewHierarchyNode) so ≤v27 projects migrate on load.
         if (!kit.midiPresetName.empty())
             node.setProperty(keys::kMPreset, juce::String(kit.midiPresetName), nullptr);
         if (kit.subdivIndex != kSubdivDefault)
@@ -1046,6 +1047,11 @@ namespace lockstep::PluginState
             entry.setProperty("i", i, nullptr);
             entry.setProperty(keys::kPath, juce::String(s->ref.path), nullptr);
             entry.setProperty(keys::kHash, hashToHex(s->ref.hashXX32), nullptr);
+            // Item 6: mark Stream-origin (disk-streamed, PCM-less) entries so the
+            // reader reconstructs them via addStreamRef, never decoding to RAM.
+            if (s->origin == SampleOrigin::Stream)
+                entry.setProperty(keys::kSampleOrigin,
+                                  static_cast<int>(SampleOrigin::Stream), nullptr);
             // 4.9: cache the fused analysis, keyed by the sample hash above. Only
             // non-default fields are written; a hash match on load skips re-detect.
             if (s->analysed)
@@ -1076,6 +1082,18 @@ namespace lockstep::PluginState
             const juce::String path = entry.getProperty(keys::kPath).toString();
             const juce::String hex = entry.getProperty(keys::kHash).toString();
             const std::uint32_t savedHash = hexToHash(hex);
+
+            // Item 6: a Stream-origin entry is a disk-streamed reference — rebuild
+            // it via addStreamRef (path + hash, NO PCM decode), preserving the pool
+            // index. A missing file still yields an entry (index/ref survive).
+            const auto org = static_cast<SampleOrigin>(
+                static_cast<int>(entry.getProperty(keys::kSampleOrigin,
+                                                    static_cast<int>(SampleOrigin::File))));
+            if (org == SampleOrigin::Stream)
+            {
+                proc.samplePool().addStreamRef(path);
+                continue;
+            }
 
             // 4.9: reconstruct the cached analysis (if this entry carried one).
             const bool hasCache = entry.hasProperty(keys::kAnalysed);
@@ -1838,6 +1856,20 @@ namespace lockstep::PluginState
         return v27;
     }
 
+    static juce::ValueTree upgrade_v27_to_v28(const juce::ValueTree& v27)
+    {
+        // v28 (stream-via-pool): a StreamMachine's source moves from a per-Kit
+        // streamPath property to a Stream-origin SamplePool entry + the track's
+        // sample_id base param. The conversion needs pool-index allocation and a
+        // machine schema, so it runs at load time in finishStateLoad (which still
+        // reads the legacy kStreamPath, migrates it, and clears the field). Nothing
+        // structural to rewrite here — a stamp bump keeps old trees loading with
+        // their streamPath intact for that load-time migration.
+        juce::ValueTree v28 = v27.createCopy();
+        v28.setProperty(keys::kVersion, 28, nullptr);
+        return v28;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1873,6 +1905,7 @@ namespace lockstep::PluginState
         if (version < 25) tree = upgrade_v24_to_v25(tree);
         if (version < 26) tree = upgrade_v25_to_v26(tree);
         if (version < 27) tree = upgrade_v26_to_v27(tree);
+        if (version < 28) tree = upgrade_v27_to_v28(tree);
 
         return tree;
     }

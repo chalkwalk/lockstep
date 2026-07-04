@@ -2176,14 +2176,17 @@ namespace lockstep
     {
         isDraggingFiles_ = false;
 
-        // A drop onto a focused Static track assigns its streamed source (disk
-        // stream, no RAM decode — DESIGN §29.2) rather than loading into the pool.
-        if (processor_.isStreamTrack(processor_.focusTrack()))
+        const int focus = processor_.focusTrack();
+
+        // Item 6: a drop onto a focused Static (stream) track assigns its streamed
+        // source — now a Stream pool entry + the track's sample_id (disk stream, no
+        // RAM decode — DESIGN §29.2), not a full pool load.
+        if (processor_.isStreamTrack(focus))
         {
             for (const auto& path : files)
             {
                 if (!isAudioFile(path)) continue;
-                const bool ok = processor_.setStreamFile(processor_.focusTrack(), path);
+                const bool ok = processor_.setStreamFile(focus, path);
                 setStatus(ok ? juce::String("Static: ") + juce::File(path).getFileName()
                              : juce::String("Static: could not open file"));
                 refreshSurface();
@@ -2192,12 +2195,23 @@ namespace lockstep
             return;
         }
 
+        // Item 6: a drop onto a focused Flex sampler track (sample_id / slicer
+        // sample_id slot) loads into the pool AND assigns the last one to that
+        // track's sample slot — so a drag-drop is immediately playable.
+        const int sampleSlot = processor_.sampleSlotForTrack(focus);
         int loaded = 0;
+        int lastIdx = -1;
         for (const auto& path : files)
         {
             if (!isAudioFile(path)) continue;
-            if (processor_.samplePool().load(path) >= 0)
-                ++loaded;
+            const int idx = processor_.samplePool().load(path);
+            if (idx >= 0) { ++loaded; lastIdx = idx; }
+        }
+        if (loaded > 0 && sampleSlot >= 0 && lastIdx >= 0)
+        {
+            processor_.writeParam(focus, sampleSlot, static_cast<float>(lastIdx));
+            setStatus(juce::String("Loaded ") + juce::String(loaded)
+                      + " sample(s); assigned " + processor_.sampleShortName(lastIdx));
         }
         if (loaded > 0)
         {

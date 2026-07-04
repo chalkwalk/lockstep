@@ -3503,7 +3503,35 @@ namespace lockstep
                     updatedParams[static_cast<std::size_t>(slot)] = value;
                 recomputeSlicesIfNeeded(static_cast<int>(ti), slot, updatedParams);
             }
+
+            // Item 6: a sample_id base write resolves its pool entry. On a
+            // StreamMachine it (re)opens the streamed reader for the picked
+            // disk-backed entry (or clears for volatile/missing). On a Flex sampler
+            // it decodes a Stream-origin (PCM-less) entry on demand so it plays.
+            const juce::String pickedId = idForSlot(track, slot);
+            if (pickedId == "sample_id" || pickedId == "slicer_sample_id")
+            {
+                const int poolIdx = static_cast<int>(std::lround(value));
+                if (dynamic_cast<StreamMachine*>(wm) != nullptr)
+                    openStreamReaderFor(track, poolIdx);
+                else if (dynamic_cast<SamplePlayingMachineBase*>(wm) != nullptr)
+                    samplePool_.ensurePcm(poolIdx);
+            }
         }
+    }
+
+    void LockstepProcessor::openStreamReaderFor(int track, int poolIndex)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        auto* sm = dynamic_cast<StreamMachine*>(machines_[static_cast<std::size_t>(track)].get());
+        if (sm == nullptr) return;
+        // Only disk-backed (File/Stream), present, non-volatile entries stream;
+        // anything else clears the reader (silence).
+        const auto* s = samplePool_.get(poolIndex);
+        juce::String path;
+        if (s != nullptr && !s->isVolatile && !s->missing && !s->ref.path.empty())
+            path = juce::String(s->ref.path);
+        withQuiescedEngine([&] { sm->setFilePath(path); });
     }
 
     void LockstepProcessor::clearParam(int track, int step, int slot)
@@ -6259,18 +6287,44 @@ namespace lockstep
         return false;
     }
 
+    int LockstepProcessor::sampleSlotForTrack(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
+        const auto* m = machines_[static_cast<std::size_t>(track)].get();
+        if (m == nullptr) return -1;
+        for (const char* id : { "sample_id", "slicer_sample_id" })
+        {
+            const int slot = slotForIdWithMachine(*m, id);
+            if (slot >= 0) return slot;
+        }
+        return -1;
+    }
+
     bool LockstepProcessor::setStreamFile(int track, const juce::String& path)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
-        bool ok = false;
-        withQuiescedEngine([&] {
-            auto* sm = dynamic_cast<StreamMachine*>(machines_[static_cast<std::size_t>(track)].get());
-            if (sm == nullptr) return;
-            ok = sm->setFilePath(path);
-            // Mirror the path into the Kit so it persists and survives a reload.
-            kit(track).streamPath = ok ? path.toStdString() : std::string{};
-        });
-        return ok;
+        auto* sm = dynamic_cast<StreamMachine*>(machines_[static_cast<std::size_t>(track)].get());
+        if (sm == nullptr) return false;
+
+        // Empty path clears the stream (engine quiesced to swap the reader).
+        if (path.isEmpty())
+        {
+            withQuiescedEngine([&] { sm->setFilePath({}); });
+            return false;
+        }
+
+        // Item 6: register the file as a Stream-origin pool entry (path + hash, no
+        // PCM) and drive the track's sample_id base param to it. writeParam's
+        // stream hook opens the reader (quiesced). The pool entry + base sample_id
+        // are the single source of truth — no per-Kit streamPath.
+        const int poolIdx = samplePool_.addStreamRef(path);
+        if (poolIdx < 0) return false;
+        const int slot = sampleSlotForTrack(track);
+        if (slot >= 0)
+            writeParam(track, slot, static_cast<float>(poolIdx));
+        else
+            withQuiescedEngine([&] { sm->setFilePath(path); });  // schema-less fallback
+        return true;
     }
 
     // -------------------------------------------------------------------------
@@ -6322,12 +6376,46 @@ namespace lockstep
                 mom->clearCCNameTable();
         };
 
-        // Re-open a StreamMachine's streamed source from the Kit's saved path
-        // (held per-Kit, not in the SamplePool — DESIGN §29.2). The engine is
-        // quiesced here, so swapping the reader is safe.
-        auto pushStreamPath = [](IMachine* m, const TrackKit& k) {
-            if (auto* sm = dynamic_cast<StreamMachine*>(m))
-                sm->setFilePath(juce::String(k.streamPath));
+        // Item 6: re-open a StreamMachine's streamed source. The source of truth is
+        // the track's sample_id base param → a Stream/File pool entry. For a ≤v27
+        // project the pool has no such entry yet but the Kit carries the legacy
+        // streamPath — migrate it here (addStreamRef + write the base sample_id) and
+        // clear the legacy field. Already inside finishStateLoad's quiesce, so the
+        // reader swap is safe (call setFilePath directly, no nested quiesce).
+        auto pushStreamSource = [this](IMachine* m, int track) {
+            auto* sm = dynamic_cast<StreamMachine*>(m);
+            if (sm == nullptr) return;
+            const int slot = slotForIdWithMachine(*m, "sample_id");
+            const auto ti = static_cast<std::size_t>(track);
+            juce::String path;
+
+            auto& runBp = sequence().tracks[ti].baseParams;
+            if (slot >= 0 && slot < static_cast<int>(runBp.size()))
+            {
+                const int poolIdx = static_cast<int>(std::lround(runBp[static_cast<std::size_t>(slot)]));
+                const auto* s = samplePool_.get(poolIdx);
+                if (s != nullptr && !s->isVolatile && !s->missing && !s->ref.path.empty())
+                    path = juce::String(s->ref.path);
+            }
+
+            if (path.isEmpty() && !kit(track).streamPath.empty())
+            {
+                const int poolIdx = samplePool_.addStreamRef(juce::String(kit(track).streamPath));
+                const auto* s = samplePool_.get(poolIdx);
+                if (s != nullptr && !s->missing)
+                    path = juce::String(s->ref.path);
+                if (slot >= 0 && poolIdx >= 0)
+                {
+                    // Persist the migrated index in both the authoritative Kit store
+                    // and the live runtime frame so the next save writes v28 form.
+                    if (slot < static_cast<int>(kit(track).baseParams.size()))
+                        kit(track).baseParams[static_cast<std::size_t>(slot)] = static_cast<float>(poolIdx);
+                    if (slot < static_cast<int>(runBp.size()))
+                        runBp[static_cast<std::size_t>(slot)] = static_cast<float>(poolIdx);
+                }
+                kit(track).streamPath.clear();
+            }
+            sm->setFilePath(path);
         };
 
         // Reinstall machines from the active Kit so that any Kit loaded from disk
@@ -6339,7 +6427,7 @@ namespace lockstep
             {
                 if (machines_[t]->isMidiOut())
                     pushMidiOutConfig(static_cast<MidiOutMachine*>(machines_[t].get()), k);
-                pushStreamPath(machines_[t].get(), k);
+                pushStreamSource(machines_[t].get(), static_cast<int>(t));
                 continue;
             }
             machines_[t] = makeMachineForId(k.machineId, samplePool_);
@@ -6347,7 +6435,7 @@ namespace lockstep
                 pushMidiOutConfig(static_cast<MidiOutMachine*>(machines_[t].get()), k);
             if (preparedSampleRate_ > 0.0)
                 machines_[t]->prepare(preparedSampleRate_, preparedBlockSize_);
-            pushStreamPath(machines_[t].get(), k);
+            pushStreamSource(machines_[t].get(), static_cast<int>(t));
         }
 
         // v13: reinstall insert effects from the loaded Kit state. setTrackInsert

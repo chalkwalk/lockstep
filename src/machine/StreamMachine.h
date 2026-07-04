@@ -61,9 +61,15 @@ namespace lockstep
             return Polyphony::V1;
         }
 
+        // Item 6: the streamed source is a Stream-origin SamplePool entry; the
+        // sample_id slot is the picker handle. Slot index is public so the
+        // processor's writeParam hook can detect a sample_id write on a stream
+        // track and open the reader for the picked entry.
+        static constexpr int kSlotSampleId = 1;
+
     private:
         static constexpr int kSlotStart = 0;
-        static constexpr int kNumSlots = 1;
+        static constexpr int kNumSlots = 2;
 
         juce::AudioFormatManager formatManager_;
         juce::TimeSliceThread streamThread_{ "lockstep.stream.io" };
