@@ -343,6 +343,16 @@ window, or use the file dialog. The sample is decoded and added to the
 pool. Track 1 hosts the sampler by default and will use the first pool
 entry.
 
+On load each pool entry is analysed (message thread): tempo, musical key,
+and tuning reference are detected and shown in the browser hint as
+`128 bpm  Amin` (either part may be absent). A rhythm-less, keyless entry
+reads `one-shot`. Detection is corroborated by hints parsed from the
+filename (`drums_120bpm`, `pad_F#maj`) and embedded ACID WAV tags — detection
+wins, a hint only resolves a tempo octave-fold or fills a gap. The result is
+cached with the project (keyed by the sample hash), so reopening is instant
+and only a changed file re-analyses. Analysis of very long files (>30 s) is
+skipped — that is `StreamMachine`'s domain.
+
 ### Step 2 — Place some trigs
 
 Press step keys to toggle trigs on the focused track. For a
@@ -749,7 +759,7 @@ the outboard box together in one gesture.
 | Machine | Badge | Description |
 |---|---|---|
 | `SampleMachine` | SMPL | Monophonic sample playback. SRC section: sample, pitch, trim window (`samp_start` / `samp_length`), loop mode (OFF / SUS / S+R / ALL), loop region (`samp_loop_start` / `samp_loop_len`). All position slots snap to zero-crossings on write. AMP section: level + AHDSR. |
-| `SliceMachine` | SLCE | Slice/scrub sample playback. SLICE mode: incoming MIDI note selects slice 0–15; `slicer_start` / `slicer_length` are relative to the active slice. SCRUB mode: note drives playback rate vs. root 60 (identical to Sample semantics). `slicer_rate` P-lockable for per-step rate; negative rate = reverse playback. `slicer_slice_src` (EQUAL / TRANS) and `slicer_slice_count` auto-recompute slices on change; transient detection uses 5 ms RMS blocks with fast/slow envelope ratio and centre-weighted search. VOICE section: MONO / POLY toggle (V4). |
+| `SliceMachine` | SLCE | Slice/scrub sample playback. SLICE mode: incoming MIDI note selects slice 0–15; `slicer_start` / `slicer_length` are relative to the active slice. SCRUB mode: note drives playback rate vs. root 60 (identical to Sample semantics). `slicer_rate` P-lockable for per-step rate; negative rate = reverse playback. `slicer_slice_src` (EQUAL / TRANS / SYNC) and `slicer_slice_count` auto-recompute slices on change; transient detection uses 5 ms RMS blocks with fast/slow envelope ratio and centre-weighted search. **SYNC** slices on a beat grid at the sample's detected tempo — the Count slot becomes a clock division (`4bar…1/16`, shown as a `Div 1/4` label), the grid anchors on the first transient (so a loop that doesn't start on the 1 still lines up) and snaps to zero crossings; a sample with no detected tempo falls back to EQUAL. VOICE section: MONO / POLY toggle (V4). |
 | `FMMachine` | FM | 4-operator FM synthesis. Free 4×4 modulation matrix (diagonal = smoothed self-feedback). Exponential per-operator ADSR, ratio, fine-tune, mix. Macro attack/release/sustain scalars. MONO / POLY voice modes (V4 pool). Operator core is 2× oversampled for clean high-index FM. Carrier mixer normalizes above unity (stacking operators won't blow up the level) and polyphony is loudness-compensated (a chord ≈ 1/√N), level-matched to the drum/Analog reference. |
 | `AnalogMachine` | ANLG | Virtual-analog dual-osc synth. PolyBLEP oscillators + sub + shared noise. State-variable filter (LP24/LP12/HP/BP + drive). Filter ADSR + amp ADSR. LFO (6 shapes). Mono / Paraphonic-4 voice modes. Para topology: chord notes 1 & 3 → osc1+sub; notes 2 & 4 → osc2+sub. Always-on gentle glue saturation + paraphonic loudness compensation; **Age** (MOD) macro dials in analog drift (detune/cutoff/PW wander). Filter **Key Trk** (FILTER) tracks the cutoff to pitch (default full; audible once the cutoff is below maximum). Output level-matched to the drum/FM reference. |
 | `DrumMachine` | DRUM | Rytm-style per-track drum synthesis. One stepped `Type` param selects the variant; each has dedicated DSP. Eight types ship: KICK, SNARE, HAT, TOM, CLAP, COWBELL, CYMBAL, RIMSHOT. |
@@ -791,7 +801,9 @@ Manipulation Zone shows as text instead of numbers (from each machine's
 | | Retrig | `LEGATO` · `RETRIG` |
 | | Vel>Amp | continuous 0–100 % (default 0 = velocity-independent; increase to scale level by note velocity) |
 | `SliceMachine` | Mode | `SLICE` · `SCRUB` |
-| | Slice source | `EQUAL` · `TRANS` |
+| | Slice source | `EQUAL` · `TRANS` · `SYNC` |
+| | Count (`EQUAL`/`TRANS`) | slice count `1–16` |
+| | Count (`SYNC`) → division | `4bar` · `2bar` · `1bar` · `1/2` · `1/4` · `1/8` · `1/16` (Count 1–7; 8–16 clamp to 1/16) |
 | | Loop mode | `OFF` · `SUS` · `S+R` · `ALL` |
 | | Voice | `MONO` · `POLY` |
 | `FMMachine` | Voice mode | `MONO` · `POLY` |

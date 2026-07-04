@@ -875,6 +875,38 @@ the Machine Module ABI (6.7), so they ship as loadable modules.
       Boundary rule: 808/909 analog/FM-metal lives in DrumSynth; modal/waveguide
       struck-metal stays in PercussionMachine. Shipped as `type` values.
 
+### 4.9 — Sample analysis metadata  *[shipped]*
+Completes the sample-analysis story the pool already anticipated (tempo
+detection shipped earlier; `Sample::detectedBpm` + `StretchMachine` tempo sync).
+- [x] **Key + tuning detection** (`dsp/KeyEstimate.h`): a full-sample FFT →
+      band-limited (60–2000 Hz) chroma → tuning reference (deviation from A440,
+      via parabolic peak interpolation) → key scored over 12 roots × 7
+      brightnesses with the circle-of-fifths `noteStrengthRank` (the same tonal
+      core the melodic generator uses; DESIGN §4.10). Depth is **root +
+      brightness only**. Unknown = root −1, gated by chroma concentration +
+      score-margin confidence. Runs at load, message thread, under the shared
+      ≤30 s `kMaxAnalysisSeconds` gate.
+- [x] **Filename + ACID hints** (`dsp/SampleHints.h`): parse tempo/key from the
+      filename (bpm-adjacent tokens; note+quality patterns) and ACID WAV tags
+      (`acidTempo`/`acidRootSet`/`acidRootNote`/`acidOneShot`); fuse
+      detection-first — a hint only resolves the tempo estimator's octave fold
+      (~2×/0.5×) or fills a gap; a one-shot flag suppresses any tempo hint.
+- [x] **Cached analysis, serialized v26** — per pool entry, keyed by the sample
+      hash. A hash match on load adopts the cache and skips re-analysis; a
+      mismatch (or a legacy v25 entry) re-analyses. Missing files keep their
+      cache across an offline session.
+- [x] **SliceMachine SYNC source** — third `slicer_slice_src` value; the Count
+      slot reinterprets as a clock division (`4bar…1/16`, shown as a "Div 1/4"
+      context label). Beat-grid boundaries at the detected tempo, anchored on
+      the first transient (a loop may not start on the 1) and ZC-snapped;
+      bpm == 0 falls back to EQUAL.
+- [x] **Pool visibility** — the browser hint reads `128 bpm  Amin`; an analysed
+      entry with neither tempo nor key is flagged `one-shot`.
+- **Excluded by design:** StreamMachine files (never enter the pool — no PCM in
+  RAM to analyse) and volatile REC/Loop captures (never serialized).
+  **Documented follow-up:** key-synced StretchMachine playback (pitch offset to
+  the project key) — the fused key metadata is the input it will consume.
+
 ---
 
 ## Phase 5 — Performance Depth  *[planned]*

@@ -4224,6 +4224,55 @@ The default project provides a small fixed set of volatile buffer
 slots (target count TBD, ~8) so recorder trigs and the §22 capture
 overlay always have somewhere to write.
 
+### 28.1 Sample analysis metadata (4.9)
+
+Every **persistent** pool entry is analysed once, at load, on the
+message thread. The analysis is a pure function of the decoded PCM plus
+priors read from the file, and it produces three musical facts that ride
+along with the sample:
+
+- **Tempo** (`dsp/TempoEstimate.h`, shipped earlier) — autocorrelation of
+  the RMS onset novelty; `0` = one-shot / non-rhythmic.
+- **Key + tuning** (`dsp/KeyEstimate.h`, 4.9) — a full-sample FFT →
+  band-limited (60–2000 Hz) chroma → tuning reference (deviation from
+  A440, via parabolic peak interpolation) → key scored over 12 roots × 7
+  brightnesses with the same circle-of-fifths `noteStrengthRank` the
+  melodic generator uses (§4.10). Depth is **root + brightness only**; the
+  result is `-1` (unknown) unless a chroma-concentration and score-margin
+  confidence gate is cleared. This deliberately reuses the tonal core so
+  a detected key is expressed in exactly the vocabulary the rest of the
+  system already speaks.
+
+Both run under one length gate (`kMaxAnalysisSeconds`, 30 s): longer
+material is `StreamMachine`'s domain (§29.2) — it never enters the pool as
+PCM, so there is nothing to analyse. Volatile REC/Loop buffers are never
+key-analysed (they carry their own captured bar-length instead).
+
+**Hints and fusion.** Before detection wins, the loader gathers priors
+from the **filename** (`120bpm`, `F#maj`) and embedded **ACID WAV** tags
+(`acidTempo`/`acidRootSet`/`acidRootNote`/`acidOneShot`), metadata beating
+filename. Fusion (`dsp/SampleHints.h`) is **detection-first**: a hint only
+overrides the detected tempo to resolve the estimator's octave fold
+(detected ≈ 2× or 0.5× the hint), or fills a field detection left unknown;
+a one-shot flag suppresses any tempo hint. Detected key always beats a
+hint key.
+
+**Caching.** The fused bpm/key/tuning is serialised per pool entry (v26),
+keyed by the entry's existing sample hash. On load a hash match adopts the
+cache and skips re-analysis; a mismatch (the file changed on disk) or a
+legacy entry re-analyses. A missing file keeps its cached values so they
+survive an offline session. This is the same hash-keyed pattern the
+`StreamMachine` uses for its own on-disk references — analysis is treated
+as derived data that is cheap to recompute but wasteful to recompute
+needlessly.
+
+**Consumers.** The pool browser hint reads `128 bpm  Amin` (or `one-shot`);
+`SliceMachine`'s SYNC source (§29) slices on a beat grid at the detected
+tempo; `StretchMachine` already consumes `detectedBpm` for tempo sync.
+**Follow-up:** key-synced `StretchMachine` playback — offsetting a musical
+sample's pitch to the project key — is the natural next consumer of the
+fused key metadata, not built in 4.9.
+
 ## 29. The Machine Catalogue
 
 The stock catalogue is an "Elektron's greatest hits" set: one machine
