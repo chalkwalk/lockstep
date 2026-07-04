@@ -54,6 +54,14 @@ namespace lockstep
             ppq_ = 0.0;
             sampleOffset_ = 0;
         }
+        // Jump the transport to an absolute PPQ (host loop, locate, or a
+        // stop → relocate → restart). sampleOffset_ tracks the position so
+        // getPosition() stays self-consistent.
+        void setPpq(double p)
+        {
+            ppq_ = p;
+            sampleOffset_ = static_cast<int64_t>(p * sampleRate_ * 60.0 / bpm_);
+        }
 
         double ppqPerBlock() const
         {

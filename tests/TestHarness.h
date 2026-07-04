@@ -73,6 +73,8 @@ namespace lockstep
     void runMachineDspTests();
     // 8.14 Headless processBlock harness
     void runEngineTests();
+    // v27 hosted-Locked transport AND-gate + restart re-floor
+    void runTransportGateTests();
     // 8.21 Controller-surface shared helpers
     void runControllerTests();
     // 8.26 CaptureRecorder lifecycle

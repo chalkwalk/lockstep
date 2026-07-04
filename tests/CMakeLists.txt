@@ -34,6 +34,7 @@ add_executable(lockstep_tests
     KeyBindingTest.cpp
     SerializerRoundTripTest.cpp
     MultiStepHoldTest.cpp
+    TransportGateTest.cpp
     GestureTest.cpp
     StatusTextTest.cpp
     ParamSpecTest.cpp

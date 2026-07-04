@@ -20,6 +20,7 @@ namespace lockstep::keys
     inline constexpr const char* kActivePiece = "activePiece";
     inline constexpr const char* kActiveSect = "activeSect";
     inline constexpr const char* kLaunchQuant = "launchQuant";
+    inline constexpr const char* kPluginArmed = "pluginArmed";  // v27: hosted-Locked arm gate
 
   // ── Song node ───────────────────────────────────────────────────────────────
     inline constexpr const char* kSong = "Song";

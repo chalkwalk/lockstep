@@ -47,6 +47,8 @@ int main()
     lockstep::runMachineDspTests();
     // 8.14 Headless processBlock harness
     lockstep::runEngineTests();
+    // v27 transport AND-gate + deterministic restart re-floor
+    lockstep::runTransportGateTests();
     // 8.21 Controller-surface shared helpers
     lockstep::runControllerTests();
     // 8.26 CaptureRecorder lifecycle

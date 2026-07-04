@@ -478,6 +478,73 @@ namespace lockstep
         }
     }
 
+    void LockstepProcessor::refloorAllCursors(double blockStart)
+    {
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+        {
+            const int subdivIdx = std::clamp(static_cast<int>(trackDividerParams_[i]->load()),
+                                              kSubdivMin, kSubdivMax);
+            const double divPpq = subdivisionPpqFromIndex(subdivIdx);
+            if (divPpq > 0.0)
+                nextTriggerPpq_[i] = trackGridFloor(i, blockStart, divPpq);
+            lastStepFired_[i] = false;
+        }
+        for (auto& pnf : pendingNoteOffs_)
+        {
+            pnf.samplesRemaining = -1;
+            pnf.openEnded = false;
+        }
+        for (auto& pt : pendingTrigs_) pt.pending = false;
+        firedStepIdx_.fill(-1);
+        lastScheduledStepNum_.fill(-1);
+        metronome_.reset();
+    }
+
+    // ── v27 transport AND-gate (message thread) ──────────────────────────────
+    bool LockstepProcessor::hostedLocked() const
+    {
+        const bool standalone = (wrapperType == wrapperType_Standalone);
+        const auto m = static_cast<SyncMode>(
+            syncModeParam_ ? static_cast<int>(syncModeParam_->load()) : 0);
+        return !standalone && m == SyncMode::Locked;
+    }
+
+    void LockstepProcessor::transportPlay()
+    {
+        // Hosted Locked: Play toggles the arm gate (park / unpark under the DAW).
+        // Everywhere else it toggles the in-plugin transport as before.
+        if (hostedLocked())
+            setPluginArmed(!isPluginArmed());
+        else
+            clock_.setInPluginPlaying(!clock_.inPluginPlaying());
+    }
+
+    void LockstepProcessor::transportPause()
+    {
+        if (hostedLocked())
+            setPluginArmed(false);
+        else
+            clock_.setInPluginPlaying(false);
+    }
+
+    void LockstepProcessor::transportStopReset()
+    {
+        // Hosted Locked: park only. Phase is always derived from host PPQ, so a
+        // "reset" cannot shift the pattern against the DAW (decision C). The next
+        // unpark (arm rising edge) re-floors the cursors and re-arms one-shots via
+        // the run-rising-edge path in processBlock — deterministic, no phase change.
+        if (hostedLocked())
+        {
+            setPluginArmed(false);
+        }
+        else
+        {
+            clock_.setInPluginPlaying(false);
+            clock_.resetPhase();
+            requestFreshStart();
+        }
+    }
+
     void LockstepProcessor::queueRelaunch(int track, bool forceInstant)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
@@ -1248,8 +1315,13 @@ namespace lockstep
         bool sequencerRunning = false;
         if (mode == SyncMode::Locked)
         {
-            // Locked + hosted → DAW transport controls; Locked + standalone → in-plugin Play.
-            sequencerRunning = isStandalone ? clock_.inPluginPlaying() : clock_.hostPlaying();
+            // Locked + hosted → DAW transport AND the plugin arm gate (v27): a
+            // parked plugin stays silent under a running DAW, and arm never shifts
+            // phase (phase is host-derived). Locked + standalone → in-plugin Play.
+            sequencerRunning = isStandalone
+                                   ? clock_.inPluginPlaying()
+                                   : (clock_.hostPlaying()
+                                      && pluginArmed_.load(std::memory_order_relaxed));
         }
         else  // Auto
         {
@@ -1337,8 +1409,18 @@ namespace lockstep
             }
         }
         // 5.6: re-arm one-shot trigs on transport (re)start — DESIGN §30.
-        if (sequencerRunning && !wasSequencerRunning_)
+        const bool runRisingEdge = sequencerRunning && !wasSequencerRunning_;
+        if (runRisingEdge)
             rearmOneShots(-1);
+        // v27: the hosted-Locked run rising edge (host stop → forward restart, or an
+        // unpark under a running DAW) must re-floor every cursor onto the host grid;
+        // Clock::ppqJumped() only catches backward jumps, so without this a forward
+        // restart stalled on a stale nextTriggerPpq_ and one track fell silent (bug
+        // 4). Auto/standalone keep their own resume-in-phase path (below) — only the
+        // host-derived-phase regime re-floors here. blockStart is computed further
+        // down; refloor after it is known.
+        const bool hostedRunRisingEdge =
+            runRisingEdge && !isStandalone && mode == SyncMode::Locked;
         wasSequencerRunning_ = sequencerRunning;
 
         // Panic: flush voices and send All-Notes-Off without stopping the clock.
@@ -1379,29 +1461,12 @@ namespace lockstep
         blockTransport_.transportPhaseSamples = clock_.ppqAtBlockStart() * samplesPerPpq;
         blockTransport_.running = sequencerRunning;
 
-        // If the DAW looped or the user hit Reset, snap all per-track cursors
-        // to the step boundary just at/before the new block start.
-        if (clock_.ppqJumped())
-        {
-            for (std::size_t i = 0; i < kNumTracks; ++i)
-            {
-                const int subdivIdx = std::clamp(static_cast<int>(trackDividerParams_[i]->load()),
-                                                  kSubdivMin, kSubdivMax);
-                const double divPpq = subdivisionPpqFromIndex(subdivIdx);
-                if (divPpq > 0.0)
-                    nextTriggerPpq_[i] = trackGridFloor(i, blockStart, divPpq);
-                lastStepFired_[i] = false;
-            }
-            for (auto& pnf : pendingNoteOffs_)
-            {
-                pnf.samplesRemaining = -1;
-                pnf.openEnded = false;
-            }
-            for (auto& pt : pendingTrigs_) pt.pending = false;
-            firedStepIdx_.fill(-1);
-            lastScheduledStepNum_.fill(-1);
-            metronome_.reset();
-        }
+        // If the DAW looped or the user hit Reset (backward PPQ jump), or the
+        // hosted-Locked transport just rose (host stop → forward restart / unpark),
+        // snap all per-track cursors to the step boundary at/before the new block
+        // start and clear stale fire/pending state so playback re-anchors cleanly.
+        if (clock_.ppqJumped() || hostedRunRisingEdge)
+            refloorAllCursors(blockStart);
 
         // Snapshot MZ slot mapping for audio-thread use.
         std::array<int, 4> mzSlotSnapshot;

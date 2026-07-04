@@ -562,6 +562,10 @@ namespace lockstep::PluginState
         // stored a legacy bar count; upgrade_v24_to_v25 remaps them). See
         // LaunchQuant.h.
         nhNode.setProperty(keys::kLaunchQuant, proc.project().launchQuant, nullptr);
+        // v27: hosted-Locked arm gate. Default-armed, so only write when parked to
+        // keep old files byte-identical on re-save when armed.
+        if (!proc.isPluginArmed())
+            nhNode.setProperty(keys::kPluginArmed, 0, nullptr);
         // v21: Set-level default time signature (only write if non-default).
         const auto& setTs = proc.project().defaultTimeSig;
         if (!(setTs == TimeSig{}))
@@ -787,6 +791,8 @@ namespace lockstep::PluginState
         // remapped from a legacy bar count by upgrade_v24_to_v25). Missing → Bar.
         proc.project().launchQuant = static_cast<int>(
             nhNode.getProperty(keys::kLaunchQuant, static_cast<int>(LaunchQuant::Bar)));
+        // v27: hosted-Locked arm gate. Missing (v26 and earlier, or armed) → armed.
+        proc.setPluginArmed(static_cast<int>(nhNode.getProperty(keys::kPluginArmed, 1)) != 0);
         // v21: Set-level default time signature.
         if (nhNode.hasProperty(keys::kSetTsN))
         {
@@ -1820,6 +1826,18 @@ namespace lockstep::PluginState
         return v26;
     }
 
+    static juce::ValueTree upgrade_v26_to_v27(const juce::ValueTree& v26)
+    {
+        // v27 (transport AND-gate): the hosted-Locked sequencer now runs only when
+        // the host is playing AND the plugin is armed (pluginArmed). A v26 tree has
+        // no arm flag; readNewHierarchyNode defaults a missing property to armed
+        // (1), so old sessions and rendered projects load in their prior behaviour
+        // (host transport starts playback). Trivial stamp bump.
+        juce::ValueTree v27 = v26.createCopy();
+        v27.setProperty(keys::kVersion, 27, nullptr);
+        return v27;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -1854,6 +1872,7 @@ namespace lockstep::PluginState
         if (version < 24) tree = upgrade_v23_to_v24(tree);
         if (version < 25) tree = upgrade_v24_to_v25(tree);
         if (version < 26) tree = upgrade_v25_to_v26(tree);
+        if (version < 27) tree = upgrade_v26_to_v27(tree);
 
         return tree;
     }
@@ -2328,7 +2347,8 @@ namespace
 
                 const auto result = lockstep::PluginState::applyUpgrades(v25);
                 expectEquals(static_cast<int>(result.getProperty(keys::kVersion, 0)),
-                             26, "v25->v26: version stamp bumped to 26");
+                             lockstep::PluginState::kCurrentVersion,
+                             "v25->v26: version stamp bumped through the chain");
                 const auto poolR = result.getChildWithName(keys::kSamplePool);
                 expect(poolR.isValid() && poolR.getNumChildren() == 1,
                        "v25->v26: pool entry survives");

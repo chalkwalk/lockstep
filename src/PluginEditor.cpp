@@ -50,15 +50,15 @@ namespace lockstep
             switch (a)
             {
                 case A::Play:
-                    clk.setInPluginPlaying(!clk.inPluginPlaying());
+                    // Mode-aware: hosted Locked toggles the arm gate, standalone/Auto
+                    // toggles in-plugin Play. Single home for the decision (v27).
+                    ed.processor_.transportPlay();
                     break;
                 case A::Pause:
-                    clk.setInPluginPlaying(false);
+                    ed.processor_.transportPause();
                     break;
                 case A::StopReset:
-                    clk.setInPluginPlaying(false);
-                    clk.resetPhase();
-                    ed.processor_.requestFreshStart();
+                    ed.processor_.transportStopReset();
                     break;
                 case A::Panic:
                     ed.processor_.requestPanic();
@@ -417,6 +417,12 @@ namespace lockstep
                 prefs->getIntValue("gridMode", static_cast<int>(GridDisplayMode::Ortholinear)));
         applyDisplayMode(gridMode_);
         addAndMakeVisible(transport_);
+        // v27: in the hosted-Locked regime the header transport parks/unparks the
+        // plugin (arm gate) instead of being inert. Route the buttons through the
+        // mode-aware verbs so Play/Stop toggle arm and reflect Armed/Park state.
+        transport_.onPlayVerb = [this] { processor_.transportPlay(); };
+        transport_.onStopVerb = [this] { processor_.transportStopReset(); };
+        transport_.isArmed = [this] { return processor_.isPluginArmed(); };
 
         tempoReadout_.setJustificationType(juce::Justification::centredLeft);
         tempoReadout_.setInterceptsMouseClicks(false, false);

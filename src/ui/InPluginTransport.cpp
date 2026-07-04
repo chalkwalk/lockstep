@@ -35,14 +35,51 @@ namespace lockstep
     void InPluginTransport::setGhosted(bool ghosted)
     {
         ghosted_ = ghosted;
-        playBtn_.setAlpha(ghosted ? 0.35f : 1.0f);
-        resetBtn_.setAlpha(ghosted ? 0.35f : 1.0f);
+        // v27: in the hosted-Locked regime the buttons are no longer inert — they
+        // park/unpark the plugin (arm gate). Keep them full-alpha and active when
+        // the arm handlers are wired; only dim to the legacy ghost when they aren't.
+        const bool armControl = ghosted && onPlayVerb != nullptr;
+        const float a = (ghosted && !armControl) ? 0.35f : 1.0f;
+        playBtn_.setAlpha(a);
+        resetBtn_.setAlpha(a);
+        refresh(buildTransportModel(clock_));
     }
 
-    void InPluginTransport::refresh(const TransportModel& m)
+    void InPluginTransport::refresh(const TransportModel& mIn)
     {
-        if (m.playing != shadow_.playing)
+        TransportModel m = mIn;
+        // Arm regime: hosted Locked with the arm handlers wired. The Play button
+        // reflects pluginArmed (green Armed / dim Park) instead of in-plugin Play.
+        m.armRegime = ghosted_ && onPlayVerb != nullptr && isArmed != nullptr;
+        m.armed = m.armRegime ? isArmed() : true;
+
+        if (m.armRegime)
+        {
+            if (m.armed != shadow_.armed || !shadow_.armRegime)
+            {
+                auto& lf = juce::LookAndFeel::getDefaultLookAndFeel();
+                playBtn_.setButtonText(m.armed ? "Armed" : "Park");
+                playBtn_.setColour(juce::TextButton::buttonColourId,
+                                   m.armed ? juce::Colour::fromRGB(40, 150, 70)
+                                           : lf.findColour(juce::TextButton::buttonColourId));
+                playBtn_.setColour(juce::TextButton::textColourOffId,
+                                   m.armed ? juce::Colours::white
+                                           : lf.findColour(juce::TextButton::textColourOffId));
+            }
+            // Note: shadow_ is committed once at the tail so the rec/metro change
+            // detection below still compares against the previous frame.
+        }
+        else if (m.playing != shadow_.playing || shadow_.armRegime)
+        {
+            // Normal (or just left the arm regime): restore the Play/Pause label
+            // and default colour.
+            auto& lf = juce::LookAndFeel::getDefaultLookAndFeel();
             playBtn_.setButtonText(m.playing ? "Pause" : "Play");
+            playBtn_.setColour(juce::TextButton::buttonColourId,
+                               lf.findColour(juce::TextButton::buttonColourId));
+            playBtn_.setColour(juce::TextButton::textColourOffId,
+                               lf.findColour(juce::TextButton::textColourOffId));
+        }
 
         if (m.recArmed != shadow_.recArmed || m.overdubArmed != shadow_.overdubArmed)
         {
@@ -82,6 +119,14 @@ namespace lockstep
     {
         if (ghosted_)
         {
+            // v27: hosted Locked — park/unpark the plugin via the mode-aware verb
+            // instead of the old "DAW in control" dead-end popup.
+            if (onPlayVerb)
+            {
+                onPlayVerb();
+                refresh(buildTransportModel(clock_));
+                return;
+            }
             juce::AlertWindow::showAsync(
                 juce::MessageBoxOptions()
                     .withTitle("DAW transport is in control")
@@ -100,6 +145,12 @@ namespace lockstep
     {
         if (ghosted_)
         {
+            if (onStopVerb)
+            {
+                onStopVerb();
+                refresh(buildTransportModel(clock_));
+                return;
+            }
             juce::AlertWindow::showAsync(
                 juce::MessageBoxOptions()
                     .withTitle("DAW transport is in control")

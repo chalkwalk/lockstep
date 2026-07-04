@@ -296,6 +296,30 @@ namespace lockstep
         // restart the pattern phase while the playhead continued — an audio/visual
         // desync. Safe to call from the message thread.
         void requestFreshStart() { freshStartPending_.store(true, std::memory_order_relaxed); }
+
+        // v27 transport AND-gate. In hosted Locked sync the sequencer runs only
+        // while the host is playing AND the plugin is armed — a parked plugin stays
+        // silent under a running DAW, and arming never shifts phase (phase is always
+        // derived from host PPQ). Standalone / Auto ignore this flag. Single owner:
+        // the transport-verb path (transportPlay/Pause/StopReset) and state load.
+        [[nodiscard]] bool isPluginArmed() const
+        {
+            return pluginArmed_.load(std::memory_order_relaxed);
+        }
+        void setPluginArmed(bool armed)
+        {
+            pluginArmed_.store(armed, std::memory_order_relaxed);
+        }
+        // True when this instance is a plugin (not standalone) in Locked sync — the
+        // regime where the transport verbs gate arm instead of inPluginPlaying.
+        [[nodiscard]] bool hostedLocked() const;
+        // Transport verbs, mode-aware (the single home for the arm-vs-play decision).
+        // Hosted Locked: Play toggles arm, Pause/StopReset park (no phase change ever).
+        // Standalone / Auto: drive inPluginPlaying / resetPhase as before.
+        void transportPlay();
+        void transportPause();
+        void transportStopReset();
+
         SamplePool& samplePool() { return samplePool_; }
 
         // Reserved volatile (RAM-only) recorder buffers (DESIGN §28). A fixed set
@@ -1296,6 +1320,16 @@ namespace lockstep
         // alsoUnmute, ride an unmute (relaunch). Audio-thread only.
         void applyPhaseReset(std::size_t i, double boundaryPpq, bool alsoUnmute);
 
+        // Re-floor every track's grid cursor onto the host grid at blockStart and
+        // clear the per-track fire / pending / dedup state (note-offs, pending trigs,
+        // firedStepIdx_, lastScheduledStepNum_, metronome). Used on a backward PPQ
+        // jump (DAW loop / Reset) and on the hosted-Locked run rising edge (host
+        // stop → forward restart), so a restart deterministically fires the correct
+        // step in the first block instead of stalling on a stale cursor. No phase
+        // change: trackAnchorPpq_ is left as-is so tracks stay phase-locked to their
+        // own anchor. Audio-thread only.
+        void refloorAllCursors(double blockStart);
+
         // Per-track launch-boundary test. Bar-family grids resolve against the
         // absolute bar/beat grid; PhraseEnd resolves against the track's own
         // phrase cycle (trackLen × divPpq) anchored at trackAnchorPpq_. Returns
@@ -1318,6 +1352,10 @@ namespace lockstep
         // current position (step 0 here). Set on stop/reset; cleared on resume so
         // pause→resume continues in phase instead of restarting the pattern.
         std::atomic<bool> freshStartPending_{ true };
+        // v27 hosted-Locked arm gate (see isPluginArmed). Default armed so a fresh
+        // instance and pre-v27 sessions behave as before (host transport starts
+        // playback). Written only by the transport-verb path + state load.
+        std::atomic<bool> pluginArmed_{ true };
         bool wasInPluginPlaying_ = false;
         bool wasSequencerRunning_ = false;  // MF.6: falling-edge transport stop detection
         // C2: per-block transport snapshot pushed to ITempoAware machines (Player /

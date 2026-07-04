@@ -13,6 +13,11 @@ namespace lockstep
         bool recArmed = false;
         bool overdubArmed = false;
         bool metronomeOn = false;
+        // v27 hosted-Locked arm gate. When armRegime is true the transport follows
+        // the DAW and the Play button parks/unparks the plugin (pluginArmed)
+        // instead of driving in-plugin Play; `armed` is the current gate state.
+        bool armRegime = false;
+        bool armed = true;
     };
 
     [[nodiscard]] inline TransportModel buildTransportModel(const Clock& clock) noexcept
@@ -40,6 +45,15 @@ namespace lockstep
         // ghosted (Locked mode, hosted). A ghost click shows a warning popup
         // (Stage 3); for Stage 2 the buttons are always active.
         void setGhosted(bool ghosted);
+
+        // v27: in hosted Locked the header transport parks/unparks the plugin
+        // (arm gate) rather than being inert. The editor supplies the mode-aware
+        // verb handlers (processor.transportPlay/StopReset) and an arm-state
+        // reader; when both are set and the arm regime is active (setGhosted true),
+        // the Play/Stop buttons drive them and show Armed/Parked. Message thread.
+        std::function<void()> onPlayVerb;
+        std::function<void()> onStopVerb;
+        std::function<bool()> isArmed;
 
         // Immediate update of all button labels/colours from a TransportModel.
         // Call this after any transport action so the UI is always in sync.
