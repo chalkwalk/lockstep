@@ -84,6 +84,20 @@ namespace lockstep
                   "Track+SRC on a synth → dim (machine SRC peeled, no track block)");
         }
 
+        // --- Scene is a write-target overlay, NOT a peel: FILTER stays editable
+        // (machine params, scene-scoped write) and is coloured by the Scene scope.
+        // Regression guard — the naive "peel everything above the floor" resolver
+        // dimmed this (the plan's audit point).
+        if (proc.section(0, 2).firstSlot >= 0)  // machine owns FILTER
+        {
+            const auto r = resolveSectionKey(proc, 0, 2, O::Scene, false);
+            CHECK(r.hasContent && r.action == A::ParamSection && r.winner == O::Scene,
+                  "Scene+FILTER → machine param page, scene-coloured (not dimmed)");
+        }
+        // Song does not scope-edit FILTER (per-scope policy) → dim.
+        CHECK(!resolveSectionKey(proc, 0, 2, O::Song, false).hasContent,
+              "Song+FILTER → dim (not a Song-scoped param)");
+
         // --- Func layer: parallel hierarchy. Func TRIG → COND, Func FILTER → TRSP.
         {
             const auto cond = resolveSectionKey(proc, 0, 0, O::Machine, /*funcLayer*/ true);

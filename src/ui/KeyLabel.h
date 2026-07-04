@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "ScopedSectionMatrix.h"
+#include "ScopeSectionSelect.h"
 #include "UITheme.h"
 #include "mode/ModeReducer.h"
 #include "../io/EditMode.h"
@@ -43,6 +44,28 @@ namespace lockstep
             case PS::Cue:
             case PS::Section:
                 break;
+        }
+        return col(kScopeStep);
+    }
+
+    // Item 7: the section-stack layer colour. Maps a resolved SecOrigin onto the
+    // existing scope palette (no new hues) so a section button and the MZ page
+    // read the *winning* scope's colour, whether it was reached by a held
+    // modifier or by unqualified fall-through (a track-DSP FILTER reads cyan even
+    // unheld). Machine = neutral step colour (no tint). Global reuses the Song
+    // hue (transport globals live under the Set/Song umbrella).
+    inline juce::Colour originColour(SecOrigin origin) noexcept
+    {
+        using namespace theme;
+        using PS = EditMode::PrimaryScope;
+        switch (origin)
+        {
+            case SecOrigin::Machine: return col(kScopeStep);
+            case SecOrigin::Track:   return scopeColour(PS::Track);
+            case SecOrigin::Phrase:  return scopeColour(PS::Phrase);
+            case SecOrigin::Scene:   return scopeColour(PS::Scene);
+            case SecOrigin::Song:    return scopeColour(PS::Song);
+            case SecOrigin::Global:  return scopeColour(PS::Song);
         }
         return col(kScopeStep);
     }

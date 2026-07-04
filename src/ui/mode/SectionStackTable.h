@@ -60,6 +60,6 @@ namespace lockstep
         for (const auto& row : kSectionStackTable)
             if (row.key == key)
                 out.push_back({ row.key, 1, row.origin, row.action, row.metaIndex,
-                                row.funcQualified });
+                                row.funcQualified, row.label });
     }
 }

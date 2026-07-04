@@ -25,6 +25,7 @@ namespace lockstep
         SecOrigin winner = SecOrigin::Machine;   // scope layer that won
         SecAction action = SecAction::ParamSection;
         int metaIndex = -1;                      // masterSection index (MetaSection)
+        const char* label = nullptr;             // stack-row label; null ⇒ use section name
         std::vector<SecCandidate> groups;        // winning-origin candidates, display order
     };
 

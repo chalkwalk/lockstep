@@ -50,6 +50,7 @@ namespace lockstep
         SecAction action = SecAction::ParamSection;
         int metaIndex = -1;          // masterSection content index (MetaSection only)
         bool funcQualified = false;  // true = only present while the Func layer is held
+        const char* label = nullptr; // stack-row label (DIV/LEN/…); null ⇒ use section name
     };
 
     // Scope-aware page-list selection (P6, generalized in Part 4 / Item 7).
