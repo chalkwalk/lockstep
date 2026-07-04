@@ -684,5 +684,16 @@ namespace lockstep
             CHECK(lp.state() == State::Playing,
                   "9.17: Sync length stays steps×stepPpq (1024), edge period independent");
         }
+
+        // C5: a fresh LoopMachine defaults loop_sync to Sync (2), not Free (0). Free
+        // ignores tempo and is the hardest mode to reason about; grid-locked Sync is
+        // the sane default for a new track.
+        {
+            SamplePool p;
+            LoopMachine lp(p);
+            const auto sync = lp.paramSpec(2);  // slot 2 = loop_sync (Free|FreeLen|Sync)
+            CHECK(sync.id == juce::String("loop_sync"), "C5: slot 2 is loop_sync");
+            CHECK(sync.defaultValue == 2.0f, "C5: loop_sync defaults to Sync (2)");
+        }
     }
 }

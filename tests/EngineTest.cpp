@@ -2765,7 +2765,8 @@ namespace lockstep
         pA.setTrackMachine(0, LoopMachine::kMachineId);
         // Set loop_sync on the kit directly to a non-default value so the writer
         // emits a loop_sync node (defaults are skipped); the forge then ages it.
-        if (pA.kit(0).baseParams.size() > 2) pA.kit(0).baseParams[2] = 2.0f;
+        // (Default is now Sync=2 (C5), so use Free Len=1 here to force emission.)
+        if (pA.kit(0).baseParams.size() > 2) pA.kit(0).baseParams[2] = 1.0f;
 
         auto tree = PluginState::buildStateTree(pA);
 

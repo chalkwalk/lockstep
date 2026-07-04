@@ -35,7 +35,10 @@ namespace lockstep
                 s.label = "Sync";
                 s.minValue = 0.0f;
                 s.maxValue = static_cast<float>(kLoopSyncLabels.size() - 1);
-                s.defaultValue = 0.0f;  // Free — native, ignores tempo
+                s.defaultValue = 2.0f;  // Sync — grid-locked; the sane default (Free,
+                                        // which ignores tempo, is the hardest mode to
+                                        // reason about). New tracks only; existing
+                                        // projects keep their serialized value.
                 s.isStepped = true;
                 s.valueLabels = std::span<const char* const>(kLoopSyncLabels.data(),
                                                              kLoopSyncLabels.size());
