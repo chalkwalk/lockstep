@@ -2213,6 +2213,35 @@ state). Docs shipped first: PRINCIPLES §25, DESIGN §4.8 / §13.4 / §16.1.
       scope), and a write→serialise→reload round-trip. Cover the phase-reset
       relaunch and the instant-override double-tap.
 
+### 9.18 — Sample-pool identity re-architecture (stable ids + typed pickers)  *[planned]*
+Fixes the flat-pool-index rot found in manual testing (the "fluttering-bumblebee"
+cleanup, Items 2 + 6): a sample reference is a raw array index, so it drifts when
+the pool reorders (reserved volatile REC slots + reload rebasing), and every
+picker shows every entry regardless of what the machine can use (a PCM-less Stream
+entry offered in the Sampler; a Stream track's default `sample_id=0` resolving to
+the wrong entry → silence). Plan file:
+`~/.claude/plans/sample-pool-identity-rearchitecture.md`.
+- [ ] **Two identity domains, one token.** Persistent entries (File/Stream) are
+      identified by content hash (already stored as `hashXX32`) — stable across
+      reorder *and* file moves (reload → hash matches → auto-relink). Volatile
+      captures (Record/Loop) have no file, so they get a **session-local monotonic
+      id**. A `SampleId` reference carries `{domain, key}`; the pool resolves it via
+      a lookup map, decoupling identity from array position.
+- [ ] **Capability-filtered pickers.** Sampler / Stretch / Slicer see
+      `{File, Record, Loop}` (resident PCM); Stream sees `{Stream}` (disk-backed).
+      Retires the `ensurePcm`-on-Sampler-pick path (Stream stays out of the sampler).
+- [ ] **Pool overlay grouping** into File / Stream / Recordings / Loops sections.
+- [ ] **Save-and-promote** gesture: write a volatile capture to a WAV, reload it as
+      a File entry (durable, hash-identified, appears in the Sampler picker).
+- [ ] **Missing-sample surfacing:** a persistent reference whose hash isn't found
+      on load flags the entry missing and offers relink (heals when a file whose
+      hash matches is loaded). `relink()` already exists; surface it.
+- [ ] **MZ slot order:** StreamMachine `sample_id` → slot 0 (Sample), `start` →
+      slot 1, so the picker button renders over the Sample param.
+- [ ] **Serializer v28 → v29:** references as `SampleId`; migration resolves legacy
+      flat indices against the loaded pool order at upgrade time. Round-trip tests +
+      a legacy-load test.
+
 ---
 
 ## Phase 10 — Melodic & Harmonic Authoring  *[active]*
