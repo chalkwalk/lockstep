@@ -3512,6 +3512,9 @@ namespace lockstep
                 const int poolIdx = static_cast<int>(std::lround(value));
                 if (dynamic_cast<StreamMachine*>(wm) != nullptr)
                     openStreamReaderFor(track, poolIdx);
+                // C2: size an empty Stream/Stretch loop track to the sample and
+                // seed a single trig so it loops cleanly (no per-step restarts).
+                autoFitLoopTrack(track, poolIdx);
             }
         }
     }
@@ -3528,6 +3531,57 @@ namespace lockstep
         if (s != nullptr && !s->isVolatile && !s->missing && !s->ref.path.empty())
             path = juce::String(s->ref.path);
         withQuiescedEngine([&] { sm->setFilePath(path); });
+    }
+
+    void LockstepProcessor::autoFitLoopTrack(int track, int poolIndex)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        auto* m = machines_[static_cast<std::size_t>(track)].get();
+        // Only the trig-gated loop players (Stretch = Flex, Stream = disk). The
+        // general Sample machine is left alone (you often want many trigs there).
+        const bool isLoopPlayer = (dynamic_cast<StretchMachine*>(m) != nullptr)
+                               || (dynamic_cast<StreamMachine*>(m) != nullptr);
+        if (!isLoopPlayer) return;
+
+        const auto* s = samplePool_.get(poolIndex);
+        if (s == nullptr) return;  // empty/cleared pick — nothing to fit
+
+        auto& trk = sequence().tracks[static_cast<std::size_t>(track)];
+
+        // Leave a track the user has already sequenced untouched.
+        for (int i = 0; i < trk.length; ++i)
+            if (trk.steps[static_cast<std::size_t>(i)].trig)
+                return;
+
+        // Size the track to the sample's musical loop length when we know it:
+        // sourceBars is stamped on captures / detected loops; else derive from a
+        // detected BPM + RAM length (disk streams have no PCM here → no resize).
+        double bars = samplePool_.sourceBars(poolIndex);
+        if (bars <= 0.0)
+        {
+            const double bpm = samplePool_.detectedBpm(poolIndex);
+            if (bpm > 0.0 && s->sampleRate > 0.0 && s->pcm.getNumSamples() > 0)
+            {
+                const double secs =
+                    static_cast<double>(s->pcm.getNumSamples()) / s->sampleRate;
+                bars = secs * bpm / 60.0 / 4.0;  // 4/4 assumption (matches Stretch)
+            }
+        }
+        if (bars > 0.0)
+        {
+            const double stepPpq = subdivisionPpqFromIndex(trk.subdivIndex);
+            if (stepPpq > 0.0)
+            {
+                // A 4/4 bar is 4 quarter-notes = 4.0 PPQ.
+                const int steps = static_cast<int>(std::lround(bars * 4.0 / stepPpq));
+                if (steps >= 1)
+                    setTrackLength(track, std::min(steps, kMaxStepsPerTrack));
+            }
+        }
+
+        // One trig on step 1 so the loop actually plays (and re-fires once per
+        // pattern cycle, not every step). The editor's poll repaints the surface.
+        trk.steps[0].trig = true;
     }
 
     void LockstepProcessor::clearParam(int track, int step, int slot)

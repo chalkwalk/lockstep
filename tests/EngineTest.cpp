@@ -26,6 +26,7 @@
 #include "../src/machine/RecordMachine.h"
 #include "../src/machine/LoopMachine.h"
 #include "../src/machine/StreamMachine.h"
+#include "../src/machine/StretchMachine.h"
 #include "../src/machine/InputSource.h"
 #include "../src/core/OutputDest.h"
 #include "../src/core/Subdivision.h"
@@ -3059,6 +3060,67 @@ namespace lockstep
         }
     }
 
+    // C2: assigning a sample to an EMPTY Stream/Stretch loop track auto-fits it —
+    // sizes the track length to the sample's musical loop length (from stamped
+    // sourceBars) and seeds one trig on step 1, so the trig-gated player loops
+    // cleanly instead of glitching on every-step restarts. A track that already
+    // has trigs is left untouched (no clobbering the user's rhythm).
+    static void testAutoFitLoopTrackOnAssign()
+    {
+        // (1) Empty Stretch track: 2-bar sample → 32 steps (16/bar at the default
+        // 1/16 subdivision) + a single trig on step 1.
+        {
+            EngineHarness h;
+            auto& p = h.processor();
+            p.setTrackMachine(0, StretchMachine::kMachineId);
+
+            auto& pool = p.samplePool();
+            const int idx = pool.addVolatile();
+            pool.prepareVolatile(48000.0, 1, 48000);
+            if (auto* pcm = pool.mutableVolatilePcm(idx))
+                for (int i = 0; i < pcm->getNumSamples(); ++i)
+                    pcm->setSample(0, i, 0.2f);
+            pool.setSourceBars(idx, 2.0);
+
+            const int slot = p.sampleSlotForTrack(0);
+            CHECK(slot >= 0, "autofit: Stretch track exposes a sample slot");
+            p.writeParam(0, slot, static_cast<float>(idx));
+
+            const auto& trk = p.sequence().tracks[0];
+            CHECK(trk.length == 32,
+                  "autofit: 2-bar sample sizes the track to 32 steps (got "
+                  + juce::String(trk.length) + ")");
+            CHECK(trk.steps[0].trig, "autofit: a single trig is seeded on step 1");
+            int trigCount = 0;
+            for (int i = 0; i < trk.length; ++i)
+                if (trk.steps[static_cast<std::size_t>(i)].trig) ++trigCount;
+            CHECK(trigCount == 1, "autofit: exactly one trig placed (got "
+                  + juce::String(trigCount) + ")");
+        }
+
+        // (2) A track the user already sequenced is left untouched.
+        {
+            EngineHarness h;
+            auto& p = h.processor();
+            p.setTrackMachine(0, StretchMachine::kMachineId);
+            p.setTrackLength(0, 8);
+            p.sequence().tracks[0].steps[3].trig = true;  // user rhythm present
+
+            auto& pool = p.samplePool();
+            const int idx = pool.addVolatile();
+            pool.prepareVolatile(48000.0, 1, 48000);
+            pool.setSourceBars(idx, 2.0);
+
+            const int slot = p.sampleSlotForTrack(0);
+            p.writeParam(0, slot, static_cast<float>(idx));
+
+            const auto& trk = p.sequence().tracks[0];
+            CHECK(trk.length == 8, "autofit: existing-trig track keeps its length");
+            CHECK(!trk.steps[0].trig, "autofit: no trig forced onto a sequenced track");
+            CHECK(trk.steps[3].trig, "autofit: the user's trig is preserved");
+        }
+    }
+
     // Part 3 MIDI-out VU: note-ons sent to a MIDI-out track accumulate a
     // velocity-proportional loudness, and a CC send trips the dot pulse.
     static void testMidiOutVuVelocityAndCc()
@@ -3111,6 +3173,7 @@ namespace lockstep
         testAuxRoutingAndFold();
         testExternalSendRoutesToHostBus();
         testStreamViaPoolPlaysAndRoundTrips();
+        testAutoFitLoopTrackOnAssign();
         testTransposeTrack();
         testLoopGridSeamFeedsTrackLength();
         testLoopRecordLengthTracksTempo();

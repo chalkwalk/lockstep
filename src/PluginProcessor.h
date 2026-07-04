@@ -1376,6 +1376,15 @@ namespace lockstep
         // clear to silence). Quiesces the engine to swap the reader. Message thread.
         void openStreamReaderFor(int track, int poolIndex);
 
+        // C2: Stream/Stretch are trig-gated loop players — each trig restarts
+        // playback, so a clean single loop needs exactly one trig sized to the
+        // loop. When a sample is assigned to a Stream/Stretch track that has NO
+        // trigs yet, size the track length to the sample's musical loop length
+        // (when known) and place one trig on step 1, so it loops correctly out of
+        // the box. A track that already has trigs is left untouched (no clobber).
+        // Message thread (called from writeParam's sample-assign branch).
+        void autoFitLoopTrack(int track, int poolIndex);
+
         // Per-track launch-boundary test. Bar-family grids resolve against the
         // absolute bar/beat grid; PhraseEnd resolves against the track's own
         // phrase cycle (trackLen × divPpq) anchored at trackAnchorPpq_. Returns
