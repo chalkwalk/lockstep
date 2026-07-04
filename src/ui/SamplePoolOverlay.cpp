@@ -151,31 +151,35 @@ namespace lockstep
         auto& pool = processor_.samplePool();
         const int n = pool.size();
 
-        // SAMPLES — every disk-backed (non-volatile) entry, in pool order.
-        bool anyFile = false;
-        for (int i = 0; i < n; ++i)
-            if (!pool.isVolatileIndex(i)) { anyFile = true; break; }
-        if (anyFile)
-        {
-            rows_.push_back({ true, "SAMPLES", -1 });
-            for (int i = 0; i < n; ++i)
-                if (!pool.isVolatileIndex(i))
-                    rows_.push_back({ false, {}, i });
-        }
-
-        // RECORD / LOOP — captured volatile slots only (empties hidden).
-        auto addGroup = [&](SampleOrigin o, const char* label) {
+        // 9.18: four type-grouped sections. Persistent entries split File vs Stream
+        // (a Stream reference streams from disk and is never decoded — see
+        // SampleOrigin); volatile captures split Record vs Loop. Empty REC slots
+        // stay hidden here — they are pickable in the in-machine picker as
+        // "REC N (empty)" but are noise in the manager. Ordinal/name labels come
+        // from SamplePool::displayName (painted per row), so headers alone differ.
+        auto addSection = [&](const char* label, auto accept) {
             bool any = false;
             for (int i = 0; i < n; ++i)
-                if (pool.isVolatileIndex(i) && pool.origin(i) == o) { any = true; break; }
+                if (accept(i)) { any = true; break; }
             if (!any) return;
             rows_.push_back({ true, label, -1 });
             for (int i = 0; i < n; ++i)
-                if (pool.isVolatileIndex(i) && pool.origin(i) == o)
+                if (accept(i))
                     rows_.push_back({ false, {}, i });
         };
-        addGroup(SampleOrigin::Record, "RECORD");
-        addGroup(SampleOrigin::Loop, "LOOP");
+
+        addSection("FILE", [&](int i) {
+            return !pool.isVolatileIndex(i) && pool.origin(i) == SampleOrigin::File;
+        });
+        addSection("STREAM", [&](int i) {
+            return !pool.isVolatileIndex(i) && pool.origin(i) == SampleOrigin::Stream;
+        });
+        addSection("RECORD", [&](int i) {
+            return pool.isVolatileIndex(i) && pool.origin(i) == SampleOrigin::Record;
+        });
+        addSection("LOOP", [&](int i) {
+            return pool.isVolatileIndex(i) && pool.origin(i) == SampleOrigin::Loop;
+        });
     }
 
     void SamplePoolOverlay::reselectAfterReorder(int movedPoolIndex)
