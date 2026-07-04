@@ -72,8 +72,11 @@ namespace lockstep
         return true;
     }
 
-    void StreamMachine::prepare(double /*sampleRate*/, int /*maxBlockSize*/)
+    void StreamMachine::prepare(double sampleRate, int /*maxBlockSize*/)
     {
+        sampleRate_ = sampleRate > 0.0 ? sampleRate : 44100.0;
+        // ~5 ms anti-click gate ramp.
+        fadeInc_ = static_cast<float>(1.0 / (0.005 * sampleRate_));
         if (!streamThread_.isThreadRunning())
             streamThread_.startThread();
         reset();
@@ -83,6 +86,7 @@ namespace lockstep
     {
         playing_ = false;
         readPos_ = 0;
+        gain_ = 0.0f;
     }
 
     void StreamMachine::process(const juce::MidiBuffer& events,
@@ -111,15 +115,37 @@ namespace lockstep
             }
         }
 
-        if (!playing_ || reader_ == nullptr) return;
+        // Keep rendering while the gate is still fading out, even after playing_
+        // has gone false (note-off / end-of-file), so the tail declicks over real
+        // material instead of stepping to zero.
+        const bool active = playing_ || gain_ > 0.0f;
+        if (!active || reader_ == nullptr)
+        {
+            gain_ = 0.0f;
+            return;
+        }
 
+        // Read forward from readPos_ regardless of playing_ so a note-off fade-out
+        // still plays a few ms of real audio (playing_ only sets the gate target).
         const juce::int64 remaining = lengthSamples_ - readPos_;
-        const int n = static_cast<int>(std::min<juce::int64>(numSamples, std::max<juce::int64>(0, remaining)));
+        const int n = static_cast<int>(
+            std::min<juce::int64>(numSamples, std::max<juce::int64>(0, remaining)));
         if (n > 0)
             reader_->read(&buffer, 0, n, readPos_, true, true);
 
         readPos_ += n;
         if (n < numSamples || readPos_ >= lengthSamples_)
-            playing_ = false;  // reached end of file
+            playing_ = false;  // reached end of file — fade out from here
+
+        // Anti-click gate toward (playing ? 1 : 0), ramped over ~5 ms.
+        const float target = playing_ ? 1.0f : 0.0f;
+        const int chans = buffer.getNumChannels();
+        for (int i = 0; i < numSamples; ++i)
+        {
+            if (gain_ < target)      gain_ = std::min(target, gain_ + fadeInc_);
+            else if (gain_ > target) gain_ = std::max(target, gain_ - fadeInc_);
+            for (int ch = 0; ch < chans; ++ch)
+                buffer.setSample(ch, i, buffer.getSample(ch, i) * gain_);
+        }
     }
 }

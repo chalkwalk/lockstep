@@ -19,6 +19,7 @@ namespace lockstep
         loopStart = spec.loopStart;
         loopEnd = spec.loopEnd;
         loopMode = spec.loopMode;
+        xfadeSamples = spec.xfadeSamples;
         attackSamples = spec.attackSamples;
         holdSamples = spec.holdSamples;
         decaySamples = spec.decaySamples;
@@ -171,33 +172,34 @@ namespace lockstep
             const double effStart = windowStart;
             const bool reverse = (rate < 0.0);
 
+            // loopActive gates whether the loop bounds engage in this stage.
+            const bool loopActive =
+                (loopMode == LoopMode::Sust && stage == Stage::Sustain) || (loopMode == LoopMode::SustAndRel && (stage == Stage::Sustain || stage == Stage::Release)) || (loopMode == LoopMode::All);
+
+            // Forward-only interpolated read helper (linear).
+            auto readInterpFwd = [&pcm, numSrc](double pos) -> float {
+                const int i0 = static_cast<int>(pos);
+                if (i0 < 0 || i0 >= numSrc)
+                    return 0.0f;
+                const int i1 = std::min(i0 + 1, numSrc - 1);
+                const float fr = static_cast<float>(pos - static_cast<double>(i0));
+                return pcm.getSample(0, i0) * (1.0f - fr) + pcm.getSample(0, i1) * fr;
+            };
+
             const int idx0 = static_cast<int>(position);
             if (idx0 >= 0 && idx0 < numSrc)
             {
                 if (reverse)
                 {
-                    // For reverse: interpolate between idx0 and idx0-1.
+                    // Reverse: interpolate between idx0 and idx0-1. Reverse-seam
+                    // declick is out of scope; keep the hard wrap here.
                     const int idx1 = std::max(idx0 - 1, 0);
                     const float frac = static_cast<float>(
                         position - static_cast<double>(idx0));
                     audioOut = pcm.getSample(0, idx0) * (1.0f - frac) + pcm.getSample(0, idx1) * frac;
-                }
-                else
-                {
-                    const int idx1 = std::min(idx0 + 1, numSrc - 1);
-                    const float frac = static_cast<float>(
-                        position - static_cast<double>(idx0));
-                    audioOut = pcm.getSample(0, idx0) * (1.0f - frac) + pcm.getSample(0, idx1) * frac;
-                }
 
-                position += rate;
+                    position += rate;
 
-                // Loop handling
-                const bool loopActive =
-                    (loopMode == LoopMode::Sust && stage == Stage::Sustain) || (loopMode == LoopMode::SustAndRel && (stage == Stage::Sustain || stage == Stage::Release)) || (loopMode == LoopMode::All);
-
-                if (reverse)
-                {
                     if (loopActive && loopEnd > loopStart && position < loopStart)
                     {
                         const double span = loopEnd - loopStart;
@@ -208,15 +210,63 @@ namespace lockstep
                         if (stage == Stage::Sustain)
                             advanceStage();
                         else
-                        {
                             position = effStart;
-                        }
                     }
                 }
                 else
                 {
-                    if (loopActive && loopEnd > loopStart && position >= loopEnd)
+                    // Forward. Optional loop-seam crossfade: blend the outgoing
+                    // branch with an incoming branch reading from loopStart.
+                    //   - Tail available (loopEnd + X <= effEnd): the outgoing
+                    //     branch reads real tail material past loopEnd, so the loop
+                    //     period stays exactly (loopEnd - loopStart).
+                    //   - No tail: eat into the loop (outgoing reads the last X of
+                    //     the loop); the effective period shortens by X.
+                    const double span = loopEnd - loopStart;
+                    const double X = (loopActive && span > 0.0)
+                                         ? std::min(xfadeSamples, span * 0.5)
+                                         : 0.0;
+
+                    bool crossfading = false;
+                    double xfBegin = 0.0;
+                    double wrapSub = 0.0;
+                    if (X > 0.0)
                     {
+                        const bool tail = (loopEnd + X <= effEnd);
+                        xfBegin = tail ? loopEnd : (loopEnd - X);
+                        wrapSub = tail ? span : (span - X);
+                        crossfading = (position >= xfBegin);
+                    }
+
+                    if (crossfading)
+                    {
+                        constexpr double kHalfPi = 1.5707963267948966;
+                        const double t = std::min((position - xfBegin) / X, 1.0);
+                        const double inPos = loopStart + (position - xfBegin);
+                        const float a = std::cos(static_cast<float>(t * kHalfPi));
+                        const float b = std::sin(static_cast<float>(t * kHalfPi));
+                        audioOut = a * readInterpFwd(position) + b * readInterpFwd(inPos);
+                    }
+                    else
+                    {
+                        audioOut = readInterpFwd(position);
+                    }
+
+                    position += rate;
+
+                    if (X > 0.0)
+                    {
+                        // Crossfade active: wrap only at the end of the crossfade
+                        // window, never at loopEnd. For the borrow-tail case
+                        // xfBegin == loopEnd, so hard-wrapping at loopEnd would skip
+                        // the seam blend (the flag is still false one sample before);
+                        // let position climb into the window instead.
+                        if (position >= xfBegin + X)
+                            position -= wrapSub;
+                    }
+                    else if (loopActive && loopEnd > loopStart && position >= loopEnd)
+                    {
+                        // Crossfade disabled (X == 0) — hard wrap (old behaviour).
                         position = loopStart + std::fmod(position - loopStart,
                                                          loopEnd - loopStart);
                     }
@@ -224,10 +274,8 @@ namespace lockstep
                     {
                         if (stage == Stage::Sustain)
                             advanceStage();
-                        else if (stage == Stage::Release || stage == Stage::Attack || stage == Stage::Hold || stage == Stage::Decay)
-                        {
+                        else
                             position = effEnd;
-                        }
                     }
                 }
             }

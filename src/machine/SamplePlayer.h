@@ -57,6 +57,11 @@ namespace lockstep
             double loopStart = 0.0;
             double loopEnd = 0.0;
             LoopMode loopMode = LoopMode::Off;
+            // Forward loop-seam crossfade length in source samples (0 = hard wrap,
+            // old behaviour). Borrows tail material past loopEnd when available so
+            // the loop period stays exact; falls back to eating into the loop when
+            // the loop reaches the sample/window end.
+            double xfadeSamples = 0.0;
         };
 
         // Playback state
@@ -70,6 +75,7 @@ namespace lockstep
         double loopStart = 0.0;
         double loopEnd = 0.0;
         LoopMode loopMode = LoopMode::Off;
+        double xfadeSamples = 0.0;
 
         // Envelope
         Stage stage = Stage::Idle;

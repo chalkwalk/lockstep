@@ -37,6 +37,7 @@ namespace lockstep
     void runSyncSliceTests();     // 4.9 beat-grid slicing (placeSyncSlices)
     void runTimeStretchTests();  // C1 WSOLA time-stretch + resample
     void runStretchMachineTests(); // C3 Flex-analog Player (independent pitch+tempo)
+    void runSamplePlayerTests();   // C1 loop-seam crossfade (borrow-tail / eat-in)
     void runRecordMachineTests();  // 6.2 RecordMachine capture (DESIGN §29.2/§30)
     void runLoopMachineTests();    // 6.3 LoopMachine state machine (DESIGN §29.2)
     void runStreamMachineTests();    // 4.5 StreamMachine disk streaming (DESIGN §29.2)

@@ -88,6 +88,10 @@ namespace lockstep
         spec.loopStart = absLoopStart;
         spec.loopEnd = absLoopEnd;
         spec.loopMode = loopMode;
+        // Loop-seam crossfade length (ms → samples, engine rate like the envelope).
+        const float xfadeMs = (params.size() > static_cast<std::size_t>(kSlotLoopXfade))
+                                  ? std::max(0.0f, p(kSlotLoopXfade)) : 0.0f;
+        spec.xfadeSamples = static_cast<double>(msToSamples(xfadeMs, sampleRate_));
         return spec;
     }
 
@@ -288,6 +292,8 @@ namespace lockstep
         { "release", "Release", 1.f, 10000.f, 200.f, 0.3f, 0, sa_u::Ms, sa_r::Rel, 0, 3, 0, nullptr }, // 12
         { "samp_retrig", "Retrig", 0.f, 1.f, 0.f, 1.f, 1, sa_u::None, sa_r::None, 0, 3, 0, kSARetrigLabels }, // 13
         { "samp_velsens", "Vel>Amp", 0.f, 1.f, 0.f, 1.f, 0, sa_u::Pct, sa_r::None, 0, 3, 0, nullptr }, // 14
+        // SRC (section 1) — appended past the AMP block to keep slot indices stable.
+        { "samp_loop_xfade", "LpXfade", 0.f, 100.f, 8.f, 0.5f, 0, sa_u::Ms, sa_r::None, 0, 1, 0, nullptr }, // 15
     };
     static_assert(std::size(kSAParams) == SampleMachine::kNumSlots,
                   "kSAParams row count must equal kNumSlots");

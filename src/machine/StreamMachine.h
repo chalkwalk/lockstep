@@ -87,5 +87,12 @@ namespace lockstep
         // Playback state (audio thread).
         bool playing_ = false;
         juce::int64 readPos_ = 0;
+
+        // Anti-click gate: a hard start/stop of a disk stream pops. Ramp the block
+        // gain toward (playing ? 1 : 0) so note-on, note-off and end-of-file fade
+        // over a few ms instead of stepping. Mirrors StretchMachine's gate.
+        double sampleRate_ = 44100.0;
+        float gain_ = 0.0f;
+        float fadeInc_ = 0.0f;
     };
 }

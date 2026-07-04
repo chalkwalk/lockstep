@@ -242,6 +242,7 @@ namespace lockstep
             "release",         // 12
             "samp_retrig",     // 13
             "samp_velsens",    // 14
+            "samp_loop_xfade", // 15 (SRC — appended past the AMP block)
         };
         checkGoldenIds(m, "SampleMachine", golden);
         checkInvariants(m, "SampleMachine");
