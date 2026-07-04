@@ -764,6 +764,12 @@ namespace lockstep
             {
                 const std::string& id = info.id;
 
+                // Item 5: the External send is a routing sentinel with no DSP
+                // instance (makeEffectForId returns null by design) — nothing to
+                // smoke-test. The processor routes its tap to a host output bus.
+                if (info.sendOnly)
+                    continue;
+
                 // Reusable source — fresh sine for every process() call so wet-only
                 // effects (mix=1) don't recirculate their own output as the next input.
                 juce::AudioBuffer<float> sineSource(2, kBlockSize);

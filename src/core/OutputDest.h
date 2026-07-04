@@ -13,6 +13,14 @@ namespace lockstep
     // Number of host Aux output buses (DESIGN §31.1). Master + Cue + kNumAuxBuses.
     inline constexpr int kNumAuxBuses = 6;
 
+    // Static external send buses (Item 5): "Send A"/"Send B" stereo outputs
+    // appended after the Aux buses, driven by the "External" send-FX. Physical
+    // host output-bus layout: 0 = Master, 1 = Cue, 2 .. 2+kNumAuxBuses-1 = Aux,
+    // then kSendBusBase .. +kNumSendBuses-1 = Send A/B. (Distinct from
+    // kOutAuxBase below, which is the Out-slot *encoding* base, not a bus index.)
+    inline constexpr int kNumSendBuses = 2;
+    inline constexpr int kSendBusBase  = 2 + kNumAuxBuses;
+
     // Max tracks addressable as bus targets in the Out encoding. The Aux range
     // starts past this so a Track edge and an Aux edge never collide. Kept a fixed
     // constant (not kNumTracks) so the on-disk encoding is stable if track count

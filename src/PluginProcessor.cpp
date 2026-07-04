@@ -54,6 +54,12 @@ namespace lockstep
                 for (int a = 0; a < kNumAuxBuses; ++a)
                     props = props.withOutput("Aux " + juce::String(a + 1),
                                              juce::AudioChannelSet::stereo(), false);
+                // Item 5: static external send buses (bus index kSendBusBase + s),
+                // driven by the "External" send-FX. Disabled by default like Aux.
+                static const char* const kSendBusNames[kNumSendBuses] = { "Send A", "Send B" };
+                for (int s = 0; s < kNumSendBuses; ++s)
+                    props = props.withOutput(kSendBusNames[s],
+                                             juce::AudioChannelSet::stereo(), false);
                 return props;
             }
         };
@@ -2195,7 +2201,7 @@ namespace lockstep
             depositRoutedToAux(buffer, mainOut, numBlockSamples);
 
             // Master insert chain — shared helper used by both transport paths.
-            processMasterChain(mainOut, numBlockSamples);
+            processMasterChain(buffer, mainOut, numBlockSamples);
 
             // Keep audio path (gain smoothing, DC blocker) running so it doesn't freeze.
             const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
@@ -3136,7 +3142,7 @@ namespace lockstep
         depositRoutedToAux(buffer, mainOut, numBlockSamples);
 
         // Master insert chain — before metronome so the click is not sent through FX.
-        processMasterChain(mainOut, numBlockSamples);
+        processMasterChain(buffer, mainOut, numBlockSamples);
 
         if (clock_.isMetronomeEnabled())
         {
@@ -5327,19 +5333,45 @@ namespace lockstep
         return song().masterInserts[static_cast<std::size_t>(slot)].bypass;
     }
 
-    void LockstepProcessor::processMasterChain(juce::AudioBuffer<float>& buf, int numSamples)
+    bool LockstepProcessor::sendBusEnabled(int slot) const
+    {
+        if (slot < 0 || slot >= kNumSendBuses) return false;
+        const auto* bus = getBus(false, kSendBusBase + slot);
+        return bus != nullptr && bus->isEnabled();
+    }
+
+    void LockstepProcessor::processMasterChain(juce::AudioBuffer<float>& fullBuffer,
+                                               juce::AudioBuffer<float>& buf, int numSamples)
     {
         // 8.26: process each send bus through its return effect, then sum into master.
         for (int snd = 0; snd < 2; ++snd)
         {
-            auto* seff = masterSends_[static_cast<std::size_t>(snd)].get();
+            const auto& sSlot = song().masterSends[static_cast<std::size_t>(snd)];
             auto& sendBuf = sendBusBufs_[static_cast<std::size_t>(snd)];
+
+            // Item 5: External send — divert the tap to the host "Send A/B" output
+            // bus instead of returning it to master. When the bus is disabled
+            // (standalone / host opted out) or the user bypassed it, the tap is
+            // dropped (silent) — never folded to master. No DSP instance is used.
+            if (sSlot.effectId == kExternalSendId)
+            {
+                if (!sSlot.bypass && sendBusEnabled(snd))
+                {
+                    auto outBuf = getBusBuffer(fullBuffer, false, kSendBusBase + snd);
+                    const int numCh = std::min(outBuf.getNumChannels(), sendBuf.getNumChannels());
+                    for (int ch = 0; ch < numCh; ++ch)
+                        outBuf.addFrom(ch, 0, sendBuf, ch, 0, numSamples);
+                }
+                sendBuf.clear();
+                continue;
+            }
+
+            auto* seff = masterSends_[static_cast<std::size_t>(snd)].get();
             if (!seff)
             {
                 sendBuf.clear();
                 continue;
             }
-            const auto& sSlot = song().masterSends[static_cast<std::size_t>(snd)];
             if (sSlot.bypass)
             {
                 sendBuf.clear();

@@ -940,6 +940,16 @@ none are loaded); exit back to track params by pressing any bare section key.
 Send return effects are typically loaded with Mix=1.0 (wet-only); insert effects
 apply across the whole mix. MIDI-out tracks have no sends.
 
+**External send (`EXT`).** In either send slot you can load **External** instead of
+a return effect. Rather than processing the accumulated send bus and summing it
+back into Master, it routes that send tap straight out of the plugin's dedicated
+**"Send A" / "Send B" host output bus** — so the DAW can patch it into an outboard
+chain or a separate track. It is offered **only** in the two send slots (never a
+track or master insert) and has no parameters. When the host has not enabled the
+matching Send bus (e.g. standalone, or the DAW left it disabled) the send is
+**silent** and the slot reads amber "loaded-but-bypassed" — the tap is dropped,
+never folded back to Master (unlike a disabled `Aux N` out route, which folds).
+
 **Available effects:**
 
 Some effects are **quality-tiered**: one catalogue entry presents a lean LQ face
@@ -970,6 +980,7 @@ put the HQ face on a Route track or the master bus for clean bus glue.
 |---|---|---|
 | `BUS` | Bus Compressor | Thresh, Ratio, Atk, Rel (Auto), SC HPF, Mkup, Mix |
 | `UTL` | Master Utility | Tilt, Width (M/S), Trim (dB) |
+| `EXT` | External | *(send slots only; no params)* — routes the send bus to the host "Send A/B" output |
 
 *Gain staging is master-only:* tracks and buses stay linear (float headroom); the
 only structural clip is a transparent soft-knee clipper at the master output that

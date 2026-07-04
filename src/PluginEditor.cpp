@@ -2221,6 +2221,8 @@ namespace lockstep
         const int mUnit = uiState_.masterFxInsertSlot;
         const bool isSend = (mUnit >= 2);
         const int mSlot = isSend ? mUnit - 2 : mUnit;
+        // Item 5: send-only effects (External) cannot go in a master insert slot.
+        if (info.sendOnly && !isSend) return true;
         const std::string curId = isSend ? processor_.masterSendId(mSlot)
                                          : processor_.masterInsertId(mSlot);
         if (info.id == curId)

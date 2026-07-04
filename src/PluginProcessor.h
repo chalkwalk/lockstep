@@ -1155,7 +1155,15 @@ namespace lockstep
 
         // Apply the master insert chain in-place. Called from both transport paths.
         // Also processes the send buses (if any) before the inserts.
-        void processMasterChain(juce::AudioBuffer<float>& buf, int numSamples);
+        // fullBuffer carries every host output bus (Master + Cue + Aux + Send A/B);
+        // buf is the Master view. Item 5: an "External" send diverts its tap to the
+        // host Send bus inside fullBuffer instead of summing it back into Master.
+        void processMasterChain(juce::AudioBuffer<float>& fullBuffer,
+                                juce::AudioBuffer<float>& buf, int numSamples);
+        // Item 5: true when the host has enabled the Send A/B output bus for `slot`
+        // (0=A, 1=B). An External send whose bus is disabled/absent is silent and
+        // reads as loaded-but-bypassed (amber) in the UI.
+        [[nodiscard]] bool sendBusEnabled(int slot) const;
 
         // [SUSPEND] structural: swapped only while processing is suspended.
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;

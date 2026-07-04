@@ -490,6 +490,18 @@ namespace lockstep
         const int unit = ui.masterFxInsertSlot;
         const bool isSend = (unit >= 2);
         const int slot = isSend ? unit - 2 : unit;
+        // Item 5: the External send has no params — surface a single status field
+        // naming the host bus, flipping to "(BYP)" when that bus is unavailable.
+        if (isSend && proc.masterSendId(slot) == kExternalSendId)
+        {
+            auto& v = result[0];
+            v.active = true;
+            v.label = (slot == 0) ? "Send A" : "Send B";
+            v.valueText = proc.sendBusEnabled(slot) ? "EXTERNAL" : "(BYP)";
+            v.writable = false;
+            v.stepped = true;
+            return result;
+        }
         const int np = isSend ? proc.masterSendNumParams(slot) : proc.masterInsertNumParams(slot);
         if (np == 0) return result;
 

@@ -56,6 +56,10 @@ namespace lockstep
         // for any path that did not run them through canonicalEffectId() first.
         if (id == "lockstep.verbhq.v1")      return std::make_unique<HQReverbEffect>();
         if (id == "lockstep.delayhq.v1")     return std::make_unique<HQDelayEffect>();
+        // Item 5: the External send is a routing sentinel, not a processor — it
+        // has no DSP instance. A send slot holding it keeps its effectId but a null
+        // live effect; processMasterChain() diverts its tap to the host Send bus.
+        // (Falls through to the null return below.)
         return nullptr;
     }
 
@@ -74,8 +78,11 @@ namespace lockstep
         { "lockstep.flanger.v1",     "Flanger",    "FLG", false },
         { "lockstep.phaser.v1",      "Phaser",     "PHA", false },
         // Genuinely master-only effects with no LQ counterpart.
-        { "lockstep.buscomp.v1",     "Bus Comp",   "BUS", true  },
-        { "lockstep.mutility.v1",    "Utility",    "UTL", true  },
+        { "lockstep.buscomp.v1",     "Bus Comp",   "BUS", true,  false },
+        { "lockstep.mutility.v1",    "Utility",    "UTL", true,  false },
+        // Item 5: External send — master send slots only (masterOnly + sendOnly).
+        // No DSP; routes the send tap to the host "Send A/B" output bus.
+        { kExternalSendId,           "External",   "EXT", true,  true  },
     };
 
     std::vector<EffectInfo> availableEffects() { return kEffects; }

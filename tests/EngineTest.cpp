@@ -2867,6 +2867,94 @@ namespace lockstep
         proc.releaseResources();
     }
 
+    // Item 5: the "External" send diverts its tap to the host "Send A" output bus
+    // instead of summing it back into Master. With the track's own Out = Off, the
+    // only path to audio is the send, so: bus enabled -> Send A carries the tap and
+    // Master is silent; bus disabled -> the tap is dropped (never folded to Master).
+    static void testExternalSendRoutesToHostBus()
+    {
+        // --- Bus enabled: tap appears on Send A, Master stays silent. ---
+        {
+            auto procPtr = std::make_unique<LockstepProcessor>();
+            auto& proc = *procPtr;
+            // Enable Send A (host output bus index kSendBusBase); leave Cue/Aux/SendB off.
+            auto layout = proc.getBusesLayout();
+            layout.outputBuses.set(kSendBusBase, juce::AudioChannelSet::stereo());
+            CHECK(proc.setBusesLayout(layout), "external: host can enable the Send A bus");
+            CHECK(proc.sendBusEnabled(0), "external: Send A reports enabled");
+
+            StubPlayHead ph(120.0, 48000.0, 256);
+            proc.setPlayHead(&ph);
+            proc.setRateAndBufferSizeDetails(48000.0, 256);
+            proc.prepareToPlay(48000.0, 256);
+            proc.clock().setInPluginPlaying(true);
+
+            installMachine(proc, 0, DrumMachine::kMachineId);
+            auto& s0 = proc.sequence().tracks[0].steps[0];
+            s0.trig = true;
+            s0.trigOverride.hasGate = true;
+            s0.trigOverride.gateValue = MusicalGate::G1_8;
+            proc.kit(0).channelState.sendA = 1.0f;
+            proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Off);
+            proc.setMasterSend(0, kExternalSendId);
+            CHECK(proc.masterSendId(0) == kExternalSendId, "external: effectId stored");
+
+            const int totalOut = proc.getTotalNumOutputChannels();  // main 2 + Send A 2
+            CHECK(totalOut >= 4, "external: main + Send A expose >= 4 channels");
+            juce::AudioBuffer<float> buf(totalOut, 256);
+            juce::MidiBuffer midi;
+            float masterMag = 0.0f, sendMag = 0.0f;
+            for (int b = 0; b < 30; ++b)
+            {
+                buf.clear(); midi.clear();
+                proc.processBlock(buf, midi);
+                masterMag = std::max(masterMag, buf.getMagnitude(0, 0, 256));
+                sendMag   = std::max(sendMag,   buf.getMagnitude(2, 0, 256));
+                ph.advance();
+            }
+            CHECK(sendMag > 1e-4f, "external: send tap lands on the Send A bus");
+            CHECK(masterMag < 1e-4f,
+                  "external: nothing folds to Master (Out=Off, no send return)");
+            proc.releaseResources();
+        }
+
+        // --- Bus disabled: the tap is dropped, never folded to Master. ---
+        {
+            auto procPtr = std::make_unique<LockstepProcessor>();
+            auto& proc = *procPtr;
+            CHECK(!proc.sendBusEnabled(0), "external: Send A disabled by default");
+
+            StubPlayHead ph(120.0, 48000.0, 256);
+            proc.setPlayHead(&ph);
+            proc.setRateAndBufferSizeDetails(48000.0, 256);
+            proc.prepareToPlay(48000.0, 256);
+            proc.clock().setInPluginPlaying(true);
+
+            installMachine(proc, 0, DrumMachine::kMachineId);
+            auto& s0 = proc.sequence().tracks[0].steps[0];
+            s0.trig = true;
+            s0.trigOverride.hasGate = true;
+            s0.trigOverride.gateValue = MusicalGate::G1_8;
+            proc.kit(0).channelState.sendA = 1.0f;
+            proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Off);
+            proc.setMasterSend(0, kExternalSendId);
+
+            juce::AudioBuffer<float> buf(proc.getTotalNumOutputChannels(), 256);
+            juce::MidiBuffer midi;
+            float masterMag = 0.0f;
+            for (int b = 0; b < 30; ++b)
+            {
+                buf.clear(); midi.clear();
+                proc.processBlock(buf, midi);
+                masterMag = std::max(masterMag, buf.getMagnitude(0, 0, 256));
+                ph.advance();
+            }
+            CHECK(masterMag < 1e-4f,
+                  "external: disabled Send A drops the tap (never folds to Master)");
+            proc.releaseResources();
+        }
+    }
+
     // Part 3 MIDI-out VU: note-ons sent to a MIDI-out track accumulate a
     // velocity-proportional loudness, and a CC send trips the dot pulse.
     static void testMidiOutVuVelocityAndCc()
@@ -2917,6 +3005,7 @@ namespace lockstep
     {
         testMidiOutVuVelocityAndCc();
         testAuxRoutingAndFold();
+        testExternalSendRoutesToHostBus();
         testTransposeTrack();
         testLoopGridSeamFeedsTrackLength();
         testLoopRecordLengthTracksTempo();

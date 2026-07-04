@@ -4655,6 +4655,19 @@ limiter). Any effect may be loaded in any slot; the **masterOnly** flag in
 the effect catalogue restricts certain HQ effects to master/send pickers only
 (they are too expensive for 32-instance track budgets).
 
+**External send (`lockstep.send.external.v1`).** A send slot may instead hold
+the **External** sentinel (catalogue flag `sendOnly` — offered *only* in the two
+send slots, never a track or master insert). It has no DSP instance: rather than
+processing send bus A/B and summing the return into master, the processor copies
+that bus straight to a dedicated static host output bus — **"Send A" / "Send B"**,
+appended after the Aux buses at physical bus index `kSendBusBase + slot`
+(`OutputDest.h`), stereo, disabled by default. The DAW opts the bus in and patches
+it into outboard gear or a separate track. When the host bus is disabled
+(standalone, or the DAW never enabled it) the tap is **dropped — silent, never
+folded to master** (deliberately unlike a disabled `Aux N` *out* route, which
+folds): an external send is a hard hand-off, not a fallback mix. The UI shows a
+loaded-but-unavailable External send in the amber `EffectLoadedBypassed` state.
+
 **CHANNEL block (Send A/B):** `lockstep.amp.sendA` / `lockstep.amp.sendB`,
 both 0..1, default 0 (dry). The CHANNEL block is present on every audio
 track — including machines with internal amp (Analog/FM/DrumSynth) — so sends

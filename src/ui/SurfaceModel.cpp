@@ -1307,6 +1307,14 @@ namespace lockstep
                     else
                     {
                         const auto info = proc.availableEffectInfo(i);
+                        // Item 5: send-only effects (External) are unavailable in a
+                        // master insert slot.
+                        if (info.sendOnly && !mIsSend)
+                        {
+                            c.base = CellState::MachineUnavailable;
+                            c.baseColour = kStepOutRange;
+                            continue;
+                        }
                         const bool isCur = (info.id == activeId);
                         bool isOther = false;
                         if (!isCur && !info.id.empty())
@@ -1322,9 +1330,13 @@ namespace lockstep
                         }
                         // Re-picking a loaded effect toggles bypass; a bypassed
                         // loaded unit reads amber (intentionally-off), not active.
-                        const bool isBypassed = isCur
-                            && (mIsSend ? proc.masterSendBypass(mSlot)
-                                        : proc.masterInsertBypass(mSlot));
+                        // Item 5: a loaded External send whose host Send bus is
+                        // disabled/absent reads amber too (loaded-but-unavailable).
+                        const bool extUnavailable = isCur && mIsSend
+                            && info.id == kExternalSendId && !proc.sendBusEnabled(mSlot);
+                        const bool isBypassed = extUnavailable
+                            || (isCur && (mIsSend ? proc.masterSendBypass(mSlot)
+                                                  : proc.masterInsertBypass(mSlot)));
                         const juce::Colour bypTint{ compatColour(CellState::EffectLoadedBypassed) };
                         c.base = isBypassed ? CellState::EffectLoadedBypassed
                                : isCur      ? CellState::EffectLoaded
