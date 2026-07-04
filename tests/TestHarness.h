@@ -61,6 +61,7 @@ namespace lockstep
     void runSurfaceLayerTests();
     void runKeyBindingTests();
     void runSerializerRoundTripTests();
+    void runSampleIdRoundTripTests();  // 9.18 pool identity: promote + hash round-trip
     // Part 2 multi-step holds (block move, EditContext, relative P-Lock fan-out)
     void runMultiStepHoldTests();
     // Phase 8 gesture tests (grows with 8.4b–h)

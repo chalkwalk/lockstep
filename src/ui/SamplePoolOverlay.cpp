@@ -74,6 +74,36 @@ namespace lockstep
         };
         addAndMakeVisible(relinkBtn_);
 
+        // 9.18 save-and-promote: turn a volatile (Record/Loop) capture into a durable
+        // File entry on disk. Volatiles are RAM-only and vanish on reload; promoting
+        // writes a WAV, decodes it back as a File, and repoints references to it.
+        promoteBtn_.setWantsKeyboardFocus(false);
+        promoteBtn_.setEnabled(false);
+        promoteBtn_.onClick = [this] {
+            const int row = selectedPoolIndex();
+            if (row < 0 || !processor_.samplePool().isVolatileIndex(row))
+                return;
+            const juce::String stem = processor_.samplePool().displayName(row);
+            const juce::File suggested =
+                juce::File::getSpecialLocation(juce::File::userMusicDirectory)
+                    .getChildFile(stem.isEmpty() ? juce::String("capture") : stem)
+                    .withFileExtension("wav");
+            fileChooser_ = std::make_unique<juce::FileChooser>(
+                "Save Capture as WAV", suggested, "*.wav");
+            fileChooser_->launchAsync(
+                juce::FileBrowserComponent::saveMode
+                    | juce::FileBrowserComponent::canSelectFiles
+                    | juce::FileBrowserComponent::warnAboutOverwriting,
+                [this, row](const juce::FileChooser& fc) {
+                    const auto results = fc.getResults();
+                    if (results.isEmpty()) return;
+                    processor_.promoteVolatileToFile(row, results[0]);
+                    list_.updateContent();
+                    updateButtonStates();
+                });
+        };
+        addAndMakeVisible(promoteBtn_);
+
         removeBtn_.setWantsKeyboardFocus(false);
         removeBtn_.onClick = [this] {
             const int row = selectedPoolIndex();
@@ -225,7 +255,12 @@ namespace lockstep
         const bool hasSel = (row >= 0 && row < pool.size());
         const bool isFile = hasSel && !pool.isVolatileIndex(row);
         const bool missing = hasSel && pool.isMissing(row);
+        // Promote is available for a captured volatile slot (has PCM to write).
+        const bool promotable = hasSel && pool.isVolatileIndex(row)
+                                && (pool.get(row) != nullptr)
+                                && pool.get(row)->pcm.getNumSamples() > 0;
         relinkBtn_.setEnabled(missing);
+        promoteBtn_.setEnabled(promotable);
         removeBtn_.setEnabled(isFile);   // volatile REC slots aren't removable
         upBtn_.setEnabled(isFile && row > 0 && !pool.isVolatileIndex(row - 1));
         downBtn_.setEnabled(isFile && row < pool.size() - 1
@@ -355,6 +390,7 @@ namespace lockstep
         relinkBtn_.setBounds(btnRow.removeFromRight(70).reduced(1));
         btnRow.removeFromRight(4);
         loadBtn_.setBounds(btnRow.removeFromLeft(70).reduced(1));
+        promoteBtn_.setBounds(btnRow.removeFromLeft(64).reduced(1));
 
         bounds.removeFromBottom(4);
         list_.setBounds(bounds);

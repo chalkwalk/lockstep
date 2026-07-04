@@ -5121,6 +5121,70 @@ namespace lockstep
         return samplePool_.relink(index, newPath);
     }
 
+    int LockstepProcessor::promoteVolatileToFile(int poolIndex, const juce::File& dest)
+    {
+        const auto* s = samplePool_.get(poolIndex);
+        if (s == nullptr || !s->isVolatile) return -1;
+        if (s->pcm.getNumSamples() <= 0) return -1;  // nothing captured yet
+        const double sr = s->sampleRate > 0.0 ? s->sampleRate : getSampleRate();
+        if (sr <= 0.0) return -1;
+
+        // Write the captured PCM to a 32-bit float WAV (message thread).
+        juce::File out = dest.withFileExtension("wav");
+        out.deleteFile();
+        juce::WavAudioFormat fmt;
+        std::unique_ptr<juce::OutputStream> os(out.createOutputStream());
+        if (os == nullptr) return -1;
+        const auto options = juce::AudioFormatWriterOptions{}
+                                 .withSampleRate(sr)
+                                 .withNumChannels(s->pcm.getNumChannels())
+                                 .withBitsPerSample(32)
+                                 .withSampleFormat(
+                                     juce::AudioFormatWriterOptions::SampleFormat::floatingPoint);
+        auto writer = fmt.createWriterFor(os, options);  // moves the stream on success
+        if (writer == nullptr) return -1;
+        writer->writeFromAudioSampleBuffer(s->pcm, 0, s->pcm.getNumSamples());
+        writer.reset();  // flush + close before we decode it back
+
+        // Decode it back as a durable File entry (appends — no index shift).
+        const int newIdx = samplePool_.load(out.getFullPathName());
+        if (newIdx < 0) return -1;
+
+        // Repoint every base/P-Lock sample reference that pointed at the volatile to
+        // the new File entry, across all songs + the working buffer, so the promoted
+        // capture plays identically and survives reload. The volatile stays.
+        auto repoint = [poolIndex, newIdx](float cur) -> float {
+            return (static_cast<int>(std::lround(cur)) == poolIndex)
+                       ? static_cast<float>(newIdx) : cur;
+        };
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+        {
+            for (const char* refId : { "sample_id", "slicer_sample_id" })
+            {
+                const int slot = slotForId(t, refId);
+                if (slot < 0) continue;
+                const auto slotSz = static_cast<std::size_t>(slot);
+                for (auto& song : arrangement_.songs)
+                {
+                    auto& tk = song.tracks[static_cast<std::size_t>(t)];
+                    if (slotSz < tk.kit.baseParams.size())
+                        tk.kit.baseParams[slotSz] = repoint(tk.kit.baseParams[slotSz]);
+                    for (auto& phrase : tk.phrases)
+                        for (auto& step : phrase.steps)
+                            if (step.overrides.has(slot))
+                                step.overrides.set(slot, repoint(step.overrides.get(slot, 0.0f)));
+                }
+                auto& seqTrk = sequence().tracks[static_cast<std::size_t>(t)];
+                if (slotSz < seqTrk.baseParams.size())
+                    seqTrk.baseParams[slotSz] = repoint(seqTrk.baseParams[slotSz]);
+                for (auto& step : seqTrk.steps)
+                    if (step.overrides.has(slot))
+                        step.overrides.set(slot, repoint(step.overrides.get(slot, 0.0f)));
+            }
+        }
+        return newIdx;
+    }
+
     // Install machines whose IDs match the active Kit's machineId per track.
     // Called from setStateInformation (sequencer is stopped during state load).
     // Unsupported IDs receive a silent StubMachine that preserves data.

@@ -33,6 +33,7 @@ add_executable(lockstep_tests
     SurfaceLayerTest.cpp
     KeyBindingTest.cpp
     SerializerRoundTripTest.cpp
+    SampleIdRoundTripTest.cpp
     MultiStepHoldTest.cpp
     TransportGateTest.cpp
     PluginStateUpgradeTest.cpp

@@ -718,6 +718,15 @@ namespace lockstep
         // Call only when the sequencer is stopped to avoid audio-thread data races.
         bool relinkSample(int index, const juce::String& newPath);
 
+        // 9.18 save-and-promote: write a volatile (Record/Loop) capture's PCM to
+        // `dest` as a 32-bit float WAV, decode it back as a durable File entry, and
+        // repoint every sample reference that pointed at the volatile to the new
+        // File entry — so the capture survives reload (volatiles don't). The
+        // volatile itself is left intact. Returns the new File pool index, or -1 on
+        // failure (not a volatile / nothing captured / write or decode failed).
+        // Message-thread only.
+        int promoteVolatileToFile(int poolIndex, const juce::File& dest);
+
         // Sequence editing helpers — message thread only.
         // rotateTrackSteps: rotate steps in [0, trackLen) one place, wrapping. dir>0 shifts
         //   content right (toward higher index); dir<0 shifts left (toward lower index).

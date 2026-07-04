@@ -58,6 +58,7 @@ namespace lockstep
         juce::ListBox list_{ "pool", this };
         juce::TextButton loadBtn_{ "Load..." };
         juce::TextButton relinkBtn_{ "Relink..." };
+        juce::TextButton promoteBtn_{ "Save..." };  // 9.18: volatile capture -> durable File
         juce::TextButton removeBtn_{ "Remove" };
         juce::TextButton upBtn_{ juce::String(u8"↑") };
         juce::TextButton downBtn_{ juce::String(u8"↓") };
