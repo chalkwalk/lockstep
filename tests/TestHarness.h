@@ -75,6 +75,8 @@ namespace lockstep
     void runEngineTests();
     // v27 hosted-Locked transport AND-gate + restart re-floor
     void runTransportGateTests();
+    // Serializer upgrade-chain guard (ported off the plugin load path)
+    void runPluginStateUpgradeTests();
     // 8.21 Controller-surface shared helpers
     void runControllerTests();
     // 8.26 CaptureRecorder lifecycle

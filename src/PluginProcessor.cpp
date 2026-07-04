@@ -170,14 +170,10 @@ namespace lockstep
         for (std::size_t t = 1; t < kNumTracks; ++t)
             machines_[t] = std::make_unique<StubMachine>("");
 
-        // Verify the state upgrade chain every time the plugin loads in debug mode.
-#if JUCE_DEBUG
-        {
-            juce::UnitTestRunner runner;
-            runner.setAssertOnFailure(false);
-            runner.runTestsInCategory("PluginState");
-        }
-#endif
+        // The serializer upgrade-chain guard used to run here on every debug plugin
+        // load (runTestsInCategory("PluginState")). It now lives in the headless
+        // lockstep_tests target (tests/PluginStateUpgradeTest.cpp) so regressions
+        // gate ctest instead of being swallowed at load time.
 
         // Seed Song[0]: Track[0] kit = sampler with default params, T1-T15 = stub.
         {

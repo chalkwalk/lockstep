@@ -49,6 +49,8 @@ int main()
     lockstep::runEngineTests();
     // v27 transport AND-gate + deterministic restart re-floor
     lockstep::runTransportGateTests();
+    // Serializer upgrade-chain guard (ported off the plugin load path)
+    lockstep::runPluginStateUpgradeTests();
     // 8.21 Controller-surface shared helpers
     lockstep::runControllerTests();
     // 8.26 CaptureRecorder lifecycle

@@ -35,6 +35,7 @@ add_executable(lockstep_tests
     SerializerRoundTripTest.cpp
     MultiStepHoldTest.cpp
     TransportGateTest.cpp
+    PluginStateUpgradeTest.cpp
     GestureTest.cpp
     StatusTextTest.cpp
     ParamSpecTest.cpp
