@@ -661,6 +661,10 @@ namespace lockstep
                 const int poolIdx = static_cast<int>(value);
                 const juce::String shortName = processor_.sampleShortName(poolIdx);
                 samplePickerBtn_.setButtonText(shortName);
+                // Lay the button out as it becomes visible so the first SRC-page
+                // entry paints it immediately, instead of showing the underlying
+                // slider label until the next resized() (C6).
+                layoutSamplePickerButton();
                 samplePickerBtn_.setVisible(true);
                 const juce::String idxStr = juce::String(poolIdx) + ": ";
                 valueLabels_[si].setText(idxStr + shortName + (hasLock ? " *" : ""), juce::dontSendNotification);
@@ -1116,13 +1120,17 @@ namespace lockstep
             clearBtns_[si].setBounds(cell.getRight() - 14, cell.getY(), 14, kCellNameH);
 
             if (i == 0)
-            {
-                // Sample picker spans the full cell body (between name and value strips)
-                // so it renders as a proper-width button rather than a tiny square.
-                samplePickerBtn_.setBounds(juce::Rectangle<int>(
-                    cell.getX(), cell.getY() + kCellNameH,
-                    cell.getWidth(), cell.getHeight() - kCellNameH - kCellValueH));
-            }
+                layoutSamplePickerButton();
         }
+    }
+
+    void ManipulationZone::layoutSamplePickerButton()
+    {
+        // Sample picker spans the full cell body (between name and value strips)
+        // so it renders as a proper-width button rather than a tiny square.
+        const auto cell = slotCellBounds(0);
+        samplePickerBtn_.setBounds(juce::Rectangle<int>(
+            cell.getX(), cell.getY() + kCellNameH,
+            cell.getWidth(), cell.getHeight() - kCellNameH - kCellValueH));
     }
 }

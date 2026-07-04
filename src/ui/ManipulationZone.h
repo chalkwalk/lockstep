@@ -104,6 +104,11 @@ namespace lockstep
         // resized(), paintOverChildren() (CC badges, learn overlay, morph chips).
         [[nodiscard]] juce::Rectangle<int> slotCellBounds(int i) const;
         [[nodiscard]] juce::Rectangle<int> slotKnobBounds(int i) const;
+        // Position the sample-picker button over cell 0's body. Called from both
+        // resized() and the param-refresh path that flips it visible, so the first
+        // switch to a sample machine's SRC page paints the button (not the stale
+        // slider label) — its bounds no longer wait for the next resized() (C6).
+        void layoutSamplePickerButton();
         // 10.10: harmony CHORD view re-lays voice slots 0-3 as four full-height
         // columns across the left region (the chord reel spans them).
         [[nodiscard]] juce::Rectangle<int> harmonyVoiceColBounds(int v) const;
