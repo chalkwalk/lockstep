@@ -714,6 +714,14 @@ namespace lockstep
         void removeSample(int poolIndex);
         // swapSamples remaps references and swaps two pool entries (reorder).
         void swapSamples(int a, int b);
+        // 9.18: number of pool entries whose backing file could not be found on load
+        // (Persistent references awaiting relink). Message-thread only.
+        [[nodiscard]] int missingSampleCount() const;
+
+        // 9.18: fired at the end of finishStateLoad (every load path) so a live
+        // editor can surface missing samples / refresh. Null when there is no editor.
+        std::function<void()> onStateLoaded;
+
         // relinkSample replaces a missing (or any) pool entry in-place with a newly loaded file.
         // Call only when the sequencer is stopped to avoid audio-thread data races.
         bool relinkSample(int index, const juce::String& newPath);

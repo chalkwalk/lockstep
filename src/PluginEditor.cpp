@@ -679,6 +679,22 @@ namespace lockstep
             poolOverlay_.setVisible(true);
             poolOverlay_.toFront(false);
         };
+
+        // 9.18: surface samples that could not be located when a project loads, so
+        // the user knows to relink them (pool identity is by content hash, so a
+        // single relink heals every reference to that sample). Marshal to the
+        // message thread — some hosts call setStateInformation off it.
+        processor_.onStateLoaded = [this] {
+            juce::Component::SafePointer<LockstepEditor> self(this);
+            juce::MessageManager::callAsync([self] {
+                if (self == nullptr) return;
+                const int missing = self->processor_.missingSampleCount();
+                if (missing > 0)
+                    self->setStatus(juce::String(missing)
+                                    + (missing == 1 ? " sample missing" : " samples missing")
+                                    + " — open the pool (Manage) to relink");
+            });
+        };
         manipulationZone_.onEuclidParamChanged = [this] {
             if (uiState_.euclidHeld && euclidTrack_ >= 0)
             {
@@ -759,6 +775,9 @@ namespace lockstep
     {
         // Stop vblank callbacks before any members it touches are destroyed.
         playheadVBlank_.reset();
+        // 9.18: drop the post-load hook so finishStateLoad never calls into a
+        // destroyed editor (the lambda captures `this`).
+        processor_.onStateLoaded = nullptr;
         processor_.apvts().removeParameterListener(ParamIDs::syncMode, this);
         for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
         {

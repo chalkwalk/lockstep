@@ -6599,6 +6599,22 @@ namespace lockstep
         // Reconcile kit/phrase authoritative values with APVTS params so the engine
         // and all display bands agree from the first render block.
         syncTrackParamsFromActiveKit();
+
+        // 9.18: let the editor surface any samples that could not be located on this
+        // load (Persistent references whose file is absent), so the user knows to
+        // relink them in the pool manager. No-op when there is no editor (DAW render
+        // / headless). Fired last so the pool is fully reconstructed.
+        if (onStateLoaded)
+            onStateLoaded();
+    }
+
+    int LockstepProcessor::missingSampleCount() const
+    {
+        int n = 0;
+        for (int i = 0; i < samplePool_.size(); ++i)
+            if (samplePool_.isMissing(i))
+                ++n;
+        return n;
     }
 
     void LockstepProcessor::syncTrackParamsFromActiveKit()
