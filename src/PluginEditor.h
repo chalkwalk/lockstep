@@ -324,6 +324,13 @@ namespace lockstep
         // latter while Track is held, so the picker must be reachable from both).
         bool applyMasterFxPick(int index);
         bool applyTrackFxPick(int index);
+        // Item 5: one-time explainer when an External send is first loaded — the
+        // host also sums the Send A/B output buses into the track main unless the
+        // user routes+mutes them (no portable plugin-side way to force this across
+        // CLAP/VST3). Dismissible with a "don't warn again" toggle (persisted).
+        void maybeWarnExternalSend();
+        std::unique_ptr<juce::AlertWindow> externalSendWarn_;
+        std::unique_ptr<juce::ToggleButton> externalSendWarnToggle_;
         // Long-press-remove on the loaded catalogue cell: down arms + defers,
         // up resolves (tap = bypass via apply*FxPick, long-press = remove).
         [[nodiscard]] bool fxPickerCellIsLoaded(int index, bool master) const;

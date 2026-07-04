@@ -4679,6 +4679,19 @@ folded to master** (deliberately unlike a disabled `Aux N` *out* route, which
 folds): an external send is a hard hand-off, not a fallback mix. The UI shows a
 loaded-but-unavailable External send in the amber `EffectLoadedBypassed` state.
 
+*Host-side routing is manual, by necessity.* The Send buses are declared
+disabled-by-default, but that flag is not honoured consistently across formats: the
+JUCE VST3 wrapper tags them as inactive aux buses (host opts in), while the CLAP
+wrapper (`clap-juce-wrapper.cpp` `audioPortsInfo`) reports **every** JUCE bus as an
+always-present non-main port and ignores `isActivatedByDefault` — there is no
+per-port active/mute signal without implementing the CLAP `audio-ports-activation`
+extension in the vendored submodule (invasive, spotty host support). So the plugin
+cannot force the outputs muted; hosts that auto-sum all plugin outputs will double
+the send (own bus + Master fold). The workflow is therefore a documented manual
+step — route the Send output to its destination (PRE-fader on a send/aux track) and
+mute it on the main output — surfaced by a one-time dismissible explainer
+(`maybeWarnExternalSend`, persisted opt-out) when an External send is first loaded.
+
 **CHANNEL block (Send A/B):** `lockstep.amp.sendA` / `lockstep.amp.sendB`,
 both 0..1, default 0 (dry). The CHANNEL block is present on every audio
 track — including machines with internal amp (Analog/FM/DrumSynth) — so sends

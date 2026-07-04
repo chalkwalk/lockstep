@@ -950,6 +950,16 @@ matching Send bus (e.g. standalone, or the DAW left it disabled) the send is
 **silent** and the slot reads amber "loaded-but-bypassed" — the tap is dropped,
 never folded back to Master (unlike a disabled `Aux N` out route, which folds).
 
+*DAW setup.* The "Send A/B" outputs are **separate plugin output buses**, declared
+disabled-by-default. Many hosts still auto-sum every plugin output into the track's
+main channel — so the send can appear **doubled** (once via its own bus, once folded
+into Master). There is no portable, host-respected way for the plugin to force these
+outputs muted (VST3 tags them as inactive aux buses; the CLAP wrapper reports them as
+always-present non-main ports and ignores the disabled-by-default flag), so the
+routing is a manual DAW step: **route each Send output to its destination (typically
+PRE-fader on a send/aux track) and mute it on Lockstep's main output.** Loading an
+External send shows a one-time explainer with a "don't warn again" toggle.
+
 **Available effects:**
 
 Some effects are **quality-tiered**: one catalogue entry presents a lean LQ face

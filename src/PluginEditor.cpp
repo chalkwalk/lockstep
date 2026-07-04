@@ -2255,6 +2255,9 @@ namespace lockstep
             {
                 processor_.setMasterSend(mSlot, info.id);
                 processor_.setMasterSendBypass(mSlot, false);
+                // Item 5: freshly loaded an External send — explain the DAW routing.
+                if (info.sendOnly)
+                    maybeWarnExternalSend();
             }
             else
             {
@@ -2266,6 +2269,46 @@ namespace lockstep
         refreshMetaBand();
         repaint();
         return true;
+    }
+
+    void LockstepEditor::maybeWarnExternalSend()
+    {
+        // Honour the persisted opt-out; also skip if a warning is already showing.
+        if (auto* prefs = appProps_.getUserSettings())
+            if (!prefs->getBoolValue("warnExternalSend", true))
+                return;
+        if (externalSendWarn_ != nullptr)
+            return;
+
+        externalSendWarn_ = std::make_unique<juce::AlertWindow>(
+            "External send routing",
+            "\"Send A\"/\"Send B\" are separate plugin output buses. Your host may "
+            "also sum them into this track's main output, doubling the signal.\n\n"
+            "In the DAW: route each Send output to its destination (typically "
+            "PRE-fader on a send/aux track) and mute it on Lockstep's main output.",
+            juce::MessageBoxIconType::InfoIcon, this);
+
+        externalSendWarnToggle_ = std::make_unique<juce::ToggleButton>("Don't warn me again");
+        externalSendWarnToggle_->setSize(220, 24);
+        externalSendWarn_->addCustomComponent(externalSendWarnToggle_.get());
+        externalSendWarn_->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey));
+        externalSendWarn_->enterModalState(
+            true,
+            juce::ModalCallbackFunction::create([this](int) {
+                if (externalSendWarnToggle_ != nullptr
+                    && externalSendWarnToggle_->getToggleState())
+                {
+                    if (auto* prefs = appProps_.getUserSettings())
+                    {
+                        prefs->setValue("warnExternalSend", false);
+                        prefs->saveIfNeeded();
+                    }
+                }
+                // Destroy the toggle before the window that parents it.
+                externalSendWarnToggle_.reset();
+                externalSendWarn_.reset();
+            }),
+            false);
     }
 
     bool LockstepEditor::applyTrackFxPick(int index)
