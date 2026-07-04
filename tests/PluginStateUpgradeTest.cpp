@@ -405,6 +405,87 @@ namespace
                        "v25->v26: no analysis props invented for a legacy entry");
             }
 
+            beginTest("v29: sample_id re-resolves to the pool entry's current position");
+            {
+                // Two pool entries. Their child ORDER is the live pool index after
+                // load, so a reference must resolve to the child whose hash matches,
+                // not to whatever now sits at the old flat index. Here BBBB is child 1
+                // but the P node's stale v points at 999 — the hash must win.
+                auto makeTree = [](int firstHash) {
+                    juce::ValueTree t(keys::kLockstepState);
+                    t.setProperty(keys::kVersion, 29, nullptr);
+                    auto pool = juce::ValueTree(keys::kSamplePool);
+                    auto e0 = juce::ValueTree(keys::kEntry);
+                    e0.setProperty("i", 8, nullptr);
+                    e0.setProperty(keys::kHash, firstHash == 0 ? "aaaaaaaa" : "bbbbbbbb", nullptr);
+                    auto e1 = juce::ValueTree(keys::kEntry);
+                    e1.setProperty("i", 9, nullptr);
+                    e1.setProperty(keys::kHash, firstHash == 0 ? "bbbbbbbb" : "aaaaaaaa", nullptr);
+                    pool.appendChild(e0, nullptr);
+                    pool.appendChild(e1, nullptr);
+                    t.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
+                    t.appendChild(pool, nullptr);
+                    // A kit BP node holding a sample_id reference to BBBB (by hash),
+                    // with a deliberately-wrong flat v that the hash must override.
+                    auto nh = juce::ValueTree(keys::kNewHierarchy);
+                    auto p = juce::ValueTree("P");
+                    p.setProperty(keys::kParamId, "sample_id", nullptr);
+                    p.setProperty(keys::kPLockVal, 999, nullptr);
+                    p.setProperty(keys::kSampleHash, "bbbbbbbb", nullptr);
+                    nh.appendChild(p, nullptr);
+                    t.appendChild(nh, nullptr);
+                    return t;
+                };
+
+                // BBBB is child 1 → sample_id resolves to index 1.
+                auto r0 = lockstep::PluginState::applyUpgrades(makeTree(0));
+                auto p0 = r0.getChildWithName(keys::kNewHierarchy).getChild(0);
+                expectEquals(static_cast<int>(p0.getProperty(keys::kPLockVal, -1)), 1,
+                             "v29: sample_id resolves to BBBB at position 1");
+
+                // Reorder so BBBB is child 0 → sample_id now resolves to index 0,
+                // proving identity follows the hash, not the array slot.
+                auto r1 = lockstep::PluginState::applyUpgrades(makeTree(1));
+                auto p1 = r1.getChildWithName(keys::kNewHierarchy).getChild(0);
+                expectEquals(static_cast<int>(p1.getProperty(keys::kPLockVal, -1)), 0,
+                             "v29: after reorder, sample_id follows BBBB to position 0");
+            }
+
+            beginTest("v28 -> v29: legacy flat sample_id is bridged via the pool 'i' index");
+            {
+                // A v28 tree: sample_id is a raw flat index (9) with NO hash. The pool
+                // node's per-entry 'i' attribute (runtime index at save) bridges it:
+                // the entry with i==9 is child 1, so the reference resolves to index 1
+                // and a durable 'sh' is stamped for subsequent loads.
+                juce::ValueTree v28(keys::kLockstepState);
+                v28.setProperty(keys::kVersion, 28, nullptr);
+                auto pool = juce::ValueTree(keys::kSamplePool);
+                auto e0 = juce::ValueTree(keys::kEntry);
+                e0.setProperty("i", 8, nullptr);
+                e0.setProperty(keys::kHash, "aaaaaaaa", nullptr);
+                auto e1 = juce::ValueTree(keys::kEntry);
+                e1.setProperty("i", 9, nullptr);
+                e1.setProperty(keys::kHash, "bbbbbbbb", nullptr);
+                pool.appendChild(e0, nullptr);
+                pool.appendChild(e1, nullptr);
+                v28.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
+                v28.appendChild(pool, nullptr);
+                auto nh = juce::ValueTree(keys::kNewHierarchy);
+                auto p = juce::ValueTree("P");
+                p.setProperty(keys::kParamId, "sample_id", nullptr);
+                p.setProperty(keys::kPLockVal, 9, nullptr);  // flat index, no hash
+                nh.appendChild(p, nullptr);
+                v28.appendChild(nh, nullptr);
+
+                auto r = lockstep::PluginState::applyUpgrades(v28);
+                auto pr = r.getChildWithName(keys::kNewHierarchy).getChild(0);
+                expectEquals(static_cast<int>(pr.getProperty(keys::kPLockVal, -1)), 1,
+                             "v28->v29: flat index 9 bridges to child position 1");
+                expectEquals(pr.getProperty(keys::kSampleHash).toString(),
+                             juce::String("bbbbbbbb"),
+                             "v28->v29: durable hash stamped from the bridged entry");
+            }
+
             beginTest("future version: valid tree returned without crash");
             {
                 juce::ValueTree future(keys::kLockstepState);

@@ -62,7 +62,7 @@ namespace lockstep
         //      gain an/bpm/keyR/keyB/tune, written only for analysed entries and
         //      keyed by the existing sample hash. Missing props = "re-analyse on
         //      load" = exact v25 behaviour; trivial stamp upgrade from v25.
-        inline constexpr int kCurrentVersion = 28;
+        inline constexpr int kCurrentVersion = 29;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

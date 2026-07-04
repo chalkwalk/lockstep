@@ -33,6 +33,28 @@ namespace lockstep::PluginState
             static_cast<double>(v.getProperty(name, static_cast<double>(def))));
     }
 
+    static juce::String hashToHex(std::uint32_t h);  // defined below
+
+    // 9.18: the machine params that hold a reference to a SamplePool entry.
+    static bool isSampleRefId(const juce::String& id)
+    {
+        return id == "sample_id" || id == "slicer_sample_id";
+    }
+
+    // 9.18: stamp a P node (base param or P-Lock) that holds a sample reference with
+    // the referenced entry's durable content hash, so the reference survives a pool
+    // reorder across reload (the flat-index rot fix). Only Persistent (File/Stream)
+    // entries have a content hash; a Volatile REC/LOOP slot is not persisted, so its
+    // reference rides the raw index and simply resolves to nothing on the next load.
+    static void stampSampleRefHash(juce::ValueTree& pNode, const juce::String& id,
+                                   float val, LockstepProcessor& proc)
+    {
+        if (!isSampleRefId(id)) return;
+        const auto sid = proc.samplePool().idOf(juce::roundToInt(val));
+        if (sid.domain == SampleId::Domain::Persistent)
+            pNode.setProperty(keys::kSampleHash, hashToHex(sid.key), nullptr);
+    }
+
     // v22: key signature (DESIGN §4.10). Four scoped properties; see StateKeys.
     static void writeKeySig(juce::ValueTree& node, const KeySig& k,
                             const char* rk, const char* bk, const char* mk, const char* sk)
@@ -165,6 +187,7 @@ namespace lockstep::PluginState
                     juce::ValueTree pNode("P");
                     pNode.setProperty(keys::kParamId, sid, nullptr);
                     pNode.setProperty(keys::kPLockVal, static_cast<double>(value), nullptr);
+                    stampSampleRefHash(pNode, sid, value, proc);  // 9.18
                     plNode.appendChild(pNode, nullptr);
                 });
                 stepNode.appendChild(plNode, nullptr);
@@ -212,6 +235,7 @@ namespace lockstep::PluginState
                     juce::ValueTree pNode("P");
                     pNode.setProperty(keys::kParamId, sid, nullptr);
                     pNode.setProperty(keys::kPLockVal, static_cast<double>(value), nullptr);
+                    stampSampleRefHash(pNode, sid, value, proc);  // 9.18
                     fplNode.appendChild(pNode, nullptr);
                 });
                 stepNode.appendChild(fplNode, nullptr);
@@ -415,10 +439,20 @@ namespace lockstep::PluginState
                 }
                 else
                     val = 0.0f;
-                if (!floatNe(val, def)) continue;
+                // 9.18: a sample reference that points at a Persistent (File/Stream)
+                // entry is always written — even at the default index 0 — so its
+                // durable content hash rides along and survives a pool reorder. A
+                // Stream track very often references index 0, which default-elision
+                // would otherwise silently drop (the "stream doesn't reload" trap).
+                const bool persistentSampleRef =
+                    isSampleRefId(id)
+                    && proc.samplePool().idOf(juce::roundToInt(val)).domain
+                           == SampleId::Domain::Persistent;
+                if (!floatNe(val, def) && !persistentSampleRef) continue;
                 juce::ValueTree pNode("P");
                 pNode.setProperty("id", id, nullptr);
                 pNode.setProperty("v", static_cast<double>(val), nullptr);
+                stampSampleRefHash(pNode, id, val, proc);  // 9.18
                 bpNode.appendChild(pNode, nullptr);
             }
             if (bpNode.getNumChildren() > 0)
@@ -1171,6 +1205,7 @@ namespace lockstep::PluginState
                     juce::ValueTree pNode(keys::kParam);
                     pNode.setProperty(keys::kParamId, id, nullptr);
                     pNode.setProperty(keys::kV, static_cast<double>(val), nullptr);
+                    stampSampleRefHash(pNode, id, val, proc);  // 9.18
                     bpNode.appendChild(pNode, nullptr);
                 }
                 if (bpNode.getNumChildren() > 0)
@@ -1857,6 +1892,86 @@ namespace lockstep::PluginState
         return v27;
     }
 
+    // 9.18: resolve every sample reference (sample_id / slicer_sample_id) in the tree
+    // from its durable content hash to the pool entry's CURRENT position, so a saved
+    // reference never drifts when the pool reorders across reload (the flat-index rot).
+    // Runs on EVERY load (idempotent): the pool node's child ORDER equals the live
+    // pool index after readSamplePool (volatiles are re-seeded above, not serialised),
+    // so a matching entry's position is exactly the index the reference must hold.
+    // v28 (and earlier) trees carry only a raw flat index and no "sh"; the pool node's
+    // per-entry "i" attribute (the runtime index at save) bridges them the first time,
+    // and the resolved hash is stamped as "sh" so subsequent loads are hash-driven.
+    static void normalizeSampleRefs(juce::ValueTree& root)
+    {
+        const auto pool = root.getChildWithName(keys::kSamplePool);
+        if (!pool.isValid()) return;
+
+        struct Entry { juce::String hash; int savedIndex; };
+        std::vector<Entry> entries;
+        entries.reserve(static_cast<std::size_t>(pool.getNumChildren()));
+        for (auto e : pool)
+            entries.push_back({ e.getProperty(keys::kHash).toString(),
+                                static_cast<int>(e.getProperty("i", -1)) });
+
+        auto posForHash = [&entries](const juce::String& h) -> int {
+            if (h.isEmpty()) return -1;
+            for (int p = 0; p < static_cast<int>(entries.size()); ++p)
+                if (entries[static_cast<std::size_t>(p)].hash == h) return p;
+            return -1;
+        };
+        auto posForSavedIndex = [&entries](int savedI) -> int {
+            for (int p = 0; p < static_cast<int>(entries.size()); ++p)
+                if (entries[static_cast<std::size_t>(p)].savedIndex == savedI) return p;
+            return -1;
+        };
+
+        std::function<void(juce::ValueTree)> walk = [&](juce::ValueTree n) {
+            if (n.getType() == juce::Identifier(keys::kParam))  // "P"
+            {
+                const juce::String id = n.getProperty(keys::kParamId).toString();
+                if (isSampleRefId(id))
+                {
+                    juce::String sh = n.getProperty(keys::kSampleHash).toString();
+                    int pos = -1;
+                    if (sh.isNotEmpty())
+                    {
+                        pos = posForHash(sh);
+                    }
+                    else  // legacy (≤v28): synthesise the hash from the saved flat index
+                    {
+                        const int savedI = juce::roundToInt(
+                            static_cast<double>(n.getProperty(keys::kPLockVal, 0.0)));
+                        pos = posForSavedIndex(savedI);
+                        if (pos >= 0) sh = entries[static_cast<std::size_t>(pos)].hash;
+                    }
+                    if (pos >= 0)
+                    {
+                        n.setProperty(keys::kPLockVal, pos, nullptr);
+                        if (sh.isNotEmpty())
+                            n.setProperty(keys::kSampleHash, sh, nullptr);
+                    }
+                }
+            }
+            for (int c = 0; c < n.getNumChildren(); ++c)
+                walk(n.getChild(c));
+        };
+        walk(root);
+    }
+
+    static juce::ValueTree upgrade_v28_to_v29(const juce::ValueTree& v28)
+    {
+        // v29 (sample-pool identity): sample references (sample_id / slicer_sample_id)
+        // now carry a durable content hash ("sh") and re-resolve to the pool entry's
+        // current position on load, instead of storing a raw flat index that drifts as
+        // the pool reorders. The actual resolution runs unconditionally in
+        // normalizeSampleRefs (below, at the end of applyUpgrades) — which also bridges
+        // this v28 tree's raw indices via the pool node's "i" attribute — so nothing
+        // structural is rewritten here. Stamp bump.
+        juce::ValueTree v29 = v28.createCopy();
+        v29.setProperty(keys::kVersion, 29, nullptr);
+        return v29;
+    }
+
     static juce::ValueTree upgrade_v27_to_v28(const juce::ValueTree& v27)
     {
         // v28 (stream-via-pool): a StreamMachine's source moves from a per-Kit
@@ -1907,6 +2022,11 @@ namespace lockstep::PluginState
         if (version < 26) tree = upgrade_v25_to_v26(tree);
         if (version < 27) tree = upgrade_v26_to_v27(tree);
         if (version < 28) tree = upgrade_v27_to_v28(tree);
+        if (version < 29) tree = upgrade_v28_to_v29(tree);
+
+        // 9.18: unconditional — resolve sample references to current pool positions
+        // (hash-driven for v29 trees, "i"-bridged for the v28 tree just upgraded).
+        normalizeSampleRefs(tree);
 
         return tree;
     }

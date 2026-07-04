@@ -112,6 +112,10 @@ namespace lockstep::keys
     inline constexpr const char* kPLockSlot = "s";    // legacy v14: integer slot index
     inline constexpr const char* kPLockVal = "v";    // float value (both v14 and v15)
   // kParamId = "id" (see Base Params section) is reused as the v15 P-Lock string id key.
+  // v29 (9.18): durable content hash of a sample reference (sample_id / slicer_sample_id).
+  // Stamped on any P node that holds such a reference so it re-resolves to the pool
+  // entry's CURRENT position on load rather than drifting with the flat index.
+    inline constexpr const char* kSampleHash = "sh";  // hex xxHash32 of the referenced entry
   // Fill-specific overrides (parallel to TO/PL above):
     inline constexpr const char* kFillTS = "fts";   // FillTrigState enum value
     inline constexpr const char* kFillTO = "FTO";   // fill trig override node
