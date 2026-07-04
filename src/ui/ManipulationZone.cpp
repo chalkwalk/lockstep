@@ -716,7 +716,12 @@ namespace lockstep
         for (int i = 0; i < poolSize; ++i)
         {
             if (!processor_.sampleAcceptedByTrack(track, i)) continue;
-            menu.addItem(i + 1, juce::String(i) + "  " + processor_.sampleShortName(i));
+            // C4: a per-group ordinal (FILE 1, STREAM 1, REC 1, ...) instead of the
+            // raw pool index, which jumps when the reserved volatile slots re-seed at
+            // the pool front on reload. The item id still encodes the true pool index
+            // (+1) so selection writes the correct entry.
+            menu.addItem(i + 1, juce::String(processor_.samplePool().groupOrdinal(i))
+                                    + "  " + processor_.sampleShortName(i));
             ++shown;
         }
         if (shown == 0)

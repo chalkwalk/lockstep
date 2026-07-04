@@ -424,6 +424,47 @@ namespace lockstep
             CHECK(pool.resolve(SampleId{}) == nullptr, "resolve(None) is nullptr");
         }
 
+        // C4: per-group ordinals (FILE 1..n / STREAM 1..n / REC 1..n) are stable
+        // regardless of where the volatile REC slots sit — reload re-seeds them at
+        // the pool front, which used to shift the raw indices a picker showed.
+        {
+            const double sr = 44100.0;
+            auto b1 = poolTones({ 0, 4, 7 }, { 2.0, 1.0, 1.0 }, sr, 0.4);
+            auto b2 = poolTones({ 2, 5, 9 }, { 2.0, 1.0, 1.0 }, sr, 0.4);
+            juce::File w1 = writeTempWav(b1, sr, "lockstep_ord_1");
+            juce::File w2 = writeTempWav(b2, sr, "lockstep_ord_2");
+
+            // Arrangement A: files first, then volatiles appended.
+            SamplePool a;
+            const int a1 = a.load(w1.getFullPathName());
+            const int a2 = a.load(w2.getFullPathName());
+            const int as = a.addStreamRef("/nonexistent/lockstep_ord_stream.wav");
+            a.addVolatile();
+            a.addVolatile();
+            CHECK(a.groupOrdinal(a1) == 1 && a.groupOrdinal(a2) == 2,
+                  "ordinal: FILE entries number 1,2");
+            CHECK(a.groupOrdinal(as) == 1, "ordinal: the STREAM entry numbers 1");
+
+            // Arrangement B: volatiles seeded at the FRONT (the reload layout), then
+            // the same files/stream. Group ordinals must match A exactly.
+            SamplePool b;
+            b.addVolatile();
+            b.addVolatile();
+            const int b1i = b.load(w1.getFullPathName());
+            const int b2i = b.load(w2.getFullPathName());
+            const int bs = b.addStreamRef("/nonexistent/lockstep_ord_stream.wav");
+            CHECK(b.groupOrdinal(b1i) == 1 && b.groupOrdinal(b2i) == 2,
+                  "ordinal: FILE numbering unshifted by front-seeded volatiles");
+            CHECK(b.groupOrdinal(bs) == 1,
+                  "ordinal: STREAM numbering unshifted by front-seeded volatiles");
+            // The raw indices differ (b's files sit at 2,3 not 0,1) — proving the
+            // ordinal is decoupled from array position.
+            CHECK(b1i != a1, "ordinal: raw indices did shift (front-seed)");
+
+            w1.deleteFile();
+            w2.deleteFile();
+        }
+
         // C3: a file present at load that disappears at runtime becomes missing on
         // rescan; a volatile capture is never touched; a reappeared file clears.
         {

@@ -264,6 +264,14 @@ namespace lockstep
         juce::String displayName(int index) const;
         juce::String displayHint(int index) const;
 
+        // C4: 1-based ordinal of the entry WITHIN its origin group (FILE 1..n,
+        // STREAM 1..n, RECORD 1..n, LOOP 1..n; empty REC slots counted among the
+        // volatiles, matching displayName's "REC N"). Unlike the raw array index,
+        // this does not jump when the reserved volatile REC slots re-seed at the
+        // pool front on reload, so the number a picker shows is stable. Single source
+        // for both the in-machine picker and the pool browser. Out-of-range → 0.
+        int groupOrdinal(int index) const;
+
         // Remove the entry at index, shifting higher entries down.
         // Callers must remap all references before calling. Message-thread only.
         bool remove(int index);

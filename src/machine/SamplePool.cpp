@@ -351,6 +351,36 @@ namespace lockstep
         return f.getFileNameWithoutExtension();
     }
 
+    int SamplePool::groupOrdinal(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return 0;
+        const auto& s = *samples_[static_cast<std::size_t>(index)];
+        int ord = 0;
+        for (int i = 0; i <= index; ++i)
+        {
+            const auto& e = *samples_[static_cast<std::size_t>(i)];
+            bool sameGroup = false;
+            if (s.isVolatile)
+            {
+                if (s.origin == SampleOrigin::Record || s.origin == SampleOrigin::Loop)
+                    // Record / Loop are numbered within their own kind.
+                    sameGroup = e.isVolatile && e.origin == s.origin;
+                else
+                    // Empty REC slots are numbered among all volatiles (matches the
+                    // "REC N (empty)" label in displayName).
+                    sameGroup = e.isVolatile;
+            }
+            else
+            {
+                // FILE vs STREAM, numbered within their persistent origin.
+                sameGroup = !e.isVolatile && e.origin == s.origin;
+            }
+            if (sameGroup) ++ord;
+        }
+        return ord;
+    }
+
     juce::String SamplePool::displayHint(int index) const
     {
         if (index < 0 || index >= static_cast<int>(samples_.size()))
