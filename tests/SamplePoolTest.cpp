@@ -338,5 +338,90 @@ namespace lockstep
             CHECK(pool.isMissing(idx), "missing stream file flags missing");
             CHECK(pool.ensurePcm(idx) == -1, "ensurePcm refuses a missing entry");
         }
+
+        // 9.18: SampleId identity is decoupled from array position -------------
+        {
+            const double sr = 44100.0;
+            auto bufA = poolTones({ 0, 4, 7 }, { 2.0, 1.0, 1.0 }, sr, 1.0);
+            auto bufB = poolTones({ 2, 5, 9 }, { 2.0, 1.0, 1.0 }, sr, 1.0);
+            juce::File wavA = writeTempWav(bufA, sr, "lockstep_id_a");
+            juce::File wavB = writeTempWav(bufB, sr, "lockstep_id_b");
+
+            SamplePool pool;
+            const int a = pool.load(wavA.getFullPathName());   // idx 0
+            const int b = pool.load(wavB.getFullPathName());   // idx 1
+            const int v0 = pool.addVolatile();                 // idx 2
+            const int v1 = pool.addVolatile();                 // idx 3
+            CHECK(a == 0 && b == 1 && v0 == 2 && v1 == 3, "layout: A B v0 v1");
+
+            const SampleId idA  = pool.idOf(a);
+            const SampleId idB  = pool.idOf(b);
+            const SampleId idV0 = pool.idOf(v0);
+            const SampleId idV1 = pool.idOf(v1);
+
+            CHECK(idA.domain == SampleId::Domain::Persistent, "file id is Persistent");
+            CHECK(idV0.domain == SampleId::Domain::Volatile, "volatile id is Volatile");
+            CHECK(idA != idB, "distinct files have distinct ids");
+            CHECK(idV0 != idV1, "distinct volatiles have distinct ids");
+
+            // Round-trip: idOf then indexOf returns the same array position.
+            CHECK(pool.indexOf(idA) == a && pool.indexOf(idB) == b,
+                  "indexOf round-trips file ids");
+            CHECK(pool.indexOf(idV0) == v0 && pool.indexOf(idV1) == v1,
+                  "indexOf round-trips volatile ids");
+
+            // Identity survives a reorder: remove A (idx 0) shifts everything down.
+            CHECK(pool.remove(a), "remove entry 0");
+            CHECK(pool.indexOf(idB) == 0, "B's id now resolves to shifted index 0");
+            CHECK(pool.indexOf(idV0) == 1 && pool.indexOf(idV1) == 2,
+                  "volatile ids survive the shift");
+            CHECK(pool.resolve(idB) != nullptr
+                  && pool.resolve(idB)->ref.hashXX32 == idB.key,
+                  "resolve(idB) returns B by hash");
+
+            // A vanished entry: its id resolves to nothing (not a wrong entry).
+            CHECK(pool.indexOf(idA) == -1 && pool.resolve(idA) == nullptr,
+                  "removed entry's id resolves to nothing, never a neighbour");
+
+            // Identity survives a swap.
+            CHECK(pool.swap(0, 1), "swap B and v0");
+            CHECK(pool.indexOf(idB) == 1 && pool.indexOf(idV0) == 0,
+                  "ids track entries across a swap");
+
+            wavA.deleteFile();
+            wavB.deleteFile();
+        }
+
+        // 9.18: File and Stream of the same file are distinct ids -------------
+        {
+            const double sr = 44100.0;
+            auto buf = poolTones({ 0, 4, 7 }, { 2.0, 1.0, 1.0 }, sr, 1.0);
+            juce::File wav = writeTempWav(buf, sr, "lockstep_id_dual");
+
+            SamplePool pool;
+            const int f = pool.load(wav.getFullPathName());        // File (PCM hash)
+            const int s = pool.addStreamRef(wav.getFullPathName()); // Stream (byte hash)
+            CHECK(f == 0 && s == 1, "same file loads as two distinct entries");
+            const SampleId idF = pool.idOf(f);
+            const SampleId idS = pool.idOf(s);
+            CHECK(idF.domain == SampleId::Domain::Persistent
+                  && idS.domain == SampleId::Domain::Persistent,
+                  "both are Persistent-domain");
+            CHECK(idF != idS, "File (PCM hash) and Stream (byte hash) are distinct ids");
+            CHECK(pool.indexOf(idF) == f && pool.indexOf(idS) == s,
+                  "each resolves to its own entry");
+
+            wav.deleteFile();
+        }
+
+        // 9.18: an unbacked / None reference resolves to nothing --------------
+        {
+            SamplePool pool;
+            const int m = pool.addMissing(SampleRef{});  // no path, hash 0
+            CHECK(m == 0, "empty missing entry appended");
+            CHECK(!pool.idOf(m).valid(), "a hash-0 entry has no persistent identity");
+            CHECK(pool.indexOf(SampleId{}) == -1, "None id resolves to nothing");
+            CHECK(pool.resolve(SampleId{}) == nullptr, "resolve(None) is nullptr");
+        }
     }
 }

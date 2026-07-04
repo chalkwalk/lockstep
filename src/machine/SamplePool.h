@@ -25,6 +25,31 @@ namespace lockstep
     // Append-only — the value is serialised, so never renumber. (File=0.)
     enum class SampleOrigin : std::uint8_t { File = 0, Empty, Record, Loop, Stream };
 
+    // Stable identity for a pool entry, decoupled from its array position (9.18).
+    // A sample reference (track base sample_id, P-Lock override, Stream track) is
+    // stored as a SampleId so it survives pool reorder / reload without pointing at
+    // the wrong entry (the flat-index rot fixed here). Two identity domains:
+    //   - Persistent (File / Stream) — backed by a disk file. key = content hash
+    //     (SampleRef::hashXX32). Stable across reorder AND file move: reloading the
+    //     file re-matches the hash and auto-relinks. Serialised.
+    //   - Volatile (Record / Loop / Empty REC slot) — captured live, no file, not
+    //     serialised. key = a session-local monotonic id assigned at slot creation,
+    //     stable for the life of the session across pool reorder.
+    // None = an unassigned / cleared reference (resolves to nothing).
+    struct SampleId
+    {
+        enum class Domain : std::uint8_t { None = 0, Persistent, Volatile };
+        Domain        domain = Domain::None;
+        std::uint32_t key    = 0;
+
+        bool valid() const { return domain != Domain::None; }
+        bool operator==(const SampleId& o) const
+        {
+            return domain == o.domain && key == o.key;
+        }
+        bool operator!=(const SampleId& o) const { return !(*this == o); }
+    };
+
     struct Sample
     {
         SampleRef ref;
@@ -40,6 +65,12 @@ namespace lockstep
         // to the captured length via setSize(avoidReallocating) so playback reads
         // exactly the captured region with no sampler changes.
         bool isVolatile = false;
+        // Session-local monotonic id for a volatile entry (9.18), assigned at
+        // addVolatile(). 0 for non-volatile entries. This is the stable key a
+        // Volatile-domain SampleId resolves against, so an in-session reference to
+        // a REC/LOOP slot survives a pool reorder. Not serialised (volatiles are
+        // RAM-only); a reload assigns fresh ids to the re-seeded slots.
+        std::uint32_t volatileId = 0;
         // Allocated capacity (samples) of a volatile pcm buffer, set by
         // prepareVolatile(). getNumSamples() drops to the captured length after a
         // shrink, so a writer reads the safe maximum from here instead.
@@ -198,6 +229,19 @@ namespace lockstep
         bool isMissing(int index) const;
         const Sample* get(int index) const;
 
+        // ── Stable-identity resolution (9.18) ──────────────────────────────────
+        // idOf(index): the SampleId that names the entry at `index` (Persistent by
+        //   hash for File/Stream, Volatile by session id for REC/LOOP slots).
+        //   Out-of-range / None-origin → {None,0}.
+        // indexOf(id): the current array position of the entry matching `id`, or -1
+        //   if no entry matches (a persistent hash not present = a missing sample;
+        //   a stale volatile id = the slot is gone). O(pool size); the pool is small.
+        // resolve(id): the entry matching `id`, or nullptr. Callers route sample
+        //   references through these so identity is never array position.
+        SampleId      idOf(int index) const;
+        int           indexOf(SampleId id) const;
+        const Sample* resolve(SampleId id) const;
+
         // W3a display model — the single source of truth for how a pool entry is
         // named/hinted, shared by the pool browser (SamplePoolOverlay) and every
         // in-machine sample picker (SampleMachine/SliceMachine/StretchMachine via
@@ -229,5 +273,8 @@ namespace lockstep
 
         juce::AudioFormatManager formatManager_;
         std::vector<std::unique_ptr<Sample>> samples_;
+        // Monotonic source for volatile session-local ids (9.18). Starts at 1 so
+        // 0 stays reserved as "unset" on non-volatile entries.
+        std::uint32_t nextVolatileId_ = 1;
     };
 }

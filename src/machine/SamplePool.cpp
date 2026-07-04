@@ -245,6 +245,7 @@ namespace lockstep
         auto sample = std::make_unique<Sample>();
         sample->isVolatile = true;
         sample->origin = SampleOrigin::Empty;  // no capture written yet (W3a)
+        sample->volatileId = nextVolatileId_++;  // stable session-local identity (9.18)
         // ref left empty (no file backing); pcm sized later by prepareVolatile().
         const int index = static_cast<int>(samples_.size());
         samples_.push_back(std::move(sample));
@@ -483,5 +484,47 @@ namespace lockstep
         if (index < 0 || index >= static_cast<int>(samples_.size()))
             return nullptr;
         return samples_[static_cast<std::size_t>(index)].get();
+    }
+
+    // ── Stable-identity resolution (9.18) ──────────────────────────────────────
+
+    SampleId SamplePool::idOf(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return {};
+        const auto& s = *samples_[static_cast<std::size_t>(index)];
+        if (s.isVolatile)
+            return { SampleId::Domain::Volatile, s.volatileId };
+        // File / Stream — keyed by content hash. A hash of 0 (never hashed) is a
+        // degenerate ref that resolves to nothing; treat it as None.
+        if (s.ref.hashXX32 == 0)
+            return {};
+        return { SampleId::Domain::Persistent, s.ref.hashXX32 };
+    }
+
+    int SamplePool::indexOf(SampleId id) const
+    {
+        if (!id.valid())
+            return -1;
+        for (int i = 0; i < static_cast<int>(samples_.size()); ++i)
+        {
+            const auto& s = *samples_[static_cast<std::size_t>(i)];
+            if (id.domain == SampleId::Domain::Volatile)
+            {
+                if (s.isVolatile && s.volatileId == id.key)
+                    return i;
+            }
+            else  // Persistent
+            {
+                if (!s.isVolatile && s.ref.hashXX32 == id.key)
+                    return i;
+            }
+        }
+        return -1;
+    }
+
+    const Sample* SamplePool::resolve(SampleId id) const
+    {
+        return get(indexOf(id));
     }
 }
