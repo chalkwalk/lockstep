@@ -2242,6 +2242,35 @@ the wrong entry → silence). Plan file:
 - [x] **MZ slot order:** StreamMachine `sample_id` → slot 0 (Sample), `start` →
       slot 1, so the picker button renders over the Sample param.
 
+### 9.19 — Loop-seam / runtime-sample / pool polish  *[shipped]*
+Post-9.18 follow-up from manual testing. Plan file:
+`~/.claude/plans/loop-seam-runtime-samples-pool-polish.md`. Six commits.
+- [x] **Loop-seam crossfade.** `SamplePlayer`'s forward loop hard-wrapped with
+      `fmod` (an audible click); it now crossfades the seam — **borrows real tail
+      material past `loopEnd`** when the sample has it (loop period preserved, right
+      for bar-synced loops), else **eats into the loop** at the sample end. New
+      SampleMachine SRC slot `samp_loop_xfade` (ms, default 8; `0` = old hard wrap).
+      StreamMachine, which hard-started/stopped with no declick, gained a ~5 ms
+      anti-click gate (Stretch already had one; neither actually loops through
+      `SamplePlayer`, so the plan's shared-path premise was corrected here).
+- [x] **Stream/Stretch loop-length sizing helper.** They stay trig-gated; assigning
+      a sample to a track with **no trigs** auto-fits it — sizes the track length to
+      the sample's musical bar-length and seeds one trig on step 1 (no bespoke
+      gesture; rides the sample-assign hook). A sequenced track is left untouched.
+- [x] **Runtime missing-sample handling.** `SamplePool::rescanMissing()` re-stats
+      path-backed entries on pool-manager open, so a sample deleted/moved *while
+      running* shows MISSING + Relink; a persistent editor banner replaces sole
+      reliance on the fading load-time toast. Decoded PCM is retained (a File keeps
+      playing from RAM — no mid-set dropout); a Stream with no reader falls silent.
+- [x] **Per-group stable pool numbering.** The in-machine picker numbers entries
+      within their origin group (`groupOrdinal`: FILE 1, STREAM 1, REC 1 …) instead
+      of the raw pool index, which jumped when the volatile REC slots re-seed at the
+      pool front on reload.
+- [x] **Looper default → Sync** (was Free; Free ignores tempo and is the hardest
+      mode to reason about). New tracks only.
+- [x] **SRC sample-picker first-paint fix.** The picker button is laid out the
+      instant it becomes visible (was waiting for the next `resized()`).
+
 ---
 
 ## Phase 10 — Melodic & Harmonic Authoring  *[active]*
