@@ -708,15 +708,22 @@ namespace lockstep
         const int poolSize = processor_.samplePool().size();
 
         juce::PopupMenu menu;
-        if (poolSize == 0)
+        // 9.18: only offer entries the track's machine can actually play — a PCM
+        // player sees File + volatile captures, a StreamMachine sees Stream entries.
+        // The item id still encodes the true pool index (+1), so selection writes the
+        // correct index even though the list is filtered.
+        int shown = 0;
+        for (int i = 0; i < poolSize; ++i)
+        {
+            if (!processor_.sampleAcceptedByTrack(track, i)) continue;
+            menu.addItem(i + 1, juce::String(i) + "  " + processor_.sampleShortName(i));
+            ++shown;
+        }
+        if (shown == 0)
         {
             // A disabled section header, not addItem(0) — JUCE asserts on item id 0.
-            menu.addSectionHeader("(pool is empty)");
-        }
-        else
-        {
-            for (int i = 0; i < poolSize; ++i)
-                menu.addItem(i + 1, juce::String(i) + "  " + processor_.sampleShortName(i));
+            menu.addSectionHeader(poolSize == 0 ? "(pool is empty)"
+                                                : "(no matching samples)");
         }
         menu.addSeparator();
         menu.addItem(1000, "Manage pool...");

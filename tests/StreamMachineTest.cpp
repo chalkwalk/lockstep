@@ -97,5 +97,16 @@ namespace lockstep
         CHECK(foundSampleId, "StreamMachine has a sample_id slot");
         CHECK(sm.numSections() == IMachine::kSrcSecIdx + 1,
               "numSections keeps the SRC panel reachable");
+
+        // 9.18: Sample is slot 0 so its picker button renders first in the MZ.
+        CHECK(juce::String(sm.paramSpec(0).id) == "sample_id",
+              "sample_id is slot 0 (picker renders first)");
+        CHECK(juce::String(sm.paramSpec(1).id) == "start",
+              "start is slot 1");
+
+        // 9.18: capability tag keeps the two picker families disjoint — a
+        // StreamMachine offers Stream entries, a PCM player offers resident PCM.
+        CHECK(sm.sampleClass() == IMachine::SampleClass::Stream,
+              "StreamMachine is a Stream sample class");
     }
 }

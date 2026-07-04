@@ -3500,18 +3500,18 @@ namespace lockstep
                 recomputeSlicesIfNeeded(static_cast<int>(ti), slot, updatedParams);
             }
 
-            // Item 6: a sample_id base write resolves its pool entry. On a
-            // StreamMachine it (re)opens the streamed reader for the picked
-            // disk-backed entry (or clears for volatile/missing). On a Flex sampler
-            // it decodes a Stream-origin (PCM-less) entry on demand so it plays.
+            // Item 6 / 9.18: a sample_id base write on a StreamMachine (re)opens the
+            // streamed reader for the picked disk-backed entry (or clears for a
+            // volatile/missing pick). PCM players need nothing here — the two picker
+            // families are disjoint (sampleAcceptedByTrack), so a PCM player never
+            // picks a Stream-origin (PCM-less) entry; the ensurePcm-on-pick bridge
+            // that used to decode one is retired.
             const juce::String pickedId = idForSlot(track, slot);
             if (pickedId == "sample_id" || pickedId == "slicer_sample_id")
             {
                 const int poolIdx = static_cast<int>(std::lround(value));
                 if (dynamic_cast<StreamMachine*>(wm) != nullptr)
                     openStreamReaderFor(track, poolIdx);
-                else if (dynamic_cast<SamplePlayingMachineBase*>(wm) != nullptr)
-                    samplePool_.ensurePcm(poolIdx);
             }
         }
     }
@@ -5210,6 +5210,18 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return nullptr;
         return machines_[static_cast<std::size_t>(track)].get();
+    }
+
+    bool LockstepProcessor::sampleAcceptedByTrack(int track, int poolIndex) const
+    {
+        const auto* s = samplePool_.get(poolIndex);
+        if (s == nullptr) return false;
+        const auto* m = machineForTrack(track);
+        const auto cls = m ? m->sampleClass() : IMachine::SampleClass::Pcm;
+        if (cls == IMachine::SampleClass::Stream)
+            return s->origin == SampleOrigin::Stream;
+        // Pcm (or default): resident PCM — File + volatile captures, never Stream.
+        return s->origin != SampleOrigin::Stream;
     }
 
     // =========================================================================

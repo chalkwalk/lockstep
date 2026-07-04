@@ -309,6 +309,9 @@ namespace lockstep
         if (track < 0) return;
         const int sampleSlot = processor_.slotForId(track, "sample_id");
         if (sampleSlot < 0) return;
+        // 9.18: don't assign a Stream entry to a PCM player (silence) or vice versa;
+        // the two picker families are disjoint.
+        if (!processor_.sampleAcceptedByTrack(track, poolIdx)) return;
         processor_.writeParam(track, sampleSlot, static_cast<float>(poolIdx));
     }
 

@@ -30,6 +30,8 @@ namespace lockstep
         ~SamplePlayingMachineBase() override;
 
         // IMachine
+        // 9.18: PCM players resolve resident PCM — File + volatile captures.
+        [[nodiscard]] SampleClass sampleClass() const override { return SampleClass::Pcm; }
         void prepare(double sampleRate, int maxBlockSize) override;
         void reset() override;
         void releaseAllVoices() override;

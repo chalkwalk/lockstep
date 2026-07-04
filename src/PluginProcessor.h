@@ -779,6 +779,14 @@ namespace lockstep
         // Valid on the message thread only; do not cache across processBlock calls.
         [[nodiscard]] const IMachine* machineForTrack(int track) const noexcept;
 
+        // 9.18: whether the pool entry at poolIndex is a valid pick for the machine
+        // on `track` — Stream entries only for a StreamMachine, resident-PCM entries
+        // (File + volatile captures) only for a PCM player. Drives sample-picker
+        // filtering so the two picker families stay disjoint (a Stream entry never
+        // lands in a sampler as silence, and vice versa). Out-of-range poolIndex →
+        // false. A track with no sample machine defaults to the PCM rule.
+        [[nodiscard]] bool sampleAcceptedByTrack(int track, int poolIndex) const;
+
         // State-loading helpers: create a fresh machine for a given ID and compute
         // slot indices using an explicit machine rather than machines_[t].
         // Used by PluginState so that round-trip works when a non-default machine

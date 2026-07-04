@@ -27,6 +27,9 @@ namespace lockstep
         static constexpr const char* kMachineId = "lockstep.stretch.v1";
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
+
+        // 9.18: a Flex-style PCM player — resolves resident PCM (File + captures).
+        [[nodiscard]] SampleClass sampleClass() const override { return SampleClass::Pcm; }
         [[nodiscard]] const char* badge() const noexcept override { return "STCH"; }
 
         void setTransport(const TransportInfo& t) noexcept override { transport_ = t; }

@@ -70,6 +70,13 @@ namespace lockstep
         SamplePool pool;
         const int idx = makeSine(pool, srcLen, 440.0, /*bars*/ 1.0);
 
+        // 9.18: a Flex-style PCM player resolves resident PCM, not disk streams.
+        {
+            StretchMachine p(pool);
+            CHECK(p.sampleClass() == IMachine::SampleClass::Pcm,
+                  "StretchMachine is a Pcm sample class");
+        }
+
         int activeRoot = 0;
         {
             StretchMachine p(pool);

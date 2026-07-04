@@ -29,6 +29,10 @@ namespace lockstep
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
         [[nodiscard]] const char* badge() const noexcept override { return "STRM"; }
 
+        // 9.18: references a disk file streamed on the fly — Stream-origin entries
+        // only (keeps Stream out of the PCM players' pickers, and vice versa).
+        [[nodiscard]] SampleClass sampleClass() const override { return SampleClass::Stream; }
+
         // Open (or clear, if empty) the streamed source file. Message-thread only,
         // and must be called with the engine quiesced (it swaps the reader the audio
         // thread reads from). Returns true if the file opened.
@@ -65,10 +69,13 @@ namespace lockstep
         // sample_id slot is the picker handle. Slot index is public so the
         // processor's writeParam hook can detect a sample_id write on a stream
         // track and open the reader for the picked entry.
-        static constexpr int kSlotSampleId = 1;
+        // 9.18: Sample is slot 0 so the sample-picker button renders first in the MZ
+        // (the source you pick before you set its start offset). Base params are
+        // id-keyed on disk, so this reorder is serialization-safe.
+        static constexpr int kSlotSampleId = 0;
 
     private:
-        static constexpr int kSlotStart = 0;
+        static constexpr int kSlotStart = 1;
         static constexpr int kNumSlots = 2;
 
         juce::AudioFormatManager formatManager_;

@@ -212,6 +212,16 @@ namespace lockstep
             return Polyphony::V1;
         }
 
+        // sampleClass() (9.18): which SamplePool origins this machine's sample
+        // picker offers, so the two picker families stay disjoint — a Stream entry
+        // never lands in a PCM player (which would decode nothing and play silence)
+        // and a resident-PCM entry never lands in a StreamMachine. Pcm players
+        // (Sample / Slice / Stretch) resolve File + volatile captures; a
+        // StreamMachine references a disk file streamed on the fly (Stream). None =
+        // not a sample machine (no picker); the default.
+        enum class SampleClass { None = 0, Pcm, Stream };
+        [[nodiscard]] virtual SampleClass sampleClass() const { return SampleClass::None; }
+
         // sequencesTrigs(): false for control-only machines (Route, and future
         // pure-control engines) that produce no note voices and derive nothing
         // from note-on. When false, a step press places a *lock-only* anchor
