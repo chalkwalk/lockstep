@@ -423,5 +423,38 @@ namespace lockstep
             CHECK(pool.indexOf(SampleId{}) == -1, "None id resolves to nothing");
             CHECK(pool.resolve(SampleId{}) == nullptr, "resolve(None) is nullptr");
         }
+
+        // C3: a file present at load that disappears at runtime becomes missing on
+        // rescan; a volatile capture is never touched; a reappeared file clears.
+        {
+            const double sr = 44100.0;
+            auto buf = poolTones({ 0, 4, 7 }, { 2.0, 1.0, 1.0 }, sr, 0.5);
+            juce::File wav = writeTempWav(buf, sr, "lockstep_rescan");
+
+            SamplePool pool;
+            const int idx = pool.load(wav.getFullPathName());
+            const int vol = pool.addVolatile();
+            CHECK(idx >= 0 && !pool.isMissing(idx), "rescan: file loads present");
+
+            // No change while the file exists.
+            CHECK(!pool.rescanMissing(), "rescan: no change while file present");
+            CHECK(!pool.isMissing(idx), "rescan: still present");
+
+            // Delete on disk → rescan flips it missing (and reports a change).
+            wav.deleteFile();
+            CHECK(pool.rescanMissing(), "rescan: reports a change after deletion");
+            CHECK(pool.isMissing(idx), "rescan: deleted file now flags missing");
+            CHECK(!pool.isMissing(vol), "rescan: volatile capture never missing");
+            // The decoded PCM stays in RAM (a live set keeps playing) — only the
+            // surfacing flag changed.
+            CHECK(pool.get(idx) != nullptr && pool.get(idx)->pcm.getNumSamples() > 0,
+                  "rescan: decoded PCM is retained after the file vanishes");
+
+            // Restore the file → rescan clears the flag again.
+            juce::File wav2 = writeTempWav(buf, sr, "lockstep_rescan");
+            CHECK(pool.rescanMissing(), "rescan: reports a change after restore");
+            CHECK(!pool.isMissing(idx), "rescan: restored file clears missing");
+            wav2.deleteFile();
+        }
     }
 }

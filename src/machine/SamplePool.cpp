@@ -461,6 +461,25 @@ namespace lockstep
         return samples_[static_cast<std::size_t>(index)]->missing;
     }
 
+    bool SamplePool::rescanMissing()
+    {
+        bool changed = false;
+        for (auto& up : samples_)
+        {
+            Sample& s = *up;
+            if (s.isVolatile) continue;         // RAM captures are never "missing"
+            if (s.ref.path.empty()) continue;   // no on-disk backing to check
+            const bool nowMissing =
+                !juce::File(juce::String(s.ref.path)).existsAsFile();
+            if (nowMissing != s.missing)
+            {
+                s.missing = nowMissing;         // PCM untouched (see header)
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
     bool SamplePool::remove(int index)
     {
         if (index < 0 || index >= static_cast<int>(samples_.size()))

@@ -1165,6 +1165,18 @@ namespace lockstep
             }
         }
 
+        // C3: keep the persistent missing-sample banner current. missingSampleCount
+        // is a cheap flag scan (no disk IO — rescanMissing does the stat on pool
+        // open); recomputing every tick lets a relink clear the banner immediately.
+        {
+            const int missing = processor_.missingSampleCount();
+            if (missing != missingSampleBanner_)
+            {
+                missingSampleBanner_ = missing;
+                repaint();
+            }
+        }
+
         // Generator hub (9.10): promote a held 3-key to the hub picker after 350 ms.
         if (tapTempoPhysHeld_ && !uiState_.generatorHubHeld)
         {
@@ -6274,15 +6286,31 @@ namespace lockstep
 
     void LockstepEditor::paintStatus(juce::Graphics& g, juce::Rectangle<int> area)
     {
-        if (statusMessage_.isEmpty()) return;
         const auto elapsed = juce::Time::getMillisecondCounter() - statusSetMs_;
-        if (elapsed > kStatusDurationMs) return;
-        const float alpha = juce::jlimit(0.0f, 1.0f,
-                                         1.0f - static_cast<float>(elapsed) / static_cast<float>(kStatusDurationMs));
-        g.setColour(juce::Colour(0xFF1E2028u).withAlpha(alpha));
-        g.fillRoundedRectangle(area.toFloat(), 3.0f);
-        g.setColour(juce::Colour(0xFF80FFB0u).withAlpha(alpha));
-        g.drawText(statusMessage_, area.reduced(4, 0), juce::Justification::centredLeft, true);
+        const bool toastUp = !statusMessage_.isEmpty() && elapsed <= kStatusDurationMs;
+        if (toastUp)
+        {
+            const float alpha = juce::jlimit(0.0f, 1.0f,
+                                             1.0f - static_cast<float>(elapsed) / static_cast<float>(kStatusDurationMs));
+            g.setColour(juce::Colour(0xFF1E2028u).withAlpha(alpha));
+            g.fillRoundedRectangle(area.toFloat(), 3.0f);
+            g.setColour(juce::Colour(0xFF80FFB0u).withAlpha(alpha));
+            g.drawText(statusMessage_, area.reduced(4, 0), juce::Justification::centredLeft, true);
+            return;
+        }
+
+        // C3: with no toast up, a persistent amber banner keeps missing samples
+        // visible until they are relinked (the fading toast alone was easy to miss).
+        if (missingSampleBanner_ > 0)
+        {
+            g.setColour(juce::Colour(0xFF3A2A12u));
+            g.fillRoundedRectangle(area.toFloat(), 3.0f);
+            g.setColour(juce::Colour(0xFFFFA032u));
+            const juce::String msg = juce::String(missingSampleBanner_)
+                + (missingSampleBanner_ == 1 ? " sample missing" : " samples missing")
+                + " - Manage to relink";
+            g.drawText(msg, area.reduced(4, 0), juce::Justification::centredLeft, true);
+        }
     }
 
 

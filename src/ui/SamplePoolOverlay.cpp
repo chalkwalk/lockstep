@@ -156,8 +156,13 @@ namespace lockstep
     {
         if (isVisible())
         {
+            // C3: re-check disk existence on open so a sample deleted/moved while the
+            // app was running shows as MISSING (Relink enabled) instead of a stale
+            // "present" from load time.
+            processor_.rescanMissingSamples();
             // Sync immediately on open, then poll at 10 Hz to catch external pool
             // changes (e.g. drag-drop additions) while the manager is up.
+            rebuildRows();
             list_.updateContent();
             updateButtonStates();
             startTimerHz(10);

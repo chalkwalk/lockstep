@@ -718,6 +718,13 @@ namespace lockstep
         // (Persistent references awaiting relink). Message-thread only.
         [[nodiscard]] int missingSampleCount() const;
 
+        // C3: re-check on-disk existence for every path-backed pool entry (a sample
+        // may be deleted/moved while the app runs) and update the missing flags.
+        // Returns true if anything changed. Message-thread only; call on natural
+        // edges (the pool manager opening). See SamplePool::rescanMissing — decoded
+        // PCM is left playing, only the missing surfacing updates.
+        bool rescanMissingSamples() { return samplePool_.rescanMissing(); }
+
         // 9.18: fired at the end of finishStateLoad (every load path) so a live
         // editor can surface missing samples / refresh. Null when there is no editor.
         std::function<void()> onStateLoaded;

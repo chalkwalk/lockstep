@@ -447,6 +447,11 @@ namespace lockstep
         // Transient status line — shows CPC operation result for ~1.5s.
         juce::String statusMessage_;
         juce::uint32 statusSetMs_ = 0;
+        // C3: persistent "N sample(s) missing" banner, recomputed each timer tick
+        // from the IO-free pool flags (rescanMissing does the disk stat). Unlike the
+        // fading toast, this stays until the samples are relinked so a load-time or
+        // mid-session disappearance is not missed. Shown only when no toast is up.
+        int missingSampleBanner_ = 0;
         // A2: last seen routing-reject sequence (polled in timerCallback).
         juce::uint32 lastRouteRejectSeq_ = 0;
         static constexpr juce::uint32 kStatusDurationMs = 1500;

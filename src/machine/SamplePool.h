@@ -227,6 +227,16 @@ namespace lockstep
 
         int size() const { return static_cast<int>(samples_.size()); }
         bool isMissing(int index) const;
+
+        // C3: re-evaluate on-disk existence for every File/Stream (path-backed,
+        // non-volatile) entry and update its `missing` flag, so a sample deleted or
+        // moved *while the app is running* becomes visible (the pool browser flags
+        // it MISSING and enables Relink). Returns true if any flag changed.
+        // Does NOT touch decoded PCM: a File entry keeps playing from RAM even after
+        // its file vanishes (right for a live set — no mid-performance dropout), and
+        // freeing PCM here would race the audio thread. Message-thread only; cheap
+        // (a stat per path-backed entry) — call on natural edges (pool-manager open).
+        bool rescanMissing();
         const Sample* get(int index) const;
 
         // ── Stable-identity resolution (9.18) ──────────────────────────────────
