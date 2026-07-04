@@ -168,4 +168,34 @@ namespace lockstep
                 static_cast<float>(positions[static_cast<std::size_t>(i)]) / static_cast<float>(nSamp);
         }
     }
+
+    void SamplePlayingMachineBase::detectSyncSlices(int divisionValue)
+    {
+        const int idx = currentSampleIndex_.load();
+        const Sample* s = pool_.get(idx);
+        if (s == nullptr || s->missing || s->pcm.getNumSamples() < 2)
+            return;
+
+        // No detected tempo -> the beat grid is undefined; fall back to an even
+        // split of the same count (locked SYNC fallback, 4.9).
+        const double bpm = pool_.detectedBpm(idx);
+        if (bpm <= 0.0)
+        {
+            setEqualSlices(divisionValue);
+            return;
+        }
+
+        const int divIdx = std::clamp(divisionValue, 1, kNumSyncDivisions) - 1;
+        const std::vector<int> positions = placeSyncSlices(
+            s->pcm, s->sampleRate, bpm, divIdx, s->analysis);
+
+        numSlices_ = std::min(static_cast<int>(positions.size()), kMaxSlices);
+
+        const int nSamp = s->pcm.getNumSamples();
+        for (int i = 0; i < numSlices_; ++i)
+        {
+            slicePositions_[static_cast<std::size_t>(i)] =
+                static_cast<float>(positions[static_cast<std::size_t>(i)]) / static_cast<float>(nSamp);
+        }
+    }
 }

@@ -54,6 +54,8 @@ namespace lockstep
         void detectTransientSlices() override;
         // Variant that also accepts an explicit count (used by SliceMachine).
         void detectTransientSlices(int count) override;
+        // Beat-grid slicing at the sample's detected tempo (4.9 SYNC mode).
+        void detectSyncSlices(int divisionValue) override;
 
     protected:
         // Per-voice state: SamplePlayer, choke, and pending re-trigger.

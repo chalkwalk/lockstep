@@ -5,13 +5,38 @@
 
 #include "TestHarness.h"
 #include "../src/machine/TransientDetector.h"
+#include "../src/machine/SamplePool.h"
+#include "../src/machine/SliceMachine.h"
 #include <cmath>
+#include <memory>
 #include <vector>
 
 namespace lockstep
 {
     namespace
     {
+        // Write a mono buffer to a fresh temp WAV (32-bit float); caller deletes.
+        juce::File writeSyncWav(const juce::AudioBuffer<float>& buf, double sr,
+                                const juce::String& stem)
+        {
+            juce::File f = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                               .getChildFile(stem + ".wav");
+            f.deleteFile();
+            juce::WavAudioFormat fmt;
+            std::unique_ptr<juce::OutputStream> os(f.createOutputStream());
+            if (os == nullptr) return f;
+            const auto options = juce::AudioFormatWriterOptions{}
+                                     .withSampleRate(sr)
+                                     .withNumChannels(buf.getNumChannels())
+                                     .withBitsPerSample(32)
+                                     .withSampleFormat(
+                                         juce::AudioFormatWriterOptions::SampleFormat::floatingPoint);
+            auto w = fmt.createWriterFor(os, options);
+            if (w != nullptr)
+                w->writeFromAudioSampleBuffer(buf, 0, buf.getNumSamples());
+            return f;
+        }
+
         // A click grid: short impulses every `beatSamples`, after `leadSilence`
         // samples of silence. Clicks are a few-ms decaying blip so the envelope
         // follower sees a real onset.
@@ -96,6 +121,47 @@ namespace lockstep
                 if (sl[i] <= sl[i - 1]) increasing = false;
             CHECK(increasing, "slice positions strictly increasing");
             CHECK(sl.back() < buf.getNumSamples(), "last slice within the buffer");
+        }
+
+        // End-to-end through SliceMachine::detectSyncSlices: a loaded rhythmic
+        // sample (tempo detected) yields a multi-slice beat grid.
+        {
+            auto buf = clickGrid(sr, 4.0, beatSamples, 0);
+            juce::File wav = writeSyncWav(buf, sr, "lockstep_syncslice_grid");
+
+            SamplePool pool;
+            const int idx = pool.load(wav.getFullPathName());
+            CHECK(idx == 0, "click-grid WAV loads at pool index 0");
+            CHECK(pool.detectedBpm(idx) > 0.0, "rhythmic loop has a detected tempo");
+
+            SliceMachine slicer(pool);
+            slicer.prepare(sr, 512);
+            slicer.detectSyncSlices(divBeat);   // 1-beat division
+            CHECK(slicer.numSlices() > 1, "SYNC yields a multi-slice grid on a tempo'd loop");
+            wav.deleteFile();
+        }
+
+        // EQUAL fallback: a steady, onset-free signal has no detectable tempo,
+        // so SYNC degrades to an even split of the raw count value. A constant
+        // level gives zero RMS novelty -> estimateBpm returns 0 deterministically
+        // (a sustained sine's leading edge can otherwise fool the estimator).
+        {
+            const int n = static_cast<int>(sr * 3.0);
+            juce::AudioBuffer<float> flat(1, n);
+            for (int i = 0; i < n; ++i)
+                flat.getWritePointer(0)[i] = 0.25f;
+            juce::File wav = writeSyncWav(flat, sr, "lockstep_syncslice_flat");
+
+            SamplePool pool;
+            const int idx = pool.load(wav.getFullPathName());
+            CHECK(feq(static_cast<float>(pool.detectedBpm(idx)), 0.0f),
+                  "onset-free signal has no detected tempo");
+
+            SliceMachine slicer(pool);
+            slicer.prepare(sr, 512);
+            slicer.detectSyncSlices(4);   // raw count 4
+            CHECK(slicer.numSlices() == 4, "no tempo -> SYNC falls back to EQUAL(count)");
+            wav.deleteFile();
         }
     }
 }

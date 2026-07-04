@@ -142,10 +142,12 @@ namespace lockstep
                 params[static_cast<std::size_t>(kSlotSliceSrc)]));
             const int count = static_cast<int>(std::round(
                 params[static_cast<std::size_t>(kSlotSliceCount)]));
-            if (src == 0)
-                setEqualSlices(count);
-            else
+            if (src == 2)
+                detectSyncSlices(count);
+            else if (src == 1)
                 detectTransientSlices(count);
+            else
+                setEqualSlices(count);
         }
 
         // Choke any released-but-still-running voices so they don't overlap the new note.
@@ -293,7 +295,13 @@ namespace lockstep
     namespace
     {
         static constexpr const char* kSLModeLabels[] = { "SLICE", "SCRUB", nullptr };
-        static constexpr const char* kSLSrcLabels[] = { "EQUAL", "TRANS", nullptr };
+        static constexpr const char* kSLSrcLabels[] = { "EQUAL", "TRANS", "SYNC", nullptr };
+        // 4.9 SYNC: when slice_src == SYNC the Count slot names a clock division
+        // (parallel to kSyncBeatsPerSlice). Values 8..16 clamp to 1/16.
+        static constexpr const char* kSyncDivLabels[] =
+            { "4bar", "2bar", "1bar", "1/2", "1/4", "1/8", "1/16" };
+        static_assert(std::size(kSyncDivLabels) == static_cast<std::size_t>(kNumSyncDivisions),
+                      "kSyncDivLabels must match kSyncBeatsPerSlice");
         static constexpr const char* kSLLoopLabels[] = { "OFF", "SUS", "SUS+REL", "ALL", nullptr };
         static constexpr const char* kSLVoiceLabels[] = { "MONO", "POLY", nullptr };
     }
@@ -303,7 +311,7 @@ namespace lockstep
         // --- SRC (section 1) ---
         { "slicer_sample_id", "Sample", 0.f, 63.f, 0.f, 1.f, 1, sl_u::None, sl_r::None, 0, 1, 0, nullptr }, //  0
         { "slicer_mode", "Mode", 0.f, 1.f, 0.f, 1.f, 1, sl_u::None, sl_r::None, 0, 1, 0, kSLModeLabels }, //  1
-        { "slicer_slice_src", "Slices", 0.f, 1.f, 0.f, 1.f, 1, sl_u::None, sl_r::None, 0, 1, 0, kSLSrcLabels }, //  2
+        { "slicer_slice_src", "Slices", 0.f, 2.f, 0.f, 1.f, 1, sl_u::None, sl_r::None, 0, 1, 0, kSLSrcLabels }, //  2
         { "slicer_slice_count", "Count", 1.f, 16.f, 8.f, 1.f, 1, sl_u::None, sl_r::None, 0, 1, 0, nullptr }, //  3
         { "slicer_rate", "Rate", -2.f, 2.f, 1.f, 1.f, 0, sl_u::None, sl_r::None, 0, 1, 0, nullptr }, //  4
         { "slicer_start", "Start", 0.f, 1.f, 0.f, 1.f, 0, sl_u::None, sl_r::None, 0, 1, 1, nullptr }, //  5  zcSnap
@@ -339,14 +347,28 @@ namespace lockstep
             const int m = slLoopMode(f);
             return (m == 2 || m == 3) ? juce::String("LpLen (auto)") : juce::String("LpLen");
         }
+
+        // 4.9: when Slices == SYNC (2), the Count slot is a clock division; show
+        // the effective division ("Div 1/4") so the MZ reads the beat grid, not
+        // a raw count. kSlotSliceSrc = 2, kSlotSliceCount = 3 (hardcoded to avoid
+        // private-member access, mirroring slLoopMode).
+        juce::String slCountLabel(const ParamFrame& f)
+        {
+            if (static_cast<int>(f.size()) <= 3) return "Count";
+            const int src = std::clamp(static_cast<int>(std::round(f[2])), 0, 2);
+            if (src != 2) return "Count";
+            const int div = std::clamp(static_cast<int>(std::round(f[3])), 1, kNumSyncDivisions) - 1;
+            return juce::String("Div ") + kSyncDivLabels[static_cast<std::size_t>(div)];
+        }
     }
 
     ParamSpec SliceMachine::paramSpec(int index) const
     {
         if (index < 0 || index >= kNumSlots) return {};
         auto spec = toParamSpec(kSLParams[static_cast<std::size_t>(index)]);
-        if (index == kSlotLoopStart) spec.contextLabel = slLpStartLabel;
-        if (index == kSlotLoopLen)   spec.contextLabel = slLpLenLabel;
+        if (index == kSlotLoopStart)  spec.contextLabel = slLpStartLabel;
+        if (index == kSlotLoopLen)    spec.contextLabel = slLpLenLabel;
+        if (index == kSlotSliceCount) spec.contextLabel = slCountLabel;
         return spec;
     }
 

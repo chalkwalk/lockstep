@@ -4767,9 +4767,13 @@ namespace lockstep
         {
             sl->setEqualSlices(count);
         }
-        else
+        else if (src == 1)
         {
             sl->detectTransientSlices(count);
+        }
+        else   // src == 2: SYNC beat-grid slicing (4.9)
+        {
+            sl->detectSyncSlices(count);
         }
     }
 

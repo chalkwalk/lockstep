@@ -15,6 +15,11 @@ namespace lockstep
         // No-op if no sample is loaded or the machine does not support it.
         virtual void detectTransientSlices() = 0;
         virtual void detectTransientSlices(int count) = 0;
+        // Populate slices on a beat grid at the sample's detected tempo (4.9
+        // SYNC mode). `divisionValue` is the raw 1..16 count-slot value; the
+        // impl maps it to a clock division and falls back to EQUAL(divisionValue)
+        // when the sample has no detected tempo. No-op if no sample is loaded.
+        virtual void detectSyncSlices(int divisionValue) = 0;
 
         [[nodiscard]] bool hasSlices() const { return numSlices() > 0; }
     };
