@@ -92,7 +92,7 @@ namespace lockstep
                 || processor_.samplePool().isVolatileIndex(row - 1))
                 return;
             processor_.swapSamples(row, row - 1);
-            list_.updateContent();
+            reselectAfterReorder(row - 1);
         };
         addAndMakeVisible(upBtn_);
 
@@ -104,7 +104,7 @@ namespace lockstep
                 || processor_.samplePool().isVolatileIndex(row + 1))
                 return;
             processor_.swapSamples(row, row + 1);
-            list_.updateContent();
+            reselectAfterReorder(row + 1);
         };
         addAndMakeVisible(downBtn_);
 
@@ -176,6 +176,28 @@ namespace lockstep
         };
         addGroup(SampleOrigin::Record, "RECORD");
         addGroup(SampleOrigin::Loop, "LOOP");
+    }
+
+    void SamplePoolOverlay::reselectAfterReorder(int movedPoolIndex)
+    {
+        // JUCE ListBox rows only repaint on a row-index/selection change, so a bare
+        // updateContent() after an in-place swap leaves the old text on screen until
+        // a click. Rebuild the row model, re-select the display row that now carries
+        // the moved sample (keeps repeated presses walking the same entry), then force
+        // a repaint. updateButtonStates() re-evaluates Up/Down at the new top/bottom.
+        rebuildRows();
+        list_.updateContent();
+        for (int i = 0; i < static_cast<int>(rows_.size()); ++i)
+        {
+            const auto& r = rows_[static_cast<std::size_t>(i)];
+            if (!r.isHeader && r.poolIndex == movedPoolIndex)
+            {
+                list_.selectRow(i);
+                break;
+            }
+        }
+        list_.repaint();
+        updateButtonStates();
     }
 
     int SamplePoolOverlay::selectedPoolIndex() const

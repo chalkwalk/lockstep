@@ -51,6 +51,9 @@ namespace lockstep
         // Absolute pool index of the currently-selected display row, or -1 if a
         // header / nothing is selected.
         int selectedPoolIndex() const;
+        // After an in-place reorder swap, rebuild rows and re-select the display row
+        // now carrying the moved sample so the ListBox actually repaints (bug 10).
+        void reselectAfterReorder(int movedPoolIndex);
 
         juce::ListBox list_{ "pool", this };
         juce::TextButton loadBtn_{ "Load..." };
