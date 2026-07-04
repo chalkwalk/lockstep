@@ -4507,7 +4507,13 @@ at build time so both hosts see the same thing:
 - **Aux = a mix routing destination.** The CHANNEL "Out" slot's destination set
   grows from `Off | Master | Bus(track)` to also include **Aux 1–6**. A route
   (bus) track can itself target an Aux — that is how an internal bus reaches a
-  physical/host output. **Fallback rule: an Aux route whose host bus is disabled
+  physical/host output. **Aux is exclusive, not additive.** Out is a single
+  destination (out-degree ≤ 1): picking `Aux N` *replaces* Master, it does not
+  tap alongside it — the track leaves the master sum entirely and the DAW mixes
+  the aux return however it likes. This is deliberate: the host, not Lockstep,
+  owns what happens to an aux output; there is no internal Aux return into the
+  master sum (that is what the additive per-track **Send A/B** taps are for,
+  §32). **Fallback rule: an Aux route whose host bus is disabled
   folds to Master**, so choosing an output the host hasn't enabled is never
   silent data loss.
 

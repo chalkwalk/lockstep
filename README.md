@@ -212,13 +212,21 @@ Phrase ──trigs──▶ Machine ──▶ Foundation (FILTER → AMP) ──
   over the summed output. Loaded via `Func+Song+FX`; cycle with
   repeated press (FX1→FX2→Snd A→Snd B). HQ-only effects are hidden
   from the track picker.
-- **Output routing & buses** — each track's finished signal has a
+- **Output routing & buses** — each track's finished signal has **one**
   destination, the **Out** slot in the CHANNEL block: `Master` (default),
-  `Track N`, or `Off`. Routing a track to `Track N` removes it from the
+  `Track N`, `Aux N`, or `Off`. Out is *single-destination* by construction
+  (out-degree ≤ 1) — choosing a destination **replaces** the previous one;
+  a track is never on Master *and* an aux at once. Routing a track to
+  `Track N` removes it from the
   master sum and feeds it into track *N*; if *N* hosts a **Route** machine
   it becomes an **aux/sub-bus** that reads the sum of everything routed
   into it, processes it through its own FILTER/AMP/FX, and sends *that*
-  onward. Ordering is solved automatically (per-block topological sort);
+  onward. `Aux N` sends the track to one of the plugin's **host Aux output
+  buses** instead of the master sum — the DAW mixes it (the exclusive tap
+  is deliberate: the host, not Lockstep, decides how the aux returns). A
+  track on an Aux whose host bus is disabled (e.g. standalone, or the DAW
+  left the bus unconnected) **folds back to Master** so no audio is lost.
+  Ordering is solved automatically (per-block topological sort);
   a routing that would form a feedback loop is refused. This is how you
   build drum buses, parallel chains, and resampling. The **Out** rotary
   only steps through valid destinations (Off / Master / current buses) and
@@ -304,7 +312,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Fill** | A momentary modifier: while held, fill-conditioned steps fire. Used for live variation. |
 | **Trig condition** | A per-step (or per-track) firing rule: probability, iteration (m:n), previous-step dependency, fill rule, and **one-shot**. |
 | **Audition (`Cue`)** | Pre-listen without writing anything. Enter the `Cue` scope with `Func+3`: holding it fires the focused track's base trig; `Cue+step` fires that step's resolved trig (note/vel/gate + P-Locks). Off-schedule, post-machine FILTER/AMP applies, pattern untouched. |
-| **Out routing** | The CHANNEL "Out" slot sets a track's destination: `Master` (default), `Track N`, or `Off`. Route into a **Route** track to build an aux/sub-bus (the bus reads the sum of its feeders, plus its own input if any). The Out rotary steps only through valid destinations (Off / Master / current buses) with a live label — synths, MIDI-out, self and cycle targets never appear. If a target's machine is later swapped to a non-bus, the edge goes **dormant** (falls back to Master, no audio lost) and revives if it becomes a bus again. A bus and its feeders share a colour on the track/VU row. See §2.5. |
+| **Out routing** | The CHANNEL "Out" slot sets a track's **single** destination (out-degree ≤ 1): `Master` (default), `Track N`, `Aux N` (host aux output — the DAW mixes it), or `Off`. Picking one **replaces** the previous — a track is never on Master and an aux at once. Route into a **Route** track to build an aux/sub-bus (the bus reads the sum of its feeders, plus its own input if any). The Out rotary steps only through valid destinations (Off / Master / current buses / aux) with a live label — synths, MIDI-out, self and cycle targets never appear. If a target's machine is later swapped to a non-bus, or an `Aux N` host bus is disabled, the edge **folds back to Master** (no audio lost) and revives when the target becomes valid again. A bus and its feeders share a colour on the track/VU row. See §2.5. |
 | **Lock-only trig** | A step cycled `Trig+step` through `off → note → lock-only`. A lock-only step emits no note but applies its P-Locks (filter, channel, env, insert) onto the *sustaining* voice as the playhead crosses it — parameter motion without retriggering. |
 | **One-shot trig** | A trig condition (COND meta-band "1Shot") that fires once then is **spent** until re-armed. Re-arms automatically on transport (re)start and on scene switch; armed/spent is RAM-only (not saved). |
 | **Checkpoint** | A RAM-only snapshot for live undo. Bare `Y` (SNAP) pushes before a risky idea; `Func+Y` (RESTORE) tap=pop/hold=floor. The `Y` key owns both halves. **Scope-respecting:** the snapshot captures whichever scope is held (none=Song, Track, Scene, Phrase). Up to 8 deep per scope; floor = saved state. |
