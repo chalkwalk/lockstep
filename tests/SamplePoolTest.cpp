@@ -160,8 +160,18 @@ namespace lockstep
                   "first Loop volatile names as Loop 1");
             CHECK(pool.displayName(rec).isNotEmpty() && pool.displayName(loop).isNotEmpty(),
                   "volatile display names are never blank");
-            CHECK(pool.displayName(empty) == "(empty)",
-                  "un-captured volatile slot reads (empty)");
+            // bug 14: an un-captured volatile slot is no longer a nameless "(empty)"
+            // row — it reads as a real, pickable slot named by its volatile ordinal
+            // (rec, loop, empty are volatile 1/2/3) with an "(empty)" badge.
+            CHECK(pool.displayName(empty) == "REC 3 (empty)",
+                  "un-captured volatile slot reads REC N (empty) by volatile ordinal");
+            CHECK(pool.displayName(empty).isNotEmpty(),
+                  "empty volatile display name is never blank");
+            // Clearing a captured slot reverts it to the ordinal + (empty) badge.
+            pool.setVolatileOrigin(rec, SampleOrigin::Empty);
+            CHECK(pool.displayName(rec) == "REC 1 (empty)",
+                  "cleared volatile reverts to REC N (empty)");
+            pool.setVolatileOrigin(rec, SampleOrigin::Record);
             CHECK(pool.displayName(-1) == "(none)" && pool.displayName(99) == "(none)",
                   "out-of-range display name is (none)");
 

@@ -237,9 +237,20 @@ namespace lockstep
         const auto& s = *samples_[static_cast<std::size_t>(index)];
         if (s.isVolatile)
         {
-            // Empty (never-captured) volatile slots have no meaningful name.
+            // Captured slots are named by ordinal within their origin group
+            // ("Record 1" / "Loop 2"), matching the browser. Empty (never-captured)
+            // slots have no Record/Loop designation yet — they are the reserved REC
+            // capture slots — so they are named by their volatile ordinal and badged
+            // "(empty)" so they still read as a real, pickable slot (bug 14) rather
+            // than a nameless row.
             if (s.origin != SampleOrigin::Record && s.origin != SampleOrigin::Loop)
-                return "(empty)";
+            {
+                int vord = 0;
+                for (int i = 0; i <= index; ++i)
+                    if (samples_[static_cast<std::size_t>(i)]->isVolatile)
+                        ++vord;
+                return "REC " + juce::String(vord) + " (empty)";
+            }
             const char* kind = (s.origin == SampleOrigin::Loop) ? "Loop" : "Record";
             // Ordinal within this origin group (1-based), matching the browser.
             int ord = 0;

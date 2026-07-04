@@ -184,7 +184,9 @@ namespace lockstep
         // in-machine sample picker (SampleMachine/SliceMachine/StretchMachine via
         // sampleShortName). Volatile captures have no file name, so they are
         // labelled "Record N" / "Loop N" by ordinal within their origin group;
-        // file entries show the filename stem. Out-of-range → "(none)".
+        // never-captured empties read "REC N (empty)" by volatile ordinal (still a
+        // pickable slot, bug 14); file entries show the filename stem.
+        // Out-of-range → "(none)".
         //   displayHint: captured bars / detected bpm / parent dir / "MISSING".
         juce::String displayName(int index) const;
         juce::String displayHint(int index) const;
