@@ -70,11 +70,61 @@ namespace lockstep
         // Unqualified: machine SRC.
         CHECK(ids(selectScopeSections(all, SecOrigin::Machine)) == std::vector<int>{ 1 },
               "unqualified shows machine SRC");
-        // Track scope: machine layer peeled and no track block → EMPTY (dim key).
-        // This is the strict "track sections only" peel — a change from the old
-        // fall-back-to-machine behaviour.
+        // Track scope: machine layer peeled and nothing at/below the floor →
+        // EMPTY (dim key). Not a "strict track-only" rule any more (Item 7) — the
+        // key is dim only because no lower layer owns content here.
         CHECK(selectScopeSections(all, SecOrigin::Track).empty(),
-              "Track scope on a machine-only section is empty (dim, machine peeled)");
+              "Track scope on a machine-only section is dim (nothing at/below floor)");
+    }
+
+    static void testFallThroughBelowFloor()
+    {
+        // Item 7: holding a scope is a *floor* — peel above, fall through below.
+        // Key with a machine page + a Phrase meta page (LEN), no Track page.
+        const std::vector<SecCandidate> all = {
+            { 0, 1, SecOrigin::Machine },   // machine TRIG params
+            { 0, 1, SecOrigin::Phrase, SecAction::MetaSection, 4, false },  // Phrase LEN
+        };
+
+        // Hold Track (floor=1): Machine peeled; no Track layer → fall through to
+        // Phrase LEN below the floor (old strict-dim rule would have gone dim).
+        const auto tk = selectScopeSections(all, SecOrigin::Track);
+        CHECK(!tk.empty() && tk.front().origin == SecOrigin::Phrase
+                  && tk.front().action == SecAction::MetaSection && tk.front().metaIndex == 4,
+              "Track floor with no Track layer falls through to Phrase LEN");
+
+        // Unqualified: Machine wins (highest precedence).
+        const auto uq = selectScopeSections(all, SecOrigin::Machine);
+        CHECK(!uq.empty() && uq.front().origin == SecOrigin::Machine
+                  && uq.front().action == SecAction::ParamSection,
+              "unqualified shows the machine TRIG page, not the Phrase meta");
+    }
+
+    static void testFuncHierarchyFilter()
+    {
+        // The Func layer is a parallel hierarchy: funcQualified rows are visible
+        // only when funcLayer matches. TRIG key with a machine page (primary) and
+        // a Func COND meta (func-qualified).
+        const std::vector<SecCandidate> all = {
+            { 0, 1, SecOrigin::Machine },   // primary machine TRIG params
+            { 0, 1, SecOrigin::Machine, SecAction::MetaSection, 0, true },  // Func COND
+        };
+
+        // Func released: only the primary page survives.
+        const auto primary = selectScopeSections(all, SecOrigin::Machine, /*funcLayer*/ false);
+        CHECK(primary.size() == 1 && primary.front().action == SecAction::ParamSection,
+              "Func released shows the primary machine page only");
+
+        // Func held: only the func-qualified COND meta survives.
+        const auto func = selectScopeSections(all, SecOrigin::Machine, /*funcLayer*/ true);
+        CHECK(func.size() == 1 && func.front().action == SecAction::MetaSection
+                  && func.front().metaIndex == 0,
+              "Func held shows the COND meta only (primary filtered out)");
+
+        // A key with no func-qualified row is dim under Func.
+        const std::vector<SecCandidate> noFunc = { { 4, 1, SecOrigin::Machine } };
+        CHECK(selectScopeSections(noFunc, SecOrigin::Machine, /*funcLayer*/ true).empty(),
+              "Func held dims a key with no func-qualified candidate");
     }
 
     static void testEmpty()
@@ -91,6 +141,8 @@ namespace lockstep
         testMachineOwnsSection();
         testMachineDoesNotOwnSection();
         testSectionWithNoTrackBlock();
+        testFallThroughBelowFloor();
+        testFuncHierarchyFilter();
         testEmpty();
     }
 }

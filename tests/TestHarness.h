@@ -115,6 +115,8 @@ namespace lockstep
     void runRoutingGraphTests();
     // P6: scope-aware section page-list selection (grab-bag items 6+7)
     void runScopeSectionSelectTests();
+    // Item 7: static section-stack table (meta/sticky chords)
+    void runSectionStackTests();
     // 9.17: LaunchQuant authority — grid periods, boundary maths, legacy map
     void runLaunchQuantTests();
 }
