@@ -38,10 +38,15 @@ namespace lockstep
         // v27: in the hosted-Locked regime the buttons are no longer inert — they
         // park/unpark the plugin (arm gate). Keep them full-alpha and active when
         // the arm handlers are wired; only dim to the legacy ghost when they aren't.
-        const bool armControl = ghosted && onPlayVerb != nullptr;
+        const bool armControl = ghosted && onPlayVerb != nullptr && isArmed != nullptr;
         const float a = (ghosted && !armControl) ? 0.35f : 1.0f;
         playBtn_.setAlpha(a);
         resetBtn_.setAlpha(a);
+        // In the arm regime the single Play button is the Armed/Park toggle; Stop
+        // (== park) is redundant, so hide it and re-lay-out to one button.
+        armRegimeLayout_ = armControl;
+        resetBtn_.setVisible(!armRegimeLayout_);
+        resized();
         refresh(buildTransportModel(clock_));
     }
 
@@ -174,8 +179,12 @@ namespace lockstep
     void InPluginTransport::resized()
     {
         auto b = getLocalBounds();
-        playBtn_.setBounds(b.removeFromLeft(54).reduced(1));
-        resetBtn_.setBounds(b.removeFromLeft(46).reduced(1));
+        // Arm regime: one Armed/Park button (Stop hidden), given the pair's width.
+        playBtn_.setBounds(b.removeFromLeft(armRegimeLayout_ ? 72 : 54).reduced(1));
+        if (!armRegimeLayout_)
+        {
+            resetBtn_.setBounds(b.removeFromLeft(46).reduced(1));
+        }
         recBtn_.setBounds(b.removeFromLeft(54).reduced(1));
         metroBtn_.setBounds(b.removeFromLeft(46).reduced(1));
     }

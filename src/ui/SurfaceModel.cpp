@@ -716,7 +716,12 @@ namespace lockstep
 
             const bool isOverdub = (def.keyCode == 'U') && proc.clock().isOverdubArmed();
             const bool isArmed = (def.keyCode == 'U') && proc.clock().isRecordArmed();
-            const bool isPlaying = (def.keyCode == 'I') && proc.clock().inPluginPlaying();
+            // In hosted-Locked the Play verb is the arm/park toggle (transport
+            // follows the DAW), so the cell lights on pluginArmed, not in-plugin
+            // Play — which is inert there and would otherwise be a lying indicator.
+            const bool isPlaying = (def.keyCode == 'I')
+                && (proc.hostedLocked() ? proc.isPluginArmed()
+                                        : proc.clock().inPluginPlaying());
             const bool isPatHeld = (def.keyCode == 'Q') && ui.phraseScopeHeld;
             const bool isPrtHeld = (def.keyCode == 'W') && ui.sceneHeld;
             const bool isModeActive = isArmed || isPlaying || isPatHeld || isPrtHeld;

@@ -4892,18 +4892,14 @@ namespace lockstep
                 const double now = juce::Time::getMillisecondCounterHiRes();
                 const bool isDouble = gesture_.playDoubleTap(now);
 
+                // Route through the mode-aware verbs (single home for the decision,
+                // v27): standalone/Auto → toggle in-plugin Play (double-tap = stop+
+                // reset); hosted-Locked → arm/park the plugin (the in-plugin Play
+                // toggle is inert there, so driving it directly was a lying control).
                 if (isDouble)
-                {
-                    // Double-tap = stop + reset: next start re-anchors to step 0.
-                    processor_.clock().setInPluginPlaying(false);
-                    processor_.clock().resetPhase();
-                    processor_.requestFreshStart();
-                }
+                    processor_.transportStopReset();
                 else
-                {
-                    // Single tap toggles play/pause; resume continues in phase.
-                    processor_.clock().setInPluginPlaying(!processor_.clock().inPluginPlaying());
-                }
+                    processor_.transportPlay();
                 return true;
             }
 
@@ -5248,9 +5244,9 @@ namespace lockstep
                     refreshSurface();
                     return true;
                 }
-                processor_.clock().setInPluginPlaying(false);
-                processor_.clock().resetPhase();
-                processor_.requestFreshStart();
+                // Mode-aware (v27): standalone/Auto → stop + reset (re-anchor to
+                // step 0 next start); hosted-Locked → park the plugin.
+                processor_.transportStopReset();
                 return true;
             case ControllerButton::RecordArm: {
                 const double now = juce::Time::getMillisecondCounterHiRes();

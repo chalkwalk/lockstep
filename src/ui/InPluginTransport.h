@@ -68,6 +68,10 @@ namespace lockstep
     private:
         Clock& clock_;
         bool ghosted_ = false;
+        // v27: in the arm regime (hosted Locked, verbs wired) the Play/Stop pair
+        // collapses to a single Armed/Park button — Stop == Park is redundant with
+        // toggling arm off. Drives the layout in resized() + reset-button visibility.
+        bool armRegimeLayout_ = false;
 
         // Shadow to avoid redundant JUCE property-change notifications.
         TransportModel shadow_;
