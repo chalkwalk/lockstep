@@ -717,17 +717,24 @@ loads the whole file into RAM or the project, so a 10-minute mixdown or a field
 recording costs almost nothing. Only the file path is saved. **Pick the source**
 either by dropping a file on the focused Stream track, or via the sample-pool
 manager — its **Load** button reads **Stream…** on a Stream track and assigns the
-disk source there.
+disk source there. Stream now runs through the same Bungee stretch engine as
+Stretch, so it **resamples a file whose rate differs from the session** (a 48 kHz
+file on a 44.1 kHz project plays at the right pitch, not slightly flat) and gains
+**Pitch** and **Tune** controls plus a **Timestretch** toggle.
 *In performance:* you run a full backing track or a DJ-style mixdown on a Stream
 track, trigger it to start on the downbeat, and play your live parts over the top —
 the heavy audio never touches memory.
 
 **Stretch** — *Play captured loops and pitched samples with pitch and tempo that
 move independently.*
-Where the Sample machine ties pitch to speed, Stretch (the Flex engine) transposes without
-changing duration and, in **Tempo** mode, time-stretches a buffer to the project
-tempo using its stamped bar-length — so a loop stays in time as you change the BPM.
-Point it at any pool slot, including a live Record/Loop capture.
+Where the Sample machine ties pitch to speed, Stretch (the Flex engine, now driven
+by the Bungee time/pitch stretcher) transposes without changing duration and, in
+**Tempo** mode, time-stretches a buffer to the project tempo using its stamped
+bar-length — so a loop stays in time as you change the BPM. Alongside **Pitch** it
+adds a **Tune** (±50 cents) fine control, a **Loop** toggle (seamless — the loop
+wraps by source position with no click, so a held trig plays the whole cycle instead
+of retriggering per step) and a **Rev** (reverse) toggle. Point it at any pool slot,
+including a live Record/Loop capture.
 *In performance:* you resample a phrase into a REC slot, play it back on a Stretch
 track locked to the grid, then pull the master tempo down for a breakdown — the
 captured loop follows in time and in tune instead of chipmunking.
@@ -1930,3 +1937,18 @@ edits alike ([§5.7](#57-parameter-editing-p-locks),
 > must be reflected in both, and any new step-grid appearance must be a
 > `CellState` token (DESIGN §35.8), never ad-hoc paint.
 ```
+
+## Licensing & third-party
+
+Lockstep is released under the **GPL**. Time-stretching and pitch-shifting for the
+sample players (Stretch, Stream) use the **Bungee** engine (MPL-2.0), which vendors
+**Eigen** (MPL-2.0) and **PFFFT** (BSD-like) — all GPL-compatible. See
+[`THIRDPARTY.md`](THIRDPARTY.md) for the full component list and the MPL
+file-level-copyleft obligation.
+
+**A440 tuning.** Sample, Slice and Stretch expose an **A440** mode (`Auto` / `Raw`):
+in **Auto** (the default) a sample plays with its detected tuning deviation cancelled
+so it sits in tune with the project; **Raw** plays it exactly as recorded. A per-sample
+**Tune** (±50 cents) rides on top. Detected tempo / key / tuning / one-shot are
+**editable** per pool entry and stored as overrides — the pool browser marks an
+overridden entry with a trailing `*`.

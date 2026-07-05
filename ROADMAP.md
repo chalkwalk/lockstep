@@ -2367,6 +2367,47 @@ for now; Global surfaces TRSP (Func+7 shortcut kept); Global gets its own hue.
 - Deferred: the **promotion ladder** (Scene→Song, Phrase→Scene, Track→Phrase — a
       row per rung) and additional **Global / master-bus content** beyond TRSP.
 
+### 9.23 — Sample-playback coherence: Bungee engine + player family + pool metadata  *[in progress]*
+Unify the sample-player param family, adopt a third-party stretch engine, make
+loops seamless, and make detected sample metadata user-editable. Plan:
+`~/.claude/plans/i-was-working-on-jiggly-planet.md`. **Serializer v29 → v30.**
+Engine strategy (locked with user): **Bungee** (github.com/bungee-audio-stretch,
+MPL-2.0; vendors Eigen + PFFFT) is the single real-time stretch engine — its
+pull-based grain API gives free reverse/scrub/zero-speed, seamless looping by
+source-position wrapping, and native input↔output rate conversion. Rubber Band R3
+(GPL) is the deferred offline render-to-pool engine; signalsmith-stretch (MIT) is
+the named real-time fallback if Bungee fails the ear test. WSOLA `dsp/TimeStretch`
+was deleted.
+- [x] **S1 — Bungee + pull-model `IStretchEngine` seam** (`src/dsp/IStretchEngine.h`,
+      `BungeeStretchEngine`, `PcmStretchSource`, `tools/stretch_audition`). Granular
+      pull loop → planar FIFO; proportional run-in discard aligns onset to startPos;
+      loop = monotonic position + modulo fetch (folding the position would glitch the
+      seam). ⚠ **EAR-TEST GATE pending user listening** on the audition renders.
+- [x] **S2 — Stretch param family + WSOLA deletion.** Appended player_tune (±50 c),
+      player_loop (Off), player_reverse (Fwd); StretchMachine drives Bungee in fold
+      mode. Deleted `dsp/TimeStretch.{h,cpp}` + its test.
+- [x] **S3 — Stream native-rate fix + stretch pipeline.** ITempoAware + player_pitch/
+      tune/timestretch/loop; `ReaderStretchSource` over BufferingAudioReader; engine
+      rebuilt at the file rate in `withQuiescedEngine` (the missing-resample fix).
+      Shared `StretchMath::stretchTimeRatio` drives both players.
+- [x] **S4 — Loop=On via position-wrap + phase anchor.** Tempo loops the full musical
+      length (phase-locked by exact bars×samplesPerBar period, kept matched by
+      per-block setRatios); autoFit seeds a one-shot trig + player_loop=On.
+- [x] **S5 — Pool metadata user overrides + effective values + v30.** Detected
+      one-shot (was lost) + userBpm/Key/Tuning/OneShot overrides; effective =
+      override-else-detected consumed everywhere (stretch ratio, autoFit, sync-slice,
+      displayHint with `*`). Serialised (osh/ubpm/ukeyR/ukeyB/utune/uosh), incl. on
+      Stream entries; upgrade_v29_to_v30 stamp.
+- [ ] **S6 — Pool "sample properties" MZ editor** (`Overlay::SampleProps` +
+      `MetaBand::SampleProps`, `Props…` button, 8-field band). *Remaining.*
+- [x] **S7 — A440 Auto/Raw + fine-tune on Sample/Slicer** (+ Stretch tune mode).
+      Auto cancels the detected deviation; Raw plays as recorded.
+- [~] **S8 — Docs** (this block; DESIGN/README/THIRDPARTY).
+- Follow-ups: player unification part 2 (Looper→Bungee tape/scrub/glide, Stream
+      reverse, Sample/Slicer engine-optional + Hermite interp), Rubber Band R3 offline
+      render-to-pool, Stream→pool wiring (its tempo/one-shot/A440 lookups), FX
+      third-party swap (juce::dsp DelayLine/Oversampling; Signalsmith basics).
+
 ---
 
 ## Phase 10 — Melodic & Harmonic Authoring  *[active]*

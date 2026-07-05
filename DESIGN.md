@@ -206,8 +206,22 @@ exactly three kinds of machine:
   `SliceMachine`, `StreamMachine`, `StretchMachine`, `PercussionMachine`,
   `DigitalMachine`. The `SampleMachine` is rate-based (pitch = speed, the
   turntable); `StretchMachine` is its **Flex** counterpart with *independent
-  pitch and tempo* — a WSOLA time-stretch voice and `timestretch=Tempo` that
-  stretches a buffer to the project tempo via its stamped bar-length.
+  pitch and tempo* — driven (9.23) by the **Bungee** stretch engine behind the
+  JUCE-only `IStretchEngine` pull-model seam (`src/dsp/IStretchEngine.h`), with
+  `timestretch=Tempo` stretching a buffer to the project tempo via its stamped
+  bar-length. Both PCM players (Stretch = RAM, Stream = disk) share one param
+  family — `player_pitch` / `player_tune` (±50 c) / `player_timestretch` /
+  `player_loop` (+ `player_reverse`, Stretch only) — and one tempo-ratio helper
+  (`StretchMath::stretchTimeRatio`) so they cannot drift. The engine is a
+  pull-based grain loop: the machine hands it an `IStretchSource` (RAM buffer or
+  `BufferingAudioReader`) and the engine fetches arbitrary source positions, so
+  **reverse / scrub / zero-speed are free, looping is seamless by source-position
+  wrapping** (no restart or crossfade — the overlap-add makes the seam continuous),
+  and **input↔output rate conversion is native** (Stream now resamples an off-rate
+  file correctly). Bungee is MPL-2.0 (GPL-compatible, see `THIRDPARTY.md`); the
+  WSOLA `dsp/TimeStretch` voice it replaced was deleted. **A440**: a `tune_mode`
+  (Auto/Raw) cancels a sample's *effective* (user-else-detected) tuning deviation,
+  so it plays in tune by default; Raw plays it as recorded.
 - **Routers** — a machine that *carries* audio from an `input_source`
   into the track's own signal path. There is exactly one: `RouteMachine`
   (§29). It is near-empty by design — the actual shaping is done by the
