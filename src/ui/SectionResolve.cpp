@@ -41,100 +41,65 @@ namespace lockstep
         return candidates;
     }
 
-    // The section stack is one hierarchy, but the scope layers do not all mean
-    // the same thing, so a single "peel everything above the floor" rule is wrong
-    // (it silently dims Scene/Song scope-scoped param editing — the plan's audit
-    // point). The layers resolve by kind:
-    //   • Func      — parallel hierarchy: only the func stack rows (COND/NOTE/TRSP).
-    //   • unqualified (Machine floor) — machine param page, else fall through to a
-    //     track-DSP block (so bare FILTER on a sampler reads as the track filter);
-    //     stack meta rows never surface unheld.
-    //   • Track     — the P6 peel: the machine layer is hidden, track-DSP blocks
-    //     win; Track+TRIG is the DIV meta.
-    //   • Phrase/Scene/Song — write-target overlays over the *same* machine params:
-    //     a stack meta/sticky row on the pressed key wins (LEN/TIME/FX); otherwise
-    //     the machine param page shows where the per-scope policy permits it
-    //     (ScopedSectionMatrix), coloured by the held scope (scene-scoped edit).
+    // The section stack is a true underlay (per the intended model): imagine each
+    // scope's sections stacked from Global at the bottom up to the held scope on
+    // top (Machine/unqualified is the topmost layer). A key shows the *topmost
+    // non-empty layer at or below the held ceiling* — so unqualified TRIG, empty at
+    // the Machine layer, falls through to the Track layer's DIV meta and shows DIV.
+    // `selectScopeSections(all, floor)` does exactly this peel (drop layers above
+    // the floor, take the shallowest that remains).
+    //
+    // Two content kinds populate the layers, and they fall through differently:
+    //   • Meta/sticky/func rows (DIV/LEN/TIME/master-FX; COND/NOTE/TRSP) are
+    //     self-targeting, so they fall through the whole stack freely.
+    //   • Machine + track *param* pages fall through between themselves (bare
+    //     FILTER on a sampler → the track filter block).
+    //   • A scope-scoped machine-param edit (Scene+FILTER = the machine's filter,
+    //     scene override) is PINNED to its held scope. The write scope is driven by
+    //     the held modifier, so letting it fall through to a different scope would
+    //     misroute the write (holding Phrase must not edit filter). It appears only
+    //     when its own scope is the ceiling and the per-scope policy permits it.
     SectionResolution resolveSectionKey(const LockstepProcessor& proc, int track,
                                         int canonicalKey, SecOrigin floor, bool funcLayer)
     {
-        SectionResolution r;
+        std::vector<SecCandidate> all;
 
-        // Parallel Func hierarchy: the func stack row for this key, or dim.
-        if (funcLayer)
+        // Every stack meta/sticky/func row on this key. selectScopeSections filters
+        // the Func hierarchy (funcQualified == funcLayer) and peels by ceiling.
+        appendSectionStackCandidates(all, canonicalKey);
+
+        if (!funcLayer)
         {
-            for (const auto& row : kSectionStackTable)
-                if (row.funcQualified && row.key == canonicalKey)
-                {
-                    r.hasContent = true;
-                    r.winner = row.origin;
-                    r.action = row.action;
-                    r.metaIndex = row.metaIndex;
-                    r.label = row.label;
-                    return r;
-                }
-            return r;  // dim
-        }
-
-        // A held non-Machine scope with a stack meta/sticky row on this key: the
-        // row wins (Track DIV, Phrase LEN, Scene/Song TIME, Song master FX).
-        if (floor != SecOrigin::Machine)
-        {
-            for (const auto& row : kSectionStackTable)
-                if (!row.funcQualified && row.origin == floor && row.key == canonicalKey)
-                {
-                    r.hasContent = true;
-                    r.winner = row.origin;
-                    r.action = row.action;
-                    r.metaIndex = row.metaIndex;
-                    r.label = row.label;
-                    return r;
-                }
-        }
-
-        const auto params = buildParamCandidates(proc, track, canonicalKey);
-
-        if (floor == SecOrigin::Track)
-        {
-            // P6 peel: machine layer hidden, track-DSP blocks win; dim if none.
+            // Machine + track param pages (fall through Machine → Track).
+            const auto params = buildParamCandidates(proc, track, canonicalKey);
             for (const auto& c : params)
-                if (c.origin == SecOrigin::Track)
-                    r.groups.push_back(c);
-            if (!r.groups.empty())
+                all.push_back(c);
+
+            // Scope-scoped machine-param edit, pinned to the held scope so the
+            // held-modifier-driven write can't misroute (Phrase can't edit filter).
+            if (!params.empty())
             {
-                r.hasContent = true;
-                r.winner = SecOrigin::Track;
-                r.action = SecAction::ParamSection;
+                using PS = EditMode::PrimaryScope;
+                PS scope = PS::None;
+                if (floor == SecOrigin::Phrase)     scope = PS::Phrase;
+                else if (floor == SecOrigin::Scene) scope = PS::Scene;
+                else if (floor == SecOrigin::Song)  scope = PS::Song;
+                if (scope != PS::None && scopedCell(scope, canonicalKey).hasContent)
+                    all.push_back({ canonicalKey, params.front().pageCount, floor,
+                                    SecAction::ParamSection, -1, false, nullptr });
             }
-            return r;
         }
 
-        if (floor == SecOrigin::Machine)
-        {
-            // Unqualified: highest-precedence param wins (Machine, else track block).
-            r.groups = selectScopeSections(params, SecOrigin::Machine, false);
-            if (!r.groups.empty())
-            {
-                r.hasContent = true;
-                r.winner = r.groups.front().origin;
-                r.action = SecAction::ParamSection;
-            }
-            return r;
-        }
+        SectionResolution r;
+        r.groups = selectScopeSections(all, floor, funcLayer);
+        if (r.groups.empty())
+            return r;  // nothing at/below the ceiling on this key → dim
 
-        // Phrase / Scene / Song: machine params as a scope-scoped edit, but only
-        // where the per-scope policy allows it. Coloured by the held scope.
-        using PS = EditMode::PrimaryScope;
-        const PS scope = (floor == SecOrigin::Phrase) ? PS::Phrase
-                       : (floor == SecOrigin::Scene)  ? PS::Scene
-                                                      : PS::Song;
-        if (!params.empty() && scopedCell(scope, canonicalKey).hasContent)
-        {
-            r.groups = params;
-            r.hasContent = true;
-            r.winner = floor;   // colour the key/page by the write scope
-            r.action = SecAction::ParamSection;
-        }
+        r.hasContent = true;
+        r.winner = r.groups.front().origin;
+        r.action = r.groups.front().action;
+        r.metaIndex = r.groups.front().metaIndex;
+        r.label = r.groups.front().label;
         return r;
     }
 

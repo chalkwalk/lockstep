@@ -954,7 +954,16 @@ namespace lockstep
                                      GridDisplayMode::Ortholinear);
         };
 
-        {   // Track+TRIG → DIV meta, winner Track → cyan.
+        {   // Unqualified TRIG falls through the underlay to the Track DIV: the
+            // button is enabled, labelled DIV, and cyan — not a greyed "TRIG".
+            UiState ui;  // nothing held
+            const auto m = build(ui);
+            CHECK(!m.section[0].disabled, "bare TRIG is enabled (underlay DIV, not greyed)");
+            CHECK(m.section[0].primary == "DIV", "bare TRIG paints the DIV label");
+            CHECK(m.section[0].scopeTint == originColour(SecOrigin::Track).getARGB(),
+                  "bare TRIG paints the Track (cyan) winner colour");
+        }
+        {   // Track+TRIG → DIV meta, winner Track → cyan (same as unqualified).
             UiState ui; ui.trackHeld = true;
             const auto m = build(ui);
             CHECK(m.section[0].scopeTint == originColour(SecOrigin::Track).getARGB(),

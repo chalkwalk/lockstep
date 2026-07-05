@@ -48,11 +48,16 @@ namespace lockstep
                   "unqualified owned section → Machine param page");
         }
 
-        // --- No machine owns TRIG (section 0): bare TRIG is dim, not the DIV meta
-        // (stack rows never surface on an unqualified key).
+        // --- No machine owns TRIG (section 0), so the Machine layer is empty there
+        // and the underlay falls through to the Track layer's DIV meta: bare TRIG
+        // shows DIV (the whole point of the underlay — no wasted real estate).
         CHECK(proc.section(0, 0).firstSlot < 0, "machine owns no TRIG params (precondition)");
-        CHECK(!resolveSectionKey(proc, 0, 0, O::Machine, false).hasContent,
-              "bare TRIG is dim (meta rows gated to held scopes)");
+        {
+            const auto r = resolveSectionKey(proc, 0, 0, O::Machine, false);
+            CHECK(r.hasContent && r.action == A::MetaSection && r.metaIndex == 3
+                      && r.winner == O::Track,
+                  "bare TRIG falls through to the Track underlay → DIV (winner Track)");
+        }
 
         // --- Track+TRIG → DIV meta (3).
         {
@@ -102,6 +107,16 @@ namespace lockstep
         CHECK(!resolveSectionKey(proc, 0, 2, O::Song, false).hasContent,
               "Song+FILTER → dim (not a Song-scoped param)");
 
+        // --- Downward fall-through below the ceiling: Scene has no FX content, so
+        // the FX key falls through to the Song layer's master FX meta.
+        {
+            const auto r = resolveSectionKey(proc, 0, IMachine::kMaxSections - 1,
+                                             O::Scene, false);
+            CHECK(r.hasContent && r.action == A::MetaSection && r.metaIndex == 5
+                      && r.winner == O::Song,
+                  "Scene+FX falls through to the Song master-FX underlay");
+        }
+
         // --- Func layer: parallel hierarchy. Func TRIG → COND, Func FILTER → TRSP.
         {
             const auto cond = resolveSectionKey(proc, 0, 0, O::Machine, /*funcLayer*/ true);
@@ -110,10 +125,11 @@ namespace lockstep
             const auto trsp = resolveSectionKey(proc, 0, 2, O::Machine, /*funcLayer*/ true);
             CHECK(trsp.hasContent && trsp.action == A::MetaSection && trsp.metaIndex == 2,
                   "Func+FILTER → TRSP meta (2)");
-            // Func released: the same key falls back to the primary hierarchy.
+            // Func released: the same TRIG key resolves in the primary hierarchy
+            // (DIV via the underlay, metaIndex 3) — NOT the func COND meta (0).
             const auto rel = resolveSectionKey(proc, 0, 0, O::Machine, /*funcLayer*/ false);
-            CHECK(!rel.hasContent || rel.action == A::ParamSection,
-                  "Func released → primary hierarchy (no func meta)");
+            CHECK(rel.hasContent && rel.metaIndex == 3,
+                  "Func released → primary hierarchy DIV (not func COND)");
         }
 
         // --- sectionFloorForScope mapping.

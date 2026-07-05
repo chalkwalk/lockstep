@@ -538,6 +538,23 @@ namespace lockstep
             c.primary = kl.primary;
             c.pressed = physPressed(kSectionKeyCodes[s], ControllerButton::Section, s);
 
+            // Item 7 underlay: for the primary section stack — not the Func layer,
+            // not a latched-overlay relabel (Time/Density/Vel), not Morph's bespoke
+            // sections — the resolver drives disabled + label so the underlay shows
+            // through. Bare TRIG (empty at the Machine layer) reads the Track
+            // layer's DIV, not a greyed TRIG. Reused for the scope tint below.
+            const bool overlayRelabel = (overlayInternalSectionLabel(ui, s) != nullptr);
+            const bool useResolver =
+                (!ui.funcHeld && sectionScope != PS::Morph && !overlayRelabel);
+            const auto secRes = resolveSectionKey(
+                proc, activeTrack, s, sectionFloorForScope(sectionScope), /*funcLayer*/ false);
+            if (useResolver)
+            {
+                c.disabled = !secRes.hasContent;
+                if (secRes.hasContent && secRes.label != nullptr)
+                    c.primary = secRes.label;  // DIV / LEN / TIME / master-FX label
+            }
+
             // Hint band = Func-layer only. AMP/MOD have no Func action → no hint.
             // Func-promotion: when Func held, meta label becomes the live primary.
             // In scoped mode, honor per-cell funcLabel if present (e.g. Song+FX → "PICK FX").
@@ -643,11 +660,11 @@ namespace lockstep
             // reads cyan too, so post-machine FILTER/AMP announce themselves even
             // unheld. Disabled cells stay dim. The Func layer keeps its own border
             // treatment (below / 7e), so resolve the primary hierarchy here.
-            const SecOrigin tintFloor = sectionFloorForScope(sectionScope);
-            const auto tintRes = resolveSectionKey(proc, activeTrack, s, tintFloor, false);
-            if (!ui.funcHeld && !c.disabled && tintRes.hasContent
-                && tintRes.winner != SecOrigin::Machine)
-                c.scopeTint = originColour(tintRes.winner).getARGB();
+            if (useResolver && !c.disabled && secRes.hasContent
+                && secRes.winner != SecOrigin::Machine)
+                c.scopeTint = originColour(secRes.winner).getARGB();
+            else if (sectionScope == PS::Morph && !c.disabled)
+                c.scopeTint = scopeColour(PS::Morph).getARGB();  // Morph keeps its hue
             else if (isFillArmed)
                 c.scopeTint = scopeColour(EditMode::PrimaryScope::Fill).getARGB();
 
