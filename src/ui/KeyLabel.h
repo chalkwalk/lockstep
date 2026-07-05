@@ -49,11 +49,12 @@ namespace lockstep
     }
 
     // Item 7: the section-stack layer colour. Maps a resolved SecOrigin onto the
-    // existing scope palette (no new hues) so a section button and the MZ page
-    // read the *winning* scope's colour, whether it was reached by a held
-    // modifier or by unqualified fall-through (a track-DSP FILTER reads cyan even
-    // unheld). Machine = neutral step colour (no tint). Global reuses the Song
-    // hue (transport globals live under the Set/Song umbrella).
+    // scope palette so a section button and the MZ page read the *winning* scope's
+    // colour, whether it was reached by a held modifier or by fall-through (a
+    // track-DSP FILTER reads cyan even unheld). Machine = neutral step colour (no
+    // tint). Global has its own azure hue (9.22) — reached by Func+Song, visibly
+    // distinct from plain Song even though transport globals sit under the Song
+    // umbrella.
     inline juce::Colour originColour(SecOrigin origin) noexcept
     {
         using namespace theme;
@@ -65,7 +66,7 @@ namespace lockstep
             case SecOrigin::Phrase:  return scopeColour(PS::Phrase);
             case SecOrigin::Scene:   return scopeColour(PS::Scene);
             case SecOrigin::Song:    return scopeColour(PS::Song);
-            case SecOrigin::Global:  return scopeColour(PS::Song);
+            case SecOrigin::Global:  return col(kScopeGlobal);
         }
         return col(kScopeStep);
     }

@@ -105,6 +105,15 @@ namespace lockstep::theme
     inline constexpr uint32_t kScopeFunc = 0xFFD07820u;
     inline constexpr uint32_t kScopeFuncDim = 0xFF42260Au;
 
+    // Global / master-bus scope (azure ~222°) — reached by Func+Song (§32.3).
+    // Its own dedicated hue (NOT the Song gold it used to borrow), so a promoted
+    // Global page is visibly distinct from plain Song; sits between Track cyan
+    // (~195°) and Phrase violet (~255°) and never collides with the orange Func
+    // border it is always shown under. Global content = transport globals (TRSP).
+    inline constexpr uint32_t kScopeGlobal = 0xFF3868D8u;
+    inline constexpr uint32_t kScopeGlobalDim = 0xFF101c48u;
+    inline constexpr uint32_t kScopeGlobalAcc = 0xFF6890F0u;
+
     // -------------------------------------------------------------------------
     // Edit sub-mode identities (grid re-skins; mutually exclusive with scope-hold)
     // -------------------------------------------------------------------------

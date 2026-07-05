@@ -168,15 +168,14 @@ namespace lockstep
             CHECK(w != nullptr && w[0] != '\0', "every origin has a non-empty banner word");
             words.insert(w);
         }
-        // Machine..Song are distinct words; Global reuses the Song *colour* but
-        // keeps its own word.
+        // Machine..Global are distinct words AND (9.22) Global has its own hue.
         CHECK(words.size() == 6, "banner words are distinct per origin");
         CHECK(originColour(SecOrigin::Machine).getARGB()
                   != originColour(SecOrigin::Track).getARGB(),
               "Machine and Track colours differ");
         CHECK(originColour(SecOrigin::Global).getARGB()
-                  == originColour(SecOrigin::Song).getARGB(),
-              "Global reuses the Song hue (transport globals under the Song umbrella)");
+                  != originColour(SecOrigin::Song).getARGB(),
+              "Global has its own dedicated hue, distinct from Song (9.22)");
     }
 
     void runSectionResolveTests()
