@@ -916,6 +916,23 @@ namespace lockstep
         const auto& mod = m.section[4];  // MOD — no Func-layer action
         CHECK(mod.disabled, "Func+MOD has no secondary → dim (strict)");
         CHECK(!mod.border.present, "dim Func cell carries no border");
+
+        // 7e: the Func outline never latches. Latch the COND band (masterSection=0)
+        // and release Func — the band stays, but the section-key border drops.
+        {
+            UiState latched;
+            latched.funcHeld = false;
+            latched.masterSection = 0;  // COND band latched (was reached via Func+TRIG)
+            const SurfaceModel released = buildSurfaceModel(
+                latched, ec, nullptr, proc, 0, 0, GridDisplayMode::Ortholinear);
+            CHECK(!released.section[0].border.present,
+                  "7e: Func released → no Func border on TRIG even with COND latched");
+        }
+
+        // 7e helper: outline requires both the held layer and a func-qualified page.
+        CHECK(!funcOutlineActive(false, true), "outline off when Func not held");
+        CHECK(!funcOutlineActive(true, false), "outline off on a non-func page");
+        CHECK(funcOutlineActive(true, true), "outline on: Func held + func page");
     }
 
     // -------------------------------------------------------------------------

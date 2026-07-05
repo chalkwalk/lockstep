@@ -651,13 +651,15 @@ namespace lockstep
             else if (isFillArmed)
                 c.scopeTint = scopeColour(EditMode::PrimaryScope::Fill).getARGB();
 
-            // Func parallel stack (DESIGN §6.1.1): a Func-qualified cell keeps its
-            // origin fill — machine-secondary reads neutral (above), Func+scope
-            // reads that scope's colour (scopeTint) — and is marked by a Func-
-            // coloured *border*, not an all-orange fill. So section-button handling
-            // reads the same in the primary and Func stacks, differing only by the
-            // border. Empty Func cells are already disabled (strict dim) and skip it.
-            if (ui.funcHeld && !c.disabled && !isVelInert)
+            // Func parallel stack (DESIGN §6.1.1, Item 7 7e): the Func border marks
+            // a key that has a func-stack candidate (COND/NOTE/TRSP), and only while
+            // Func is actually held — never every non-disabled key, and never
+            // latched. A Func+scope cell (scoped content, no func candidate) keeps
+            // its scope colour without a spurious orange border.
+            const bool funcQualifiedKey =
+                resolveSectionKey(proc, activeTrack, s, SecOrigin::Machine, /*funcLayer*/ true)
+                    .hasContent;
+            if (funcOutlineActive(ui.funcHeld, funcQualifiedKey) && !c.disabled && !isVelInert)
             {
                 c.border.present = true;
                 c.border.colour = kScopeFunc;

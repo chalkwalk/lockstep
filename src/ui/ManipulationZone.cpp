@@ -877,7 +877,12 @@ namespace lockstep
                 }
             }
         }
-        const bool funcOriginPage = isMetaPage && bs.funcOrigin;
+        // Item 7 (7e): the Func outline never latches. A COND/TRANSPORT band
+        // reached via Func+TRIG / Func+7 keeps its body colour after Func releases,
+        // but the outline is drawn only while Func is actually held.
+        const bool funcHeldNow = (uiState_ != nullptr && uiState_->funcHeld);
+        const bool funcOriginPage =
+            isMetaPage && funcOutlineActive(funcHeldNow, bs.funcOrigin);
 
         // §26.4.1 — Persistent header strip: always visible, shows active band / section.
         {

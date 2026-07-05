@@ -70,6 +70,15 @@ namespace lockstep
         return col(kScopeStep);
     }
 
+    // Item 7 (7e): the Func outline is shown iff the Func layer is *currently*
+    // held AND the shown page/key is func-qualified. It never latches: a COND /
+    // TRANSPORT band reached via Func+TRIG / Func+7 keeps its body colour after
+    // Func releases, but the outline drops. Pure so both surfaces + a test share it.
+    inline bool funcOutlineActive(bool funcHeld, bool pageFuncQualified) noexcept
+    {
+        return funcHeld && pageFuncQualified;
+    }
+
     // Item 7: the banner word for a resolved page origin (MZ header + any
     // controller). The word is the durable signal; the colour a learned shorthand
     // (DESIGN §6.1.1). Exhaustive over SecOrigin — a new layer is a compile error.
