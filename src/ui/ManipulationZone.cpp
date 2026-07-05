@@ -829,12 +829,16 @@ namespace lockstep
         // momentarily held. Scoped section-secondary meta bands map to their scope
         // (COND=Func+TRIG, DIVIDER=Track+TRIG, PHRASE LEN=Phrase+TRIG, MASTER FX/
         // GLOBAL=Song+FX); generator/overlay/step pages keep their own identity.
+        // 9.22 Func colour model: a meta band is coloured by its content's origin
+        // (the body) with funcOrigin driving the Func border (the modifier signal).
+        // COND is machine-neutral; TRSP is Global azure (reached by Func+7 / Func+
+        // Song) — both keep the Func border. Track/Phrase/Song bands read their hue.
         struct BandScopeInfo { juce::Colour colour; bool funcOrigin; };
         const auto bandScopeInfo = [](MetaBand b) -> BandScopeInfo {
             switch (b)
             {
-                case MetaBand::Cond:                                                    // Func+TRIG
-                case MetaBand::Transport: return { juce::Colour(0xFFD07820u), true };   // Func
+                case MetaBand::Cond:      return { originColour(SecOrigin::Machine), true };  // Func (neutral)
+                case MetaBand::Transport: return { originColour(SecOrigin::Global), true };   // Func+Song → Global
                 case MetaBand::Divider:   return { juce::Colour(0xFF30A0C0u), false };  // Track
                 case MetaBand::PhraseLen: return { juce::Colour(0xFF7050C8u), false };  // Phrase
                 case MetaBand::Global:                                                  // Song+FX master params

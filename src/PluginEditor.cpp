@@ -492,24 +492,23 @@ namespace lockstep
             {
                 const auto info = processor_.section(track, section);
                 manipulationZone_.setNormalTitle(info.label, page, info.pageCount);
-                // Item 7: capture the resolved scope origin of the page at
-                // selection time (the modifier is still held here) so the MZ
-                // banner names it even after the scope is released. Unqualified,
-                // the origin is per-page (a mixed machine+track section pages
-                // through both), read from the actual slot; a held scope routes
-                // through the resolver and names the TRUE winner (Scene+FILTER falls
-                // up to the machine filter → MACHINE; Phrase+FILTER → the track FLTR
-                // block → TRACK). No fictional per-scope param colour.
-                const auto heldScope = firstHeldSectionSuiteScope(uiState_);
+                // Item 7 / 9.22: capture the resolved scope origin of the page at
+                // selection time (the modifier is still held here) so the MZ banner
+                // names it even after the scope is released. sectionResolveMode owns
+                // the floor+Func-promotion rule (single source): truly unqualified,
+                // the origin is per-page (a mixed machine+track section pages through
+                // both), read from the actual slot; otherwise the resolver names the
+                // TRUE winner (Scene+FILTER → MACHINE; Phrase+FILTER → TRACK;
+                // Func+Song fall-up pages → their winner).
+                const auto mode = sectionResolveMode(uiState_);
                 SecOrigin origin;
-                if (heldScope == EditMode::PrimaryScope::None)
+                if (mode.floor == SecOrigin::Machine && !mode.funcLayer)
                     origin = (firstSlot >= processor_.numParams(track))
                                  ? SecOrigin::Track : SecOrigin::Machine;
                 else
                 {
                     const auto res = resolveSectionKey(processor_, track, section,
-                                                       sectionFloorForScope(heldScope),
-                                                       /*funcLayer*/ false);
+                                                       mode.floor, mode.funcLayer);
                     origin = res.hasContent ? res.winner : SecOrigin::Machine;
                 }
                 manipulationZone_.setPageOrigin(origin);
