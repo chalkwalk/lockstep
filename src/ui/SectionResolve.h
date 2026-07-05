@@ -16,8 +16,10 @@ namespace lockstep
     // It unions two candidate sources — the machine/track *param* sections
     // derived live from the machine schema (buildParamCandidates, the exact
     // classification KeyboardArea::sectionsForKey uses) and the static
-    // section-stack table (meta bands + TIME/KEY sticky) — then runs the same
-    // scope peel (selectScopeSections) over the whole set.
+    // section-stack table (meta bands + TIME/KEY sticky) — then picks the layer
+    // NEAREST to the held ceiling (ties toward the deeper scope). Params have no
+    // per-scope layer (OEB: step-override ELSE track-base), so a held scope only
+    // sets the ceiling; it never adds a scoped-param candidate.
 
     struct SectionResolution
     {

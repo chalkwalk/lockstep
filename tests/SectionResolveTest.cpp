@@ -86,35 +86,50 @@ namespace lockstep
                   "Song+FX → master FX meta (5)");
         }
 
-        // --- Track+SRC on a synth (SRC machine-owned, no track SRC block) → dim.
+        // --- Track+SRC on a synth: SRC has only a machine layer (no track SRC
+        // block, nothing deeper). Under NEAREST it falls *up* one step to the
+        // machine SRC page — coloured MACHINE. SRC/MOD "stay machine-coloured under
+        // every hold" (the pedagogy): no deeper layer exists to teach.
         if (proc.section(0, 1).firstSlot >= 0 && proc.section(0, 1).firstSlot < proc.numParams(0))
         {
-            CHECK(!resolveSectionKey(proc, 0, 1, O::Track, false).hasContent,
-                  "Track+SRC on a synth → dim (machine SRC peeled, no track block)");
+            const auto r = resolveSectionKey(proc, 0, 1, O::Track, false);
+            CHECK(r.hasContent && r.action == A::ParamSection && r.winner == O::Machine,
+                  "Track+SRC on a synth → machine SRC (falls up; machine-coloured)");
         }
 
-        // --- Scene is a write-target overlay, NOT a peel: FILTER stays editable
-        // (machine params, scene-scoped write) and is coloured by the Scene scope.
-        // Regression guard — the naive "peel everything above the floor" resolver
-        // dimmed this (the plan's audit point).
+        // --- Scene+FILTER: there is NO per-scope param layer (OEB: step-override
+        // ELSE track-base). Holding Scene does NOT create a scene filter — it only
+        // sets the ceiling. FILTER's only real content here is the machine's own
+        // filter page (this synth owns its filter), so the key falls *up* to it →
+        // winner MACHINE (machine-coloured). The point is it is coloured by a REAL
+        // layer, never the fictional Scene-green the shipped 9.20 pinned here.
+        // (When a machine that leaves its filter to a track-DSP block ships, the
+        //  same NEAREST rule lands on Track — no code change needed.)
         if (proc.section(0, 2).firstSlot >= 0)  // machine owns FILTER
         {
             const auto r = resolveSectionKey(proc, 0, 2, O::Scene, false);
-            CHECK(r.hasContent && r.action == A::ParamSection && r.winner == O::Scene,
-                  "Scene+FILTER → machine param page, scene-coloured (not dimmed)");
+            CHECK(r.hasContent && r.action == A::ParamSection && r.winner != O::Scene,
+                  "Scene+FILTER → a real filter layer, NOT scene-coloured (fiction dead)");
+            CHECK(r.winner == O::Machine,
+                  "Scene+FILTER on a synth that owns its filter → machine filter (falls up)");
         }
-        // Song does not scope-edit FILTER (per-scope policy) → dim.
-        CHECK(!resolveSectionKey(proc, 0, 2, O::Song, false).hasContent,
-              "Song+FILTER → dim (not a Song-scoped param)");
+        // Song+FILTER: falls all the way up to the machine filter (nearest real
+        // layer, dist 4) — not dim, not song-coloured. Proves NEAREST falls *up*.
+        {
+            const auto r = resolveSectionKey(proc, 0, 2, O::Song, false);
+            CHECK(r.hasContent && r.action == A::ParamSection && r.winner == O::Machine,
+                  "Song+FILTER → machine filter (falls up to the nearest real layer)");
+        }
 
-        // --- Downward fall-through below the ceiling: Scene has no FX content, so
-        // the FX key falls through to the Song layer's master FX meta.
+        // --- Scene+FX: FX (key 5) has no machine/track param page on this synth; the
+        // only real content is the Song master-FX meta. It falls *down* to it →
+        // winner Song (masterFX). Proves NEAREST falls down too.
         {
             const auto r = resolveSectionKey(proc, 0, IMachine::kMaxSections - 1,
                                              O::Scene, false);
             CHECK(r.hasContent && r.action == A::MetaSection && r.metaIndex == 5
                       && r.winner == O::Song,
-                  "Scene+FX falls through to the Song master-FX underlay");
+                  "Scene+FX → Song master-FX (falls down; winner Song)");
         }
 
         // --- Func layer: parallel hierarchy. Func TRIG → COND, Func FILTER → TRSP.

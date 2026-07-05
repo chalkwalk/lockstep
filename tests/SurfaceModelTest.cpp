@@ -979,11 +979,16 @@ namespace lockstep
                   "winner colour distinguishes Phrase from Track");
         }
         if (proc.section(0, 2).firstSlot >= 0)
-        {   // Scene+FILTER → machine params, scene-scoped write, Scene-coloured.
+        {   // Scene+FILTER: there is NO per-scope param layer (OEB rule), so holding
+            // Scene does not make a scene filter — the key falls up to the machine's
+            // own filter. Winner Machine → no scope tint (machine-neutral), NOT the
+            // fictional Scene hue the shipped 9.20 painted. Honest colour-by-winner.
             UiState ui; ui.sceneHeld = true;
             const auto m = build(ui);
-            CHECK(m.section[2].scopeTint == originColour(SecOrigin::Scene).getARGB(),
-                  "Scene+FILTER paints the Scene winner colour (scope-scoped edit)");
+            CHECK(m.section[2].scopeTint != originColour(SecOrigin::Scene).getARGB(),
+                  "Scene+FILTER is NOT scene-coloured (no scene param layer exists)");
+            CHECK(m.section[2].scopeTint == 0u,
+                  "Scene+FILTER falls up to the machine filter → machine-neutral (no tint)");
         }
         {   // Unqualified, a machine-owned section → no tint (Machine winner).
             const int mnp = proc.numParams(0);

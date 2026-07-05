@@ -1,6 +1,5 @@
 #include "SectionResolve.h"
 #include "mode/SectionStackTable.h"
-#include "ScopedSectionMatrix.h"
 #include "../PluginProcessor.h"
 #include "../machine/IMachine.h"
 
@@ -41,62 +40,72 @@ namespace lockstep
         return candidates;
     }
 
-    // The section stack is a true underlay (per the intended model): imagine each
-    // scope's sections stacked from Global at the bottom up to the held scope on
-    // top (Machine/unqualified is the topmost layer). A key shows the *topmost
-    // non-empty layer at or below the held ceiling* — so unqualified TRIG, empty at
-    // the Machine layer, falls through to the Track layer's DIV meta and shows DIV.
-    // `selectScopeSections(all, floor)` does exactly this peel (drop layers above
-    // the floor, take the shallowest that remains).
+    // The section stack is a true underlay: each scope owns a layer of the section
+    // row, stacked Machine (top) → Track → Phrase → Scene → Song → Global (bottom).
+    // Holding a scope sets a *ceiling*; pressing a section resolves to the content
+    // NEAREST to that ceiling — the canonical, taught access. Empty at the held
+    // scope, a key falls through to the nearest populated layer (up OR down) as a
+    // convenience + colour-teaching aid; every key is coloured by the scope its
+    // content TRULY comes from.
     //
-    // Two content kinds populate the layers, and they fall through differently:
-    //   • Meta/sticky/func rows (DIV/LEN/TIME/master-FX; COND/NOTE/TRSP) are
-    //     self-targeting, so they fall through the whole stack freely.
-    //   • Machine + track *param* pages fall through between themselves (bare
-    //     FILTER on a sampler → the track filter block).
-    //   • A scope-scoped machine-param edit (Scene+FILTER = the machine's filter,
-    //     scene override) is PINNED to its held scope. The write scope is driven by
-    //     the held modifier, so letting it fall through to a different scope would
-    //     misroute the write (holding Phrase must not edit filter). It appears only
-    //     when its own scope is the ceiling and the per-scope policy permits it.
+    // NEAREST, ties toward deeper. The ceiling's own layer is distance 0, so a
+    // canonical chord (Track+TRIG=DIV, Song+FX=masterFX) is always exactly right.
+    // Off-ceiling keys fall to min |origin - floor|; a tie (equidistant above and
+    // below) breaks toward the deeper scope (larger SecOrigin value).
+    //
+    // Load-bearing data-model fact (see plan / CLAUDE.md OEB rule): params have
+    // only two layers — step-override ELSE track-base. Holding a scope NEVER
+    // changes the write target, so there is no per-scope param layer. The
+    // candidate set therefore carries only real content: the machine param page,
+    // the track-DSP param page, and the meta/sticky/func stack rows. No
+    // scoped-param pinning, no ScopedSectionMatrix — a "scene filter" would paint a
+    // colour for an edit that does not exist.
     SectionResolution resolveSectionKey(const LockstepProcessor& proc, int track,
                                         int canonicalKey, SecOrigin floor, bool funcLayer)
     {
         std::vector<SecCandidate> all;
 
-        // Every stack meta/sticky/func row on this key. selectScopeSections filters
-        // the Func hierarchy (funcQualified == funcLayer) and peels by ceiling.
+        // Every stack meta/sticky/func row on this key (self-targeting content).
         appendSectionStackCandidates(all, canonicalKey);
 
+        // Machine + track param pages — the only real param content (Machine iff
+        // the first slot is inside the machine's range, else Track).
         if (!funcLayer)
-        {
-            // Machine + track param pages (fall through Machine → Track).
-            const auto params = buildParamCandidates(proc, track, canonicalKey);
-            for (const auto& c : params)
+            for (const auto& c : buildParamCandidates(proc, track, canonicalKey))
                 all.push_back(c);
 
-            // Scope-scoped machine-param edit, pinned to the held scope so the
-            // held-modifier-driven write can't misroute (Phrase can't edit filter).
-            if (!params.empty())
+        const auto pr = [](SecOrigin o) { return static_cast<int>(o); };
+        const auto dist = [&](SecOrigin o) {
+            const int d = pr(o) - pr(floor);
+            return d < 0 ? -d : d;
+        };
+
+        // Winner = nearest origin to the ceiling; ties toward the deeper scope.
+        bool found = false;
+        SecOrigin best = SecOrigin::Machine;
+        int bestDist = 0;
+        for (const auto& c : all)
+        {
+            if (c.funcQualified != funcLayer) continue;  // wrong hierarchy (Func)
+            const int d = dist(c.origin);
+            if (!found || d < bestDist || (d == bestDist && pr(c.origin) > pr(best)))
             {
-                using PS = EditMode::PrimaryScope;
-                PS scope = PS::None;
-                if (floor == SecOrigin::Phrase)     scope = PS::Phrase;
-                else if (floor == SecOrigin::Scene) scope = PS::Scene;
-                else if (floor == SecOrigin::Song)  scope = PS::Song;
-                if (scope != PS::None && scopedCell(scope, canonicalKey).hasContent)
-                    all.push_back({ canonicalKey, params.front().pageCount, floor,
-                                    SecAction::ParamSection, -1, false, nullptr });
+                best = c.origin;
+                bestDist = d;
+                found = true;
             }
         }
 
         SectionResolution r;
-        r.groups = selectScopeSections(all, floor, funcLayer);
-        if (r.groups.empty())
-            return r;  // nothing at/below the ceiling on this key → dim
+        if (!found)
+            return r;  // no layer anywhere owns this key → dim (rare)
 
         r.hasContent = true;
-        r.winner = r.groups.front().origin;
+        r.winner = best;
+        for (const auto& c : all)
+            if (c.funcQualified == funcLayer && c.origin == best)
+                r.groups.push_back(c);
+
         r.action = r.groups.front().action;
         r.metaIndex = r.groups.front().metaIndex;
         r.label = r.groups.front().label;
