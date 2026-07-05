@@ -990,6 +990,24 @@ namespace lockstep
             CHECK(m.section[2].scopeTint == 0u,
                   "Scene+FILTER falls up to the machine filter → machine-neutral (no tint)");
         }
+        if (proc.section(0, 2).firstSlot >= 0)
+        {   // Song+FILTER falls all the way up to the machine filter: the key is
+            // ENABLED (no wasted real estate) and machine-neutral (no false Song
+            // hue). Deep-scope keys no longer dim under the underlay.
+            UiState ui; ui.songHeld = true;
+            const auto m = build(ui);
+            CHECK(!m.section[2].disabled, "Song+FILTER is enabled (falls up to machine filter)");
+            CHECK(m.section[2].scopeTint == 0u,
+                  "Song+FILTER is machine-neutral (no song param layer to colour)");
+        }
+        {   // SRC has only a machine layer, so it stays machine-coloured under ANY
+            // scope hold — the pedagogy: no deeper layer exists, so no recolour.
+            UiState ui; ui.sceneHeld = true;
+            const auto m = build(ui);
+            if (proc.section(0, 1).firstSlot >= 0 && proc.section(0, 1).firstSlot < proc.numParams(0))
+                CHECK(m.section[1].scopeTint == 0u,
+                      "Scene+SRC stays machine-coloured (no deeper SRC layer)");
+        }
         {   // Unqualified, a machine-owned section → no tint (Machine winner).
             const int mnp = proc.numParams(0);
             int owned = -1;

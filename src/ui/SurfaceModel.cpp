@@ -652,14 +652,15 @@ namespace lockstep
             else
                 c.baseColour = compatColour(c.base, kSecActive);
 
-            // Scope glow (DESIGN §6.6, Item 7): colour a section key by the
-            // *winning* origin the resolver returns, not a blanket held-scope wash.
-            // Under a held scope the winner is that scope (Scene+FILTER reads scene)
-            // or a track-DSP block it kept (Track+FLTR reads cyan); unqualified, a
-            // section the machine doesn't own but a track block does (winner=Track)
-            // reads cyan too, so post-machine FILTER/AMP announce themselves even
-            // unheld. Disabled cells stay dim. The Func layer keeps its own border
-            // treatment (below / 7e), so resolve the primary hierarchy here.
+            // Scope glow (DESIGN §6.6, Item 7): colour a section key by the *true
+            // winning* origin the resolver returns — colour-by-winner, never a
+            // blanket held-scope wash. The winner is the nearest REAL layer: a meta
+            // row (Track DIV cyan, Phrase LEN, Song master-FX), a track-DSP block
+            // (Phrase+FILTER on a machine that leaves filter to the track → cyan),
+            // or the machine itself (Scene+FILTER on a synth that owns its filter →
+            // Machine → no tint, machine-neutral; there is no scene param layer to
+            // colour). Deep-scope keys that fall up are enabled, not dim. Disabled
+            // cells stay dim. The Func layer keeps its own border treatment (7e).
             if (useResolver && !c.disabled && secRes.hasContent
                 && secRes.winner != SecOrigin::Machine)
                 c.scopeTint = originColour(secRes.winner).getARGB();
