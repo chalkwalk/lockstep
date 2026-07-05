@@ -538,16 +538,19 @@ namespace lockstep
             c.primary = kl.primary;
             c.pressed = physPressed(kSectionKeyCodes[s], ControllerButton::Section, s);
 
-            // Item 7 underlay: for the primary section stack — not the Func layer,
-            // not a latched-overlay relabel (Time/Density/Vel), not Morph's bespoke
-            // sections — the resolver drives disabled + label so the underlay shows
-            // through. Bare TRIG (empty at the Machine layer) reads the Track
-            // layer's DIV, not a greyed TRIG. Reused for the scope tint below.
+            // Item 7 underlay + 9.22 Func colour model: the resolver drives disabled
+            // + label + colour for the section stack — now INCLUDING the Func layer
+            // (bare Func metas AND the Func+Song=Global promotion), so a func key is
+            // coloured by its content's true winner (COND/NOTE machine-neutral, TRSP
+            // azure Global) with the func border layered on as the modifier signal.
+            // Excluded only from Morph's bespoke sections and a latched-overlay
+            // relabel (Time/Density/Vel). sectionResolveMode owns the Func-promotion
+            // rule (single source), so painter/dispatch/MZ agree.
             const bool overlayRelabel = (overlayInternalSectionLabel(ui, s) != nullptr);
-            const bool useResolver =
-                (!ui.funcHeld && sectionScope != PS::Morph && !overlayRelabel);
-            const auto secRes = resolveSectionKey(
-                proc, activeTrack, s, sectionFloorForScope(sectionScope), /*funcLayer*/ false);
+            const auto mode = sectionResolveMode(ui);
+            const bool useResolver = (sectionScope != PS::Morph && !overlayRelabel);
+            const auto secRes =
+                resolveSectionKey(proc, activeTrack, s, mode.floor, mode.funcLayer);
             if (useResolver)
             {
                 c.disabled = !secRes.hasContent;
@@ -652,15 +655,13 @@ namespace lockstep
             else
                 c.baseColour = compatColour(c.base, kSecActive);
 
-            // Scope glow (DESIGN §6.6, Item 7): colour a section key by the *true
-            // winning* origin the resolver returns — colour-by-winner, never a
-            // blanket held-scope wash. The winner is the nearest REAL layer: a meta
-            // row (Track DIV cyan, Phrase LEN, Song master-FX), a track-DSP block
-            // (Phrase+FILTER on a machine that leaves filter to the track → cyan),
-            // or the machine itself (Scene+FILTER on a synth that owns its filter →
-            // Machine → no tint, machine-neutral; there is no scene param layer to
-            // colour). Deep-scope keys that fall up are enabled, not dim. Disabled
-            // cells stay dim. The Func layer keeps its own border treatment (7e).
+            // Scope glow (DESIGN §6.6, Item 7 / 9.22): colour a section key by the
+            // *true winning* origin the resolver returns — colour-by-winner, under
+            // Func too. The winner is the nearest REAL layer: a meta row (Track DIV
+            // cyan, Phrase LEN, Song master-FX), a track-DSP block (→ cyan), the
+            // machine (→ no tint, machine-neutral: COND/NOTE and a machine filter
+            // both read neutral), or Global (Func+Song TRSP → azure). Deep-scope keys
+            // that fall up are enabled, not dim; disabled cells stay dim.
             if (useResolver && !c.disabled && secRes.hasContent
                 && secRes.winner != SecOrigin::Machine)
                 c.scopeTint = originColour(secRes.winner).getARGB();
@@ -669,15 +670,12 @@ namespace lockstep
             else if (isFillArmed)
                 c.scopeTint = scopeColour(EditMode::PrimaryScope::Fill).getARGB();
 
-            // Func parallel stack (DESIGN §6.1.1, Item 7 7e): the Func border marks
-            // a key that has a func-stack candidate (COND/NOTE/TRSP), and only while
-            // Func is actually held — never every non-disabled key, and never
-            // latched. A Func+scope cell (scoped content, no func candidate) keeps
-            // its scope colour without a spurious orange border.
-            const bool funcQualifiedKey =
-                resolveSectionKey(proc, activeTrack, s, SecOrigin::Machine, /*funcLayer*/ true)
-                    .hasContent;
-            if (funcOutlineActive(ui.funcHeld, funcQualifiedKey) && !c.disabled && !isVelInert)
+            // Func border (DESIGN §6.1.1, 9.22): the func-colour border is the
+            // *modifier* signal — it marks every non-dim section key while Func is
+            // physically held (bare-Func metas AND the Func+Song=Global promotion),
+            // layered on top of the winner colour. Never latches (drops on release);
+            // never borders a dim key or the inert Vel-entry cell.
+            if (funcOutlineActive(ui.funcHeld, !c.disabled) && !isVelInert)
             {
                 c.border.present = true;
                 c.border.colour = kScopeFunc;

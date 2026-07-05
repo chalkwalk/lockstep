@@ -1027,6 +1027,55 @@ namespace lockstep
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Test (9.22): the Func colour model — every non-dim section key is coloured
+    // by its content's true winner (NOT a flat orange), with the func-colour
+    // border layered on as the modifier signal. Covers bare-Func metas and the
+    // Func+Song=Global promotion.
+    // -------------------------------------------------------------------------
+    static void testFuncColourModel()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        proc.setTrackMachine(0, AnalogMachine::kMachineId);
+        EditContext ec;
+        const auto build = [&](const UiState& ui) {
+            return buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                     GridDisplayMode::Ortholinear);
+        };
+
+        {   // Bare Func: COND (TRIG) is machine-neutral body + func border; TRSP
+            // (FILTER) is Global azure body + func border (coloured by its origin,
+            // not flat orange).
+            UiState ui; ui.funcHeld = true;
+            const auto m = build(ui);
+            CHECK(!m.section[0].disabled && m.section[0].scopeTint == 0u
+                      && m.section[0].border.present
+                      && m.section[0].border.colour == theme::kScopeFunc,
+                  "bare Func+TRIG (COND): machine-neutral body + func border");
+            CHECK(!m.section[2].disabled
+                      && m.section[2].scopeTint == originColour(SecOrigin::Global).getARGB()
+                      && m.section[2].border.present,
+                  "bare Func+FILTER (TRSP): Global azure body + func border");
+        }
+        {   // Func+Song = Global scope. FILTER surfaces TRSP (azure); TRIG falls to
+            // Song TIME (Song hue). Both wear the func border (modifier held).
+            UiState ui; ui.funcHeld = true; ui.songHeld = true;
+            const auto m = build(ui);
+            CHECK(!m.section[2].disabled
+                      && m.section[2].scopeTint == originColour(SecOrigin::Global).getARGB()
+                      && m.section[2].border.present,
+                  "Func+Song+FILTER: TRSP Global azure + func border");
+            CHECK(!m.section[0].disabled
+                      && m.section[0].scopeTint == originColour(SecOrigin::Song).getARGB()
+                      && m.section[0].border.present,
+                  "Func+Song+TRIG: Song TIME (Song hue) + func border");
+            CHECK(originColour(SecOrigin::Global).getARGB()
+                      != originColour(SecOrigin::Song).getARGB(),
+                  "Global azure is visibly distinct from Song under the promotion");
+        }
+    }
+
     void runSurfaceModelTests()
     {
         testPanicKeyLabel();
@@ -1049,6 +1098,7 @@ namespace lockstep
         testFxSectionPrimaryNotPicker();
         testFxPickerBypassCell();
         testFuncStackBorderNotOrangeFill();
+        testFuncColourModel();
         testSrcAnnouncesNoteEditWhenStepHeld();
         testSectionWinnerColour();
     }
