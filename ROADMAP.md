@@ -2286,13 +2286,18 @@ section-bar painter, and the MZ banner. Six commits.
       COND/NOTE/TRSP). Pure + unit-tested.
 - [x] **`SectionResolve` resolver drives dispatch.** `resolveSectionKey()` unions
       the schema param candidates (shared with `sectionsForKey`) with the stack
-      rows and returns `{winner, action, metaIndex, groups}`; the editor's
-      Section-key dispatch collapses to resolve → switch on action. The scope
-      layers are **not** a uniform peel (that silently dimmed Scene/Song
-      scope-scoped param editing — the plan's own audit point): Func is a parallel
-      hierarchy, Track is the P6 machine-peel, and Phrase/Scene/Song are
-      write-target overlays that keep the machine params where the per-scope policy
-      allows and add their meta rows.
+      rows and returns `{winner, action, metaIndex, label, groups}`; the editor's
+      Section-key dispatch collapses to resolve → switch on action.
+- [x] **The stack is a true underlay (full downward fall-through).** Each key
+      shows the topmost non-empty layer at or below the held ceiling, so an empty
+      layer falls through to the one beneath — **bare TRIG shows the Track layer's
+      DIV** (and pressing it opens the DIV band), Scene+FX falls through to the
+      Song master-FX layer. Meta/sticky/func rows (self-targeting) fall through the
+      whole stack; machine + track param pages fall through between themselves; a
+      scope-scoped machine-param edit (Scene+FILTER) stays **pinned** to its held
+      scope because the write is held-modifier-driven and would otherwise misroute.
+      (Fall-*up* / zig-zag to fill still-empty deep-scope keys is a possible
+      follow-up — a UX discussion, not built.)
 - [x] **Winner-colour painting.** Section buttons tint by the resolved winning
       origin (`originColour`) — Track+FLTR and an unqualified track-DSP FILTER read
       cyan, Scene+FILTER reads scene — not a blanket held-scope wash; the dim wash
