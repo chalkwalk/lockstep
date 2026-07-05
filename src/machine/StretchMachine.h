@@ -71,7 +71,8 @@ namespace lockstep
         static constexpr int kSlotTune = 4;         // ±50 cents fine-tune
         static constexpr int kSlotLoop = 5;         // 0 = Off, 1 = On
         static constexpr int kSlotReverse = 6;      // 0 = Fwd, 1 = Rev
-        static constexpr int kNumSlots = 7;
+        static constexpr int kSlotTuneMode = 7;     // 0 = Auto (cancel A440 dev), 1 = Raw
+        static constexpr int kNumSlots = 8;
 
         [[nodiscard]] double timeRatioFor(int playedLen) const;
         [[nodiscard]] double pitchRatioFor(int midiNote, const ParamFrame& params) const;
@@ -95,5 +96,6 @@ namespace lockstep
         static constexpr std::array<const char* const, 2> kTsLabels = { "Off", "Tempo" };
         static constexpr std::array<const char* const, 2> kLoopLabels = { "Off", "On" };
         static constexpr std::array<const char* const, 2> kRevLabels = { "Fwd", "Rev" };
+        static constexpr std::array<const char* const, 2> kTuneModeLabels = { "Auto", "Raw" };
     };
 }

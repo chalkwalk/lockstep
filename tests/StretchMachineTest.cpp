@@ -161,7 +161,10 @@ namespace lockstep
         // Param defaults: a v29-shaped 4-slot frame loads tune=0/loop=Off/rev=Fwd.
         {
             StretchMachine p(pool);
-            CHECK(p.numParams() == 7, "Player: 7 slots after the tune/loop/reverse append");
+            CHECK(p.numParams() == 8, "Player: 8 slots after tune/loop/reverse/tune_mode");
+            CHECK(juce::String(p.paramSpec(7).id) == "player_tune_mode"
+                  && feq(p.paramSpec(7).defaultValue, 0.0f),
+                  "Player: slot 7 = player_tune_mode default Auto");
             const auto tuneSpec = p.paramSpec(4);
             const auto loopSpec = p.paramSpec(5);
             const auto revSpec  = p.paramSpec(6);
@@ -186,6 +189,27 @@ namespace lockstep
             const double r = fTuned / std::max(1.0, fRoot);
             CHECK(r > 1.012 && r < 1.048,
                   "Player: tune=+50c is half a semitone up (ratio=" + juce::String(r) + ")");
+        }
+
+        // A440 Auto/Raw (S7): a +30c-stamped sample plays 30c flat under Auto (the
+        // detected deviation is cancelled) and unchanged under Raw.
+        {
+            pool.setUserTuningCents(idx, 30.0, true);  // effective tuning = +30 cents
+            StretchMachine pa(pool);
+            pa.prepare(kSr, 256);
+            StretchMachine pr(pool);
+            pr.prepare(kSr, 256);
+            // slot 7 = tune_mode: 0 Auto, 1 Raw. Build 8-slot frames.
+            ParamFrame autoFr{ static_cast<float>(idx), 0,0,0,0,0,0, 0.0f };
+            ParamFrame rawFr { static_cast<float>(idx), 0,0,0,0,0,0, 1.0f };
+            const double fAuto = dominantFreq(collectOut(pa, autoFr, 60, srcLen * 2));
+            const double fRaw  = dominantFreq(collectOut(pr, rawFr,  60, srcLen * 2));
+            const double ratio = fAuto / std::max(1.0, fRaw);
+            const double expect = std::pow(2.0, -30.0 / 1200.0);  // ~0.9827
+            CHECK(ratio > expect * 0.99 && ratio < expect * 1.01,
+                  "A440: Auto plays 30c flat vs Raw (ratio=" + juce::String(ratio)
+                  + " expect~" + juce::String(expect) + ")");
+            pool.setUserTuningCents(idx, 0.0, false);  // restore for later blocks
         }
 
         // Tempo+Loop (S4): a held note loops seamlessly — it stays non-silent well

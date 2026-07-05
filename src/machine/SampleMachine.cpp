@@ -20,11 +20,22 @@ namespace lockstep
         };
 
         const double pitchOffset = static_cast<double>(p(kSlotPitch));
-        const double semitones = static_cast<double>(midiNote - 60) + pitchOffset;
 
         const int sampleIdx = static_cast<int>(p(kSlotSampleId));
         currentSampleIndex_ = sampleIdx;  // keep base updated for detectTransientSlices
         const Sample* sample = pool_.get(sampleIdx);
+
+        // 9.23 S7 — fine-tune (cents) + A440: Auto cancels the sample's detected
+        // deviation from A440 so it plays in tune; Raw leaves it as recorded. Both
+        // fold into the varispeed rate (linear interpolation is unchanged).
+        const double tuneCents = (params.size() > static_cast<std::size_t>(kSlotTune))
+            ? static_cast<double>(p(kSlotTune)) : 0.0;
+        const bool autoA440 = (params.size() <= static_cast<std::size_t>(kSlotTuneMode))
+            || std::lround(p(kSlotTuneMode)) == 0;   // default (absent) = Auto
+        const double effCents = tuneCents
+            + (autoA440 ? -pool_.effectiveTuningCents(sampleIdx) : 0.0);
+        const double semitones =
+            static_cast<double>(midiNote - 60) + pitchOffset + effCents / 100.0;
         const double numSrcSamples = (sample != nullptr)
                                          ? static_cast<double>(sample->pcm.getNumSamples())
                                          : 0.0;
@@ -259,7 +270,7 @@ namespace lockstep
 
     namespace sa_u
     {
-        static constexpr uint8_t None = 0, Ms = 1, Semi = 2, Pct = 3;
+        static constexpr uint8_t None = 0, Ms = 1, Semi = 2, Pct = 3, Cents = 4;
     }
     namespace sa_r
     {
@@ -271,6 +282,7 @@ namespace lockstep
     {
         static constexpr const char* kSALoopLabels[] = { "OFF", "SUS", "SUS+REL", "ALL", nullptr };
         static constexpr const char* kSARetrigLabels[] = { "LEGATO", "RETRIG", nullptr };
+        static constexpr const char* kSATuneModeLabels[] = { "Auto", "Raw", nullptr };
     }
 
     // { id, label, min, max, def, skew, stepped, unit, role, variant, section, zcSnap, labels }
@@ -294,6 +306,9 @@ namespace lockstep
         { "samp_velsens", "Vel>Amp", 0.f, 1.f, 0.f, 1.f, 0, sa_u::Pct, sa_r::None, 0, 3, 0, nullptr }, // 14
         // SRC (section 1) — appended past the AMP block to keep slot indices stable.
         { "samp_loop_xfade", "LpXfade", 0.f, 100.f, 8.f, 0.5f, 0, sa_u::Ms, sa_r::None, 0, 1, 0, nullptr }, // 15
+        // 9.23 S7 — fine-tune + A440 mode (default Auto cancels the detected deviation).
+        { "samp_tune", "Tune", -50.f, 50.f, 0.f, 1.f, 0, sa_u::Cents, sa_r::Pitch, 0, 1, 0, nullptr }, // 16
+        { "samp_tune_mode", "A440", 0.f, 1.f, 0.f, 1.f, 1, sa_u::None, sa_r::None, 0, 1, 0, kSATuneModeLabels }, // 17
     };
     static_assert(std::size(kSAParams) == SampleMachine::kNumSlots,
                   "kSAParams row count must equal kNumSlots");

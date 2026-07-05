@@ -243,6 +243,8 @@ namespace lockstep
             "samp_retrig",     // 13
             "samp_velsens",    // 14
             "samp_loop_xfade", // 15 (SRC — appended past the AMP block)
+            "samp_tune",       // 16 (9.23 S7)
+            "samp_tune_mode",  // 17
         };
         checkGoldenIds(m, "SampleMachine", golden);
         checkInvariants(m, "SampleMachine");
@@ -266,6 +268,8 @@ namespace lockstep
             "slicer_pitch",       // 10
             "slicer_voice_mode",  // 11
             "slicer_fade",        // 12
+            "slicer_tune",        // 13 (9.23 S7)
+            "slicer_tune_mode",   // 14
         };
         checkGoldenIds(m, "SliceMachine", golden);
         checkInvariants(m, "SliceMachine");

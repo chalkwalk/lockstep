@@ -23,8 +23,9 @@ namespace lockstep
             None,
             Ms,
             Semitones,
-            Cents,
-            Percent
+            Percent,
+            Cents  // appended last: table-driven machines cast raw unit ordinals,
+                   // so a new Unit must not shift the existing values.
         };
 
         // Closed set of semantic roles. Used by Control-All as an id-fallback

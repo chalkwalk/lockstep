@@ -44,7 +44,16 @@ namespace lockstep
         const double rateParam = static_cast<double>(p(kSlotRate));
         // In SLICE mode the note selects the slice; pitch is fixed by kSlotPitch only.
         // In SCRUB mode the note transposes normally.
-        const double pitchSemis = (isSlice ? 0.0 : static_cast<double>(midiNote - 60)) + static_cast<double>(p(kSlotPitch));
+        // 9.23 S7 — fine-tune (cents) + A440: Auto cancels the sample's detected
+        // deviation from A440; Raw leaves it as recorded. Folds into the rate.
+        const double tuneCents = (params.size() > static_cast<std::size_t>(kSlotTune))
+            ? static_cast<double>(p(kSlotTune)) : 0.0;
+        const bool autoA440 = (params.size() <= static_cast<std::size_t>(kSlotTuneMode))
+            || std::lround(p(kSlotTuneMode)) == 0;   // default (absent) = Auto
+        const double effCents = tuneCents
+            + (autoA440 ? -pool_.effectiveTuningCents(sampleIdx) : 0.0);
+        const double pitchSemis = (isSlice ? 0.0 : static_cast<double>(midiNote - 60))
+            + static_cast<double>(p(kSlotPitch)) + effCents / 100.0;
 
         // Determine the playback window.  In SLICE mode the note selects a slice
         // and start/length are relative to that slice.  In SCRUB mode they are
@@ -285,7 +294,7 @@ namespace lockstep
 
     namespace sl_u
     {
-        static constexpr uint8_t None = 0, Ms = 1, Semi = 2;
+        static constexpr uint8_t None = 0, Ms = 1, Semi = 2, Cents = 4;
     }
     namespace sl_r
     {
@@ -304,6 +313,7 @@ namespace lockstep
                       "kSyncDivLabels must match kSyncBeatsPerSlice");
         static constexpr const char* kSLLoopLabels[] = { "OFF", "SUS", "SUS+REL", "ALL", nullptr };
         static constexpr const char* kSLVoiceLabels[] = { "MONO", "POLY", nullptr };
+        static constexpr const char* kSLTuneModeLabels[] = { "Auto", "Raw", nullptr };
     }
 
     // { id, label, min, max, def, skew, stepped, unit, role, variant, section, zcSnap, labels }
@@ -323,6 +333,9 @@ namespace lockstep
         // --- VOICE (section 6) ---
         { "slicer_voice_mode", "Voice", 0.f, 1.f, 0.f, 1.f, 1, sl_u::None, sl_r::None, 0, 6, 0, kSLVoiceLabels }, // 11
         { "slicer_fade", "Fade", 0.f, 20.f, 1.f, 1.f, 0, sl_u::Ms, sl_r::None, 0, 6, 0, nullptr }, // 12
+        // 9.23 S7 — fine-tune + A440 mode (default Auto cancels the detected deviation).
+        { "slicer_tune", "Tune", -50.f, 50.f, 0.f, 1.f, 0, sl_u::Cents, sl_r::Pitch, 0, 1, 0, nullptr }, // 13
+        { "slicer_tune_mode", "A440", 0.f, 1.f, 0.f, 1.f, 1, sl_u::None, sl_r::None, 0, 1, 0, kSLTuneModeLabels }, // 14
     };
     static_assert(std::size(kSLParams) == SliceMachine::kNumSlots,
                   "kSLParams row count must equal kNumSlots");

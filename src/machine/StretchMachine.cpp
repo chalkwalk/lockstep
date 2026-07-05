@@ -72,6 +72,15 @@ namespace lockstep
                 s.isStepped = true;
                 s.valueLabels = std::span<const char* const>(kRevLabels.data(), kRevLabels.size());
                 return s;
+            case kSlotTuneMode:
+                s.id = "player_tune_mode";
+                s.label = "A440";
+                s.minValue = 0.0f;
+                s.maxValue = 1.0f;
+                s.defaultValue = 0.0f;  // Auto — cancel the sample's detected deviation
+                s.isStepped = true;
+                s.valueLabels = std::span<const char* const>(kTuneModeLabels.data(), kTuneModeLabels.size());
+                return s;
             default:
                 return {};
         }
@@ -104,9 +113,14 @@ namespace lockstep
     {
         const float pitchSemis = (params.size() > kSlotPitch) ? params[kSlotPitch] : 0.0f;
         const float tuneCents = (params.size() > kSlotTune) ? params[kSlotTune] : 0.0f;
+        // A440: Auto (default) cancels the sample's detected deviation so it plays
+        // in tune; Raw leaves it as recorded. (9.23 S7.)
+        const bool autoA440 = (static_cast<int>(params.size()) <= kSlotTuneMode)
+            || std::lround(params[kSlotTuneMode]) == 0;
+        const double a440 = autoA440 ? -pool_.effectiveTuningCents(activeSampleId_) : 0.0;
         return std::pow(2.0, (static_cast<double>(midiNote - 60)
                              + static_cast<double>(pitchSemis)
-                             + static_cast<double>(tuneCents) / 100.0) / 12.0);
+                             + (static_cast<double>(tuneCents) + a440) / 100.0) / 12.0);
     }
 
     double StretchMachine::timeRatioFor(int playedLen) const
