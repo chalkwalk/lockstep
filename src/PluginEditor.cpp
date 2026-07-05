@@ -492,6 +492,25 @@ namespace lockstep
             {
                 const auto info = processor_.section(track, section);
                 manipulationZone_.setNormalTitle(info.label, page, info.pageCount);
+                // Item 7: capture the resolved scope origin of the page at
+                // selection time (the modifier is still held here) so the MZ
+                // banner names it even after the scope is released. Unqualified,
+                // the origin is per-page (a mixed machine+track section pages
+                // through both), read from the actual slot; a held scope routes
+                // through the resolver (Scene+FILTER → Scene, Track+FLTR → Track).
+                const auto heldScope = firstHeldSectionSuiteScope(uiState_);
+                SecOrigin origin;
+                if (heldScope == EditMode::PrimaryScope::None)
+                    origin = (firstSlot >= processor_.numParams(track))
+                                 ? SecOrigin::Track : SecOrigin::Machine;
+                else
+                {
+                    const auto res = resolveSectionKey(processor_, track, section,
+                                                       sectionFloorForScope(heldScope),
+                                                       /*funcLayer*/ false);
+                    origin = res.hasContent ? res.winner : SecOrigin::Machine;
+                }
+                manipulationZone_.setPageOrigin(origin);
             }
             refreshMetaBand();
         };

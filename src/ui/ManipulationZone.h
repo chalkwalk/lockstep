@@ -5,6 +5,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "MetaBand.h"
 #include "MetaRotary.h"
+#include "ScopeSectionSelect.h"  // SecOrigin
 #include "../state/UiState.h"
 
 namespace lockstep
@@ -36,6 +37,12 @@ namespace lockstep
         // Set the section title for normal (band==None) mode — shown in the MZ header strip.
         // Call from PluginEditor whenever the active section or page changes.
         void setNormalTitle(const juce::String& title, int page, int pageCount);
+
+        // Item 7: the resolved scope origin of the param page currently shown.
+        // Fed from the selection notification (the single owner) — never
+        // re-derived from slotOffset_. Drives the banner word + header/wash colour
+        // so a Scene-scoped FILTER page reads SCENE, a track-DSP page reads TRACK.
+        void setPageOrigin(SecOrigin origin) { pageOrigin_ = origin; }
 
         // Switch the zone to a MetaBand (resolveMetaBand result) with the given swing scope.
         // MetaBand::None = normal machine params; anything else renders the meta surface.
@@ -117,6 +124,7 @@ namespace lockstep
         KeyboardArea& area_;
         int slotOffset_ = 0;
         MetaBand band_ = MetaBand::None;
+        SecOrigin pageOrigin_ = SecOrigin::Machine;  // scope origin of the shown param page (7d)
         int swingScope_ = 0;   // 0=none, 1=song-all, 2=scene-all delta, 3=song-track delta
         juce::String normalTitle_;   // section name for normal (band==None) mode
         int normalPage_ = 0;         // 0-based current page index

@@ -70,6 +70,23 @@ namespace lockstep
         return col(kScopeStep);
     }
 
+    // Item 7: the banner word for a resolved page origin (MZ header + any
+    // controller). The word is the durable signal; the colour a learned shorthand
+    // (DESIGN §6.1.1). Exhaustive over SecOrigin — a new layer is a compile error.
+    inline const char* originWord(SecOrigin origin) noexcept
+    {
+        switch (origin)
+        {
+            case SecOrigin::Machine: return "MACHINE";
+            case SecOrigin::Track:   return "TRACK";
+            case SecOrigin::Phrase:  return "PHRASE";
+            case SecOrigin::Scene:   return "SCENE";
+            case SecOrigin::Song:    return "SONG";
+            case SecOrigin::Global:  return "GLOBAL";
+        }
+        return "MACHINE";
+    }
+
     // Returns the scope colour that corresponds to the held modifier state in
     // UiState — whichever section-suite scope is currently held (priority from
     // firstHeldSectionSuiteScope), then Mute/Fill, or the step colour if none.

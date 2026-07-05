@@ -5,6 +5,7 @@
 #include "../core/OutputDest.h"
 #include "../machine/InputSource.h"
 #include "KeyboardArea.h"
+#include "KeyLabel.h"  // originColour (7d)
 #include <algorithm>
 #include <cmath>
 
@@ -797,16 +798,17 @@ namespace lockstep
         g.setColour(juce::Colour::fromRGB(60, 70, 85));
         g.drawRect(getLocalBounds(), 1);
 
-        // P6: when a normal (machine-param) page is actually showing a track-level
-        // DSP block (FLTR/AMP/CHANNEL+ENV/FX inserts live at slot >= numParams),
-        // tint the header cyan (the Track scope colour, kScopeTrack) so a track
-        // page is never mistaken for a machine page — the FLTR-vs-FLTR confusion.
+        // Item 7 (was P6): a normal param page carries the scope origin the
+        // resolver assigned at selection (pageOrigin_, fed by the editor — never
+        // re-derived from slotOffset_ here). A non-Machine origin means the page is
+        // a track-DSP block (TRACK) or a scope-scoped edit (SCENE/SONG/…): name and
+        // colour it so a FLTR page is never mistaken for a plain machine page.
         const int scopeTrk = area_.getActiveTrack();
-        const bool trackScopePage =
+        const bool scopedParamPage =
             scopeTrk >= 0 && band_ == MetaBand::None
             && !processor_.editContext().isActiveForEditing()
-            && slotOffset_ >= processor_.numParams(scopeTrk);
-        const juce::Colour kTrackScopeCol{ 0xFF30A0C0u };  // theme::kScopeTrack
+            && pageOrigin_ != SecOrigin::Machine;
+        const juce::Colour kScopeParamCol = originColour(pageOrigin_);
 
         // Part 3: when the current page is a track FX-insert whose slot is
         // bypassed, wash it amber + tag BYP so a bypassed effect never looks like
@@ -910,8 +912,7 @@ namespace lockstep
             {
                 // Banner always names the scope the params belong to. Colour is a
                 // learned shorthand; the word is the durable signal (DESIGN §6.1.1).
-                const char* scopeWord = trackScopePage ? "TRACK" : "MACHINE";
-                title = juce::String(scopeWord) + "  " + normalTitle_;
+                title = juce::String(originWord(pageOrigin_)) + "  " + normalTitle_;
                 if (bypassedFxPage)
                     title += " (BYP)";
                 if (normalPageCount_ > 1)
@@ -926,11 +927,11 @@ namespace lockstep
                        static_cast<float>(getWidth()), static_cast<float>(headerRect.getBottom()), 1.0f);
 
             // Title text and optional page indicator.
-            const juce::Colour headerFg = isStepEdit    ? juce::Colour::fromRGB(255, 180, 50)
-                                        : isMeta        ? bs.colour
+            const juce::Colour headerFg = isStepEdit     ? juce::Colour::fromRGB(255, 180, 50)
+                                        : isMeta         ? bs.colour
                                         : bypassedFxPage ? kBypassCol
-                                        : trackScopePage ? kTrackScopeCol
-                                                         : juce::Colour::fromRGB(180, 195, 210);
+                                        : scopedParamPage ? kScopeParamCol
+                                                          : juce::Colour::fromRGB(180, 195, 210);
             g.setColour(headerFg);
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             const auto textArea = headerRect.reduced(6, 2);
@@ -966,10 +967,11 @@ namespace lockstep
             g.setColour(kBypassCol.withAlpha(0.10f));
             g.fillAll();
         }
-        else if (trackScopePage)
+        else if (scopedParamPage)
         {
-            // P6: faint cyan wash marks a track-level DSP page (Track scope colour).
-            g.setColour(kTrackScopeCol.withAlpha(0.06f));
+            // Item 7: faint wash in the page's origin colour (cyan track-DSP, or
+            // the held scope for a scope-scoped edit).
+            g.setColour(kScopeParamCol.withAlpha(0.06f));
             g.fillAll();
         }
 

@@ -6,8 +6,12 @@
 #include "TestHarness.h"
 #include "EngineHarness.h"
 #include "../src/ui/SectionResolve.h"
+#include "../src/ui/KeyLabel.h"  // originWord / originColour (7d)
 #include "../src/machine/AnalogMachine.h"
 #include "../src/machine/IMachine.h"
+
+#include <set>
+#include <string>
 
 namespace lockstep
 {
@@ -121,8 +125,32 @@ namespace lockstep
         CHECK(sectionFloorForScope(PS::Song) == O::Song, "Song → Song floor");
     }
 
+    // Item 7 (7d): the page-origin banner helpers are total and distinct.
+    static void testOriginHelpers()
+    {
+        const SecOrigin all[] = { SecOrigin::Machine, SecOrigin::Track, SecOrigin::Phrase,
+                                  SecOrigin::Scene, SecOrigin::Song, SecOrigin::Global };
+        std::set<std::string> words;
+        for (auto o : all)
+        {
+            const char* w = originWord(o);
+            CHECK(w != nullptr && w[0] != '\0', "every origin has a non-empty banner word");
+            words.insert(w);
+        }
+        // Machine..Song are distinct words; Global reuses the Song *colour* but
+        // keeps its own word.
+        CHECK(words.size() == 6, "banner words are distinct per origin");
+        CHECK(originColour(SecOrigin::Machine).getARGB()
+                  != originColour(SecOrigin::Track).getARGB(),
+              "Machine and Track colours differ");
+        CHECK(originColour(SecOrigin::Global).getARGB()
+                  == originColour(SecOrigin::Song).getARGB(),
+              "Global reuses the Song hue (transport globals under the Song umbrella)");
+    }
+
     void runSectionResolveTests()
     {
         testSectionResolve();
+        testOriginHelpers();
     }
 }
