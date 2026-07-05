@@ -109,6 +109,36 @@ namespace lockstep
         CHECK(ui.velSubPage == UiState::VelSubPage::Depth, "subpage reset");
     }
 
+    // Item 7 / 9.21: a committed section selection (masterSection) is orthogonal
+    // to the overlay field. Entering a sticky overlay (Vel/Density/Time) does NOT
+    // clobber the selection, and escapeOverlay restores only the overlay — so the
+    // MZ falls back to the previously-selected section when the overlay clears.
+    // This is the "selected section underlays the overlay" layer of the precedence
+    // stack: single owner (overlay in UiState::overlay, selection in masterSection).
+    static void testStickyOverlayPreservesSectionSelection()
+    {
+        for (const auto ov : { Overlay::Density, Overlay::Vel, Overlay::Time })
+        {
+            UiState ui;
+            ui.masterSection = 3;  // DIV meta selected (paging it)
+            switch (ov)
+            {
+                case Overlay::Density: enterDensity(ui); break;
+                case Overlay::Vel:     enterVel(ui);     break;
+                case Overlay::Time:    enterTime(ui);    break;
+                case Overlay::Euclid:
+                case Overlay::Melodic:
+                case Overlay::Harmony:
+                case Overlay::None:    break;
+            }
+            CHECK(ui.masterSection == 3, "overlay entry does not clobber the selection");
+            escapeOverlay(ui, ov);
+            CHECK(ui.overlay == Overlay::None, "overlay cleared on escape");
+            CHECK(ui.masterSection == 3,
+                  "selected section survives the overlay round-trip (underlay layer)");
+        }
+    }
+
     static void testEscapeOverlayClearsTime()
     {
         UiState ui;
@@ -522,6 +552,7 @@ namespace lockstep
         testEscapeOverlayClearsVel();
         testEscapeOverlayClearsTime();
         testEscapeOverlayClearsEuclid();
+        testStickyOverlayPreservesSectionSelection();
 
         // SectionPress — Density
         testDensitySectionPressInternalConsumed();
