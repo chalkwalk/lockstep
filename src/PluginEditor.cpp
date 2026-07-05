@@ -3880,21 +3880,41 @@ namespace lockstep
                 return true;
             }
 
-            case ControllerButton::MetaSection:
-                // Func+FX (MetaSection idx 5): picker entry retired in 9.14 Stage 2.
-                // Picker is now opened by hold-FX (Section 5 long-press, no Func).
-                // Song+hold-FX → master picker; bare hold-FX → track picker.
-                // Func+FX and Func+Song+FX fall through to isReservedMeta → swallowed.
-
-                // Density (Func+MOD) and Vel (Func+AMP) entry moved to generator hub (9.10).
-                // Func-row secondaries are COND (TRIG) and NOTE (SRC) only; other
-                // sections have no Func secondary (FILTER/FX metas relocated to
-                // Track+TRIG / Song+FX). Those cells dim under Func — ignore the
-                // press so Func doesn't silently open a meta the row hides.
-                if (KeyboardArea::isReservedMeta(ev.index))
+            case ControllerButton::MetaSection: {
+                // Func-layer section dispatch (9.22), unified through the resolver so
+                // it agrees with the painter + MZ. sectionResolveMode owns the split:
+                //   • bare Func      → meta hierarchy (COND/NOTE + the Func+7 TRSP
+                //                      shortcut); AMP/MOD dim → swallowed.
+                //   • Func+Song      → Global scope (primary, floor = Global):
+                //                      FILTER→TRSP, TRIG→Song TIME (nearest), SRC/AMP/
+                //                      MOD fall up to the machine param page.
+                // FX (idx 5) is still swallowed under Func: its picker is a *hold*
+                // gesture (Track/Song + hold-FX), and Func+FX / Func+Song+FX are
+                // retired (9.14 Stage 2). Density/Vel entry live on the generator hub.
+                if (ev.index == LockstepProcessor::kFxSecIdx)
                     return true;
-                keyboardArea_.selectMetaSection(ev.index);
+                const int at = keyboardArea_.getActiveTrack();
+                const auto mode = sectionResolveMode(uiState_);
+                const auto res = resolveSectionKey(processor_, at, ev.index,
+                                                   mode.floor, mode.funcLayer);
+                if (!res.hasContent)
+                    return true;  // dim under Func → swallow the press
+                switch (res.action)
+                {
+                    case SecAction::MetaSection:
+                        keyboardArea_.selectMetaSection(res.metaIndex);
+                        return true;
+                    case SecAction::TimeSticky:
+                        applyTimeEntry(uiState_);
+                        refreshMetaBand();
+                        return true;
+                    case SecAction::ParamSection:
+                        keyboardArea_.selectSection(ev.index,
+                                                    res.winner == SecOrigin::Track);
+                        return true;
+                }
                 return true;
+            }
 
             case ControllerButton::Step: {
                 // 9.17: Mute + Play + step = relaunch (unmute + phase-reset) on a
