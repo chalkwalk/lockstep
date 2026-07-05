@@ -7,6 +7,7 @@
 #include "EngineHarness.h"
 #include "../src/ui/SectionResolve.h"
 #include "../src/ui/KeyLabel.h"  // originWord / originColour (7d)
+#include "../src/state/UiState.h"  // sectionResolveMode (9.22)
 #include "../src/machine/AnalogMachine.h"
 #include "../src/machine/IMachine.h"
 
@@ -137,14 +138,43 @@ namespace lockstep
             const auto cond = resolveSectionKey(proc, 0, 0, O::Machine, /*funcLayer*/ true);
             CHECK(cond.hasContent && cond.action == A::MetaSection && cond.metaIndex == 0,
                   "Func+TRIG → COND meta (0)");
+            // bare Func+FILTER (Func+7 shortcut) still reaches TRSP via the func-meta
+            // layer — the Global floor-only gate does NOT apply to funcLayer.
             const auto trsp = resolveSectionKey(proc, 0, 2, O::Machine, /*funcLayer*/ true);
-            CHECK(trsp.hasContent && trsp.action == A::MetaSection && trsp.metaIndex == 2,
-                  "Func+FILTER → TRSP meta (2)");
+            CHECK(trsp.hasContent && trsp.action == A::MetaSection && trsp.metaIndex == 2
+                      && trsp.winner == O::Global,
+                  "Func+FILTER shortcut → TRSP meta (2), winner Global");
             // Func released: the same TRIG key resolves in the primary hierarchy
             // (DIV via the underlay, metaIndex 3) — NOT the func COND meta (0).
             const auto rel = resolveSectionKey(proc, 0, 0, O::Machine, /*funcLayer*/ false);
             CHECK(rel.hasContent && rel.metaIndex == 3,
                   "Func released → primary hierarchy DIV (not func COND)");
+        }
+
+        // --- Global scope (Func+Song), primary layer at floor = Global (9.22).
+        {
+            // FILTER → TRSP: Global's own content, winner Global (azure).
+            const auto flt = resolveSectionKey(proc, 0, 2, O::Global, /*funcLayer*/ false);
+            CHECK(flt.hasContent && flt.action == A::MetaSection && flt.metaIndex == 2
+                      && flt.winner == O::Global,
+                  "Func+Song+FILTER → TRSP (Global scope content, winner Global)");
+            // TRIG → nearest lower content is Song TIME (Global has no TRIG row);
+            // falls up to Song, coloured Song, NOT the func COND meta.
+            const auto trig = resolveSectionKey(proc, 0, 0, O::Global, /*funcLayer*/ false);
+            CHECK(trig.hasContent && trig.action == A::TimeSticky && trig.winner == O::Song,
+                  "Func+Song+TRIG → Song TIME (nearest; Global has no TRIG content)");
+        }
+
+        // --- Global is FLOOR-ONLY in the primary layer: it must NOT leak up into a
+        // shallower scope's FILTER. Scene/Song+FILTER stay on the machine filter
+        // (the 9.21 behaviour) even though Global's TRSP sits on the FILTER key.
+        {
+            const auto sc = resolveSectionKey(proc, 0, 2, O::Scene, /*funcLayer*/ false);
+            CHECK(sc.hasContent && sc.action == A::ParamSection && sc.winner != O::Global,
+                  "Scene+FILTER does NOT fall down to Global TRSP (floor-only gate)");
+            const auto so = resolveSectionKey(proc, 0, 2, O::Song, /*funcLayer*/ false);
+            CHECK(so.hasContent && so.action == A::ParamSection && so.winner != O::Global,
+                  "Song+FILTER does NOT fall down to Global TRSP (floor-only gate)");
         }
 
         // --- sectionFloorForScope mapping.
@@ -178,9 +208,44 @@ namespace lockstep
               "Global has its own dedicated hue, distinct from Song (9.22)");
     }
 
+    // 9.22: the single Func-promotion rule. Func+Song → Global (primary); bare Func
+    // → the meta hierarchy; plain scope → that scope; Func over an unwired scope
+    // (Track) falls back to the meta hierarchy (promotion is Global-only for now).
+    static void testSectionResolveMode()
+    {
+        using O = SecOrigin;
+        {
+            UiState ui;  // nothing held
+            const auto m = sectionResolveMode(ui);
+            CHECK(m.floor == O::Machine && !m.funcLayer, "no hold → Machine, primary");
+        }
+        {
+            UiState ui; ui.songHeld = true;
+            const auto m = sectionResolveMode(ui);
+            CHECK(m.floor == O::Song && !m.funcLayer, "Song → Song floor, primary");
+        }
+        {
+            UiState ui; ui.funcHeld = true;
+            const auto m = sectionResolveMode(ui);
+            CHECK(m.floor == O::Machine && m.funcLayer, "bare Func → meta hierarchy");
+        }
+        {
+            UiState ui; ui.funcHeld = true; ui.songHeld = true;
+            const auto m = sectionResolveMode(ui);
+            CHECK(m.floor == O::Global && !m.funcLayer,
+                  "Func+Song → Global scope, primary layer (promotion)");
+        }
+        {
+            UiState ui; ui.funcHeld = true; ui.trackHeld = true;
+            const auto m = sectionResolveMode(ui);
+            CHECK(m.funcLayer, "Func+Track (unwired) → falls back to the meta hierarchy");
+        }
+    }
+
     void runSectionResolveTests()
     {
         testSectionResolve();
         testOriginHelpers();
+        testSectionResolveMode();
     }
 }

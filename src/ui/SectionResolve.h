@@ -7,6 +7,7 @@
 namespace lockstep
 {
     class LockstepProcessor;
+    struct UiState;
 
     // Item 7 — the single section-key resolver. One function answers "what does
     // this canonical section key do, on this track, under this held scope +
@@ -48,4 +49,20 @@ namespace lockstep
     // (unqualified). Morph has no stack floor (the editor keeps its bespoke
     // branch) and must not be passed here.
     SecOrigin sectionFloorForScope(EditMode::PrimaryScope scope) noexcept;
+
+    // 9.22 — the section-row resolution mode for the current UiState: which stack
+    // floor to resolve at, and whether the Func-meta hierarchy (COND/NOTE + the
+    // Func+7 TRSP shortcut) or the primary layer is active. One place owns the
+    // Func-promotion rule so every consumer (painter, dispatch, MZ banner) agrees:
+    //   • Func + Song  → { Global, funcLayer=false }  — Global scope (promoted).
+    //   • Func + other/none → { Machine, funcLayer=true } — bare Func step metas.
+    //   • no Func → { sectionFloorForScope(held scope), funcLayer=false }.
+    // Promotion is Global-only for now (the ladder is a future extension). Morph is
+    // bespoke and handled by the caller's own branch before this is consulted.
+    struct SectionResolveMode
+    {
+        SecOrigin floor = SecOrigin::Machine;
+        bool funcLayer = false;
+    };
+    SectionResolveMode sectionResolveMode(const UiState& ui) noexcept;
 }

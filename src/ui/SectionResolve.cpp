@@ -2,6 +2,8 @@
 #include "mode/SectionStackTable.h"
 #include "../PluginProcessor.h"
 #include "../machine/IMachine.h"
+#include "../state/UiState.h"
+#include "../command/ScopePriority.h"
 
 #include <algorithm>
 
@@ -80,13 +82,29 @@ namespace lockstep
             return d < 0 ? -d : d;
         };
 
+        // Candidate eligibility (9.22). A candidate must match the Func hierarchy,
+        // and Global content is *floor-only* in the primary layer: the master-bus /
+        // transport-globals layer (TRSP, reached by Func+Song = Global) is a
+        // destination you land on AT the Global ceiling, never something a shallower
+        // scope bleeds up into. Without this, Scene/Song+FILTER would fall *down* to
+        // the Global TRSP row on the FILTER key (its legacy Func+7 slot) and hijack
+        // the machine filter — flipping the 9.21 Scene+FILTER behaviour. Global stays
+        // reachable via the Func+7 shortcut through the func-meta layer (funcLayer),
+        // where this floor gate does not apply.
+        const auto eligible = [&](const SecCandidate& c) {
+            if (c.funcQualified != funcLayer) return false;  // wrong hierarchy (Func)
+            if (!funcLayer && c.origin == SecOrigin::Global && floor != SecOrigin::Global)
+                return false;  // Global is floor-only in the primary layer
+            return true;
+        };
+
         // Winner = nearest origin to the ceiling; ties toward the deeper scope.
         bool found = false;
         SecOrigin best = SecOrigin::Machine;
         int bestDist = 0;
         for (const auto& c : all)
         {
-            if (c.funcQualified != funcLayer) continue;  // wrong hierarchy (Func)
+            if (!eligible(c)) continue;
             const int d = dist(c.origin);
             if (!found || d < bestDist || (d == bestDist && pr(c.origin) > pr(best)))
             {
@@ -103,7 +121,7 @@ namespace lockstep
         r.hasContent = true;
         r.winner = best;
         for (const auto& c : all)
-            if (c.funcQualified == funcLayer && c.origin == best)
+            if (eligible(c) && c.origin == best)
                 r.groups.push_back(c);
 
         r.action = r.groups.front().action;
@@ -135,5 +153,19 @@ namespace lockstep
                 break;
         }
         return SecOrigin::Machine;
+    }
+
+    SectionResolveMode sectionResolveMode(const UiState& ui) noexcept
+    {
+        // Func-promotion rule (9.22), single owner. Global-only for now: Func+Song
+        // promotes to the Global scope (primary layer, floor = Global). Func over
+        // any other scope (or none) is the bare Func-meta hierarchy. No Func is the
+        // plain held scope. Morph is bespoke — the caller gates it out first.
+        if (ui.funcHeld && ui.songHeld && !ui.morphHeld)
+            return { SecOrigin::Global, /*funcLayer*/ false };
+        if (ui.funcHeld)
+            return { SecOrigin::Machine, /*funcLayer*/ true };
+        return { sectionFloorForScope(firstHeldSectionSuiteScope(ui)),
+                 /*funcLayer*/ false };
     }
 }

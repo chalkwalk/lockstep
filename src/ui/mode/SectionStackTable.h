@@ -37,15 +37,21 @@ namespace lockstep
     };
 
     // Display/scan order is precedence-agnostic; the resolver sorts by peel.
-    inline constexpr std::array<SectionStackRow, 8> kSectionStackTable = { {
+    inline constexpr std::array<SectionStackRow, 9> kSectionStackTable = { {
         // Primary hierarchy (Func not held).
         { SecOrigin::Track,  0, "DIV",  SecAction::MetaSection, 3, false },
         { SecOrigin::Phrase, 0, "LEN",  SecAction::MetaSection, 4, false },
         { SecOrigin::Scene,  0, "TIME", SecAction::TimeSticky, -1, false },
         { SecOrigin::Song,   0, "TIME", SecAction::TimeSticky, -1, false },
         { SecOrigin::Song,   5, "FX",   SecAction::MetaSection, 5, false },
-        // Parallel Func hierarchy (Func held): COND/NOTE on the step/note pages,
-        // TRSP = transport globals (Func+7 in README §5.8).
+        // Global scope content (9.22): TRSP = transport globals, reached as a real
+        // scope by Func+Song (floor = Global, primary layer). Global is floor-only
+        // in the resolver so this does NOT leak up into Scene/Song+FILTER — see the
+        // eligibility gate in resolveSectionKey.
+        { SecOrigin::Global,  2, "TRSP", SecAction::MetaSection, 2, false },
+        // Parallel Func hierarchy (Func held, no scope): COND/NOTE on the step/note
+        // pages, plus the TRSP shortcut (Func+7 in README §5.8 — reaches the same
+        // transport globals without holding Song).
         { SecOrigin::Machine, 0, "COND", SecAction::MetaSection, 0, true },
         { SecOrigin::Machine, 1, "NOTE", SecAction::MetaSection, 1, true },
         { SecOrigin::Global,  2, "TRSP", SecAction::MetaSection, 2, true },
