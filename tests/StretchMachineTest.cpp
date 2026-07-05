@@ -188,6 +188,57 @@ namespace lockstep
                   "Player: tune=+50c is half a semitone up (ratio=" + juce::String(r) + ")");
         }
 
+        // Tempo+Loop (S4): a held note loops seamlessly — it stays non-silent well
+        // past one buffer length (unlike a one-shot), has no long silent gap at the
+        // seam, and survives a mid-run samplesPerBar change (phase-lock by period-
+        // matching: per-block setRatios re-derives the period, never a reset).
+        {
+            StretchMachine p(pool);
+            p.prepare(kSr, 256);
+            TransportInfo tr;
+            tr.samplesPerBar = static_cast<double>(srcLen);
+            tr.running = true;
+            p.setTransport(tr);
+            auto fr = playerFrameEx(idx, 0.0f, 1.0f /*Tempo*/, 0.0f, 1.0f /*loop*/, 0.0f);
+
+            juce::AudioBuffer<float> blk(1, 256);
+            juce::MidiBuffer on;
+            on.addEvent(juce::MidiMessage::noteOn(1, 60, 1.0f), 0);
+            juce::MidiBuffer none;
+
+            const int totalBlocks = (srcLen * 4) / 256;
+            std::vector<float> tail;   // last-half samples (steady state)
+            int maxSilentRun = 0, silentRun = 0;
+            bool nan = false;
+            int produced = 0;
+            for (int b = 0; b < totalBlocks; ++b)
+            {
+                if (b == totalBlocks / 2)  // mid-run tempo change
+                {
+                    tr.samplesPerBar = 1.5 * static_cast<double>(srcLen);
+                    p.setTransport(tr);
+                }
+                blk.clear();
+                p.process(b == 0 ? on : none, fr, blk);
+                for (int i = 0; i < 256; ++i, ++produced)
+                {
+                    const float x = blk.getSample(0, i);
+                    if (!std::isfinite(x)) nan = true;
+                    if (std::abs(x) < 1.0e-4f) { ++silentRun; maxSilentRun = std::max(maxSilentRun, silentRun); }
+                    else silentRun = 0;
+                    if (produced >= srcLen * 3) tail.push_back(x);
+                }
+            }
+            CHECK(!nan, "Loop: no NaN/Inf across the tempo change");
+            CHECK(maxSilentRun < srcLen / 4,
+                  "Loop: no long silent gap at the seam (max silent run "
+                  + juce::String(maxSilentRun) + ")");
+            double tailEnergy = 0.0;
+            for (float x : tail) tailEnergy += static_cast<double>(x) * x;
+            CHECK(tailEnergy > 1.0,
+                  "Loop: still sounding after 3 buffer lengths (one-shot would be silent)");
+        }
+
         // Reverse: the amplitude envelope plays mirrored. Build a fade-in sine so
         // forward output rises in energy and reverse output falls.
         {

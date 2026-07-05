@@ -191,10 +191,12 @@ namespace lockstep
                 {
                     engine_.start(&source_, static_cast<double>(startFrame),
                                   timeRatioFor(), pitchRatioFor(params));
-                    // Free-run loop over the streamed region; the Tempo phase-locked
-                    // window lands in S4. Stream has no reverse (forward prefetch).
+                    // Loop window (9.23 S4): Tempo loops the full musical length
+                    // (phase-locked via the exact bars*samplesPerBar period, kept
+                    // matched by per-block setRatios); Off free-runs over the region
+                    // from the trim point. Stream has no reverse (forward prefetch).
                     if (loop)
-                        engine_.setLoop(startFrame, lengthSamples_);
+                        engine_.setLoop(tsMode_ >= 1 ? 0 : startFrame, lengthSamples_);
                     else
                         engine_.setLoop(0, 0);
                     playing_ = true;

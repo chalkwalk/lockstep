@@ -3579,9 +3579,25 @@ namespace lockstep
             }
         }
 
-        // One trig on step 1 so the loop actually plays (and re-fires once per
-        // pattern cycle, not every step). The editor's poll repaints the surface.
+        // Seed the loop player: one one-shot trig on step 1 so it fires once per
+        // pattern cycle (not every step), and turn Loop=On so the seamless
+        // position-wrap loop runs for the whole cycle instead of retriggering.
+        // (9.23 S4.) The editor's poll repaints the surface.
         trk.steps[0].trig = true;
+        trk.steps[0].condition.oneShot = true;
+
+        // player_loop base = On, resolved through the machine schema (single owner
+        // of the slot index; never a hard-coded slot). baseParams is sized to the
+        // machine's numParams by the assignment path that just ran.
+        for (int i = 0; i < m->numParams(); ++i)
+        {
+            if (juce::String(m->paramSpec(i).id) == "player_loop")
+            {
+                if (static_cast<std::size_t>(i) < trk.baseParams.size())
+                    trk.baseParams[static_cast<std::size_t>(i)] = 1.0f;
+                break;
+            }
+        }
     }
 
     void LockstepProcessor::clearParam(int track, int step, int slot)

@@ -156,12 +156,22 @@ namespace lockstep
                                         : static_cast<double>(startSample);
         engine_.start(&source_, startPos, timeRatioFor(playedLen_),
                       pitchRatioFor(midiNote, params));
-        // Basic free-run loop over the played region; the Tempo-phase-locked
-        // window + autoFit seeding land in Stage 4.
+        // Loop window (9.23 S4): under Tempo the window is the full musical length
+        // (the whole buffer), so the output period = bars * samplesPerBar exactly
+        // and a launch-quantized start stays phase-locked (per-block setRatios keeps
+        // the period matched as the tempo glides — no reset). Under Off it free-runs
+        // over the trimmed region at native rate.
         if (loop)
-            engine_.setLoop(reverse ? 0 : startSample, pcmLen);
+        {
+            if (tsMode_ >= 1)
+                engine_.setLoop(0, pcmLen);
+            else
+                engine_.setLoop(reverse ? 0 : startSample, pcmLen);
+        }
         else
+        {
             engine_.setLoop(0, 0);
+        }
         playing_ = true;
     }
 
