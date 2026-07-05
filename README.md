@@ -882,12 +882,13 @@ AMP behind every machine section on deep machines like FM); reach it via
 `Track+AMP`. Track-level pages read in **cyan** (the Track scope colour)
 in both the MZ header and the active section-key highlight, so a track
 page is never mistaken for a machine page. Holding
-`Func` flips to each machine's **secondary** page (deep-dive
-parameters like FM mod matrices); holding any other scope opens that
-scope's row in the **scope-section matrix**. Like a scope-hold, holding
-`Func` repaints the whole section row in colour: the cells that carry a
-wired secondary glow (orange), and the cells that don't dim out — so the
-row always shows which secondaries are actually reachable.
+`Func` is the universal qualifier. Held on its own it exposes the parallel
+**meta** row (COND/NOTE + the transport-globals shortcut); combined with a scope
+it *promotes* that scope (`Func+Song` = the **Global** master-bus scope). Either
+way, `Func` does not recolour the row a flat orange: every non-dim section key
+keeps the **colour of its content's origin**, and the **func-colour border** is
+layered on top purely as the "modifier held" signal. Cells with nothing to show
+under `Func` dim out.
 
 The section row is a **true underlay**. Holding a scope and pressing a section
 is the *taught contract* — it opens that scope's own content. But there is **no
@@ -905,20 +906,23 @@ from** — so the colour teaches you where each thing lives.
 | `Scene` | **TIME** sticky mode (Scene+TRIG toggle): TIME page, entry scope = Scene | falls to the filter (coloured by its owner) | falls to the master FX chain (nearest) |
 | `Morph` | (dim — Morph never affects trigs) | Morph-assign FLTR | Morph-assign FX |
 | `Song` | **TIME** sticky mode (Song+TRIG toggle): TIME page, entry scope = Song | falls to the filter (coloured by its owner) | **Master FX 1+2 + Send A/B** (4 units, cycled by re-press) |
+| `Func+Song` (**Global**) | falls to Song **TIME** (nearest) | **TRSP** — transport globals (Global's own content, azure) | (dim — master FX is `Song+FX`) |
 
 `Morph` is the exception: it is a bespoke crossfader scope with genuine per-pole
 snapshots (`Morph`-assign), so it keeps its own assignments rather than falling
-through. `Func` selects the parallel meta hierarchy (COND / NOTE / TRSP), not a
-"secondary variant" of a scoped param.
+through.
 
 Each scope's `TRIG` cell opens the parameter owned by that hierarchy level.
-Three metas sit on `Func`: **COND** (probability, m:n, prev-dep) on
-`Func+TRIG`, **NOTE** (explicit note / velocity / gate step entry) on
-`Func+SRC`, and the **transport globals** (output gain, sync mode, channel
-mode, plus the focused track's **Scale** stage — Off/Snap/Filter pitch
-conform to the key, §4.10) on `Func+7`. Trig defaults remain on bare `TRIG`. (Pre-6.5 the
-transport globals sat under `Song+FX`; that cell now carries the master
-insert parameters.)
+Two metas sit on bare `Func`: **COND** (probability, m:n, prev-dep) on
+`Func+TRIG` and **NOTE** (explicit note / velocity / gate step entry) on
+`Func+SRC`. The **transport globals** (output gain, sync mode, channel mode,
+plus the focused track's **Scale** stage — Off/Snap/Filter pitch conform to the
+key, §4.10) are the content of the **Global** scope (`Func+Song`, azure hue) and
+sit on its `FILTER` key (`TRSP`); the bare **`Func+7`** chord is a shortcut to the
+same page without holding `Song`. Global is *floor-only* — a shallower scope
+pressing `FILTER` reaches the filter, not `TRSP`. Trig defaults remain on bare
+`TRIG`. (Pre-6.5 the transport globals sat under `Song+FX`; that cell now carries
+the master insert parameters.)
 
 **FX inserts and the effect picker.** Each track has two insert slots (slot
 0 / slot 1). **Tap `FX`** to navigate the insert's params in the MZ. **Hold `FX`**

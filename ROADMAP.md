@@ -2338,6 +2338,35 @@ by the scope its content *truly* comes from. Five code/test commits + this block
       change) and **per-scope sections** (the table supports them; sparse scopes are
       fine today).
 
+### 9.22 — Func colour model + `Func+Song` = Global scope  *[shipped]*
+Makes the Func layer obey the 9.21 colour-by-winner rule and wires **Global** as a
+real scope. Plan: `~/.claude/plans/func-scope-promotion-global.md`. Five code/test
+commits + this block. Decisions: Func is context-split; promotion is Global-only
+for now; Global surfaces TRSP (Func+7 shortcut kept); Global gets its own hue.
+- [x] **Dedicated Global hue.** `kScopeGlobal` (azure) — `originColour(Global)` no
+      longer borrows the Song gold, so a promoted Global page is visibly distinct.
+- [x] **`Func` is context-split (one rule).** `sectionResolveMode(ui)` owns it:
+      `Func+Song` → `{Global, primary}`; bare `Func` → `{Machine, meta hierarchy}`
+      (COND/NOTE + the Func+7 TRSP shortcut); `Func` over an unwired scope falls back
+      to the meta hierarchy (promotion is Global-only). Painter, dispatch and MZ all
+      read this one function, so they cannot diverge.
+- [x] **Global scope content = TRSP, floor-only.** A non-funcQualified Global row
+      puts the transport globals on the FILTER key, reached by `Func+Song`. The
+      resolver gates Global as *floor-only* in the primary layer, so it never leaks
+      up into a shallower scope's FILTER (Scene/Song+FILTER keep the 9.21 machine
+      filter); the `Func+7` shortcut still reaches TRSP through the func-meta layer.
+- [x] **Colour-by-winner under Func + border as the modifier signal.** The section
+      painter drives the resolver under Func too: COND/NOTE read machine-neutral,
+      TRSP reads Global azure, `Func+Song` fall-up keys read their scope hue — with
+      the func-colour border layered on every non-dim key while Func is held (never
+      latched). The MZ meta bands (COND neutral, TRSP azure) + `pageOrigin_` match.
+- [x] **Editor + MZ routed through the resolver.** The Func+section (MetaSection)
+      dispatch resolves via `sectionResolveMode` and switches on the action, so
+      `Func+Song+TRIG` fires Song TIME (was wrongly COND). `Func+Song+Record`=CAPTURE
+      (VerbRecord path) is untouched.
+- Deferred: the **promotion ladder** (Scene→Song, Phrase→Scene, Track→Phrase — a
+      row per rung) and additional **Global / master-bus content** beyond TRSP.
+
 ---
 
 ## Phase 10 — Melodic & Harmonic Authoring  *[active]*

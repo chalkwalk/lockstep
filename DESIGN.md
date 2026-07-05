@@ -1471,18 +1471,30 @@ catch-all Shift/`Func` overlay:
 - **`TRACK`** (track length / divider) — `Track+TRIG`. Length and
   divider are per-*track* properties, so they belong under the `Track`
   scope, not `Func`. (`Func+FILTER` no longer carries them.)
-- **`GLOBAL`** (output gain, sync mode, channel mode) — **`Func+7`**
-  (`MetaBand::Transport`). *(Amended at 6.5: this meta originally sat on
-  `Song+FX`, but once the master FX bus shipped, `Song+FX` shows the
-  master insert parameters only — the transport globals moved to the
-  previously-unused `Func+7` meta slot so the two never share a cell.)*
+- **`GLOBAL`/`TRSP`** (output gain, sync mode, channel mode) — the content
+  of the **Global** scope (`Func+Song`, §32.3), sitting on its `FILTER`
+  key (`MetaBand::Transport`); **`Func+7`** is a shortcut to the same page
+  without holding `Song`. *(Amended at 6.5: originally on `Song+FX`, moved
+  to `Func+7` when the master FX bus shipped. At 9.22 the transport globals
+  became the content of the Global scope proper — `Func+Song` — with
+  `Func+7` retained as the shortcut. Global is **floor-only**: a shallower
+  scope pressing `FILTER` reaches the filter, not `TRSP`.)*
 
-The result: the `Func`-section secondaries currently wired are
-`COND` (`Func+TRIG`), `NOTE` (`Func+SRC`), and the transport globals
-(`Func+7`). The remaining `Func` section cells (`AMP`/`MOD`) dim until
-a machine declares a `ParamSpec.variant = Secondary` page for them
-(§6.1 rule 1) — the slot is reserved, not occupied. (`Func+FX` is the
+The result: the bare-`Func` section secondaries are `COND` (`Func+TRIG`)
+and `NOTE` (`Func+SRC`); the transport globals are Global-scope content
+(`Func+Song` / `Func+7`). The remaining `Func` section cells (`AMP`/`MOD`)
+dim until a machine declares a `ParamSpec.variant = Secondary` page for
+them (§6.1 rule 1) — the slot is reserved, not occupied. (`Func+FX` is the
 effect picker, §32.2.)
+
+**Func colour model (9.22).** `Func` never recolours the row a flat
+orange. Every non-dim section key keeps the **colour of its content's
+origin** (`COND`/`NOTE` machine-neutral, `TRSP` the Global azure,
+`Func+Song` fall-up keys their scope hue); the **func-colour border** is
+layered on top purely as the "modifier held" signal (never latches). One
+helper — `sectionResolveMode(ui)` — owns the promotion rule (`Func+Song`
+→ Global; bare `Func` → the meta hierarchy) so the painter, the section
+dispatch, and the MZ header cannot disagree.
 
 Each section button cell still shows its primary label at the top
 and its `Func`-secondary label at the bottom; the active layer
