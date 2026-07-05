@@ -497,7 +497,9 @@ namespace lockstep
                 // banner names it even after the scope is released. Unqualified,
                 // the origin is per-page (a mixed machine+track section pages
                 // through both), read from the actual slot; a held scope routes
-                // through the resolver (Scene+FILTER → Scene, Track+FLTR → Track).
+                // through the resolver and names the TRUE winner (Scene+FILTER falls
+                // up to the machine filter → MACHINE; Phrase+FILTER → the track FLTR
+                // block → TRACK). No fictional per-scope param colour.
                 const auto heldScope = firstHeldSectionSuiteScope(uiState_);
                 SecOrigin origin;
                 if (heldScope == EditMode::PrimaryScope::None)
@@ -3860,10 +3862,14 @@ namespace lockstep
                     return true;
                 }
 
-                // KeyboardArea gates on machine slot availability. A Track floor
-                // routes the page list to track-level params only (P6); every other
-                // scope (and unqualified) uses the machine-preferring view.
-                keyboardArea_.selectSection(ev.index, secFloor == SecOrigin::Track);
+                // KeyboardArea gates on machine slot availability. Page the layer
+                // the resolver actually landed on: a Track *winner* (the param
+                // page fell to a track-DSP block) routes the track-level view (P6);
+                // any other winner (machine params, incl. a scope hold that fell up
+                // to the machine filter) uses the machine-preferring view. Keys off
+                // the resolved winner, not the held floor, so Phrase+FILTER etc. page
+                // the same layer they are coloured by.
+                keyboardArea_.selectSection(ev.index, secRes.winner == SecOrigin::Track);
                 // Track section key hold for Section-scope verb dispatch (MD.3).
                 if (heldSectionRawCode_ < 0)
                 {
