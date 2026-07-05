@@ -62,7 +62,12 @@ namespace lockstep
         //      gain an/bpm/keyR/keyB/tune, written only for analysed entries and
         //      keyed by the existing sample hash. Missing props = "re-analyse on
         //      load" = exact v25 behaviour; trivial stamp upgrade from v25.
-        inline constexpr int kCurrentVersion = 29;
+        // v30: SamplePool Entry nodes gain the detected one-shot flag (osh, part of
+        //      the cached analysis) + per-entry user overrides (ubpm/ukeyR/ukeyB/
+        //      utune/uosh), each written only when set — so a v29 entry loads with
+        //      detected values only and every override cleared. Also carried on
+        //      Stream-origin entries. Additive; trivial stamp upgrade from v29.
+        inline constexpr int kCurrentVersion = 30;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

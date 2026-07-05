@@ -176,9 +176,10 @@ namespace lockstep
         if (s == nullptr || s->missing || s->pcm.getNumSamples() < 2)
             return;
 
-        // No detected tempo -> the beat grid is undefined; fall back to an even
-        // split of the same count (locked SYNC fallback, 4.9).
-        const double bpm = pool_.detectedBpm(idx);
+        // No tempo -> the beat grid is undefined; fall back to an even split of the
+        // same count (locked SYNC fallback, 4.9). Effective BPM so a user tempo
+        // correction re-slices correctly (9.23).
+        const double bpm = pool_.effectiveBpm(idx);
         if (bpm <= 0.0)
         {
             setEqualSlices(divisionValue);

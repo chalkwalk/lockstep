@@ -171,6 +171,15 @@ namespace lockstep::keys
     inline constexpr const char* kKeyRoot = "keyR";
     inline constexpr const char* kKeyBright = "keyB";
     inline constexpr const char* kTuneCents = "tune";
+    // 9.23 (v30) detected one-shot flag (ACID hint, part of the cached analysis)
+    // + per-entry user overrides. All written only when set; absent = unset, so a
+    // v29 entry loads with detected values only. userOneShot: -1 unset / 0 loop / 1.
+    inline constexpr const char* kOneShot = "osh";      // detected one-shot
+    inline constexpr const char* kUserBpm = "ubpm";     // 0 = unset
+    inline constexpr const char* kUserKeyRoot = "ukeyR";
+    inline constexpr const char* kUserKeyBright = "ukeyB";
+    inline constexpr const char* kUserTuneCents = "utune";
+    inline constexpr const char* kUserOneShot = "uosh"; // -1 unset / 0 off / 1 on
 
   // ── CCMappings + mapping node (M) ────────────────────────────────────────────
     inline constexpr const char* kCCMappings = "CCMappings";

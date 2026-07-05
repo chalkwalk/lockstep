@@ -497,5 +497,35 @@ namespace lockstep
             CHECK(!pool.isMissing(idx), "rescan: restored file clears missing");
             wav2.deleteFile();
         }
+
+        // 9.23: user overrides — effective = override-else-detected; clear restores.
+        {
+            SamplePool pool;
+            const int idx = pool.addVolatile();  // detected defaults: all unset
+            CHECK(feq(static_cast<float>(pool.effectiveBpm(idx)), 0.0f),
+                  "effective bpm defaults to detected (0)");
+            CHECK(pool.effectiveKeyRoot(idx) == -1, "effective key defaults to detected (-1)");
+            CHECK(!pool.effectiveOneShot(idx), "effective one-shot defaults to detected (false)");
+
+            pool.setUserBpm(idx, 140.0);
+            CHECK(feq(static_cast<float>(pool.effectiveBpm(idx)), 140.0f), "user bpm overrides");
+            pool.setUserKey(idx, 3, kDorian);
+            CHECK(pool.effectiveKeyRoot(idx) == 3
+                  && pool.effectiveKeyBrightness(idx) == kDorian, "user key overrides");
+            pool.setUserTuningCents(idx, -12.0, true);
+            CHECK(feq(static_cast<float>(pool.effectiveTuningCents(idx)), -12.0f),
+                  "user tuning overrides");
+            pool.setUserOneShot(idx, 1);
+            CHECK(pool.effectiveOneShot(idx), "user one-shot On");
+            pool.setUserOneShot(idx, 0);
+            CHECK(!pool.effectiveOneShot(idx), "user one-shot Off (loop) overrides detected");
+
+            pool.clearUserOverrides(idx);
+            CHECK(feq(static_cast<float>(pool.effectiveBpm(idx)), 0.0f)
+                  && pool.effectiveKeyRoot(idx) == -1
+                  && feq(static_cast<float>(pool.effectiveTuningCents(idx)), 0.0f)
+                  && !pool.effectiveOneShot(idx),
+                  "clearUserOverrides restores detected values");
+        }
     }
 }

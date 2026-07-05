@@ -115,10 +115,11 @@ namespace lockstep
         const Sample* s = pool_.get(activeSampleId_);
         const double srcRate = (s != nullptr && s->sampleRate > 0.0)
             ? s->sampleRate : sampleRate_;
-        // sourceBars (a captured musical length) wins; else detectedBpm derives
-        // bars from the played region. The shared helper cannot drift from Stream.
+        // sourceBars (a captured musical length) wins; else the effective BPM
+        // (user override else detected, 9.23) derives bars from the played region.
+        // The shared helper cannot drift from Stream.
         return stretchmath::stretchTimeRatio(
-            pool_.sourceBars(activeSampleId_), pool_.detectedBpm(activeSampleId_),
+            pool_.sourceBars(activeSampleId_), pool_.effectiveBpm(activeSampleId_),
             playedLen, srcRate, transport_.samplesPerBar, sampleRate_);
     }
 

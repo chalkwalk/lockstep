@@ -798,6 +798,13 @@ namespace lockstep
         entry.setProperty(k::kKeyRoot, 9, nullptr);            // A
         entry.setProperty(k::kKeyBright, static_cast<int>(kDorian), nullptr);
         entry.setProperty(k::kTuneCents, -12.5, nullptr);
+        // 9.23 (v30): detected one-shot + user overrides.
+        entry.setProperty(k::kOneShot, 1, nullptr);
+        entry.setProperty(k::kUserBpm, 140.0, nullptr);
+        entry.setProperty(k::kUserKeyRoot, 2, nullptr);
+        entry.setProperty(k::kUserKeyBright, static_cast<int>(kAeolian), nullptr);
+        entry.setProperty(k::kUserTuneCents, 7.0, nullptr);
+        entry.setProperty(k::kUserOneShot, 0, nullptr);
 
         // XML round-trip.
         const auto xml = entry.createXml();
@@ -813,11 +820,23 @@ namespace lockstep
         ca.keyBrightness =
             static_cast<int>(reparsed.getProperty(k::kKeyBright, static_cast<int>(kAeolian)));
         ca.tuningCents = static_cast<double>(reparsed.getProperty(k::kTuneCents, 0.0));
+        ca.oneShot = static_cast<int>(reparsed.getProperty(k::kOneShot, 0)) != 0;
 
         CHECK(feq(static_cast<float>(ca.bpm), 128.0f), "cached bpm round-trips");
         CHECK(ca.keyRoot == 9, "cached key root round-trips");
         CHECK(ca.keyBrightness == kDorian, "cached key brightness round-trips");
         CHECK(feq(static_cast<float>(ca.tuningCents), -12.5f), "cached tuning round-trips");
+        CHECK(ca.oneShot, "cached detected one-shot round-trips");
+
+        // v30 user overrides reconstruct exactly as readSamplePool's applyUserOverrides.
+        CHECK(feq(static_cast<float>(static_cast<double>(reparsed.getProperty(k::kUserBpm, 0.0))),
+                  140.0f), "user bpm round-trips");
+        CHECK(static_cast<int>(reparsed.getProperty(k::kUserKeyRoot, -1)) == 2,
+              "user key root round-trips");
+        CHECK(feq(static_cast<float>(static_cast<double>(reparsed.getProperty(k::kUserTuneCents, 0.0))),
+                  7.0f), "user tuning round-trips");
+        CHECK(static_cast<int>(reparsed.getProperty(k::kUserOneShot, -1)) == 0,
+              "user one-shot (loop) round-trips");
 
         // An entry with NO analysis props (a legacy v25 entry) reconstructs to
         // "no cache" — the read path re-analyses instead of adopting.

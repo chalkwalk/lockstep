@@ -3553,13 +3553,22 @@ namespace lockstep
             if (trk.steps[static_cast<std::size_t>(i)].trig)
                 return;
 
+        // A one-shot (drum hit, stab) is not a loop: seed a plain trig on step 1,
+        // no loop, no bar-sizing. Uses the effective flag so a user correction (or
+        // an ACID one-shot hint) routes here. (9.23 S5.)
+        if (samplePool_.effectiveOneShot(poolIndex))
+        {
+            trk.steps[0].trig = true;
+            return;
+        }
+
         // Size the track to the sample's musical loop length when we know it:
-        // sourceBars is stamped on captures / detected loops; else derive from a
-        // detected BPM + RAM length (disk streams have no PCM here → no resize).
+        // sourceBars is stamped on captures / detected loops; else derive from the
+        // effective BPM + RAM length (disk streams have no PCM here → no resize).
         double bars = samplePool_.sourceBars(poolIndex);
         if (bars <= 0.0)
         {
-            const double bpm = samplePool_.detectedBpm(poolIndex);
+            const double bpm = samplePool_.effectiveBpm(poolIndex);
             if (bpm > 0.0 && s->sampleRate > 0.0 && s->pcm.getNumSamples() > 0)
             {
                 const double secs =

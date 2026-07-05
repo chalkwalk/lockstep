@@ -1100,10 +1100,49 @@ namespace lockstep::PluginState
                 }
                 if (s->tuningCents != 0.0)
                     entry.setProperty(keys::kTuneCents, s->tuningCents, nullptr);
+                if (s->detectedOneShot)
+                    entry.setProperty(keys::kOneShot, 1, nullptr);
             }
+            // 9.23 (v30): user overrides — written only when set, so a v29 reader
+            // is unaffected and a v29 file loads with detected values only. These
+            // are also written for Stream-origin entries (no PCM, but a user BPM /
+            // one-shot still matters for tempo tracking and autoFit).
+            if (s->userBpm > 0.0)
+                entry.setProperty(keys::kUserBpm, s->userBpm, nullptr);
+            if (s->userKeyRoot >= 0)
+            {
+                entry.setProperty(keys::kUserKeyRoot, s->userKeyRoot, nullptr);
+                entry.setProperty(keys::kUserKeyBright, s->userKeyBrightness, nullptr);
+            }
+            if (s->hasUserTuning)
+                entry.setProperty(keys::kUserTuneCents, s->userTuningCents, nullptr);
+            if (s->userOneShot >= 0)
+                entry.setProperty(keys::kUserOneShot, s->userOneShot, nullptr);
             poolNode.appendChild(entry, nullptr);
         }
         root.appendChild(poolNode, nullptr);
+    }
+
+    // 9.23 (v30): apply the per-entry user overrides (BPM / key / tuning /
+    // one-shot) stored on `entry` to the pool slot at `index`. Absent property =
+    // unset, so a v29 entry leaves every override cleared. Shared by the Stream and
+    // File/missing branches so both carry user metadata.
+    static void applyUserOverrides(SamplePool& pool, int index, const juce::ValueTree& entry)
+    {
+        if (index < 0) return;
+        if (entry.hasProperty(keys::kUserBpm))
+            pool.setUserBpm(index, static_cast<double>(entry.getProperty(keys::kUserBpm, 0.0)));
+        if (entry.hasProperty(keys::kUserKeyRoot))
+            pool.setUserKey(index,
+                            static_cast<int>(entry.getProperty(keys::kUserKeyRoot, -1)),
+                            static_cast<int>(entry.getProperty(keys::kUserKeyBright,
+                                                               static_cast<int>(kAeolian))));
+        if (entry.hasProperty(keys::kUserTuneCents))
+            pool.setUserTuningCents(index,
+                                    static_cast<double>(entry.getProperty(keys::kUserTuneCents, 0.0)),
+                                    true);
+        if (entry.hasProperty(keys::kUserOneShot))
+            pool.setUserOneShot(index, static_cast<int>(entry.getProperty(keys::kUserOneShot, -1)));
     }
 
     static void readSamplePool(const juce::ValueTree& root, LockstepProcessor& proc)
@@ -1125,7 +1164,8 @@ namespace lockstep::PluginState
                                                     static_cast<int>(SampleOrigin::File))));
             if (org == SampleOrigin::Stream)
             {
-                proc.samplePool().addStreamRef(path);
+                const int idx = proc.samplePool().addStreamRef(path);
+                applyUserOverrides(proc.samplePool(), idx, entry);  // v30: user BPM/one-shot
                 continue;
             }
 
@@ -1140,6 +1180,7 @@ namespace lockstep::PluginState
                 ca.keyBrightness =
                     static_cast<int>(entry.getProperty(keys::kKeyBright, static_cast<int>(kAeolian)));
                 ca.tuningCents = static_cast<double>(entry.getProperty(keys::kTuneCents, 0.0));
+                ca.oneShot = static_cast<int>(entry.getProperty(keys::kOneShot, 0)) != 0;
             }
 
             const int loaded = proc.samplePool().load(path, hasCache ? &ca : nullptr);
@@ -1149,6 +1190,7 @@ namespace lockstep::PluginState
                 const auto* s = proc.samplePool().get(loaded);
                 if (s && s->ref.hashXX32 != savedHash)
                     DBG("PluginState: hash mismatch for '" + path + "' (file may have changed)");
+                applyUserOverrides(proc.samplePool(), loaded, entry);  // v30
             }
             else
             {
@@ -1161,6 +1203,7 @@ namespace lockstep::PluginState
                 // so it survives a round-trip through an offline session.
                 if (hasCache && idx >= 0)
                     proc.samplePool().adoptCachedAnalysis(idx, ca);
+                applyUserOverrides(proc.samplePool(), idx, entry);  // v30
                 DBG("PluginState: missing sample '" + path + "'");
             }
         }
@@ -1972,6 +2015,18 @@ namespace lockstep::PluginState
         return v29;
     }
 
+    static juce::ValueTree upgrade_v29_to_v30(const juce::ValueTree& v29)
+    {
+        // v30 (sample-playback coherence, 9.23): SamplePool Entry nodes gain the
+        // detected one-shot flag (osh) + per-entry user overrides (ubpm/ukeyR/
+        // ukeyB/utune/uosh), all written only when set and read directly by
+        // readSamplePool. A v29 tree simply has none of them → detected values
+        // only. Nothing structural to rewrite; stamp bump.
+        juce::ValueTree v30 = v29.createCopy();
+        v30.setProperty(keys::kVersion, 30, nullptr);
+        return v30;
+    }
+
     static juce::ValueTree upgrade_v27_to_v28(const juce::ValueTree& v27)
     {
         // v28 (stream-via-pool): a StreamMachine's source moves from a per-Kit
@@ -2023,6 +2078,7 @@ namespace lockstep::PluginState
         if (version < 27) tree = upgrade_v26_to_v27(tree);
         if (version < 28) tree = upgrade_v27_to_v28(tree);
         if (version < 29) tree = upgrade_v28_to_v29(tree);
+        if (version < 30) tree = upgrade_v29_to_v30(tree);
 
         // 9.18: unconditional — resolve sample references to current pool positions
         // (hash-driven for v29 trees, "i"-bridged for the v28 tree just upgraded).

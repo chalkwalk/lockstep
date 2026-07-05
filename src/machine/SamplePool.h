@@ -98,10 +98,26 @@ namespace lockstep
         int    keyRoot = -1;
         int    keyBrightness = kAeolian;
         double tuningCents = 0.0;
+        // Detected one-shot (9.23): stamped from the ACID / filename hint at load.
+        // A one-shot has no meaningful loop tempo; autoFit uses the effective value
+        // to seed a plain trig (no loop, no bar-sizing) instead of a loop.
+        bool   detectedOneShot = false;
         // True once analysis (or cache adoption) has run for this entry. Lets
         // displayHint distinguish "analysed, no rhythm" (a one-shot) from "not
         // analysed yet", and drives what the serializer writes.
         bool   analysed = false;
+
+        // ── User overrides (9.23) ────────────────────────────────────────────
+        // Correct a wrong detection, or stamp metadata the analyser missed. Each
+        // is "unset" until the user edits it (Props editor, S6); the effective
+        // value is override-else-detected. Serialised per entry (v30), written
+        // only when set. Volatile entries keep these in RAM only.
+        double userBpm = 0.0;           // 0 = unset
+        int    userKeyRoot = -1;        // -1 = unset
+        int    userKeyBrightness = kAeolian;
+        double userTuningCents = 0.0;
+        bool   hasUserTuning = false;   // userTuningCents is meaningful only when set
+        int    userOneShot = -1;        // -1 unset / 0 loop / 1 one-shot
 
         // Cached per-block analysis for transient detection (message thread only).
         // Populated by SamplePool::load(); empty for missing entries.
@@ -128,6 +144,7 @@ namespace lockstep
             int    keyRoot = -1;
             int    keyBrightness = kAeolian;
             double tuningCents = 0.0;
+            bool   oneShot = false;   // detected one-shot (v30)
         };
 
         // Decode the file at path and append it to the pool.
@@ -224,6 +241,25 @@ namespace lockstep
         int    keyRoot(int index) const;
         int    keyBrightness(int index) const;
         double tuningCents(int index) const;
+
+        // ── Effective (override-else-detected) metadata (9.23) ────────────────
+        // Every consumer that tracks tempo / key / tuning / one-shot reads these,
+        // so a user correction takes effect everywhere. Out-of-range reads return
+        // the unknown defaults.
+        double effectiveBpm(int index) const;
+        int    effectiveKeyRoot(int index) const;
+        int    effectiveKeyBrightness(int index) const;
+        double effectiveTuningCents(int index) const;
+        bool   effectiveOneShot(int index) const;
+
+        // Single-owner setters for the user overrides (message thread). Pass the
+        // "unset" sentinel to clear one field (bpm 0, keyRoot -1, oneShot -1);
+        // setUserTuningCents(has=false) clears tuning. clearUserOverrides drops all.
+        void setUserBpm(int index, double bpm);
+        void setUserKey(int index, int keyRoot, int keyBrightness);
+        void setUserTuningCents(int index, double cents, bool has);
+        void setUserOneShot(int index, int state);   // -1 unset / 0 loop / 1 one-shot
+        void clearUserOverrides(int index);
 
         int size() const { return static_cast<int>(samples_.size()); }
         bool isMissing(int index) const;

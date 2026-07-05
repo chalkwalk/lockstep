@@ -44,11 +44,12 @@ namespace lockstep
         if (cached != nullptr && cached->hashXX32 == sample->ref.hashXX32)
         {
             // Cache hit: adopt the stored analysis, skip re-detection.
-            sample->detectedBpm    = cached->bpm;
-            sample->keyRoot        = cached->keyRoot;
-            sample->keyBrightness  = cached->keyBrightness;
-            sample->tuningCents    = cached->tuningCents;
-            sample->analysed       = true;
+            sample->detectedBpm     = cached->bpm;
+            sample->keyRoot         = cached->keyRoot;
+            sample->keyBrightness   = cached->keyBrightness;
+            sample->tuningCents     = cached->tuningCents;
+            sample->detectedOneShot = cached->oneShot;
+            sample->analysed        = true;
         }
         else
         {
@@ -83,11 +84,12 @@ namespace lockstep
         }
 
         const FusedAnalysis fa = fuseAnalysis(bpm, ke, hints);
-        s.detectedBpm   = fa.bpm;
-        s.keyRoot       = fa.keyRoot;
-        s.keyBrightness = fa.keyBrightness;
-        s.tuningCents   = fa.tuningCents;
-        s.analysed      = true;
+        s.detectedBpm     = fa.bpm;
+        s.keyRoot         = fa.keyRoot;
+        s.keyBrightness   = fa.keyBrightness;
+        s.tuningCents     = fa.tuningCents;
+        s.detectedOneShot = hints.oneShot;  // ACID / filename one-shot flag (was lost)
+        s.analysed        = true;
     }
 
     void SamplePool::adoptCachedAnalysis(int index, const CachedAnalysis& ca)
@@ -95,11 +97,12 @@ namespace lockstep
         if (index < 0 || index >= static_cast<int>(samples_.size()))
             return;
         auto& s = *samples_[static_cast<std::size_t>(index)];
-        s.detectedBpm   = ca.bpm;
-        s.keyRoot       = ca.keyRoot;
-        s.keyBrightness = ca.keyBrightness;
-        s.tuningCents   = ca.tuningCents;
-        s.analysed      = true;
+        s.detectedBpm     = ca.bpm;
+        s.keyRoot         = ca.keyRoot;
+        s.keyBrightness   = ca.keyBrightness;
+        s.tuningCents     = ca.tuningCents;
+        s.detectedOneShot = ca.oneShot;
+        s.analysed        = true;
     }
 
     // Estimate the loop tempo from the cached RMS envelope, gated by length:
@@ -141,6 +144,82 @@ namespace lockstep
         if (index < 0 || index >= static_cast<int>(samples_.size()))
             return 0.0;
         return samples_[static_cast<std::size_t>(index)]->tuningCents;
+    }
+
+    // ── Effective (override-else-detected) metadata (9.23) ───────────────────
+    double SamplePool::effectiveBpm(int index) const
+    {
+        const Sample* s = get(index);
+        if (s == nullptr) return 0.0;
+        return s->userBpm > 0.0 ? s->userBpm : s->detectedBpm;
+    }
+
+    int SamplePool::effectiveKeyRoot(int index) const
+    {
+        const Sample* s = get(index);
+        if (s == nullptr) return -1;
+        return s->userKeyRoot >= 0 ? s->userKeyRoot : s->keyRoot;
+    }
+
+    int SamplePool::effectiveKeyBrightness(int index) const
+    {
+        const Sample* s = get(index);
+        if (s == nullptr) return kAeolian;
+        return s->userKeyRoot >= 0 ? s->userKeyBrightness : s->keyBrightness;
+    }
+
+    double SamplePool::effectiveTuningCents(int index) const
+    {
+        const Sample* s = get(index);
+        if (s == nullptr) return 0.0;
+        return s->hasUserTuning ? s->userTuningCents : s->tuningCents;
+    }
+
+    bool SamplePool::effectiveOneShot(int index) const
+    {
+        const Sample* s = get(index);
+        if (s == nullptr) return false;
+        return s->userOneShot >= 0 ? (s->userOneShot == 1) : s->detectedOneShot;
+    }
+
+    void SamplePool::setUserBpm(int index, double bpm)
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size())) return;
+        samples_[static_cast<std::size_t>(index)]->userBpm = bpm > 0.0 ? bpm : 0.0;
+    }
+
+    void SamplePool::setUserKey(int index, int keyRoot, int keyBrightness)
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size())) return;
+        auto& s = *samples_[static_cast<std::size_t>(index)];
+        s.userKeyRoot = keyRoot;
+        s.userKeyBrightness = keyBrightness;
+    }
+
+    void SamplePool::setUserTuningCents(int index, double cents, bool has)
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size())) return;
+        auto& s = *samples_[static_cast<std::size_t>(index)];
+        s.userTuningCents = cents;
+        s.hasUserTuning = has;
+    }
+
+    void SamplePool::setUserOneShot(int index, int state)
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size())) return;
+        samples_[static_cast<std::size_t>(index)]->userOneShot = state;
+    }
+
+    void SamplePool::clearUserOverrides(int index)
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size())) return;
+        auto& s = *samples_[static_cast<std::size_t>(index)];
+        s.userBpm = 0.0;
+        s.userKeyRoot = -1;
+        s.userKeyBrightness = kAeolian;
+        s.userTuningCents = 0.0;
+        s.hasUserTuning = false;
+        s.userOneShot = -1;
     }
 
     int SamplePool::addMissing(const SampleRef& ref)
@@ -398,36 +477,55 @@ namespace lockstep
         if (s.missing)
             return "MISSING";
 
-        // Musical hint: "128 bpm  Amin" — either part may be absent. Key suffix
-        // is maj (Ionian) / min (Aeolian) / a 3-letter mode tag otherwise. All
-        // ASCII (juce::String asserts on non-ASCII char* literals).
+        // Musical hint from the EFFECTIVE (override-else-detected) metadata, e.g.
+        // "128 bpm  Amin  +12c" — any part may be absent. A trailing "*" marks that
+        // at least one value is a user override. Key suffix is maj (Ionian) / min
+        // (Aeolian) / a 3-letter mode tag. All ASCII (juce::String asserts on
+        // non-ASCII char* literals).
+        const int idx = index;
+        const double effBpm = effectiveBpm(idx);
+        const int effRoot = effectiveKeyRoot(idx);
+        const int effBright = effectiveKeyBrightness(idx);
+        const double effTune = effectiveTuningCents(idx);
+        const bool overridden = s.userBpm > 0.0 || s.userKeyRoot >= 0
+                             || s.hasUserTuning || s.userOneShot >= 0;
+
         juce::String bpmLabel;
-        if (s.detectedBpm > 0.0)
-            bpmLabel = juce::String(juce::roundToInt(s.detectedBpm)) + " bpm";
+        if (effBpm > 0.0)
+            bpmLabel = juce::String(juce::roundToInt(effBpm)) + " bpm";
 
         juce::String keyLabel;
-        if (s.keyRoot >= 0)
+        if (effRoot >= 0)
         {
             juce::String suffix;
-            if (s.keyBrightness == kIonian)       suffix = "maj";
-            else if (s.keyBrightness == kAeolian) suffix = "min";
-            else suffix = juce::String(modeName(s.keyBrightness)).substring(0, 3).toLowerCase();
-            keyLabel = juce::String(pitchClassName(s.keyRoot)) + suffix;
+            if (effBright == kIonian)       suffix = "maj";
+            else if (effBright == kAeolian) suffix = "min";
+            else suffix = juce::String(modeName(effBright)).substring(0, 3).toLowerCase();
+            keyLabel = juce::String(pitchClassName(effRoot)) + suffix;
         }
 
-        if (bpmLabel.isNotEmpty() && keyLabel.isNotEmpty())
-            return bpmLabel + "  " + keyLabel;
-        if (bpmLabel.isNotEmpty())
-            return bpmLabel;
-        if (keyLabel.isNotEmpty())
-            return keyLabel;
+        // Tuning is a deviation from A440 — only meaningful alongside a detected
+        // key. A keyless one-shot with a stray tuning estimate shows no tune label.
+        juce::String tuneLabel;
+        if (effRoot >= 0 && juce::roundToInt(effTune) != 0)
+            tuneLabel = (effTune >= 0.0 ? "+" : "") + juce::String(juce::roundToInt(effTune)) + "c";
 
-        // No tempo, no key. An analysed entry with neither is a one-shot (or
-        // long-form); flag it so the pool browser distinguishes it from an
-        // entry that simply has not been analysed yet.
+        const juce::String star = overridden ? " *" : juce::String();
+
+        juce::StringArray parts;
+        if (bpmLabel.isNotEmpty())  parts.add(bpmLabel);
+        if (keyLabel.isNotEmpty())  parts.add(keyLabel);
+        if (tuneLabel.isNotEmpty()) parts.add(tuneLabel);
+        if (!parts.isEmpty())
+            return parts.joinIntoString("  ") + star;
+
+        // No tempo, no key. An analysed entry with neither (or an effective
+        // one-shot) is a one-shot; flag it so the pool browser distinguishes it
+        // from an entry that simply has not been analysed yet.
         const juce::String parent =
             juce::File(juce::String(s.ref.path)).getParentDirectory().getFileName();
-        return s.analysed ? parent + "  one-shot" : parent;
+        return (s.analysed || effectiveOneShot(idx))
+                   ? parent + "  one-shot" + star : parent;
     }
 
     int SamplePool::nthVolatileIndex(int n) const
