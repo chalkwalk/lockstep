@@ -1,7 +1,11 @@
 #pragma once
 
 #include "IMachine.h"
+#include "ITempoAware.h"
+#include "../dsp/BungeeStretchEngine.h"
+#include "../dsp/ReaderStretchSource.h"
 #include <juce_audio_formats/juce_audio_formats.h>
+#include <array>
 #include <memory>
 
 namespace lockstep
@@ -18,7 +22,7 @@ namespace lockstep
     // block (hasInternalAmp suppresses the track ENVELOPE — Static is a gated stream,
     // not an enveloped one-shot). Resampling on a file/engine rate mismatch is a
     // later refinement; v1 streams at the engine rate.
-    class StreamMachine : public IMachine
+    class StreamMachine : public IMachine, public ITempoAware
     {
     public:
         StreamMachine();
@@ -28,6 +32,8 @@ namespace lockstep
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
         [[nodiscard]] const char* badge() const noexcept override { return "STRM"; }
+
+        void setTransport(const TransportInfo& t) noexcept override { transport_ = t; }
 
         // 9.18: references a disk file streamed on the fly — Stream-origin entries
         // only (keeps Stream out of the PCM players' pickers, and vice versa).
@@ -75,24 +81,42 @@ namespace lockstep
         static constexpr int kSlotSampleId = 0;
 
     private:
-        static constexpr int kSlotStart = 1;
-        static constexpr int kNumSlots = 2;
+        static constexpr int kSlotStart = 1;        // trim 0..1 (id "start")
+        static constexpr int kSlotPitch = 2;        // ±24 semitones (independent)
+        static constexpr int kSlotTune = 3;         // ±50 cents fine-tune
+        static constexpr int kSlotTimestretch = 4;  // 0 = Off (native), 1 = Tempo
+        static constexpr int kSlotLoop = 5;         // 0 = Off, 1 = On
+        static constexpr int kNumSlots = 6;
+
+        [[nodiscard]] double timeRatioFor() const;
+        [[nodiscard]] static double pitchRatioFor(const ParamFrame& params);
+        void rebuildEngine();
 
         juce::AudioFormatManager formatManager_;
         juce::TimeSliceThread streamThread_{ "lockstep.stream.io" };
         std::unique_ptr<juce::BufferingAudioReader> reader_;
         juce::String path_;
         juce::int64 lengthSamples_ = 0;
+        double fileRate_ = 0.0;
+        int fileChannels_ = 1;
+
+        BungeeStretchEngine engine_;
+        ReaderStretchSource source_;
+        TransportInfo transport_{};
+        int tsMode_ = 1;   // resolved timestretch mode for the active note
 
         // Playback state (audio thread).
         bool playing_ = false;
-        juce::int64 readPos_ = 0;
 
         // Anti-click gate: a hard start/stop of a disk stream pops. Ramp the block
         // gain toward (playing ? 1 : 0) so note-on, note-off and end-of-file fade
         // over a few ms instead of stepping. Mirrors StretchMachine's gate.
         double sampleRate_ = 44100.0;
+        int maxBlock_ = 512;
         float gain_ = 0.0f;
         float fadeInc_ = 0.0f;
+
+        static constexpr std::array<const char* const, 2> kTsLabels = { "Off", "Tempo" };
+        static constexpr std::array<const char* const, 2> kLoopLabels = { "Off", "On" };
     };
 }

@@ -1,4 +1,5 @@
 #include "StretchMachine.h"
+#include "StretchMath.h"
 #include <cmath>
 
 namespace lockstep
@@ -111,28 +112,14 @@ namespace lockstep
     double StretchMachine::timeRatioFor(int playedLen) const
     {
         if (tsMode_ < 1) return 1.0;  // Off — native duration
-        const double spb = transport_.samplesPerBar;
-        double bars = pool_.sourceBars(activeSampleId_);
-        if (bars <= 0.0)
-        {
-            // No stamped musical length (a disk loop, not a captured buffer):
-            // fall back to the auto-detected tempo. The played region spans
-            // playedLen source samples; at the detected BPM that is this many
-            // bars (4/4 assumed). Feeds the same stretch formula below, so a
-            // detected loop tracks project tempo exactly like a recorded one.
-            const double bpm = pool_.detectedBpm(activeSampleId_);
-            const Sample* s = pool_.get(activeSampleId_);
-            if (bpm > 0.0 && s != nullptr && s->sampleRate > 0.0)
-            {
-                constexpr double kBeatsPerBar = 4.0;  // 4/4 assumption
-                const double srcSeconds = static_cast<double>(playedLen) / s->sampleRate;
-                bars = srcSeconds * bpm / 60.0 / kBeatsPerBar;
-            }
-        }
-        if (bars <= 0.0 || spb <= 0.0 || playedLen <= 0)
-            return 1.0;  // unknown source tempo → no tracking
-        // Play `bars` bars over the played region at the project tempo.
-        return (bars * spb) / static_cast<double>(playedLen);
+        const Sample* s = pool_.get(activeSampleId_);
+        const double srcRate = (s != nullptr && s->sampleRate > 0.0)
+            ? s->sampleRate : sampleRate_;
+        // sourceBars (a captured musical length) wins; else detectedBpm derives
+        // bars from the played region. The shared helper cannot drift from Stream.
+        return stretchmath::stretchTimeRatio(
+            pool_.sourceBars(activeSampleId_), pool_.detectedBpm(activeSampleId_),
+            playedLen, srcRate, transport_.samplesPerBar, sampleRate_);
     }
 
     void StretchMachine::startNote(int midiNote, const ParamFrame& params)
