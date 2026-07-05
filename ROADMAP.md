@@ -2271,6 +2271,41 @@ Post-9.18 follow-up from manual testing. Plan file:
 - [x] **SRC sample-picker first-paint fix.** The picker button is laid out the
       instant it becomes visible (was waiting for the next `resized()`).
 
+### 9.20 — Section-stack unification (one resolver, four consumers)  *[shipped]*
+Item 7 of the "fluttering-bumblebee" cleanup
+(`~/.claude/plans/i-found-quite-a-fluttering-bumblebee.md`). The section-key
+behaviour was split across two systems — the schema-derived Machine/Track param
+stack (`ScopeSectionSelect`) and a separate static meta/sticky matrix
+(`ScopedSectionMatrix` + `MetaBand`) — so section-key tint, the MZ header colour,
+and dispatch could disagree. One resolver now feeds the editor dispatch, the
+section-bar painter, and the MZ banner. Six commits.
+- [x] **Pure model + static table.** `SecCandidate` gains an action
+      (Param/Meta/TimeSticky), a `metaIndex`, a `funcQualified` flag and a label;
+      `SectionStackTable.h` carries the non-param content a held scope maps a key
+      onto (Track DIV, Phrase LEN, Scene/Song TIME, Song master FX, Func
+      COND/NOTE/TRSP). Pure + unit-tested.
+- [x] **`SectionResolve` resolver drives dispatch.** `resolveSectionKey()` unions
+      the schema param candidates (shared with `sectionsForKey`) with the stack
+      rows and returns `{winner, action, metaIndex, groups}`; the editor's
+      Section-key dispatch collapses to resolve → switch on action. The scope
+      layers are **not** a uniform peel (that silently dimmed Scene/Song
+      scope-scoped param editing — the plan's own audit point): Func is a parallel
+      hierarchy, Track is the P6 machine-peel, and Phrase/Scene/Song are
+      write-target overlays that keep the machine params where the per-scope policy
+      allows and add their meta rows.
+- [x] **Winner-colour painting.** Section buttons tint by the resolved winning
+      origin (`originColour`) — Track+FLTR and an unqualified track-DSP FILTER read
+      cyan, Scene+FILTER reads scene — not a blanket held-scope wash; the dim wash
+      for contentless scoped keys generalises to every scope.
+- [x] **MZ banner from the page origin.** The MZ carries `pageOrigin_`, fed once
+      by the editor at selection time (never re-derived from `slotOffset_`); the
+      header word (MACHINE/TRACK/PHRASE/SCENE/SONG/GLOBAL) + colour + wash come from
+      it, so a scope-scoped page names its scope after the modifier releases.
+- [x] **Func outline never latches.** `funcOutlineActive(funcHeld, pageFunc)`:
+      the Func border shows only while Func is held and only on a func-qualified
+      key/page; a latched COND/TRANSPORT band keeps its body colour but drops the
+      outline on release.
+
 ---
 
 ## Phase 10 — Melodic & Harmonic Authoring  *[active]*
