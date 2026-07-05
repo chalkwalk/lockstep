@@ -2288,20 +2288,14 @@ section-bar painter, and the MZ banner. Six commits.
       the schema param candidates (shared with `sectionsForKey`) with the stack
       rows and returns `{winner, action, metaIndex, label, groups}`; the editor's
       Section-key dispatch collapses to resolve → switch on action.
-- [x] **The stack is a true underlay (full downward fall-through).** Each key
-      shows the topmost non-empty layer at or below the held ceiling, so an empty
-      layer falls through to the one beneath — **bare TRIG shows the Track layer's
-      DIV** (and pressing it opens the DIV band), Scene+FX falls through to the
-      Song master-FX layer. Meta/sticky/func rows (self-targeting) fall through the
-      whole stack; machine + track param pages fall through between themselves; a
-      scope-scoped machine-param edit (Scene+FILTER) stays **pinned** to its held
-      scope because the write is held-modifier-driven and would otherwise misroute.
-      (Fall-*up* / zig-zag to fill still-empty deep-scope keys is a possible
-      follow-up — a UX discussion, not built.)
+- [x] **The stack is a true underlay.** Each key shows the layer nearest the held
+      ceiling — **bare TRIG shows the Track layer's DIV** (and pressing it opens the
+      DIV band), Scene+FX shows the Song master-FX layer. *(Refined in 9.21: the
+      first cut fell only downward and pinned a scope-coloured param — see below.)*
 - [x] **Winner-colour painting.** Section buttons tint by the resolved winning
-      origin (`originColour`) — Track+FLTR and an unqualified track-DSP FILTER read
-      cyan, Scene+FILTER reads scene — not a blanket held-scope wash; the dim wash
-      for contentless scoped keys generalises to every scope.
+      origin (`originColour`) — a track-DSP FILTER reads cyan, a meta row reads its
+      scope hue — not a blanket held-scope wash; the dim wash for contentless keys
+      generalises to every scope.
 - [x] **MZ banner from the page origin.** The MZ carries `pageOrigin_`, fed once
       by the editor at selection time (never re-derived from `slotOffset_`); the
       header word (MACHINE/TRACK/PHRASE/SCENE/SONG/GLOBAL) + colour + wash come from
@@ -2310,6 +2304,39 @@ section-bar painter, and the MZ banner. Six commits.
       the Func border shows only while Func is held and only on a func-qualified
       key/page; a latched COND/TRANSPORT band keeps its body colour but drops the
       outline on release.
+
+### 9.21 — Section-stack underlay: final model (nearest, colour-by-winner)  *[shipped]*
+Corrects the 9.20 first cut after a design discussion pinned down the intended
+model (`~/.claude/plans/section-stack-underlay-final.md`). The taught **contract**
+is hold-scope + section = that scope's content (Track+TRIG=DIV, Song+FX=masterFX);
+fall-through is a **convenience + colour-teaching aid**, and every key is coloured
+by the scope its content *truly* comes from. Five code/test commits + this block.
+- [x] **Nearest, ties toward deeper — falls up OR down.** `resolveSectionKey`
+      picks the layer nearest the held ceiling (`abs(origin − floor)`, ties to the
+      larger `SecOrigin`). The ceiling's own layer is distance 0, so canonical
+      chords are always exact; off-ceiling keys fall to the nearest real layer in
+      either direction (Song+FILTER falls *up* to the machine filter; Scene+FX falls
+      *down* to Song master-FX). Replaces the 9.20 downward-only peel.
+- [x] **No per-scope param layer — the fiction is dead.** Params have only
+      step-override ELSE track-base (OEB); holding a scope never changes the write
+      target. The resolver no longer consults `ScopedSectionMatrix` and no longer
+      pins a scope-coloured param candidate. Scene+FILTER edited track-base while
+      painted scene-green — it now falls to a **real** layer (the machine filter, or
+      a track-DSP block) and is coloured by it.
+- [x] **Honest colours + up-fill.** Deep-scope keys that fall up are enabled, not
+      dim (no wasted real estate); a section coloured by a scope hue genuinely has
+      content in that scope. `SurfaceModel`/MZ code was already winner-driven — only
+      the resolver's honesty and the stale assertions/comments changed.
+- [x] **Editor pages the winner.** Section dispatch routes `selectSection(index,
+      winner==Track)` so a key pages the same layer it is coloured by.
+- [x] **Selected-section underlay locked.** A committed section survives entering +
+      exiting a sticky Vel/Density/Time overlay (test); single owner (overlay in
+      `UiState::overlay`, selection in `masterSection`).
+- Deferred: **section→scope association review** (DIV@Track / LEN@Phrase /
+      TIME@Scene·Song / masterFX@Song may be sub-optimal — the colour language now
+      makes a bad placement visible; a `SectionStackTable` row-move is a one-line
+      change) and **per-scope sections** (the table supports them; sparse scopes are
+      fine today).
 
 ---
 

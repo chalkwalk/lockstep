@@ -889,14 +889,27 @@ scope's row in the **scope-section matrix**. Like a scope-hold, holding
 wired secondary glow (orange), and the cells that don't dim out — so the
 row always shows which secondaries are actually reachable.
 
+The section row is a **true underlay**. Holding a scope and pressing a section
+is the *taught contract* — it opens that scope's own content. But there is **no
+per-scope parameter layer**: a step's params resolve step-override-else-track-base
+(OEB), and holding a scope never changes where a knob writes. So `FILTER`/`FX` are
+not scope-assignable — there is one filter and one FX chain. A key with no content
+at the held scope **falls through to the nearest real layer** (up or down) as a
+convenience, and **each key is coloured by the scope its content truly comes
+from** — so the colour teaches you where each thing lives.
+
 | Held scope | What `+5` (TRIG) means | …`+7` (FILTER) | …`+0` (FX) |
 |---|---|---|---|
-| `Track` | Kit **subdivision** (labelled `DIV`; two fields: note value + flavour Straight/Dotted/Triplet) | Post-machine (foundation) FILTER | Track inserts |
-| `Phrase` | Phrase **length** (labelled `LEN`, per active phrase) | (dim) | (dim) |
-| `Scene` | **TIME** sticky mode (Scene+TRIG toggle): TIME page, entry scope = Scene | Scene-assign FILTER | Scene-assign FX |
+| `Track` | Kit **subdivision** (labelled `DIV`; note value + flavour Straight/Dotted/Triplet) | the filter (the machine's own, or a track-DSP block if the machine leaves filter to the track) | Track inserts (via `Track`+hold; the picker) |
+| `Phrase` | Phrase **length** (labelled `LEN`, per active phrase) | falls to the filter (coloured by its owner) | falls to the nearest FX chain |
+| `Scene` | **TIME** sticky mode (Scene+TRIG toggle): TIME page, entry scope = Scene | falls to the filter (coloured by its owner) | falls to the master FX chain (nearest) |
 | `Morph` | (dim — Morph never affects trigs) | Morph-assign FLTR | Morph-assign FX |
-| `Song` | **TIME** sticky mode (Song+TRIG toggle): TIME page, entry scope = Song | (dim — master FILTER reserved) | **Master FX 1+2 + Send A/B** (4 units, cycled by re-press) |
-| `Func` (over any of the above) | The secondary variant of the cell (e.g. `Func+Scene+FILTER` = the other scene's filter assignments). |
+| `Song` | **TIME** sticky mode (Song+TRIG toggle): TIME page, entry scope = Song | falls to the filter (coloured by its owner) | **Master FX 1+2 + Send A/B** (4 units, cycled by re-press) |
+
+`Morph` is the exception: it is a bespoke crossfader scope with genuine per-pole
+snapshots (`Morph`-assign), so it keeps its own assignments rather than falling
+through. `Func` selects the parallel meta hierarchy (COND / NOTE / TRSP), not a
+"secondary variant" of a scoped param.
 
 Each scope's `TRIG` cell opens the parameter owned by that hierarchy level.
 Three metas sit on `Func`: **COND** (probability, m:n, prev-dep) on
