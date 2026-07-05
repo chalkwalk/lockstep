@@ -23,6 +23,7 @@ namespace lockstep
             None,
             Ms,
             Semitones,
+            Cents,
             Percent
         };
 

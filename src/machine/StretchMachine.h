@@ -3,7 +3,8 @@
 #include "IMachine.h"
 #include "ITempoAware.h"
 #include "SamplePool.h"
-#include "../dsp/TimeStretch.h"
+#include "../dsp/BungeeStretchEngine.h"
+#include "../dsp/PcmStretchSource.h"
 #include <array>
 
 namespace lockstep
@@ -67,14 +68,20 @@ namespace lockstep
         static constexpr int kSlotPitch = 1;        // ±24 semitones (independent)
         static constexpr int kSlotTimestretch = 2;  // 0 = Off (native), 1 = Tempo
         static constexpr int kSlotStart = 3;        // trim 0..1
-        static constexpr int kNumSlots = 4;
+        static constexpr int kSlotTune = 4;         // ±50 cents fine-tune
+        static constexpr int kSlotLoop = 5;         // 0 = Off, 1 = On
+        static constexpr int kSlotReverse = 6;      // 0 = Fwd, 1 = Rev
+        static constexpr int kNumSlots = 7;
 
         [[nodiscard]] double timeRatioFor(int playedLen) const;
+        [[nodiscard]] double pitchRatioFor(int midiNote, const ParamFrame& params) const;
         void startNote(int midiNote, const ParamFrame& params);
 
         SamplePool& pool_;
         double sampleRate_ = 44100.0;
-        TimeStretch ts_;
+        int maxBlock_ = 512;
+        BungeeStretchEngine engine_;
+        PcmStretchSource source_;
         TransportInfo transport_{};
 
         bool playing_ = false;
@@ -86,5 +93,7 @@ namespace lockstep
         float fadeInc_ = 0.0f;    // per-sample gate ramp
 
         static constexpr std::array<const char* const, 2> kTsLabels = { "Off", "Tempo" };
+        static constexpr std::array<const char* const, 2> kLoopLabels = { "Off", "On" };
+        static constexpr std::array<const char* const, 2> kRevLabels = { "Fwd", "Rev" };
     };
 }

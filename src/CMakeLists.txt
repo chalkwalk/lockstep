@@ -32,7 +32,6 @@ add_library(lockstep_core STATIC
     machine/LoopMachine.cpp
     machine/StreamMachine.cpp
     machine/StretchMachine.cpp
-    dsp/TimeStretch.cpp
     dsp/BungeeStretchEngine.cpp
     machine/SamplePool.cpp
     machine/MachineParamTable.cpp

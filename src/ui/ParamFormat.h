@@ -42,6 +42,10 @@ namespace lockstep
                 const int st = static_cast<int>(std::round(v));
                 return (st >= 0 ? "+" : "") + juce::String(st) + " st";
             }
+            case ParamSpec::Unit::Cents: {
+                const int c = static_cast<int>(std::round(v));
+                return (c >= 0 ? "+" : "") + juce::String(c) + " c";
+            }
             case ParamSpec::Unit::Percent:
                 return juce::String(static_cast<int>(v * 100.0f)) + "%";
             case ParamSpec::Unit::None:

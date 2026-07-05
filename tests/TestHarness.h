@@ -35,7 +35,6 @@ namespace lockstep
     void runKeyEstimateTests();   // 4.9 key + tuning detection (DESIGN §28)
     void runSampleHintsTests();   // 4.9 filename/ACID hint parsing + fusion
     void runSyncSliceTests();     // 4.9 beat-grid slicing (placeSyncSlices)
-    void runTimeStretchTests();  // C1 WSOLA time-stretch + resample
     void runStretchEngineTests(); // 9.23 Bungee IStretchEngine seam (pull model)
     void runStretchMachineTests(); // C3 Flex-analog Player (independent pitch+tempo)
     void runSamplePlayerTests();   // C1 loop-seam crossfade (borrow-tail / eat-in)

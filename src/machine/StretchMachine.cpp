@@ -43,15 +43,47 @@ namespace lockstep
                 s.defaultValue = 0.0f;
                 s.isStepped = false;
                 return s;
+            case kSlotTune:
+                s.id = "player_tune";
+                s.label = "Tune";
+                s.minValue = -50.0f;
+                s.maxValue = 50.0f;
+                s.defaultValue = 0.0f;
+                s.isStepped = false;
+                s.unit = ParamSpec::Unit::Cents;
+                s.role = ParamSpec::Role::Pitch;
+                return s;
+            case kSlotLoop:
+                s.id = "player_loop";
+                s.label = "Loop";
+                s.minValue = 0.0f;
+                s.maxValue = 1.0f;
+                s.defaultValue = 0.0f;  // Off — old tracks keep retrig-per-cycle
+                s.isStepped = true;
+                s.valueLabels = std::span<const char* const>(kLoopLabels.data(), kLoopLabels.size());
+                return s;
+            case kSlotReverse:
+                s.id = "player_reverse";
+                s.label = "Rev";
+                s.minValue = 0.0f;
+                s.maxValue = 1.0f;
+                s.defaultValue = 0.0f;  // Fwd
+                s.isStepped = true;
+                s.valueLabels = std::span<const char* const>(kRevLabels.data(), kRevLabels.size());
+                return s;
             default:
                 return {};
         }
     }
 
-    void StretchMachine::prepare(double sampleRate, int /*maxBlockSize*/)
+    void StretchMachine::prepare(double sampleRate, int maxBlockSize)
     {
         sampleRate_ = sampleRate > 0.0 ? sampleRate : 44100.0;
-        ts_.prepare(sampleRate_, 2);
+        maxBlock_ = maxBlockSize > 0 ? maxBlockSize : 512;
+        // Fold mode (sourceRate <= 0): the engine is rate-agnostic and folds each
+        // source's own rate into speed/pitch, so a p-locked sample_id can select a
+        // different-rate buffer on the audio thread without reconstruction.
+        engine_.prepare(-1.0, sampleRate_, 2, maxBlock_);
         // ~5 ms anti-click gate ramp.
         fadeInc_ = static_cast<float>(1.0 / (0.005 * sampleRate_));
         reset();
@@ -59,12 +91,21 @@ namespace lockstep
 
     void StretchMachine::reset()
     {
-        ts_.reset();
+        engine_.reset();
         playing_ = false;
         activeNote_ = -1;
         activeSampleId_ = -1;
         playedLen_ = 0;
         gain_ = 0.0f;
+    }
+
+    double StretchMachine::pitchRatioFor(int midiNote, const ParamFrame& params) const
+    {
+        const float pitchSemis = (params.size() > kSlotPitch) ? params[kSlotPitch] : 0.0f;
+        const float tuneCents = (params.size() > kSlotTune) ? params[kSlotTune] : 0.0f;
+        return std::pow(2.0, (static_cast<double>(midiNote - 60)
+                             + static_cast<double>(pitchSemis)
+                             + static_cast<double>(tuneCents) / 100.0) / 12.0);
     }
 
     double StretchMachine::timeRatioFor(int playedLen) const
@@ -105,22 +146,35 @@ namespace lockstep
             return;
         }
 
-        const float pitchSemis = (params.size() > kSlotPitch) ? params[kSlotPitch] : 0.0f;
         const float startNorm = (params.size() > kSlotStart)
             ? juce::jlimit(0.0f, 1.0f, params[kSlotStart]) : 0.0f;
         tsMode_ = (params.size() > kSlotTimestretch)
             ? static_cast<int>(std::lround(params[kSlotTimestretch])) : 1;
+        const bool loop = (params.size() > kSlotLoop)
+            && std::lround(params[kSlotLoop]) >= 1;
+        const bool reverse = (params.size() > kSlotReverse)
+            && std::lround(params[kSlotReverse]) >= 1;
 
         const int pcmLen = s->pcm.getNumSamples();
         const int startSample = std::min(pcmLen - 1,
                                          static_cast<int>(startNorm * static_cast<float>(pcmLen)));
         activeSampleId_ = sampleId;
-        playedLen_ = std::max(1, pcmLen - startSample);
+        playedLen_ = std::max(1, reverse ? pcmLen : (pcmLen - startSample));
         activeNote_ = midiNote;
 
-        const double pitchRatio =
-            std::pow(2.0, (static_cast<double>(midiNote - 60) + pitchSemis) / 12.0);
-        ts_.start(&s->pcm, static_cast<double>(startSample), timeRatioFor(playedLen_), pitchRatio);
+        source_.setSource(&s->pcm, s->sampleRate);
+        engine_.setReverse(reverse);
+        // Reverse plays from the buffer end toward 0; forward from the trim point.
+        const double startPos = reverse ? static_cast<double>(pcmLen - 1)
+                                        : static_cast<double>(startSample);
+        engine_.start(&source_, startPos, timeRatioFor(playedLen_),
+                      pitchRatioFor(midiNote, params));
+        // Basic free-run loop over the played region; the Tempo-phase-locked
+        // window + autoFit seeding land in Stage 4.
+        if (loop)
+            engine_.setLoop(reverse ? 0 : startSample, pcmLen);
+        else
+            engine_.setLoop(0, 0);
         playing_ = true;
     }
 
@@ -143,21 +197,16 @@ namespace lockstep
 
         if (!playing_ && gain_ <= 0.0f)
         {
-            ts_.reset();
+            engine_.reset();
             buffer.clear();
             return;
         }
 
         // Live tempo tracking: refresh the stretch ratio each block (tempo glide).
         if (playing_)
-        {
-            const float pitchSemis = (params.size() > kSlotPitch) ? params[kSlotPitch] : 0.0f;
-            const double pitchRatio =
-                std::pow(2.0, (static_cast<double>(activeNote_ - 60) + pitchSemis) / 12.0);
-            ts_.setRatios(timeRatioFor(playedLen_), pitchRatio);
-        }
+            engine_.setRatios(timeRatioFor(playedLen_), pitchRatioFor(activeNote_, params));
 
-        ts_.process(buffer, 0, numSamples);
+        engine_.process(buffer, 0, numSamples);
 
         // Anti-click gate toward (playing ? 1 : 0).
         const float target = playing_ ? 1.0f : 0.0f;
@@ -169,7 +218,7 @@ namespace lockstep
                 buffer.setSample(ch, i, buffer.getSample(ch, i) * gain_);
         }
 
-        if (!ts_.isActive() && gain_ <= 0.0f)
+        if (!engine_.isActive() && gain_ <= 0.0f)
             playing_ = false;
     }
 }
