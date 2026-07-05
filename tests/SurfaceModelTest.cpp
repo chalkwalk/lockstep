@@ -10,6 +10,7 @@
 #include "../src/ui/PageNav.h"
 #include "../src/ui/CellAppearance.h"
 #include "../src/ui/ScopedSectionMatrix.h"
+#include "../src/ui/SectionResolve.h"
 #include "../src/ui/GridDisplayMode.h"
 #include "../src/machine/IMachine.h"
 #include "../src/machine/LoopMachine.h"
@@ -917,6 +918,66 @@ namespace lockstep
         CHECK(!mod.border.present, "dim Func cell carries no border");
     }
 
+    // -------------------------------------------------------------------------
+    // Test (Item 7): section buttons are coloured by the resolver's *winning*
+    // origin, not a blanket held-scope wash. Track+TRIG (DIV meta) reads cyan;
+    // Phrase+TRIG (LEN) reads the Phrase hue; a Scene-scoped FILTER edit reads the
+    // Scene hue even though the params are the machine's; a machine-owned section,
+    // unqualified, carries no tint.
+    // -------------------------------------------------------------------------
+    static void testSectionWinnerColour()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        proc.setTrackMachine(0, AnalogMachine::kMachineId);
+        EditContext ec;
+
+        const auto build = [&](const UiState& ui) {
+            return buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                     GridDisplayMode::Ortholinear);
+        };
+
+        {   // Track+TRIG → DIV meta, winner Track → cyan.
+            UiState ui; ui.trackHeld = true;
+            const auto m = build(ui);
+            CHECK(m.section[0].scopeTint == originColour(SecOrigin::Track).getARGB(),
+                  "Track+TRIG paints the Track (cyan) winner colour");
+        }
+        {   // Phrase+TRIG → LEN meta, winner Phrase → phrase hue (≠ Track).
+            UiState ui; ui.phraseScopeHeld = true;
+            const auto m = build(ui);
+            CHECK(m.section[0].scopeTint == originColour(SecOrigin::Phrase).getARGB(),
+                  "Phrase+TRIG paints the Phrase winner colour");
+            CHECK(originColour(SecOrigin::Phrase).getARGB()
+                      != originColour(SecOrigin::Track).getARGB(),
+                  "winner colour distinguishes Phrase from Track");
+        }
+        if (proc.section(0, 2).firstSlot >= 0)
+        {   // Scene+FILTER → machine params, scene-scoped write, Scene-coloured.
+            UiState ui; ui.sceneHeld = true;
+            const auto m = build(ui);
+            CHECK(m.section[2].scopeTint == originColour(SecOrigin::Scene).getARGB(),
+                  "Scene+FILTER paints the Scene winner colour (scope-scoped edit)");
+        }
+        {   // Unqualified, a machine-owned section → no tint (Machine winner).
+            const int mnp = proc.numParams(0);
+            int owned = -1;
+            for (int k = 1; k < IMachine::kMaxSections; ++k)
+                if (proc.section(0, k).firstSlot >= 0 && proc.section(0, k).firstSlot < mnp)
+                {
+                    owned = k;
+                    break;
+                }
+            if (owned >= 0)
+            {
+                UiState ui;  // nothing held
+                const auto m = build(ui);
+                CHECK(m.section[static_cast<std::size_t>(owned)].scopeTint == 0u,
+                      "unqualified machine-owned section carries no scope tint");
+            }
+        }
+    }
+
     void runSurfaceModelTests()
     {
         testPanicKeyLabel();
@@ -940,6 +1001,7 @@ namespace lockstep
         testFxPickerBypassCell();
         testFuncStackBorderNotOrangeFill();
         testSrcAnnouncesNoteEditWhenStepHeld();
+        testSectionWinnerColour();
     }
 
 } // namespace lockstep

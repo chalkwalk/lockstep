@@ -822,9 +822,14 @@ namespace lockstep
                     g.fillRect(cell);
                 }
             }
-            else if (haveTrack && isScopedMode && sectionScope == PS::Track)
+            else if (haveTrack && isScopedMode && sectionScope != PS::Morph)
             {
-                if (sectionsForKey(at, s, /*trackScope*/ true).empty())
+                // Item 7: a section key with no content at the held floor washes
+                // dim — for every scope, not just Track (Phrase/Song dim their
+                // non-content keys too). Morph keeps its bespoke section handling.
+                const SecOrigin washFloor = sectionFloorForScope(sectionScope);
+                if (!resolveSectionKey(processor_, at, s, washFloor, /*funcLayer*/ false)
+                         .hasContent)
                 {
                     g.setColour(juce::Colours::black.withAlpha(0.38f));
                     g.fillRect(cell);

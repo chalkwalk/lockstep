@@ -7,6 +7,7 @@
 #include "../command/KeyBindings.h"
 #include "ParamFormat.h"
 #include "ScopedSectionMatrix.h"
+#include "SectionResolve.h"
 #include "../state/UiState.h"
 #include "../io/EditContext.h"
 #include "../io/PressTracker.h"
@@ -634,12 +635,19 @@ namespace lockstep
             else
                 c.baseColour = compatColour(c.base, kSecActive);
 
-            // Scope glow (DESIGN §6.6): a section key the held scope rebinds, and
-            // that has content, lights in the scope colour. Disabled scoped cells
-            // stay dim (no tint). (Machine picker now re-skins the step grid via
-            // Func+Part, not section[1], so SRC reads as part-base SRC under Part.)
-            if (isScopedMode && !c.disabled)
-                c.scopeTint = scopeColour(sectionScope).getARGB();
+            // Scope glow (DESIGN §6.6, Item 7): colour a section key by the
+            // *winning* origin the resolver returns, not a blanket held-scope wash.
+            // Under a held scope the winner is that scope (Scene+FILTER reads scene)
+            // or a track-DSP block it kept (Track+FLTR reads cyan); unqualified, a
+            // section the machine doesn't own but a track block does (winner=Track)
+            // reads cyan too, so post-machine FILTER/AMP announce themselves even
+            // unheld. Disabled cells stay dim. The Func layer keeps its own border
+            // treatment (below / 7e), so resolve the primary hierarchy here.
+            const SecOrigin tintFloor = sectionFloorForScope(sectionScope);
+            const auto tintRes = resolveSectionKey(proc, activeTrack, s, tintFloor, false);
+            if (!ui.funcHeld && !c.disabled && tintRes.hasContent
+                && tintRes.winner != SecOrigin::Machine)
+                c.scopeTint = originColour(tintRes.winner).getARGB();
             else if (isFillArmed)
                 c.scopeTint = scopeColour(EditMode::PrimaryScope::Fill).getARGB();
 
