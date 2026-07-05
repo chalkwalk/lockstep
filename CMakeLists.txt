@@ -76,6 +76,16 @@ add_subdirectory(JUCE)
 # CLAP JUCE extensions
 add_subdirectory(modules/clap-juce-extensions EXCLUDE_FROM_ALL)
 
+# Bungee real-time time/pitch stretch engine (9.23). MPL-2.0; vendors Eigen
+# (MPL-2.0) + PFFFT (BSD-like) as its own submodules — all GPL-compatible.
+# Build it static (we fold it into lockstep_core) rather than the default shared.
+set(BUNGEE_BUILD_SHARED_LIBRARY OFF CACHE BOOL "" FORCE)
+add_subdirectory(modules/bungee EXCLUDE_FROM_ALL)
+# lockstep_core is POSITION_INDEPENDENT_CODE ON and folds into the plugin shared
+# objects, so its static dependencies must be PIC too. Bungee only forces PIC on
+# itself when building shared, so set it here for both static archives.
+set_target_properties(bungee_library pffft PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # Sources
 add_subdirectory(src)
 

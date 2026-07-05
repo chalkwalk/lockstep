@@ -11,6 +11,7 @@ add_executable(lockstep_tests
     SampleHintsTest.cpp
     SyncSliceTest.cpp
     TimeStretchTest.cpp
+    StretchEngineTest.cpp
     StretchMachineTest.cpp
     SamplePlayerTest.cpp
     RecordMachineTest.cpp

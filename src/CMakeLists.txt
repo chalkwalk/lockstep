@@ -33,6 +33,7 @@ add_library(lockstep_core STATIC
     machine/StreamMachine.cpp
     machine/StretchMachine.cpp
     dsp/TimeStretch.cpp
+    dsp/BungeeStretchEngine.cpp
     machine/SamplePool.cpp
     machine/MachineParamTable.cpp
     machine/VoiceChoke.cpp
@@ -51,10 +52,17 @@ add_library(lockstep_core STATIC
 
 target_include_directories(lockstep_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+# Bungee headers (and the Eigen they pull in) are SYSTEM includes so their
+# warnings never trip lockstep_core's -Werror. The include is confined to
+# lockstep_core because only dsp/BungeeStretchEngine.cpp includes <bungee/...>.
+target_include_directories(lockstep_core SYSTEM PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/bungee)
+
 set_target_properties(lockstep_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_link_libraries(lockstep_core
     PUBLIC
+        bungee_library
         juce::juce_audio_utils
         juce::juce_audio_processors
         juce::juce_audio_formats
