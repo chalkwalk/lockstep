@@ -12,6 +12,7 @@ all GPL-compatible. This file records their licences and any obligations.
 | **Bungee** | `modules/bungee/` (submodule) | **MPL-2.0** | Real-time time/pitch stretch engine (9.23). |
 | **Eigen** | `modules/bungee/submodules/eigen/` | **MPL-2.0** | Linear algebra, pulled in by Bungee. |
 | **PFFFT** | `modules/bungee/submodules/pffft/` | BSD-like (FFTPACK-derived) | FFT backend for Bungee. |
+| **Signalsmith DSP** | `modules/signalsmith-dsp/` (submodule) | MIT | Header-only DSP primitives: fractional-delay interpolators (Lagrange/Kaiser-sinc/Hermite), biquad/allpass filters, envelopes, spectral. Used for delay/chorus taps and the SSB frequency shifter (9.24). |
 
 ## MPL-2.0 obligation (Bungee + Eigen)
 
@@ -33,4 +34,10 @@ file's source must be made available under the MPL. Practical rule for this repo
   candidates (e.g. Rubber Band, GPLv2+) would be benchmarked for quality/CPU before
   adoption, not assumed. None is vendored today.
 - **signalsmith-stretch** (MIT) — named real-time fallback if Bungee fails the ear
-  test; header-only, not currently vendored.
+  test; header-only, not currently vendored. (Distinct from the vendored
+  **signalsmith-dsp** primitives library above — the *stretch* engine is a separate
+  Signalsmith repo and remains deferred.)
+- **signalsmith-basics** — assessed for the 9.24 FOSS-DSP overhaul and **dropped**:
+  the `signalsmith-dsp` primitives (allpass/biquad filters + fractional-delay
+  interpolators) plus `juce::dsp` (LadderFilter, Limiter, Convolution, Oversampling)
+  cover every effect need, so no second Signalsmith submodule is carried.

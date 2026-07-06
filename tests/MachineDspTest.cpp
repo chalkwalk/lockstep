@@ -19,6 +19,7 @@
 #include "../src/machine/IEffect.h"
 #include "../src/machine/EffectFactory.h"
 #include "../src/dsp/Oversampler2x.h"
+#include <signalsmith-dsp/delay.h>
 #include <cmath>
 
 namespace lockstep
@@ -694,8 +695,32 @@ namespace lockstep
 
     // -----------------------------------------------------------------------
 
+    // Compile/link/-Werror compat proof for the vendored Signalsmith DSP
+    // primitives (9.24 S1). A cubic-interpolated fractional-delay read of a
+    // known ramp must land between its integer neighbours — this exercises the
+    // header end to end so a toolchain/ABI mismatch surfaces here, not later.
+    static void testSignalsmithCompat()
+    {
+        signalsmith::delay::Delay<float, signalsmith::delay::InterpolatorCubic> d(32);
+        d.resize(32);
+        d.reset(0.0f);
+        for (int i = 0; i < 32; ++i)
+            d.write(static_cast<float>(i));   // a linear ramp in the buffer
+        // Cubic interpolation reproduces a linear signal exactly, so the
+        // fractional read at 8.5 must sit at the midpoint of the integer reads
+        // at 8 and 9 — independent of the interpolator's own latency offset.
+        const float lo = d.read(9.0f);
+        const float hi = d.read(8.0f);
+        const float mid = d.read(8.5f);
+        CHECK(std::isfinite(mid), "Signalsmith read produced non-finite value");
+        CHECK(std::abs(mid - 0.5f * (lo + hi)) < 1e-4f,
+              "Signalsmith cubic fractional read not at ramp midpoint");
+    }
+
     void runMachineDspTests()
     {
+        testSignalsmithCompat();
+
         // --- AnalogMachine ---
         {
             AnalogMachine va;

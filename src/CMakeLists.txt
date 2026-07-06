@@ -57,6 +57,16 @@ target_include_directories(lockstep_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(lockstep_core SYSTEM PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/bungee)
 
+# Signalsmith DSP (MIT, header-only) — fractional-delay interpolators, filters,
+# envelopes, spectral primitives. SYSTEM include so the vendored headers' warnings
+# never trip -Werror. Rooted at modules/ so headers namespace as
+# <signalsmith-dsp/...> (their internal includes are relative, and the bare file
+# names — fft.h, common.h, mix.h — would otherwise collide). PUBLIC because dsp
+# effect headers (src/dsp/*Effect.h) are header-only and included by the plugin,
+# tests, and tools targets alike.
+target_include_directories(lockstep_core SYSTEM PUBLIC
+    ${CMAKE_SOURCE_DIR}/modules)
+
 set_target_properties(lockstep_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_link_libraries(lockstep_core
