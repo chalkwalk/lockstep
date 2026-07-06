@@ -5403,6 +5403,19 @@ namespace lockstep
         return off;
     }
 
+    // 9.24 S16: resolve a slot's convolution IR ref (pool sample) and hand its PCM
+    // to the (IR-driven) effect. No-op when the ref is unset, the entry is missing,
+    // or the effect ignores IRs. Message-thread only (loadImpulseResponse is
+    // wait-free but the resolve/copy is not audio-safe).
+    void LockstepProcessor::pushInsertIr(IEffect* eff, SampleId ir)
+    {
+        if (eff == nullptr || !ir.valid()) return;
+        const auto* s = samplePool_.resolve(ir);
+        if (s == nullptr || s->pcm.getNumSamples() == 0) return;
+        eff->setImpulseResponse(s->pcm, s->sampleRate > 0.0 ? s->sampleRate
+                                                            : preparedSampleRate_);
+    }
+
     void LockstepProcessor::setTrackInsert(int track, int slot, const std::string& effectId)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
@@ -5425,6 +5438,7 @@ namespace lockstep
                     kitSlot.baseParams[static_cast<std::size_t>(p)] = newEff->paramSpec(p).defaultValue;
             }
             newEff->prepare(preparedSampleRate_, preparedBlockSize_);
+            pushInsertIr(newEff.get(), kitSlot.irRef);  // S16: hand over the pool IR
         }
         withQuiescedEngine([&] { trackInserts_[ti][si] = std::move(newEff); });
     }
@@ -5465,6 +5479,8 @@ namespace lockstep
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         if (slot < 0 || slot > 1) return;
         kit(track).inserts[static_cast<std::size_t>(slot)].irRef = ir;
+        pushInsertIr(trackInserts_[static_cast<std::size_t>(track)]
+                                  [static_cast<std::size_t>(slot)].get(), ir);
     }
 
     SampleId LockstepProcessor::trackInsertIrRef(int track, int slot) const
@@ -5496,6 +5512,7 @@ namespace lockstep
                     insSlot.baseParams[static_cast<std::size_t>(p)] = newEff->paramSpec(p).defaultValue;
             }
             newEff->prepare(preparedSampleRate_, preparedBlockSize_);
+            pushInsertIr(newEff.get(), insSlot.irRef);  // S16
         }
         withQuiescedEngine([&] { masterInserts_[si] = std::move(newEff); });
     }
@@ -5530,6 +5547,7 @@ namespace lockstep
     {
         if (slot < 0 || slot > 1) return;
         song().masterInserts[static_cast<std::size_t>(slot)].irRef = ir;
+        pushInsertIr(masterInserts_[static_cast<std::size_t>(slot)].get(), ir);
     }
 
     SampleId LockstepProcessor::masterInsertIrRef(int slot) const
@@ -5681,6 +5699,7 @@ namespace lockstep
                     sndSlot.baseParams[static_cast<std::size_t>(p)] = newEff->paramSpec(p).defaultValue;
             }
             newEff->prepare(preparedSampleRate_, preparedBlockSize_);
+            pushInsertIr(newEff.get(), sndSlot.irRef);  // S16
         }
         // Empty / unknown id leaves newEff null → the move clears the live slot.
         withQuiescedEngine([&] { masterSends_[si] = std::move(newEff); });
@@ -5710,6 +5729,7 @@ namespace lockstep
     {
         if (slot < 0 || slot > 1) return;
         song().masterSends[static_cast<std::size_t>(slot)].irRef = ir;
+        pushInsertIr(masterSends_[static_cast<std::size_t>(slot)].get(), ir);
     }
 
     SampleId LockstepProcessor::masterSendIrRef(int slot) const

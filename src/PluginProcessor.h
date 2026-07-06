@@ -839,6 +839,9 @@ namespace lockstep
         // the ConvolutionEffect resolves + loads it. None = no pool IR (bundled/none).
         void setTrackInsertIrRef(int track, int slot, SampleId ir);
         [[nodiscard]] SampleId trackInsertIrRef(int track, int slot) const;
+        // 9.24 S16: resolve a slot's IR ref (pool sample) and push its PCM to the
+        // effect (message-thread only). No-op for unset refs / non-IR effects.
+        void pushInsertIr(IEffect* eff, SampleId ir);
 
         // UI: which track insert slot (0/1) owns the param page beginning at the
         // absolute slot `firstSlot`, or -1 if that page is not a track FX-insert
