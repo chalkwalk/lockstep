@@ -26,6 +26,7 @@ namespace lockstep
         Time,     // tempo + time-sig (Song/Scene+TRIG entry chord)
         Density,  // density editor (Func+MOD entry chord)
         Vel,      // velocity overlay (Func+AMP entry chord)
+        SampleProps,  // pool sample-properties editor (Props… button on a pool row, 9.23)
     };
 
     // ── Pending-confirm state ─────────────────────────────────────────────────
@@ -250,6 +251,12 @@ namespace lockstep
 
         enum class VelSubPage { Depth, Center, Mode, Blend };
         VelSubPage velSubPage = VelSubPage::Depth;
+
+        // ── SampleProps (9.23) ──
+        // Absolute pool index being edited by the sample-properties band.
+        // -1 = none (the band renders inert). Set on entry from the pool row
+        // Props… button; reset to -1 by escapeOverlay(SampleProps).
+        int samplePropsPoolIndex = -1;
 
         // ── Time / Key (the signatures band; DESIGN §4.8 / §4.10) ──
         // timeEntryScope: set to the resolved scope at toggle-on time so that

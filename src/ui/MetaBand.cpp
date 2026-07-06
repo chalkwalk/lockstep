@@ -75,6 +75,10 @@ namespace lockstep
             if (ui.densitySubPage == SP::Selection)  { return MetaBand::DensitySelection; }
             return MetaBand::Density;
         }
+        // Sticky pool sample-properties editor (entered from the pool row Props…
+        // button; Func double-tap or any foreign scope/section press escapes it).
+        if (ui.overlay == Overlay::SampleProps)
+            return MetaBand::SampleProps;
         // Sticky velocity overlay mode.
         if (ui.overlay == Overlay::Vel)
         {

@@ -125,6 +125,7 @@ namespace lockstep
             case Modal::Density: return u8"DENSITY — trig-thinning overlay  esc=dbl-tap Func";
             case Modal::Vel:     return u8"VEL STICKY — velocity band  esc=dbl-tap Func";
             case Modal::Time:    return u8"TIME — time-sig/click band  esc=dbl-tap Func";
+            case Modal::SampleProps: return u8"SAMPLE — pool properties  esc=dbl-tap Func";
             case Modal::None:    break;
         }
 

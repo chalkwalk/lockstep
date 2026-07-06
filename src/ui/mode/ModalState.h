@@ -41,6 +41,7 @@ namespace lockstep
         Time,
         Density,
         Vel,
+        SampleProps,      // pool sample-properties editor (entered from a pool row)
     };
 
     // Highest-priority active modal derived from current UiState (read-only).

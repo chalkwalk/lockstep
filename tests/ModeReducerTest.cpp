@@ -129,6 +129,7 @@ namespace lockstep
                 case Overlay::Euclid:
                 case Overlay::Melodic:
                 case Overlay::Harmony:
+                case Overlay::SampleProps:
                 case Overlay::None:    break;
             }
             CHECK(ui.masterSection == 3, "overlay entry does not clobber the selection");

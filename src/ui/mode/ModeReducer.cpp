@@ -51,7 +51,7 @@ namespace lockstep
     // impossible.
     // =========================================================================
     // NOLINTNEXTLINE(cert-err58-cpp)
-    static const std::array<OverlayDescriptor, 5> kOverlays = {{
+    static const std::array<OverlayDescriptor, 6> kOverlays = {{
         // ── Density ─────────────────────────────────────────────────────────
         // MOD (index 4) cycles sub-pages; Song is "own" (master write path).
         {
@@ -119,6 +119,25 @@ namespace lockstep
             .muteScopeForeign   = false,
             .fillScopeForeign   = false,
             .songScopeForeign   = false,
+            .exitOnDoubleTapFunc = true,
+        },
+        // ── SampleProps ───────────────────────────────────────────────────────
+        // Pool sample-properties editor (9.23). Grid-agnostic: it edits a pool
+        // entry, not a track or the step grid, so any foreign scope OR section
+        // press exits (no internal section), plus Func double-tap.
+        {
+            .id                      = Overlay::SampleProps,
+            .internalSection         = -1,
+            .internalSectionConsumed = false,
+            .internalSectionRelabelFn = nullptr,
+            .exitOnSectionPressOther  = true,
+            .trackScopeForeign  = true,
+            .phraseScopeForeign = true,
+            .sceneScopeForeign  = true,
+            .morphScopeForeign  = true,
+            .muteScopeForeign   = true,
+            .fillScopeForeign   = true,
+            .songScopeForeign   = true,
             .exitOnDoubleTapFunc = true,
         },
         // ── Euclid ──────────────────────────────────────────────────────────
@@ -246,6 +265,13 @@ namespace lockstep
                     ui.overlay = Overlay::None;
                     ui.sigPage = UiState::SigPage::Time;
                     ui.swingDismissed = true;
+                }
+                break;
+            case Overlay::SampleProps:
+                if (ui.overlay == Overlay::SampleProps)
+                {
+                    ui.overlay = Overlay::None;
+                    ui.samplePropsPoolIndex = -1;
                 }
                 break;
             case Overlay::Euclid:
