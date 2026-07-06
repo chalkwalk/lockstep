@@ -838,6 +838,30 @@ namespace lockstep
                   + " vs ref " + juce::String(aliasRef, 1) + ")");
         }
 
+        // --- S7: Distortion oversampling ---
+        // Drive reaches 20x (hard clip) — even hotter than saturation, so 8x OS
+        // (4x left ~-24 dB). Same 10 kHz full-drive probe: must beat a
+        // non-oversampled 20x-tanh reference by a wide margin and clear -30 dB.
+        {
+            constexpr double sr = 48000.0;
+            constexpr double f = 10000.0;
+            constexpr int N = 1 << 16;
+            juce::AudioBuffer<float> ref(1, N);
+            fillSine(ref, f, sr, 0.9f);
+            for (int n = 0; n < N; ++n)
+                ref.setSample(0, n, std::tanh(20.0f * ref.getSample(0, n)));  // drive 1 -> 20x
+            const float aliasRef = aliasRatioDb(ref, f, sr);
+
+            const ParamFrame prm = { 1.0f, 1.0f, 1.0f };   // drive, tone(open), mix(wet)
+            const float alias = measureEffectAlias("lockstep.distortion.v1",
+                                                   EffectTier::Track, prm, f);
+            CHECK(alias < -30.0f,
+                  "Distortion alias < -30 dB (got " + juce::String(alias, 1) + ")");
+            CHECK(alias < aliasRef - 20.0f,
+                  "Distortion beats no-OS tanh by >20 dB (OS " + juce::String(alias, 1)
+                  + " vs ref " + juce::String(aliasRef, 1) + ")");
+        }
+
         // --- AnalogMachine ---
         {
             AnalogMachine va;

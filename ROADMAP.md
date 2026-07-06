@@ -2450,7 +2450,10 @@ exists and this milestone does not add one).
       entry, so it can't serve a generator without a hacky zero-upsample or a risky
       rewrite of the working 16-voice synth. The homegrown FIR halfband decimator is
       the right tool and stays; FM keeps 2x (poly-CPU tradeoff, no aliasing complaint).
-- [ ] **S7 — Distortion 2× oversampling.**
+- [x] **S7 — Distortion oversampling** (`juce::dsp::Oversampling`, block up/tanh/
+      down like S5). **8x** — drive reaches 20x (near-square); 4x left ~-24 dB
+      alias. Per-insert (not per-voice) so the stages are affordable. Beats a no-OS
+      20x-tanh reference by >20 dB, clears -30 dB absolute.
 - [ ] **S8 — Delay fractional taps + tape-style retune slew.**
 - [ ] **S9 — Chorus rebuild** (hand-rolled multi-voice; `juce::dsp::Chorus` is
       single-voice, not an upgrade). Appends `chorus_fb` (default 0 = legacy sound).
