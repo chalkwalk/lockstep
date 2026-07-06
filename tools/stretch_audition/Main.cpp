@@ -57,9 +57,22 @@ namespace
         if (loop)
             engine.setLoop(0, source.length());
 
-        const int cap = loop
-            ? static_cast<int>(loopSeconds * rate)
-            : static_cast<int>(source.length() * timeRatio * 1.5 + rate);
+        // For the loop render, cap at an EXACT integer number of loop cycles so the
+        // written file itself loops seamlessly (period = source length at unity). Any
+        // click heard on `play loop_unity.wav repeat -` is then the engine's internal
+        // seam, not a file-boundary wrap. Render at least a few seconds / >= 3 cycles.
+        int cap;
+        if (loop)
+        {
+            const juce::int64 period = juce::jmax<juce::int64>(1, source.length());
+            const int cycles = juce::jmax(2, static_cast<int>(
+                std::ceil(loopSeconds * rate / static_cast<double>(period))));
+            cap = static_cast<int>(cycles * period);
+        }
+        else
+        {
+            cap = static_cast<int>(source.length() * timeRatio * 1.5 + rate);
+        }
 
         std::vector<float> ch0, ch1;
         ch0.reserve(static_cast<std::size_t>(cap));
