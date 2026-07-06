@@ -5,7 +5,10 @@
 #include "../src/ui/MetaBand.h"
 #include "../src/ui/MetaRotary.h"
 #include "../src/state/UiState.h"
+#include "../src/state/PluginState.h"
 #include "../src/io/EditContext.h"
+#include "../src/machine/SamplePool.h"
+#include "../src/core/Scale.h"
 
 namespace lockstep
 {
@@ -1506,6 +1509,192 @@ namespace lockstep
         CHECK(!proc.song().hasKeySig, "Root → INHERIT clears the Song override");
     }
 
+    // =========================================================================
+    // 9.23 S6 — Pool "sample properties" MZ editor
+    // =========================================================================
+
+    // Resolution: ui.overlay == SampleProps → MetaBand::SampleProps (pure).
+    static void testResolveMetaBandSampleProps()
+    {
+        UiState ui;
+        ui.overlay = Overlay::SampleProps;
+        CHECK(resolveMetaBand(ui) == MetaBand::SampleProps,
+              "overlay SampleProps → SampleProps band");
+
+        // Euclid (transient chord) still outranks it.
+        ui.euclidHeld = true;
+        CHECK(resolveMetaBand(ui) == MetaBand::Euclidean,
+              "euclidHeld outranks SampleProps overlay");
+    }
+
+    // buildSamplePropsBand resolves effective (override-else-detected) values into
+    // the eight fields, and hasOverride mirrors whether the user* field is set.
+    static void testSamplePropsBandFields()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        auto& pool = proc.samplePool();
+        const int idx = pool.addVolatile();  // live entry, all overrides unset
+        CHECK(idx >= 0, "pool entry added");
+
+        EditContext ctx;
+        UiState ui;
+        ui.overlay = Overlay::SampleProps;
+        ui.samplePropsPoolIndex = idx;
+
+        // Unset: BPM/Root show placeholders, no overrides flagged.
+        auto f = buildMetaBand(MetaBand::SampleProps, 0, proc, 0, ctx, ui);
+        CHECK(f[0].active && juce::String(f[0].label) == "BPM", "slot 0 = BPM");
+        CHECK(juce::String(f[0].valueText) == "--", "unset BPM reads '--'");
+        CHECK(!f[0].hasOverride, "unset BPM has no override");
+        CHECK(f[2].active && juce::String(f[2].label) == "Root", "slot 2 = Root");
+        CHECK(juce::String(f[2].valueText) == "--" && !f[2].hasOverride, "unset Root reads '--'");
+        CHECK(f[5].active && juce::String(f[5].label) == "1Shot"
+              && juce::String(f[5].valueText) == "Auto", "unset 1Shot reads 'Auto'");
+        CHECK(f[7].active && !f[7].writable, "slot 7 (Name) is read-only");
+
+        // Stamp overrides through the pool, then rebuild.
+        pool.setUserBpm(idx, 150.0);
+        pool.setUserKey(idx, 3, kDorian);
+        pool.setUserTuningCents(idx, -12.0, true);
+        pool.setUserOneShot(idx, 1);
+        f = buildMetaBand(MetaBand::SampleProps, 0, proc, 0, ctx, ui);
+
+        CHECK(feq(f[0].value, 150.0f) && f[0].hasOverride, "BPM tracks user override");
+        CHECK(juce::String(f[0].valueText) == "150 bpm", "BPM value-text");
+        CHECK(feq(f[2].value, 4.0f) && f[2].hasOverride, "Root value = root+1 (D=idx3→4)");
+        CHECK(juce::String(f[2].valueText) == juce::String(pitchClassName(3)), "Root value-text");
+        CHECK(feq(f[3].value, static_cast<float>(-kDorian)) && f[3].hasOverride,
+              "Mode value = -brightness, override tracks key");
+        CHECK(juce::String(f[3].valueText) == juce::String(modeName(kDorian)), "Mode value-text");
+        CHECK(feq(f[4].value, -12.0f) && f[4].hasOverride, "Tune tracks user override");
+        CHECK(feq(f[5].value, 2.0f) && f[5].hasOverride, "1Shot = On (value 2)");
+        CHECK(juce::String(f[5].valueText) == "On", "1Shot value-text = On");
+
+        // Invalid index → inert band (all slots inactive), never a crash.
+        ui.samplePropsPoolIndex = 99;
+        f = buildMetaBand(MetaBand::SampleProps, 0, proc, 0, ctx, ui);
+        for (const auto& v : f) CHECK(!v.active, "invalid index → inert band");
+    }
+
+    // Each writable slot routes to the matching SamplePool setter; Revert clears.
+    static void testSamplePropsWriteLands()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        auto& pool = proc.samplePool();
+        const int idx = pool.addVolatile();
+
+        EditContext ctx;
+        UiState ui;
+        ui.overlay = Overlay::SampleProps;
+        ui.samplePropsPoolIndex = idx;
+
+        writeMetaField(MetaBand::SampleProps, 0, 0, 145.0f, proc, 0, ctx, ui);   // BPM
+        CHECK(feq(static_cast<float>(pool.effectiveBpm(idx)), 145.0f), "slot 0 writes user BPM");
+
+        writeMetaField(MetaBand::SampleProps, 0, 1, 2.0f, proc, 0, ctx, ui);     // BPMx ×2
+        CHECK(feq(static_cast<float>(pool.effectiveBpm(idx)), 290.0f), "BPMx ×2 doubles the BPM");
+        writeMetaField(MetaBand::SampleProps, 0, 1, 0.0f, proc, 0, ctx, ui);     // BPMx /2
+        CHECK(feq(static_cast<float>(pool.effectiveBpm(idx)), 145.0f), "BPMx /2 halves it back");
+
+        writeMetaField(MetaBand::SampleProps, 0, 2, 5.0f, proc, 0, ctx, ui);     // Root idx5→E(4)
+        CHECK(pool.effectiveKeyRoot(idx) == 4, "slot 2 writes user root (step-1)");
+        writeMetaField(MetaBand::SampleProps, 0, 3, 6.0f, proc, 0, ctx, ui);     // Mode Locrian(-6)
+        CHECK(pool.effectiveKeyBrightness(idx) == kLocrian, "slot 3 writes brightness (Locrian)");
+
+        writeMetaField(MetaBand::SampleProps, 0, 4, 30.0f, proc, 0, ctx, ui);    // Tune
+        CHECK(feq(static_cast<float>(pool.effectiveTuningCents(idx)), 30.0f), "slot 4 writes tuning");
+        writeMetaField(MetaBand::SampleProps, 0, 4, 0.0f, proc, 0, ctx, ui);     // 0 clears tuning
+        CHECK(!pool.get(idx)->hasUserTuning, "Tune 0 clears the tuning override");
+
+        writeMetaField(MetaBand::SampleProps, 0, 5, 1.0f, proc, 0, ctx, ui);     // 1Shot Off(loop)
+        CHECK(pool.get(idx)->userOneShot == 0, "slot 5 Off → userOneShot 0 (loop)");
+
+        // Root step 0 clears the key override.
+        writeMetaField(MetaBand::SampleProps, 0, 2, 0.0f, proc, 0, ctx, ui);
+        CHECK(pool.effectiveKeyRoot(idx) == -1, "Root step 0 clears the key override");
+
+        // Revert (slot 6, Detect) clears every remaining user override.
+        writeMetaField(MetaBand::SampleProps, 0, 6, 1.0f, proc, 0, ctx, ui);
+        const auto* s = pool.get(idx);
+        CHECK(feq(static_cast<float>(s->userBpm), 0.0f) && s->userKeyRoot < 0
+              && !s->hasUserTuning && s->userOneShot < 0,
+              "Revert=Detect clears all user overrides");
+
+        // Invalid index write is a guarded no-op (must not crash).
+        ui.samplePropsPoolIndex = -1;
+        writeMetaField(MetaBand::SampleProps, 0, 0, 200.0f, proc, 0, ctx, ui);
+    }
+
+    // Overrides survive a full write → serialize → deserialize round-trip. A
+    // real on-disk file entry is used (volatile REC buffers are not persisted,
+    // DESIGN §28) and re-resolved by content hash after reload.
+    static void testSamplePropsSerializeRoundTrip()
+    {
+        // A short tone on disk gives the pool a stable, hash-identified entry.
+        juce::AudioBuffer<float> b(1, 8192);
+        for (int i = 0; i < b.getNumSamples(); ++i)
+            b.setSample(0, i, 0.2f * std::sin(2.0f * 3.14159265f * 330.0f
+                                              * static_cast<float>(i) / 48000.0f));
+        juce::File wav = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                             .getChildFile("lockstep_sampleprops_rt.wav");
+        wav.deleteFile();
+        {
+            juce::WavAudioFormat fmt;
+            std::unique_ptr<juce::OutputStream> os(wav.createOutputStream());
+            const auto opts = juce::AudioFormatWriterOptions{}
+                                  .withSampleRate(48000.0).withNumChannels(1)
+                                  .withBitsPerSample(32)
+                                  .withSampleFormat(
+                                      juce::AudioFormatWriterOptions::SampleFormat::floatingPoint);
+            std::unique_ptr<juce::AudioFormatWriter> w(fmt.createWriterFor(os, opts));
+            if (w != nullptr) w->writeFromAudioSampleBuffer(b, 0, b.getNumSamples());
+        }
+
+        juce::MemoryBlock blob;
+        std::uint32_t hash = 0;
+        {
+            EngineHarness h;
+            auto& proc = h.processor();
+            auto& pool = proc.samplePool();
+            const int idx = pool.load(wav.getFullPathName());
+            CHECK(idx >= 0, "wav loaded into pool");
+            hash = pool.get(idx)->ref.hashXX32;
+
+            EditContext ctx;
+            UiState ui;
+            ui.overlay = Overlay::SampleProps;
+            ui.samplePropsPoolIndex = idx;
+            writeMetaField(MetaBand::SampleProps, 0, 0, 132.0f, proc, 0, ctx, ui);  // BPM
+            writeMetaField(MetaBand::SampleProps, 0, 2, 8.0f, proc, 0, ctx, ui);    // Root idx8→G(7)
+            writeMetaField(MetaBand::SampleProps, 0, 3, 2.0f, proc, 0, ctx, ui);    // Mode -2
+            writeMetaField(MetaBand::SampleProps, 0, 4, -20.0f, proc, 0, ctx, ui);  // Tune
+            writeMetaField(MetaBand::SampleProps, 0, 5, 2.0f, proc, 0, ctx, ui);    // 1Shot On
+
+            proc.getStateInformation(blob);
+        }
+        {
+            EngineHarness h2;
+            auto& proc = h2.processor();
+            proc.setStateInformation(blob.getData(), static_cast<int>(blob.getSize()));
+            auto& pool = proc.samplePool();
+            // Re-resolve by content hash — array position is not guaranteed.
+            int idx = -1;
+            for (int i = 0; i < pool.size(); ++i)
+                if (pool.get(i) != nullptr && pool.get(i)->ref.hashXX32 == hash) idx = i;
+            CHECK(idx >= 0, "pool entry re-resolved by hash after reload");
+            CHECK(feq(static_cast<float>(pool.effectiveBpm(idx)), 132.0f), "BPM override survives reload");
+            CHECK(pool.effectiveKeyRoot(idx) == 7, "root override survives reload");
+            CHECK(pool.effectiveKeyBrightness(idx) == -2, "brightness override survives reload");
+            CHECK(feq(static_cast<float>(pool.effectiveTuningCents(idx)), -20.0f),
+                  "tuning override survives reload");
+            CHECK(pool.get(idx) != nullptr && pool.get(idx)->userOneShot == 1,
+                  "one-shot override survives reload");
+        }
+        wav.deleteFile();
+    }
+
     void runMetaBandTests()
     {
         testKeyBandResolveAndFields();
@@ -1583,5 +1772,11 @@ namespace lockstep
         testMetaRotaryApplyViewTotality();
 
         testStepPositionBand();
+
+        // 9.23 S6: pool sample-properties MZ editor
+        testResolveMetaBandSampleProps();
+        testSamplePropsBandFields();
+        testSamplePropsWriteLands();
+        testSamplePropsSerializeRoundTrip();
     }
 }

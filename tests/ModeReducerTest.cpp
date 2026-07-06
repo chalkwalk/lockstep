@@ -450,6 +450,69 @@ namespace lockstep
     }
 
     // =========================================================================
+    // SampleProps (9.23 S6) — entry + exit + index reset
+    // =========================================================================
+
+    static void enterSampleProps(UiState& ui, int poolIndex)
+    {
+        ui.overlay = Overlay::SampleProps;
+        ui.samplePropsPoolIndex = poolIndex;
+    }
+
+    static void testSamplePropsEscapeResetsIndex()
+    {
+        UiState ui;
+        enterSampleProps(ui, 3);
+        CHECK(activeOverlay(ui) == Overlay::SampleProps, "SampleProps active on entry");
+
+        escapeOverlay(ui, Overlay::SampleProps);
+
+        CHECK(!(ui.overlay == Overlay::SampleProps), "SampleProps cleared");
+        CHECK(ui.samplePropsPoolIndex == -1, "pool index reset to -1");
+        CHECK(activeOverlay(ui) == Overlay::None, "no overlay after escape");
+    }
+
+    static void testSamplePropsDoubleTapFuncExits()
+    {
+        UiState ui;
+        enterSampleProps(ui, 2);
+        const auto r = handleOverlayEvent(ui, { ModeEventKind::DoubleTapFunc });
+        CHECK(r == OverlayResult::Exited, "Func dbl-tap exits SampleProps");
+        CHECK(!(ui.overlay == Overlay::SampleProps), "SampleProps cleared");
+        CHECK(ui.samplePropsPoolIndex == -1, "pool index reset on dbl-tap exit");
+    }
+
+    static void testSamplePropsForeignSectionExits()
+    {
+        for (int sec = 0; sec < 6; ++sec)
+        {
+            UiState ui;
+            enterSampleProps(ui, 1);
+            const auto r = handleOverlayEvent(ui, { ModeEventKind::SectionPress, sec });
+            CHECK(r == OverlayResult::Exited,
+                  "SampleProps exits on section " + juce::String(sec));
+            CHECK(ui.samplePropsPoolIndex == -1, "index reset on section exit");
+        }
+    }
+
+    static void testSamplePropsForeignScopeExits()
+    {
+        using CB = ControllerButton;
+        const CB scopes[] = {
+            CB::TrackScope, CB::PhraseScope, CB::SceneScope,
+            CB::MorphScope, CB::MuteScope,   CB::FillScope, CB::SongScope,
+        };
+        for (const auto scope : scopes)
+        {
+            UiState ui;
+            enterSampleProps(ui, 1);
+            const auto r = handleOverlayEvent(ui, { ModeEventKind::ScopePress, -1, scope });
+            CHECK(r == OverlayResult::Exited, "SampleProps exits on foreign scope");
+            CHECK(ui.samplePropsPoolIndex == -1, "index reset on scope exit");
+        }
+    }
+
+    // =========================================================================
     // Mutual exclusion — entering one overlay while another is active
     // =========================================================================
 
@@ -582,6 +645,12 @@ namespace lockstep
         // DoubleTapFunc
         testDoubleTapFuncExitsAllStickies();
         testDoubleTapFuncNoOverlayIsNotConsumed();
+
+        // SampleProps (9.23 S6)
+        testSamplePropsEscapeResetsIndex();
+        testSamplePropsDoubleTapFuncExits();
+        testSamplePropsForeignSectionExits();
+        testSamplePropsForeignScopeExits();
 
         // Mutual exclusion
         testMutualExclusionViaEscapeOverlay();

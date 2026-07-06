@@ -30,6 +30,13 @@ namespace lockstep
         { UiState u; u.overlay = Overlay::Time;   CHECK(activeModal(u) == Modal::Time,           "time"); }
         { UiState u; u.overlay = Overlay::Density;CHECK(activeModal(u) == Modal::Density,         "density"); }
         { UiState u; u.overlay = Overlay::Vel;    CHECK(activeModal(u) == Modal::Vel,            "vel"); }
+        { UiState u; u.overlay = Overlay::SampleProps; CHECK(activeModal(u) == Modal::SampleProps, "sampleProps"); }
+    }
+
+    static void testModalNameGolden()
+    {
+        CHECK(juce::String(modalName(Modal::SampleProps)) == "SampleProps", "SampleProps name golden");
+        CHECK(juce::String(modalName(Modal::None)) == "None", "None name golden");
     }
 
     static void testActiveModalPriority()
@@ -97,5 +104,6 @@ namespace lockstep
         testActiveModalPriority();
         testActiveModalMatchesLegacy();
         testActiveModalMatchesResolveLayer();
+        testModalNameGolden();
     }
 }
