@@ -2439,8 +2439,11 @@ exists and this milestone does not add one).
       shared `src/dsp/Interpolation.h`. **LoopMachine read folded in** (it was on plain
       2-point linear too — circular-wrapped Hermite now; overdub writes stay
       nearest-integer, unchanged).
-- [ ] **S5 — Saturation oversampling** (both faces; HQ swaps Oversampler2x →
-      `juce::dsp::Oversampling`).
+- [x] **S5 — Saturation oversampling** (both faces via `juce::dsp::Oversampling`,
+      min-phase IIR, one mono instance per channel; block up/tanh/down restructure).
+      **4x not 2x** — a hot HF tanh is near-square; 2x still folds the 5th harmonic.
+      Alias drops ~26 dB vs no-OS (LQ now oversampled too; HQ moved off the homegrown
+      Oversampler2x). Absolute floor ~-34 dB at the 10 kHz/full-drive worst case.
 - [ ] **S6 — FMMachine oversampling; delete `Oversampler2x`** (both consumers migrated).
 - [ ] **S7 — Distortion 2× oversampling.**
 - [ ] **S8 — Delay fractional taps + tape-style retune slew.**

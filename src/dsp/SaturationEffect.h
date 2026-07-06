@@ -1,10 +1,12 @@
 #pragma once
 
 #include "../machine/IEffect.h"
-#include "Oversampler2x.h"
+#include <juce_dsp/juce_dsp.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <memory>
+#include <vector>
 
 namespace lockstep
 {
@@ -12,11 +14,16 @@ namespace lockstep
     // drive. A single class presents two placement-aware faces (DESIGN, effect
     // quality tiers):
     //
-    //   Track (LQ, 4 params): Drive / Tone / Mix / Output. No oversampling.
+    //   Track (LQ, 4 params): Drive / Tone / Mix / Output.
     //   Master (HQ, 8 params): adds Bias (even-harmonic warmth), Comp (program
-    //     compression), Crisp (pre-emphasis), Low (low shelf), and runs the
-    //     saturating nonlinearity at 2x via a halfband oversampler for a clean,
-    //     alias-free bus/master glue.
+    //     compression), Crisp (pre-emphasis), Low (low shelf).
+    //
+    // Both faces run the saturating nonlinearity through 4x oversampling
+    // (juce::dsp::Oversampling, minimum-phase IIR polyphase — near-zero latency,
+    // no PDC) so the tanh curve stays alias-suppressed (9.24 S5). One mono
+    // oversampler per channel matches the per-channel filter state. 4x (not 2x)
+    // because a hot high-frequency tanh is near-square: at 2x its 5th harmonic
+    // still folds below Nyquist. 4x drops mid/high-band aliasing ~26 dB vs no OS.
     //
     // Tier is fixed at construction (makeEffectForId picks it from slot placement);
     // it never changes for a given slot, so the param schema is stable per slot.
@@ -25,12 +32,20 @@ namespace lockstep
     public:
         explicit SaturationEffect(EffectTier tier) : hq_(tier == EffectTier::Master) {}
 
-        void prepare(double sampleRate, int /*maxBlockSize*/) override
+        void prepare(double sampleRate, int maxBlockSize) override
         {
             sr_ = sampleRate;
             smoothCoef_ = 1.0f - std::exp(-1.0f / static_cast<float>(0.005 * sampleRate));
             // Program-compression envelope follower: ~30ms.
             envCoef_ = 1.0f - std::exp(-1.0f / static_cast<float>(0.030 * sampleRate));
+            const int maxB = std::max(1, maxBlockSize);
+            for (auto& os : os_)
+            {
+                os = std::make_unique<juce::dsp::Oversampling<float>>(
+                    1, 2, juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR);
+                os->initProcessing(static_cast<std::size_t>(maxB));
+            }
+            dryScratch_.assign(static_cast<std::size_t>(maxB), 0.0f);
             reset();
         }
 
@@ -40,7 +55,7 @@ namespace lockstep
             for (auto& z : lowZ_)  z = 0.0f;
             for (auto& z : preZ_)  z = 0.0f;
             for (auto& z : env_)   z = 0.0f;
-            for (auto& os : os_)   os.reset();
+            for (auto& os : os_)   if (os) os->reset();
             driveZ_ = 1.0f;
             mixZ_ = 1.0f;
             outZ_ = 1.0f;
@@ -82,28 +97,32 @@ namespace lockstep
             const float outGain = outputGainFor(outTarget);
             const float biasOffset = std::tanh(bias);  // DC the bias introduces
 
+            const int nOs = std::min(numSamples, static_cast<int>(dryScratch_.size()));
+
             for (int c = 0; c < ch; ++c)
             {
                 auto* data = buffer.getWritePointer(c);
                 const int ci = std::min(c, 1);
                 const auto si = static_cast<std::size_t>(ci);
-                for (int i = 0; i < numSamples; ++i)
+
+                // Pass 1 (base rate): compute the pre-nonlinearity signal
+                // (g*in + bias) in place, stashing the dry input for the final mix.
+                // Drive smoothing + HQ pre-emphasis and program compression all
+                // live at the base rate; only the memoryless tanh needs 2x.
+                for (int i = 0; i < nOs; ++i)
                 {
                     driveZ_ += smoothCoef_ * (driveTarget - driveZ_);
-                    mixZ_   += smoothCoef_ * (mixTarget - mixZ_);
-                    outZ_   += smoothCoef_ * (outGain - outZ_);
 
                     const float dry = data[i];
+                    dryScratch_[static_cast<std::size_t>(i)] = dry;
                     float in = dry;
 
-                    // HQ pre-emphasis: lift highs into the saturator (tape pre/de).
                     if (hq_ && crisp > 0.0f)
                     {
                         preZ_[si] += 0.5f * (in - preZ_[si]);          // one-pole LP
                         in = in + crisp * (in - preZ_[si]);            // + HF emphasis
                     }
 
-                    // Program compression: reduce drive as the signal gets hot.
                     float g = driveZ_;
                     if (hq_ && comp > 0.0f)
                     {
@@ -111,32 +130,37 @@ namespace lockstep
                         g *= 1.0f / (1.0f + comp * 2.0f * env_[si]);
                     }
 
-                    float wet;
-                    if (hq_)
-                    {
-                        float a, b;
-                        os_[si].upsample(in, a, b);
-                        a = shape(g * a + bias) - biasOffset;
-                        b = shape(g * b + bias) - biasOffset;
-                        wet = os_[si].decimate(a, b);
-                    }
-                    else
-                    {
-                        wet = shape(g * in);
-                    }
+                    data[i] = g * in + bias;
+                }
 
-                    // HQ low shelf (tape low-end character).
+                // Oversample the pre-shape signal, apply the tanh at 4x, decimate.
+                float* ptr = data;
+                juce::dsp::AudioBlock<float> block(&ptr, 1, static_cast<std::size_t>(nOs));
+                auto up = os_[si]->processSamplesUp(block);
+                float* upd = up.getChannelPointer(0);
+                const int un = static_cast<int>(up.getNumSamples());
+                for (int k = 0; k < un; ++k)
+                    upd[k] = shape(upd[k]) - biasOffset;
+                os_[si]->processSamplesDown(block);   // data[] now holds the wet signal
+
+                // Pass 3 (base rate): HQ low shelf + HF softening + dry/wet mix.
+                for (int i = 0; i < nOs; ++i)
+                {
+                    mixZ_ += smoothCoef_ * (mixTarget - mixZ_);
+                    outZ_ += smoothCoef_ * (outGain - outZ_);
+
+                    float wet = data[i];
                     if (hq_ && lowAmt != 0.0f)
                     {
                         lowZ_[si] += 0.08f * (wet - lowZ_[si]);        // one-pole LP (lows)
                         wet += lowAmt * lowZ_[si];
                     }
 
-                    // HF softening (post), both tiers.
                     toneZ_[si] += toneCoef * (wet - toneZ_[si]);
                     wet = toneZ_[si];
 
-                    data[i] = (dry * (1.0f - mixZ_) + wet * mixZ_) * outZ_;
+                    data[i] = (dryScratch_[static_cast<std::size_t>(i)]
+                               * (1.0f - mixZ_) + wet * mixZ_) * outZ_;
                 }
             }
         }
@@ -210,7 +234,11 @@ namespace lockstep
         std::array<float, 2> lowZ_{};
         std::array<float, 2> preZ_{};
         std::array<float, 2> env_{};
-        std::array<dsp::Oversampler2x, 2> os_{};
+        // One mono 2x oversampler per channel (built in prepare, so process() is
+        // allocation-free). dryScratch_ holds one channel's dry input across the
+        // oversampled shaping for the final dry/wet mix.
+        std::array<std::unique_ptr<juce::dsp::Oversampling<float>>, 2> os_{};
+        std::vector<float> dryScratch_;
         float driveZ_ = 1.0f;
         float mixZ_ = 1.0f;
         float outZ_ = 1.0f;

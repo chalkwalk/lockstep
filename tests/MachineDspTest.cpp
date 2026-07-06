@@ -757,6 +757,24 @@ namespace lockstep
               "Signalsmith cubic fractional read not at ramp midpoint");
     }
 
+    // Drive a hot high-frequency sine through an effect and return its alias/
+    // inharmonic ratio in dB (9.24). A nonlinearity without oversampling folds
+    // out-of-band harmonics back in-band; 2x oversampling should push this well
+    // below -40 dB.
+    static float measureEffectAlias(const std::string& id, EffectTier tier,
+                                    const ParamFrame& params, double testHz)
+    {
+        constexpr double sr = 48000.0;
+        constexpr int N = 1 << 16;
+        auto fx = makeEffectForId(id, tier);
+        if (fx == nullptr) return 0.0f;
+        fx->prepare(sr, N);
+        juce::AudioBuffer<float> buf(2, N);
+        fillSine(buf, testHz, sr, 0.9f);
+        fx->process(buf, N, params);
+        return aliasRatioDb(buf, testHz, sr);
+    }
+
     // Contract of the shared 4-point Hermite read (src/dsp/Interpolation.h),
     // used by both SamplePlayer and LoopMachine (9.24 S4). Hermite reproduces a
     // linear signal exactly, and its endpoints coincide with the sample values.
@@ -778,6 +796,47 @@ namespace lockstep
         testSignalsmithCompat();
         testMeasurementHelpers();
         testHermiteInterpolator();
+
+        // --- S5: Saturation oversampling (both faces) ---
+        // A hot 10 kHz sine at full drive is nearly a square wave: an
+        // un-oversampled tanh folds its high harmonics (30/50/70 kHz ...) back
+        // in-band. 4x oversampling filters most of them before decimation. The
+        // load-bearing claim is the large improvement over a non-oversampled tanh
+        // reference (~26 dB); the absolute floor at this pathological extreme is
+        // ~-34 dB (a few very high harmonics still fold even at 4x — chasing -40
+        // would need 8x for no audible gain), so the absolute bound is -30 dB.
+        {
+            constexpr double sr = 48000.0;
+            constexpr double f = 10000.0;
+            constexpr int N = 1 << 16;
+            // Reference: plain tanh at the same effective drive, NO oversampling.
+            juce::AudioBuffer<float> ref(1, N);
+            fillSine(ref, f, sr, 0.9f);
+            for (int n = 0; n < N; ++n)
+                ref.setSample(0, n, std::tanh(9.0f * ref.getSample(0, n)));  // drive 1 -> 9x
+            const float aliasRef = aliasRatioDb(ref, f, sr);
+
+            // LQ: {drive, tone, mix, out}. tone=1 (open) so the post-LP doesn't
+            // colour the measurement; drive=1 pushes hard into the curve.
+            const ParamFrame lq = { 1.0f, 1.0f, 1.0f, 0.5f };
+            const float aliasLq = measureEffectAlias("lockstep.saturation.v1",
+                                                     EffectTier::Track, lq, f);
+            CHECK(aliasLq < -30.0f,
+                  "Saturation LQ alias < -30 dB (got " + juce::String(aliasLq, 1) + ")");
+            CHECK(aliasLq < aliasRef - 20.0f,
+                  "Saturation LQ beats no-OS tanh by >20 dB (OS " + juce::String(aliasLq, 1)
+                  + " vs ref " + juce::String(aliasRef, 1) + ")");
+
+            // HQ: {drive, bias, comp, crisp, tone, low, mix, out}.
+            const ParamFrame hq = { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.5f, 1.0f, 0.5f };
+            const float aliasHq = measureEffectAlias("lockstep.saturation.v1",
+                                                     EffectTier::Master, hq, f);
+            CHECK(aliasHq < -30.0f,
+                  "Saturation HQ alias < -30 dB (got " + juce::String(aliasHq, 1) + ")");
+            CHECK(aliasHq < aliasRef - 20.0f,
+                  "Saturation HQ beats no-OS tanh by >20 dB (OS " + juce::String(aliasHq, 1)
+                  + " vs ref " + juce::String(aliasRef, 1) + ")");
+        }
 
         // --- AnalogMachine ---
         {
