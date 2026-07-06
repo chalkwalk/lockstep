@@ -2472,6 +2472,49 @@ exists and this milestone does not add one).
 - [ ] **S18 — Docs + full A/B sign-off** (ROADMAP / README / THIRDPARTY;
       fx_audition A/B vs the S2 baseline).
 
+### 9.25 — Sample-rate correctness + bandlimited resampling  *[planned]*
+Make sample playback **sample-rate-correct** and **anti-aliased** via one shared
+bandlimited resampler, and stop paying for fixed oversampling at high base rates.
+Surfaced during the 9.24 FOSS-DSP work: the
+Sample/Slice playback path ignores the file-vs-engine sample rate, and Hermite
+interpolation (9.24 S4) is anti-imaging only, so pitching a bright sample **up**
+still aliases. No serializer bump (playback-rate + DSP only; no new persistent
+state). Discipline: reuse the 9.24 `fx_audition` ear gate + `SpectralMeasure.h`
+alias/purity assertions; a 44.1 k-sample-in-48 k-session render is the acceptance
+case for the correctness fix.
+- [ ] **R1 — Shared bandlimited `Resampler`** (`src/dsp/Resampler.h`) built on
+      Signalsmith `InterpolatorKaiserSincN` (windowed-sinc, min-phase variants —
+      already vendored in 9.24 S1). Rate-aware: the lowpass cutoff tracks the
+      playback rate so reads faster than unity are anti-aliased. Unit-tested
+      (pitch-up purity, unity passthrough, DC gain).
+- [ ] **R2 — Sample-rate-correctness fix (bug).** Fold `fileRate/engineRate` into
+      the Sample/Slice playback rate (`SampleMachine.cpp:90`, `SliceMachine.cpp:130`
+      — currently `pow(2, semis/12)` only; the pool stores PCM at *file* rate with
+      no resample-on-load). Window/loop indices are file-sample based (unaffected).
+      Stream/Stretch already correct (Bungee native rate conversion, 9.23 S3).
+      Regression: a 44.1 k sample in a 48 k (and 96/192 k) session plays at correct
+      pitch/length; sync-slice alignment holds (analysis already uses file rate, so
+      today analysis and playback disagree at any mismatch).
+- [ ] **R3 — Anti-aliased sample pitch-up on read.** Route `SamplePlayer`'s read
+      through R1 (or oversample-then-decimate) when rate > 1 so up-pitched bright
+      samples don't alias. Test: pitch a bright sample up an octave, `aliasRatioDb`
+      bounded. (Down-pitch / rate < 1 stays fine on Hermite.)
+- [ ] **R4 — Looper varispeed write via the resampler.** Bandlimited scatter on
+      the overdub write path (`LoopMachine`, currently nearest-integer at
+      `LoopMachine.cpp:640`), keeping the 1× buffer (no 4× memory). Unity overdub
+      stays bit-exact (integer positions). **Fallback option** if the fractional
+      scatter-add proves too fiddly: a 4× oversampled loop buffer (simpler and
+      robust, but memory ×4 + always-on CPU ×4) — captured as the heavy alternative,
+      not the default.
+- [ ] **R5 — SR-scaled oversampling factor.** Derive the `juce::dsp::Oversampling`
+      factor from base `sampleRate` in `prepare()` (e.g. 8×@48k → 4×@96k → 2×@192k)
+      for Saturation/Distortion (9.24 S5/S7) and any future OS effect, holding the
+      effective processed rate ~constant — avoids ~1.5 MHz internal processing at
+      192 k for no audible gain. May be pulled forward into 9.24.
+- [ ] **R6 — SR-normalise remaining fixed one-pole corners** (minor): saturation
+      `preZ`/`lowZ` (and peers) use hardcoded coefficients whose corner drifts in Hz
+      with the sample rate; derive from `sr` so tonal character holds. Low priority.
+
 ---
 
 ## Phase 10 — Melodic & Harmonic Authoring  *[active]*
