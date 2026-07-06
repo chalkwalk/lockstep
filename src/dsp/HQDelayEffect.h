@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../machine/IEffect.h"
+#include "Interpolation.h"
 #include <cmath>
 #include <vector>
 
@@ -9,6 +10,13 @@ namespace lockstep
     // HQ Delay — tempo-synced ping-pong with color filter in feedback path.
     // Uses setTimeInfo(bpm) to update tempo. Mix defaults to 1.0.
     // masterOnly = true.
+    //
+    // Delay length is a fractional (sub-sample) target read with 4-point Hermite
+    // interpolation (9.24 S8). The read head slews toward the target with a
+    // one-pole "tape bend" (small tempo/division nudges glide, doppler-style);
+    // a jump larger than ~50 ms (a division switch) instead does a short
+    // equal-power-ish crossfade between the old and new taps rather than sweeping
+    // the whole distance, which would be an audible pitch dive.
     class HQDelayEffect final : public IEffect
     {
         static constexpr int kFxSec = 5;
@@ -26,6 +34,11 @@ namespace lockstep
         {
             sr_ = sampleRate;
             smoothCoef_ = 1.0f - std::exp(-1.0f / static_cast<float>(0.005 * sampleRate));
+            // Tape-bend one-pole (~50 ms) and jump/crossfade thresholds, SR-scaled.
+            slewCoef_ = 1.0 - std::exp(-1.0 / (0.05 * sampleRate));
+            bigJumpThresh_ = 0.05 * sampleRate;
+            xfadeLen_ = std::max(1, static_cast<int>(0.02 * sampleRate));
+            xfadeCount_ = 0;
             const int maxBufLen = static_cast<int>(sampleRate * 2.1);  // ~2s max
             for (auto& b : buf_) b.assign(static_cast<std::size_t>(maxBufLen), 0.0f);
             for (auto& h : head_) h = 0;
@@ -33,6 +46,8 @@ namespace lockstep
             for (auto& z : mixZ_) z = 1.0f;
             for (auto& z : colorZ_) z = 0.0f;
             updateDelayLen();
+            delayCur_ = delayTarget_;   // no initial slew glitch
+            delayOld_ = delayTarget_;
         }
 
         void reset() override
@@ -40,6 +55,9 @@ namespace lockstep
             for (auto& b : buf_) std::fill(b.begin(), b.end(), 0.0f);
             for (auto& h : head_) h = 0;
             for (auto& z : fbkZ_) z = 0.0f;
+            delayCur_ = delayTarget_;
+            delayOld_ = delayTarget_;
+            xfadeCount_ = 0;
         }
 
         void setTimeInfo(double bpm) override
@@ -76,17 +94,64 @@ namespace lockstep
                 -2.0f * static_cast<float>(M_PI) * (color >= 0.0f ? 3000.0f : 200.0f)
                 / static_cast<float>(sr_));
 
+            const int bufLen = static_cast<int>(buf_[0].size());
+            // 4-point Hermite read of `b` at a fractional delay behind `head`.
+            const auto readFrac = [&](const std::vector<float>& b, int head,
+                                      double delay) {
+                double readPos = static_cast<double>(head) - delay;
+                while (readPos < 0.0) readPos += static_cast<double>(bufLen);
+                const int i0 = static_cast<int>(readPos);
+                const float fr = static_cast<float>(readPos - static_cast<double>(i0));
+                const auto at = [&](int k) {
+                    const int idx = ((i0 + k) % bufLen + bufLen) % bufLen;
+                    return b[static_cast<std::size_t>(idx)];
+                };
+                return hermite4(at(-1), at(0), at(1), at(2), fr);
+            };
+
             for (int n = 0; n < numSamples; ++n)
             {
                 const float inL = numCh > 0 ? buffer.getReadPointer(0)[n] : 0.0f;
                 const float inR = numCh > 1 ? buffer.getReadPointer(1)[n] : inL;
 
-                // Read delay (ping-pong: L reads from R's delay, R from L's delay).
-                const int bufLen = static_cast<int>(buf_[0].size());
-                const int rdL = (head_[0] - delayLen_ + bufLen) % bufLen;
-                const int rdR = (head_[1] - delayLen_ + bufLen) % bufLen;
-                float dlyL = buf_[0][static_cast<std::size_t>(rdR)];  // ping-pong swap
-                float dlyR = buf_[1][static_cast<std::size_t>(rdL)];
+                // Advance the read length: tape-bend slew for small changes, a
+                // short crossfade for a big jump (division switch) so we don't
+                // sweep the whole distance and pitch-dive.
+                bool xfade = xfadeCount_ > 0;
+                if (!xfade)
+                {
+                    const double diff = delayTarget_ - delayCur_;
+                    if (std::abs(diff) > bigJumpThresh_)
+                    {
+                        delayOld_ = delayCur_;
+                        delayCur_ = delayTarget_;
+                        xfadeCount_ = xfadeLen_;
+                        xfade = true;
+                    }
+                    else
+                    {
+                        delayCur_ += slewCoef_ * diff;
+                    }
+                }
+                float newGain = 1.0f;
+                if (xfade)
+                {
+                    newGain = 1.0f - static_cast<float>(xfadeCount_)
+                                         / static_cast<float>(xfadeLen_);
+                    --xfadeCount_;
+                }
+
+                // Read delay taps (fractional, Hermite). Ping-pong is realised in
+                // the write below; the two heads advance in lockstep so the read
+                // index is the same for both channels.
+                const auto readTap = [&](const std::vector<float>& b) {
+                    const float nw = readFrac(b, head_[0], delayCur_);
+                    if (!xfade) return nw;
+                    const float od = readFrac(b, head_[0], delayOld_);
+                    return od * (1.0f - newGain) + nw * newGain;
+                };
+                float dlyL = readTap(buf_[0]);
+                float dlyR = readTap(buf_[1]);
 
                 // Color filter in feedback (tilt-like: LP if color<0, HP if color>0).
                 for (int c = 0; c < 2; ++c)
@@ -177,9 +242,10 @@ namespace lockstep
             const double divBeats = kDivBeats[static_cast<std::size_t>(
                 juce::jlimit(0, kNumDivs - 1, lastDivIdx_))];
             const double beatSecs = 60.0 / bpm_;
-            const int maxLen = static_cast<int>(buf_[0].size());
-            delayLen_ = juce::jlimit(1, maxLen - 1,
-                static_cast<int>(divBeats * beatSecs * sr_));
+            const double maxLen = static_cast<double>(buf_[0].size());
+            // Keep two samples of head-room for the Hermite neighbours.
+            delayTarget_ = juce::jlimit(2.0, maxLen - 3.0,
+                divBeats * beatSecs * sr_);
         }
 
         // HQ face of the unified "Delay" entry (auto-selected on master slots).
@@ -191,7 +257,13 @@ namespace lockstep
 
         std::vector<float> buf_[2];
         int head_[2] = { 0, 0 };
-        int delayLen_ = 22050;
+        double delayTarget_ = 22050.0;  // fractional target length (samples)
+        double delayCur_ = 22050.0;     // slewed read length (tape bend)
+        double delayOld_ = 22050.0;     // frozen tap during a crossfade
+        double slewCoef_ = 0.0f;        // one-pole tape-bend coefficient
+        double bigJumpThresh_ = 2205.0; // >~50 ms jump -> crossfade, not slew
+        int xfadeLen_ = 882;            // ~20 ms crossfade
+        int xfadeCount_ = 0;            // samples remaining in the crossfade
         int lastDivIdx_ = 4;
 
         float fbkZ_[2] = { 0.0f, 0.0f };

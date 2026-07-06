@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../machine/IEffect.h"
+#include "Interpolation.h"
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -10,6 +11,9 @@ namespace lockstep
     // Simple stereo delay — Time / Feedback / Mix / LPF.
     // Per-sample smoothing on mix and feedback (~5ms); time slews at
     // max 1 sample/sample to prevent read-head glitches on time changes.
+    // The read tap is a 4-point Hermite fractional read (9.24 S8) so the slewed
+    // (non-integer) delay length doesn't quantise to whole samples — that
+    // quantisation was the source of the "zipper" retune buzz on time sweeps.
     class DelayEffect final : public IEffect
     {
     public:
@@ -67,9 +71,19 @@ namespace lockstep
                     mixZ += smoothCoef_ * (mixTarget - mixZ);
                     fbkZ += smoothCoef_ * (feedbackTarget - fbkZ);
 
-                    const int dSamples = static_cast<int>(timeSampF);
-                    const int rd = (wr - dSamples + bufSize) % bufSize;
-                    float wet = b[static_cast<std::size_t>(rd)];
+                    // Fractional read at a continuous delay of `dSamplesF`. Clamp
+                    // so the four Hermite neighbours stay inside the buffer.
+                    const float dSamplesF = std::clamp(
+                        timeSampF, 2.0f, static_cast<float>(bufSize - 3));
+                    float readPos = static_cast<float>(wr) - dSamplesF;
+                    if (readPos < 0.0f) readPos += static_cast<float>(bufSize);
+                    const int i0 = static_cast<int>(readPos);
+                    const float fr = readPos - static_cast<float>(i0);
+                    const auto at = [&](int k) {
+                        const int idx = ((i0 + k) % bufSize + bufSize) % bufSize;
+                        return b[static_cast<std::size_t>(idx)];
+                    };
+                    float wet = hermite4(at(-1), at(0), at(1), at(2), fr);
                     lpZ += lpf * (wet - lpZ);
                     b[static_cast<std::size_t>(wr)] = data[i] + lpZ * fbkZ;
                     wr = (wr + 1) % bufSize;

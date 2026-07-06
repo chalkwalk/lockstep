@@ -2454,7 +2454,13 @@ exists and this milestone does not add one).
       down like S5). **8x** — drive reaches 20x (near-square); 4x left ~-24 dB
       alias. Per-insert (not per-voice) so the stages are affordable. Beats a no-OS
       20x-tanh reference by >20 dB, clears -30 dB absolute.
-- [ ] **S8 — Delay fractional taps + tape-style retune slew.**
+- [x] **S8 — Delay fractional taps + tape-style retune slew.** LQ `DelayEffect`
+      read tap is now 4-point Hermite (fractional delay); HQ `HQDelayEffect` reads
+      a fractional length with a one-pole tape-bend slew (~50 ms) toward the target
+      and a short (~20 ms) crossfade for jumps >50 ms (division switches) instead
+      of sweeping the whole distance. Test: 440 Hz sine while the tempo ramps
+      120→121 over 64 blocks keeps `maxSampleStep < 0.1` (whole-sample retune
+      would spike far higher). `--bpm-ramp` audition available.
 - [ ] **S9 — Chorus rebuild** (hand-rolled multi-voice; `juce::dsp::Chorus` is
       single-voice, not an upgrade). Appends `chorus_fb` (default 0 = legacy sound).
 - [ ] **S10 — HQ FDN reverb: Hermite on modulated reads only** (topology kept).

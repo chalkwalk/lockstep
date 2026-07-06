@@ -862,6 +862,56 @@ namespace lockstep
                   + " vs ref " + juce::String(aliasRef, 1) + ")");
         }
 
+        // --- S8: Delay fractional taps + tape-style retune ---
+        // A steady sine through the HQ delay while the tempo ramps 120 -> 121 over
+        // 64 blocks. Integer read taps quantise the (continuously slewing) delay
+        // length to whole samples, producing a stair-step "zipper" in the output
+        // (a large per-sample jump). The Hermite fractional read + one-pole tape
+        // bend must keep the output continuous. We bound maxSampleStep on the wet
+        // signal well under the per-sample delta a whole-sample retune would make.
+        {
+            constexpr double sr = 48000.0;
+            constexpr int blocks = 64;
+            constexpr int blockLen = 256;
+            auto fx = makeEffectForId("lockstep.delay.v1", EffectTier::Master);
+            CHECK(fx != nullptr, "S8: HQ delay must construct");
+            if (fx != nullptr)
+            {
+                fx->prepare(sr, blockLen);
+                fx->setTimeInfo(120.0);
+                // 1/16 division (param 0 = 0) -> shortest tap, so a 1 BPM ramp
+                // moves the length continuously; feedback low, fully wet.
+                const ParamFrame prm = { 0.0f, 0.3f, 0.0f, 1.0f, 1.0f };
+                double phase = 0.0;
+                const double w = 2.0 * M_PI * 440.0 / sr;
+                float worst = 0.0f;
+                for (int blk = 0; blk < blocks; ++blk)
+                {
+                    const double bpm = 120.0 + static_cast<double>(blk)
+                                                   / static_cast<double>(blocks - 1);
+                    fx->setTimeInfo(bpm);
+                    juce::AudioBuffer<float> buf(2, blockLen);
+                    for (int n = 0; n < blockLen; ++n)
+                    {
+                        const float s = static_cast<float>(std::sin(phase)) * 0.5f;
+                        buf.setSample(0, n, s);
+                        buf.setSample(1, n, s);
+                        phase += w;
+                    }
+                    fx->process(buf, blockLen, prm);
+                    // Skip the first few blocks (delay buffer filling from silence).
+                    if (blk >= 8)
+                        worst = std::max(worst, maxSampleStep(buf));
+                }
+                CHECK(std::isfinite(worst), "S8: HQ delay retune produced non-finite");
+                // A 440 Hz sine at amp 0.5 has a max legitimate per-sample step of
+                // ~0.5*w ~= 0.03; a whole-sample retune glitch would spike far above
+                // 0.2. Bound comfortably between.
+                CHECK(worst < 0.1f,
+                      "S8: HQ delay retune step bounded (got " + juce::String(worst, 4) + ")");
+            }
+        }
+
         // --- AnalogMachine ---
         {
             AnalogMachine va;
