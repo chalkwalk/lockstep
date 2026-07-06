@@ -2454,6 +2454,15 @@ exists and this milestone does not add one).
       down like S5). **8x** — drive reaches 20x (near-square); 4x left ~-24 dB
       alias. Per-insert (not per-voice) so the stages are affordable. Beats a no-OS
       20x-tanh reference by >20 dB, clears -30 dB absolute.
+      **Ear-test bugfix (post-S18):** Distortion's tone LP used the raw `tone` param
+      as its coefficient, so `tone=0` froze the filter at a dead DC block — with
+      `mix=1` (the fx_audition "extreme" preset) the wet path went silent and only
+      the mix-smoothing ramp leaked the input transient (the "distortion is just a
+      click" report). This was pre-existing, not caused by the oversampling. Fixed by
+      flooring the coefficient (`0.02 + tone²·0.98`, mirroring Saturation) so `tone=0`
+      is dark, not dead. Regression test: extreme preset now sustains (tail RMS
+      audible, not a transient). Also added `fx_audition --ab` (dry→gap→wet in one
+      file) for quick effect-vs-bypass A/B.
 - [x] **S8 — Delay fractional taps + tape-style retune slew.** LQ `DelayEffect`
       read tap is now 4-point Hermite (fractional delay); HQ `HQDelayEffect` reads
       a fractional length with a one-pole tape-bend slew (~50 ms) toward the target

@@ -23,3 +23,5 @@ compile_commands.json
 # OS
 .DS_Store
 Thumbs.db
+/fx_after_distfix/
+/ab_out/

@@ -53,6 +53,13 @@ namespace lockstep
             const float tone = params.size() > 1 ? params[1] : 1.0f;
             const float mixTarget = params.size() > 2 ? params[2] : 0.5f;
 
+            // Tone -> post-LP one-pole coefficient. Floored (0 -> dark ~150 Hz, not
+            // a dead DC block) so tone=0 stays audible; 1 -> open (near bypass). The
+            // raw-`tone`-as-coefficient form froze the filter at 0 at tone=0, which
+            // (with mix=1) muted the wet path entirely — the "distortion is just a
+            // click" bug. Mirrors SaturationEffect::toneCoefFor.
+            const float toneCoef = 0.02f + tone * tone * 0.98f;
+
             const int nOs = std::min(numSamples, static_cast<int>(dryScratch_.size()));
 
             for (int c = 0; c < ch; ++c)
@@ -88,7 +95,7 @@ namespace lockstep
                 for (int i = 0; i < nOs; ++i)
                 {
                     mixZ += smoothCoef_ * (mixTarget - mixZ);
-                    lpZ += tone * (data[i] - lpZ);
+                    lpZ += toneCoef * (data[i] - lpZ);
                     data[i] = dryScratch_[static_cast<std::size_t>(i)] * (1.0f - mixZ)
                               + lpZ * mixZ;
                 }

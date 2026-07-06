@@ -1,7 +1,11 @@
 // fx_audition — offline ear-test gate for the FX catalogue (9.24).
 //
 // Usage: fx_audition [output-dir] [--effect <id-substr>] [--signal <name>]
-//                    [--bpm-ramp]
+//                    [--bpm-ramp] [--ab]
+//
+//   --ab   write each render as dry -> 0.25 s gap -> wet in ONE file, so pressing
+//          play auditions "before then after" directly (an easy effect-vs-bypass
+//          A/B). Example: fx_audition ab_out --effect drv --signal drum --ab
 //
 // Renders a before/after matrix with NO input file: every catalogue effect
 // (skipping the External send sentinel) is driven with internally synthesised
@@ -202,6 +206,26 @@ namespace
         return out;
     }
 
+    // A/B buffer: the dry probe, a short gap, then the wet render — so pressing
+    // play auditions "before then after" in one file (--ab). Stereo throughout.
+    juce::AudioBuffer<float> makeAbBuffer(const std::vector<float>& dryMono,
+                                          const juce::AudioBuffer<float>& wet)
+    {
+        const int dryLen = static_cast<int>(dryMono.size());
+        const int gap = static_cast<int>(kRate * 0.25);
+        const int wetLen = wet.getNumSamples();
+        juce::AudioBuffer<float> ab(2, dryLen + gap + wetLen);
+        ab.clear();
+        for (int i = 0; i < dryLen; ++i)
+        {
+            ab.setSample(0, i, dryMono[static_cast<std::size_t>(i)]);
+            ab.setSample(1, i, dryMono[static_cast<std::size_t>(i)]);
+        }
+        for (int ch = 0; ch < 2; ++ch)
+            ab.copyFrom(ch, dryLen + gap, wet, ch, 0, wetLen);
+        return ab;
+    }
+
     // Detect a tier-aware effect: its Track and Master faces differ (param count).
     bool facesDiffer(const std::string& id)
     {
@@ -223,6 +247,7 @@ int main(int argc, char* argv[])
     juce::String effectFilter;
     juce::String signalFilter;   // empty = all
     bool bpmRamp = false;
+    bool abMode = false;         // --ab: dry -> gap -> wet in one file
 
     for (int i = 1; i < argc; ++i)
     {
@@ -230,6 +255,7 @@ int main(int argc, char* argv[])
         if (a == "--effect" && i + 1 < argc)      effectFilter = juce::String(argv[++i]);
         else if (a == "--signal" && i + 1 < argc) signalFilter = juce::String(argv[++i]);
         else if (a == "--bpm-ramp")               bpmRamp = true;
+        else if (a == "--ab")                     abMode = true;
         else if (!a.startsWith("--"))             outArg = a;
         else { std::cerr << "unknown flag: " << a << "\n"; return 2; }
     }
@@ -248,6 +274,7 @@ int main(int argc, char* argv[])
 
     std::cout << "fx_audition  " << kRate << " Hz  -> " << outDir.getFullPathName() << "\n";
     if (bpmRamp) std::cout << "  (bpm-ramp 120->150 across each render)\n";
+    if (abMode)  std::cout << "  (A/B: dry -> gap -> wet in one file)\n";
 
     int written = 0, failed = 0;
     for (const EffectInfo& e : availableEffects())
@@ -280,10 +307,12 @@ int main(int argc, char* argv[])
 
                     float gain = 1.0f;
                     auto rendered = renderThrough(*fx, sig.mono, params, bpmRamp, gain);
+                    if (abMode)
+                        rendered = makeAbBuffer(sig.mono, rendered);
 
                     const juce::String name = shortName(e) + "_" + tierName + "_"
                         + preset + "_" + sig.name
-                        + (bpmRamp ? "_bpmramp" : "") + ".wav";
+                        + (bpmRamp ? "_bpmramp" : "") + (abMode ? "_ab" : "") + ".wav";
                     const bool ok = writeWav(outDir.getChildFile(name), rendered, kRate);
                     if (ok) { ++written;
                         std::cout << "  wrote " << name

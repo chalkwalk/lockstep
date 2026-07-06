@@ -865,6 +865,36 @@ namespace lockstep
                   + " vs ref " + juce::String(aliasRef, 1) + ")");
         }
 
+        // --- S7 regression: extreme preset must not collapse to a click ---
+        // The fx_audition "extreme" preset drives Distortion at tone=0, mix=1. The
+        // old raw-tone-as-coefficient tone LP froze at 0 there (dead DC block), so
+        // with the dry removed by mix=1 the wet path was silent and only the mix-
+        // smoothing ramp let the input transient leak — the "just a click" bug.
+        // A sustained tone at that preset must produce sustained output well past
+        // the ~5 ms smoothing window.
+        {
+            constexpr double sr = 48000.0;
+            constexpr int N = 1 << 14;
+            auto fx = makeEffectForId("lockstep.distortion.v1", EffectTier::Track);
+            CHECK(fx != nullptr, "distortion constructs");
+            if (fx != nullptr)
+            {
+                fx->prepare(sr, N);
+                fx->reset();
+                juce::AudioBuffer<float> buf(1, N);
+                fillSine(buf, 220.0, sr, 0.5f);
+                const ParamFrame prm = { 1.0f, 0.0f, 1.0f };  // drive 20x, tone 0, mix wet
+                fx->process(buf, N, prm);
+                CHECK(!hasNaNOrInf(buf), "distortion extreme: finite");
+                // RMS of the last quarter (well past mix smoothing) must be audible.
+                juce::AudioBuffer<float> tail(1, N / 4);
+                tail.copyFrom(0, 0, buf, 0, 3 * N / 4, N / 4);
+                CHECK(blockRms(tail) > 1e-2f,
+                      "distortion extreme (tone=0,mix=1) sustains, not just a click (tail RMS "
+                      + juce::String(blockRms(tail), 4) + ")");
+            }
+        }
+
         // --- S8: Delay fractional taps + tape-style retune ---
         // A steady sine through the HQ delay while the tempo ramps 120 -> 121 over
         // 64 blocks. Integer read taps quantise the (continuously slewing) delay
