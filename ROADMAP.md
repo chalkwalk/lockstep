@@ -2399,8 +2399,15 @@ is the named real-time fallback if Bungee fails the ear test. WSOLA
       override-else-detected consumed everywhere (stretch ratio, autoFit, sync-slice,
       displayHint with `*`). Serialised (osh/ubpm/ukeyR/ukeyB/utune/uosh), incl. on
       Stream entries; upgrade_v29_to_v30 stamp.
-- [ ] **S6 — Pool "sample properties" MZ editor** (`Overlay::SampleProps` +
-      `MetaBand::SampleProps`, `Props…` button, 8-field band). *Remaining.*
+- [x] **S6 — Pool "sample properties" MZ editor.** Sticky `Overlay::SampleProps`
+      + `MetaBand::SampleProps`; `Props…` button on the pool row enters it with
+      `samplePropsPoolIndex`. 8-field band (BPM / BPMx spring / Root / Mode / Tune /
+      1Shot / Revert spring / read-only Name) routes each slot to the single-owner
+      `SamplePool` setters; effective values + `hasOverride` drive the readout. Exit
+      on Func double-tap or any foreign scope/section. Mandated modality triple
+      shipped (ModeReducer / ModalState / MetaBand — resolution, scope routing, and a
+      write→serialize→reload round-trip). Milestone code-complete pending the S1
+      ear-test gate + the Stream→pool wiring follow-up.
 - [x] **S7 — A440 Auto/Raw + fine-tune on Sample/Slicer** (+ Stretch tune mode).
       Auto cancels the detected deviation; Raw plays as recorded.
 - [~] **S8 — Docs** (this block; DESIGN/README/THIRDPARTY).
