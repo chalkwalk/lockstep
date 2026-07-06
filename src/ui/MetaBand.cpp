@@ -1544,6 +1544,120 @@ namespace lockstep
         return result;
     }
 
+    // Pool sample-properties band (9.23, S6). Pool-scoped, not track-scoped: it
+    // reads/writes the SamplePool entry at ui.samplePropsPoolIndex through the
+    // effective (override-else-detected) accessors. An invalid/volatile index
+    // renders an inert band (all slots inactive) so a removed row is a no-op.
+    static std::array<MetaFieldView, 8> buildSamplePropsBand(LockstepProcessor& proc, int index)
+    {
+        std::array<MetaFieldView, 8> result{};
+        auto& pool = proc.samplePool();
+        const Sample* s = pool.get(index);
+        if (index < 0 || index >= pool.size() || s == nullptr)
+            return result;  // inert
+
+        const double effBpm    = pool.effectiveBpm(index);
+        const int    effRoot   = pool.effectiveKeyRoot(index);
+        const int    effBright = pool.effectiveKeyBrightness(index);
+        const double effTune   = pool.effectiveTuningCents(index);
+        const int    oneShot   = s->userOneShot;  // -1 Auto / 0 Off / 1 On
+
+        // 0 — BPM (nudge around effective; unknown starts at a musical default).
+        {
+            auto& v = result[0];
+            v.active = true; v.writable = true; v.stepped = false;
+            v.label = "BPM";
+            v.minValue = 40.0f; v.maxValue = 300.0f;
+            v.value = static_cast<float>(effBpm > 0.0 ? effBpm : 120.0);
+            v.hasOverride = (s->userBpm > 0.0);
+            v.ringMode = RingMode::UnipolarFill;
+            v.valueText = (effBpm > 0.0)
+                ? juce::String(juce::roundToInt(effBpm)) + " bpm"
+                : juce::String("--");
+        }
+        // 1 — BPMx (spring: /2 . = . x2 around effective bpm).
+        {
+            auto& v = result[1];
+            v.active = true; v.writable = true; v.stepped = true;
+            v.label = "BPMx";
+            v.minValue = 0.0f; v.maxValue = 2.0f;
+            v.value = 1.0f;  // resting centre
+            v.hasOverride = false;
+            v.ringMode = RingMode::Dot;
+            v.valueText = "=";
+        }
+        // 2 — Root ( -- / C .. B ; step 0 clears the key override).
+        {
+            auto& v = result[2];
+            v.active = true; v.writable = true; v.stepped = true;
+            v.label = "Root";
+            v.minValue = 0.0f; v.maxValue = 12.0f;
+            v.value = static_cast<float>(effRoot >= 0 ? effRoot + 1 : 0);
+            v.hasOverride = (s->userKeyRoot >= 0);
+            v.ringMode = RingMode::Dot;
+            v.valueText = (effRoot >= 0) ? juce::String(pitchClassName(effRoot))
+                                         : juce::String("--");
+        }
+        // 3 — Mode (brightness: Lydian .. Locrian; only meaningful with a root).
+        {
+            auto& v = result[3];
+            v.active = true; v.writable = true; v.stepped = true;
+            v.label = "Mode";
+            v.minValue = 0.0f; v.maxValue = 6.0f;  // 0=Lydian(0) .. 6=Locrian(-6)
+            v.value = static_cast<float>(-effBright);
+            v.hasOverride = (s->userKeyRoot >= 0);
+            v.ringMode = RingMode::Dot;
+            v.valueText = juce::String(modeName(effBright));
+        }
+        // 4 — Tune (fine tuning, +/-50 cents).
+        {
+            auto& v = result[4];
+            v.active = true; v.writable = true; v.stepped = false;
+            v.label = "Tune";
+            v.minValue = -50.0f; v.maxValue = 50.0f;
+            v.value = static_cast<float>(effTune);
+            v.hasOverride = s->hasUserTuning;
+            v.ringMode = RingMode::BipolarFromCentre;
+            const int c = juce::roundToInt(effTune);
+            v.valueText = (c >= 0 ? "+" : "") + juce::String(c) + " c";
+        }
+        // 5 — 1Shot ( Auto / Off / On -> userOneShot -1 / 0 / 1 ).
+        {
+            auto& v = result[5];
+            v.active = true; v.writable = true; v.stepped = true;
+            v.label = "1Shot";
+            v.minValue = 0.0f; v.maxValue = 2.0f;
+            v.value = static_cast<float>(oneShot + 1);
+            v.hasOverride = (oneShot != -1);
+            v.ringMode = RingMode::Dot;
+            static const char* osLabels[] = { "Auto", "Off", "On" };
+            v.valueText = juce::String(osLabels[static_cast<std::size_t>(
+                juce::jlimit(0, 2, oneShot + 1))]);
+        }
+        // 6 — Revert (spring: Keep . Detect ; Detect clears every user override).
+        {
+            auto& v = result[6];
+            v.active = true; v.writable = true; v.stepped = true;
+            v.label = "Revert";
+            v.minValue = 0.0f; v.maxValue = 1.0f;
+            v.value = 0.0f;  // resting on Keep
+            v.hasOverride = false;
+            v.ringMode = RingMode::Dot;
+            v.valueText = "Keep";
+        }
+        // 7 — Name (read-only header showing the entry's display name).
+        {
+            auto& v = result[7];
+            v.active = true; v.writable = false; v.stepped = true;
+            v.label = "Name";
+            v.minValue = 0.0f; v.maxValue = 1.0f;
+            v.value = 0.0f;
+            v.ringMode = RingMode::Dot;
+            v.valueText = pool.displayName(index);
+        }
+        return result;
+    }
+
     std::array<MetaFieldView, 8> buildMetaBand(MetaBand band,
                                                int swingScope,
                                                LockstepProcessor& proc,
@@ -1551,6 +1665,8 @@ namespace lockstep
                                                const EditContext& ctx,
                                                const UiState& ui)
     {
+        if (band == MetaBand::SampleProps)
+            return buildSamplePropsBand(proc, ui.samplePropsPoolIndex);
         if (band == MetaBand::Density)
             return buildDensityBand(proc, ui, track);
         if (band == MetaBand::DensityMode)
@@ -1954,6 +2070,62 @@ namespace lockstep
                     std::clamp(value, -0.5f, 0.5f);
             }
             ctx.markParamWritten();
+            return;
+        }
+
+        // 9.23 S6: pool sample-properties band. Pool-scoped (not track-scoped):
+        // route each slot to the matching single-owner SamplePool setter, keyed on
+        // ui.samplePropsPoolIndex. BPMx / Revert are spring controls — the write
+        // applies the action and the band rebuilds back to its resting centre.
+        if (band == MetaBand::SampleProps)
+        {
+            auto& pool = proc.samplePool();
+            const int index = ui.samplePropsPoolIndex;
+            if (index < 0 || index >= pool.size() || pool.get(index) == nullptr)
+                return;
+            const double effBpm    = pool.effectiveBpm(index);
+            const int    effRoot   = pool.effectiveKeyRoot(index);
+            const int    effBright = pool.effectiveKeyBrightness(index);
+            switch (field)
+            {
+                case 0:  // BPM — set the user override directly.
+                    pool.setUserBpm(index, std::clamp(static_cast<double>(value), 40.0, 300.0));
+                    break;
+                case 1:  // BPMx — spring: /2 (0) . = (1) . x2 (2).
+                {
+                    const int r = juce::roundToInt(value);
+                    if (effBpm > 0.0 && r != 1)
+                        pool.setUserBpm(index, std::clamp(effBpm * (r == 0 ? 0.5 : 2.0), 40.0, 300.0));
+                    break;
+                }
+                case 2:  // Root — step 0 clears, 1..12 = C..B (keeps brightness).
+                {
+                    const int r = juce::roundToInt(value);
+                    if (r <= 0)
+                        pool.setUserKey(index, -1, effBright);
+                    else
+                        pool.setUserKey(index, std::clamp(r - 1, 0, 11), effBright);
+                    break;
+                }
+                case 3:  // Mode — brightness 0..-6 (Lydian..Locrian); needs a root.
+                    pool.setUserKey(index, effRoot,
+                                    -std::clamp(juce::roundToInt(value), 0, 6));
+                    break;
+                case 4:  // Tune — +/-50 cents (0 clears; Revert clears with the rest).
+                {
+                    const double c = std::clamp(static_cast<double>(value), -50.0, 50.0);
+                    pool.setUserTuningCents(index, c, c != 0.0);
+                    break;
+                }
+                case 5:  // 1Shot — Auto (0) / Off (1) / On (2) -> userOneShot -1/0/1.
+                    pool.setUserOneShot(index, std::clamp(juce::roundToInt(value), 0, 2) - 1);
+                    break;
+                case 6:  // Revert — spring: Detect (1) clears every user override.
+                    if (juce::roundToInt(value) >= 1)
+                        pool.clearUserOverrides(index);
+                    break;
+                default: break;  // slot 7 (Name) is read-only
+            }
             return;
         }
 
@@ -2444,6 +2616,7 @@ namespace lockstep
             case MetaBand::Time:           return "TIME";
             case MetaBand::Key:            return "KEY";
             case MetaBand::StepPosition:   return "MOVE";
+            case MetaBand::SampleProps:    return "SAMPLE";
             default:                       return {};
         }
     }
