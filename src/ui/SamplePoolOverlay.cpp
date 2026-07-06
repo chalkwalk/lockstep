@@ -104,6 +104,19 @@ namespace lockstep
         };
         addAndMakeVisible(promoteBtn_);
 
+        // 9.23 S6: open the sample-properties editor (BPM/key/tune/one-shot) for
+        // the selected row. Handing the index to the editor lets it close this
+        // overlay and drive the sticky SampleProps meta band.
+        propsBtn_.setWantsKeyboardFocus(false);
+        propsBtn_.setEnabled(false);
+        propsBtn_.onClick = [this] {
+            const int row = selectedPoolIndex();
+            if (row < 0 || row >= processor_.samplePool().size())
+                return;
+            if (onEditProps) onEditProps(row);
+        };
+        addAndMakeVisible(propsBtn_);
+
         removeBtn_.setWantsKeyboardFocus(false);
         removeBtn_.onClick = [this] {
             const int row = selectedPoolIndex();
@@ -266,6 +279,9 @@ namespace lockstep
                                 && pool.get(row)->pcm.getNumSamples() > 0;
         relinkBtn_.setEnabled(missing);
         promoteBtn_.setEnabled(promotable);
+        // Props edits pool metadata (BPM/key/tune/one-shot) — available for any
+        // real selected entry (File / Stream / captured volatile).
+        propsBtn_.setEnabled(hasSel);
         removeBtn_.setEnabled(isFile);   // volatile REC slots aren't removable
         upBtn_.setEnabled(isFile && row > 0 && !pool.isVolatileIndex(row - 1));
         downBtn_.setEnabled(isFile && row < pool.size() - 1
@@ -396,6 +412,7 @@ namespace lockstep
         btnRow.removeFromRight(4);
         loadBtn_.setBounds(btnRow.removeFromLeft(70).reduced(1));
         promoteBtn_.setBounds(btnRow.removeFromLeft(64).reduced(1));
+        propsBtn_.setBounds(btnRow.removeFromLeft(64).reduced(1));
 
         bounds.removeFromBottom(4);
         list_.setBounds(bounds);

@@ -680,6 +680,18 @@ namespace lockstep
 
         poolOverlay_.onClose = [this] { poolOverlay_.setVisible(false); };
         poolOverlay_.getActiveTrack = [this]() { return keyboardArea_.getActiveTrack(); };
+        // 9.23 S6: Props… on a pool row opens the sticky sample-properties band.
+        // Close the pool overlay, enter Overlay::SampleProps on the chosen index,
+        // and refresh through the single-owner surface path so the MZ shows it.
+        poolOverlay_.onEditProps = [this](int poolIndex) {
+            if (poolIndex < 0 || poolIndex >= processor_.samplePool().size())
+                return;
+            poolOverlay_.setVisible(false);
+            uiState_.overlay = Overlay::SampleProps;
+            uiState_.samplePropsPoolIndex = poolIndex;
+            refreshMetaBand();
+            refreshSurface();
+        };
         addChildComponent(poolOverlay_);
 
         soundBankBtn_.setWantsKeyboardFocus(false);

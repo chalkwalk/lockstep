@@ -24,6 +24,10 @@ namespace lockstep
         // Called by the editor when it wants to close the overlay.
         std::function<void()> onClose;
 
+        // 9.23 S6: fired with the selected pool index when the user presses
+        // Props… — the editor opens the sample-properties meta band on it.
+        std::function<void(int)> onEditProps;
+
         void paint(juce::Graphics& g) override;
         void resized() override;
         void timerCallback() override;
@@ -59,6 +63,7 @@ namespace lockstep
         juce::TextButton loadBtn_{ "Load..." };
         juce::TextButton relinkBtn_{ "Relink..." };
         juce::TextButton promoteBtn_{ "Save..." };  // 9.18: volatile capture -> durable File
+        juce::TextButton propsBtn_{ "Props..." };   // 9.23: edit BPM/key/tune/one-shot
         juce::TextButton removeBtn_{ "Remove" };
         juce::TextButton upBtn_{ juce::String(u8"↑") };
         juce::TextButton downBtn_{ juce::String(u8"↓") };
