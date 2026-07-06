@@ -2500,7 +2500,12 @@ exists and this milestone does not add one).
       `kEffects` + `makeEffectForId` (no tier split). Tests: ladder LP24 kills a
       12 kHz probe > 30 dB; shifter 1 kHz +200 Hz peaks at 1.2 kHz with lower
       sideband and carrier leakage both < -30 dB.
-- [ ] **S14 — New effect: Limiter** (master-only, zero-lookahead safety limiter).
+- [x] **S14 — New effect: Limiter** (master-only, zero-lookahead safety limiter).
+      `LimiterEffect` (id `lockstep.limiter.v1`) wraps `juce::dsp::Limiter` —
+      Gain (drive dB) / Ceiling (dB) / Release (ms). masterOnly. No lookahead =>
+      no PDC (drops onto the zero-latency master chain); documented as a safety
+      limiter, not a brickwall maximiser. Test: +6 dB sine over a -1 dB ceiling is
+      held to <= ceiling+0.5 dB while still passing signal.
 - [ ] **S15 — Serializer v31: optional `SampleId irRef` on insert slots** (upgrade
       = stamped copy).
 - [ ] **S16 — Convolution reverb** (`juce::dsp::Convolution`, zero-latency; IR-select

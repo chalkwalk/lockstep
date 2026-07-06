@@ -1070,6 +1070,52 @@ namespace lockstep
             }
         }
 
+        // --- S14: master safety limiter ---
+        // A sine well above the ceiling must be held to the ceiling (+0.5 dB
+        // tolerance — the zero-lookahead limiter allows a small transient
+        // overshoot, which is the documented "safety not brickwall" behaviour).
+        {
+            constexpr double sr = 48000.0;
+            constexpr int blockLen = 256;
+            auto fx = makeEffectForId("lockstep.limiter.v1", EffectTier::Master);
+            CHECK(fx != nullptr, "S14: limiter must construct (master)");
+            // Master-only: never available as a track insert.
+            CHECK(makeEffectForId("lockstep.limiter.v1", EffectTier::Track) != nullptr,
+                  "S14: limiter id resolves (factory tier-agnostic)");
+            if (fx != nullptr)
+            {
+                fx->prepare(sr, blockLen);
+                fx->reset();
+                const float ceilDb = -1.0f;
+                const float ceilLin = std::pow(10.0f, ceilDb / 20.0f);
+                // gain=+6 dB drive, ceiling=-1 dB, release=50 ms. Input sine at 0.9
+                // -> ~+6 dB over ceiling before limiting.
+                const ParamFrame prm = { 6.0f, ceilDb, 50.0f };
+                double phase = 0.0;
+                const double w = 2.0 * M_PI * 220.0 / sr;
+                float peak = 0.0f;
+                for (int blk = 0; blk < 40; ++blk)
+                {
+                    juce::AudioBuffer<float> buf(2, blockLen);
+                    for (int n = 0; n < blockLen; ++n)
+                    {
+                        const float s = static_cast<float>(std::sin(phase)) * 0.9f;
+                        buf.setSample(0, n, s);
+                        buf.setSample(1, n, s);
+                        phase += w;
+                    }
+                    fx->process(buf, blockLen, prm);
+                    if (blk >= 8)  // let the limiter's gain settle
+                        peak = std::max(peak, buf.getMagnitude(0, blockLen));
+                }
+                const float peakDb = 20.0f * std::log10(std::max(1e-9f, peak));
+                CHECK(peakDb <= ceilDb + 0.5f,
+                      "S14: limiter holds peak <= ceiling+0.5 dB (peak " + juce::String(peakDb, 2)
+                      + " dB, ceil " + juce::String(ceilDb, 1) + ")");
+                CHECK(peak > ceilLin * 0.5f, "S14: limiter still passes signal");
+            }
+        }
+
         // --- AnalogMachine ---
         {
             AnalogMachine va;

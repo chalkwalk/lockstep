@@ -19,6 +19,8 @@
 // S13: new catalogue effects (9.24)
 #include "../dsp/LadderFilterEffect.h"
 #include "../dsp/FreqShifterEffect.h"
+// S14: master-only safety limiter (9.24)
+#include "../dsp/LimiterEffect.h"
 
 namespace lockstep
 {
@@ -57,6 +59,8 @@ namespace lockstep
         // S13: new effects (same face on track + master; no tier split).
         if (id == "lockstep.ladder.v1")      return std::make_unique<LadderFilterEffect>();
         if (id == "lockstep.freqshift.v1")   return std::make_unique<FreqShifterEffect>();
+        // S14: master-only safety limiter.
+        if (id == "lockstep.limiter.v1")     return std::make_unique<LimiterEffect>();
 
         // Backward-compat: deprecated HQ-only ids still resolve (always HQ face)
         // for any path that did not run them through canonicalEffectId() first.
@@ -89,6 +93,8 @@ namespace lockstep
         // Genuinely master-only effects with no LQ counterpart.
         { "lockstep.buscomp.v1",     "Bus Comp",   "BUS", true,  false },
         { "lockstep.mutility.v1",    "Utility",    "UTL", true,  false },
+        // S14: master-bus safety limiter (master inserts/sends only).
+        { "lockstep.limiter.v1",     "Limiter",    "LIM", true,  false },
         // Item 5: External send — master send slots only (masterOnly + sendOnly).
         // No DSP; routes the send tap to the host "Send A/B" output bus.
         { kExternalSendId,           "External",   "EXT", true,  true  },

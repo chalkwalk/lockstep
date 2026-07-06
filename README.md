@@ -1020,7 +1020,13 @@ put the HQ face on a Route track or the master bus for clean bus glue.
 |---|---|---|
 | `BUS` | Bus Compressor | Thresh, Ratio, Atk, Rel (Auto), SC HPF, Mkup, Mix |
 | `UTL` | Master Utility | Tilt, Width (M/S), Trim (dB) |
+| `LIM` | Limiter | Gain (drive dB), Ceiling (dB), Release (ms) |
 | `EXT` | External | *(send slots only; no params)* — routes the send bus to the host "Send A/B" output |
+
+`Limiter` is a **zero-lookahead safety limiter**: it drops onto the master with
+the rest of the zero-latency chain (no PDC) and catches overs, but a hard
+transient can momentarily overshoot the ceiling by a fraction of a dB. A true
+lookahead brickwall maximiser is a future PDC-milestone item, not this.
 
 *Gain staging is master-only:* tracks and buses stay linear (float headroom); the
 only structural clip is a transparent soft-knee clipper at the master output that
