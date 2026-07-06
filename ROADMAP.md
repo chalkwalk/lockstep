@@ -2491,8 +2491,15 @@ exists and this milestone does not add one).
       KeyboardArea paint/labels, and PluginEditor apply-guards all route through
       the helper. Tests: context filtering, External send-only, page-offset
       cell→catalogue mapping, out-of-range → -1.
-- [ ] **S13 — New effects: Ladder (`juce::dsp::LadderFilter`) + Freq Shifter
-      (Signalsmith Hilbert SSB), track+master.**
+- [x] **S13 — New effects: Ladder (`juce::dsp::LadderFilter`) + Freq Shifter
+      (FIR-Hilbert SSB), track+master.** `LadderFilterEffect` (id
+      `lockstep.ladder.v1`, Cutoff/Reso/Drive/Mode LP·BP·HP 12/24). `FreqShifterEffect`
+      (id `lockstep.freqshift.v1`, Shift ±Hz / Mix / Feedbk) — Signalsmith ships no
+      Hilbert, so built from a 201-tap Type-III antisymmetric Hilbert FIR
+      (deterministic, SR-independent, ~2 ms latency, no PDC). Both appended to
+      `kEffects` + `makeEffectForId` (no tier split). Tests: ladder LP24 kills a
+      12 kHz probe > 30 dB; shifter 1 kHz +200 Hz peaks at 1.2 kHz with lower
+      sideband and carrier leakage both < -30 dB.
 - [ ] **S14 — New effect: Limiter** (master-only, zero-lookahead safety limiter).
 - [ ] **S15 — Serializer v31: optional `SampleId irRef` on insert slots** (upgrade
       = stamped copy).

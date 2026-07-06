@@ -16,6 +16,9 @@
 #include "../dsp/HQDelayEffect.h"
 #include "../dsp/BusCompressorEffect.h"
 #include "../dsp/MasterUtilityEffect.h"
+// S13: new catalogue effects (9.24)
+#include "../dsp/LadderFilterEffect.h"
+#include "../dsp/FreqShifterEffect.h"
 
 namespace lockstep
 {
@@ -51,6 +54,9 @@ namespace lockstep
         if (id == "lockstep.phaser.v1")      return std::make_unique<PhaserEffect>();
         if (id == "lockstep.buscomp.v1")     return std::make_unique<BusCompressorEffect>();
         if (id == "lockstep.mutility.v1")    return std::make_unique<MasterUtilityEffect>();
+        // S13: new effects (same face on track + master; no tier split).
+        if (id == "lockstep.ladder.v1")      return std::make_unique<LadderFilterEffect>();
+        if (id == "lockstep.freqshift.v1")   return std::make_unique<FreqShifterEffect>();
 
         // Backward-compat: deprecated HQ-only ids still resolve (always HQ face)
         // for any path that did not run them through canonicalEffectId() first.
@@ -77,6 +83,9 @@ namespace lockstep
         { "lockstep.bitcrush.v1",    "Bitcrush",   "BIT", false },
         { "lockstep.flanger.v1",     "Flanger",    "FLG", false },
         { "lockstep.phaser.v1",      "Phaser",     "PHA", false },
+        // S13: ladder filter + frequency shifter (track + master).
+        { "lockstep.ladder.v1",      "Ladder",     "LDR", false },
+        { "lockstep.freqshift.v1",   "FreqShift",  "FSH", false },
         // Genuinely master-only effects with no LQ counterpart.
         { "lockstep.buscomp.v1",     "Bus Comp",   "BUS", true,  false },
         { "lockstep.mutility.v1",    "Utility",    "UTL", true,  false },

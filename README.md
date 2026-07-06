@@ -1003,12 +1003,14 @@ or sends. The tier is chosen by *placement* — you do not pick it. So `Reverb`,
 | `REV` | Reverb | Size, Decay, Damp, Mix *(HQ on master: + PreDly, LoCut, Mod)* |
 | `DRV` | Distortion | Drive, Tone, Mix |
 | `SAT` | Saturation | Drive, Tone, Mix, Output *(HQ on master: + Bias, Comp, Crisp, Low — 2× oversampled tape glue)* |
-| `CHR` | Chorus | Rate, Depth, Mix |
+| `CHR` | Chorus | Rate, Depth, Mix, Feedbk *(3-voice Hermite; Feedbk=0 is the classic no-feedback sound)* |
 | `TLT` | Tilt EQ | Tilt (−1..+1), Gain (dB) |
 | `CMP` | Compressor | Thresh, Ratio, Atk, Rel, Mkup |
 | `BIT` | Bitcrush | Bits, Rate, Mix |
 | `FLG` | Flanger | Rate, Depth, Feedbk, Mix |
 | `PHA` | Phaser | Rate, Depth, Centre, Feedbk, Mix |
+| `LDR` | Ladder | Cutoff, Reso, Drive, Mode (LP/BP/HP · 12/24 dB) — Moog-style self-oscillating ladder |
+| `FSH` | FreqShift | Shift (±Hz), Mix, Feedbk — single-sideband (inharmonic) frequency shifter |
 
 `Saturation` is the gentle, gluey tape-style cousin of the rougher `Distortion`;
 put the HQ face on a Route track or the master bus for clean bus glue.

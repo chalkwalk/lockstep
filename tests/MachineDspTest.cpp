@@ -1003,6 +1003,73 @@ namespace lockstep
             }
         }
 
+        // --- S13a: Ladder filter (juce::dsp::LadderFilter wrapper) ---
+        // LP24 at a low cutoff must strongly attenuate a 12 kHz probe.
+        {
+            constexpr double sr = 48000.0;
+            constexpr int N = 1 << 15;
+            auto fx = makeEffectForId("lockstep.ladder.v1", EffectTier::Track);
+            CHECK(fx != nullptr, "S13: ladder must construct");
+            if (fx != nullptr)
+            {
+                fx->prepare(sr, N);
+                juce::AudioBuffer<float> buf(2, N);
+                fillSine(buf, 12000.0, sr, 0.5f);
+                const float inRms = blockRms(buf);
+                // cutoff=500 Hz, reso=0.2, drive=0, mode=1 (LP24).
+                const ParamFrame prm = { 500.0f, 0.2f, 0.0f, 1.0f };
+                fx->process(buf, N, prm);
+                // Measure the settled tail (skip the filter's transient ramp-in).
+                juce::AudioBuffer<float> tail(2, N / 2);
+                for (int c = 0; c < 2; ++c)
+                    tail.copyFrom(c, 0, buf, c, N / 2, N / 2);
+                const float outRms = blockRms(tail);
+                const float redDb = 20.0f * std::log10(std::max(1e-9f, outRms / inRms));
+                CHECK(!hasNaNOrInf(buf), "S13: ladder produced NaN/Inf");
+                CHECK(redDb < -30.0f,
+                      "S13: ladder LP24 kills 12 kHz > 30 dB (got " + juce::String(redDb, 1) + " dB)");
+            }
+        }
+
+        // --- S13b: Frequency shifter (FIR Hilbert SSB) ---
+        // A 1 kHz tone shifted +200 Hz must produce a peak at 1.2 kHz with the
+        // unwanted lower sideband (0.8 kHz) suppressed by > 30 dB.
+        {
+            constexpr double sr = 48000.0;
+            constexpr int order = 15;
+            constexpr int N = 1 << order;
+            auto fx = makeEffectForId("lockstep.freqshift.v1", EffectTier::Track);
+            CHECK(fx != nullptr, "S13: freq shifter must construct");
+            if (fx != nullptr)
+            {
+                fx->prepare(sr, N);
+                juce::AudioBuffer<float> buf(2, N);
+                fillSine(buf, 1000.0, sr, 0.5f);
+                const ParamFrame prm = { 200.0f, 1.0f, 0.0f };  // +200 Hz, fully wet
+                fx->process(buf, N, prm);
+                CHECK(!hasNaNOrInf(buf), "S13: freq shifter produced NaN/Inf");
+                const auto mags = spectrumOf(buf, order);
+                const double binHz = sr / N;
+                const auto peakNear = [&](double hz) {
+                    const int b = static_cast<int>(std::lround(hz / binHz));
+                    float m = 0.0f;
+                    for (int i = b - kSpectralBand; i <= b + kSpectralBand; ++i)
+                        if (i >= 0 && i < static_cast<int>(mags.size()))
+                            m = std::max(m, mags[static_cast<std::size_t>(i)]);
+                    return m;
+                };
+                const float upper = peakNear(1200.0);  // wanted
+                const float lower = peakNear(800.0);    // unwanted image
+                const float orig  = peakNear(1000.0);   // leakage of the carrier
+                const float sideDb = 20.0f * std::log10(std::max(1e-9f, lower / upper));
+                const float origDb = 20.0f * std::log10(std::max(1e-9f, orig / upper));
+                CHECK(sideDb < -30.0f,
+                      "S13: shifter lower sideband < -30 dB (got " + juce::String(sideDb, 1) + ")");
+                CHECK(origDb < -30.0f,
+                      "S13: shifter carrier leakage < -30 dB (got " + juce::String(origDb, 1) + ")");
+            }
+        }
+
         // --- AnalogMachine ---
         {
             AnalogMachine va;
