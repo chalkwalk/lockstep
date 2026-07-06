@@ -7,6 +7,7 @@
 // public member, so loop period is measured directly from wrap events.
 
 #include "TestHarness.h"
+#include "SpectralMeasure.h"
 #include "../src/machine/SamplePlayer.h"
 #include <cmath>
 #include <vector>
@@ -139,5 +140,43 @@ namespace lockstep
         CHECK(std::abs(measurePeriod(re) - (static_cast<double>(kLen) - xf)) < 1.0,
               "SamplePlayer loop: eat-in period == span - xfade (measured="
               + juce::String(measurePeriod(re)) + ")");
+
+        // (5) Interpolation quality (9.24 S4): playing a pure tone back at a
+        // non-integer rate must not smear it. Linear 2-point interpolation images
+        // badly at fractional rates (~35-45 dB purity); 4-point Hermite should
+        // hold the tone well above 55 dB. Render a 997 Hz sine (relative to the
+        // source rate) played at rate 1.37 and measure spectral purity of the
+        // resampled output at the shifted frequency.
+        {
+            constexpr double kSR = 48000.0;
+            constexpr double kSrcHz = 997.0;
+            constexpr double kRate = 1.37;
+            const int srcLen = 1 << 16;
+            const auto tone = makeSine(srcLen, kSR / kSrcHz);  // period = SR/f
+
+            SamplePlayer::Spec spec;
+            spec.sampleIndex = 0;
+            spec.positionStart = 0.0;
+            spec.windowStart = 0.0;
+            spec.windowEnd = 0.0;
+            spec.rate = kRate;
+            spec.level = 1.0f;
+            spec.sustainLevel = 1.0f;      // flat env
+            spec.loopMode = SamplePlayer::LoopMode::Off;
+            SamplePlayer p;
+            p.trigger(spec);
+
+            const int outLen = 1 << 15;
+            juce::AudioBuffer<float> out(1, outLen);
+            for (int i = 0; i < outLen; ++i)
+                out.setSample(0, i, p.step(tone));
+
+            // Playing faster raises the pitch by the rate factor.
+            const double playedHz = kSrcHz * kRate;
+            const float purity = sinePurityDb(out, playedHz, kSR);
+            CHECK(purity > 55.0f,
+                  "SamplePlayer Hermite: resampled tone purity > 55 dB (got "
+                  + juce::String(purity, 1) + " dB)");
+        }
     }
 }

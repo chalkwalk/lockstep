@@ -5,6 +5,23 @@
 
 namespace lockstep
 {
+    namespace
+    {
+        // 4-point, 3rd-order Hermite (Catmull-Rom) interpolation of the continuous
+        // waveform at fractional position `t` in [0,1) between y0 (index i) and y1
+        // (index i+1); ym1/y2 are the outer neighbours (i-1, i+2). Replaces the old
+        // 2-point linear read: linear imaging aliases badly at non-unity playback
+        // rates (the single highest audible defect flagged in the 9.24 audit).
+        inline float hermite4(float ym1, float y0, float y1, float y2, float t)
+        {
+            const float c0 = y0;
+            const float c1 = 0.5f * (y1 - ym1);
+            const float c2 = ym1 - 2.5f * y0 + 2.0f * y1 - 0.5f * y2;
+            const float c3 = 0.5f * (y2 - ym1) + 1.5f * (y0 - y1);
+            return ((c3 * t + c2) * t + c1) * t + c0;
+        }
+    }
+
     void SamplePlayer::trigger(const Spec& spec)
     {
         sampleIndex = spec.sampleIndex;
@@ -176,14 +193,23 @@ namespace lockstep
             const bool loopActive =
                 (loopMode == LoopMode::Sust && stage == Stage::Sustain) || (loopMode == LoopMode::SustAndRel && (stage == Stage::Sustain || stage == Stage::Release)) || (loopMode == LoopMode::All);
 
-            // Forward-only interpolated read helper (linear).
+            // Interpolated read of the continuous waveform at fractional `pos`
+            // (4-point Hermite). Direction-agnostic — sampling the reconstructed
+            // waveform at `pos` is the same whether the voice plays forward or
+            // reverse. Outer neighbour indices are clamped at the buffer edges.
             auto readInterpFwd = [&pcm, numSrc](double pos) -> float {
                 const int i0 = static_cast<int>(pos);
                 if (i0 < 0 || i0 >= numSrc)
                     return 0.0f;
-                const int i1 = std::min(i0 + 1, numSrc - 1);
-                const float fr = static_cast<float>(pos - static_cast<double>(i0));
-                return pcm.getSample(0, i0) * (1.0f - fr) + pcm.getSample(0, i1) * fr;
+                const auto clamp = [numSrc](int i) {
+                    return juce::jlimit(0, numSrc - 1, i);
+                };
+                const float ym1 = pcm.getSample(0, clamp(i0 - 1));
+                const float y0  = pcm.getSample(0, clamp(i0));
+                const float y1  = pcm.getSample(0, clamp(i0 + 1));
+                const float y2  = pcm.getSample(0, clamp(i0 + 2));
+                const float fr  = static_cast<float>(pos - static_cast<double>(i0));
+                return hermite4(ym1, y0, y1, y2, fr);
             };
 
             const int idx0 = static_cast<int>(position);
@@ -191,12 +217,11 @@ namespace lockstep
             {
                 if (reverse)
                 {
-                    // Reverse: interpolate between idx0 and idx0-1. Reverse-seam
-                    // declick is out of scope; keep the hard wrap here.
-                    const int idx1 = std::max(idx0 - 1, 0);
-                    const float frac = static_cast<float>(
-                        position - static_cast<double>(idx0));
-                    audioOut = pcm.getSample(0, idx0) * (1.0f - frac) + pcm.getSample(0, idx1) * frac;
+                    // Reverse: sample the reconstructed waveform at `position` with
+                    // the same Hermite read as forward (direction-agnostic). This
+                    // also removes the old linear read's ~1-sample bias. Reverse-
+                    // seam declick remains out of scope; keep the hard wrap here.
+                    audioOut = readInterpFwd(position);
 
                     position += rate;
 
