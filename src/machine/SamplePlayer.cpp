@@ -1,26 +1,11 @@
 #include "SamplePlayer.h"
+#include "../dsp/Interpolation.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
 namespace lockstep
 {
-    namespace
-    {
-        // 4-point, 3rd-order Hermite (Catmull-Rom) interpolation of the continuous
-        // waveform at fractional position `t` in [0,1) between y0 (index i) and y1
-        // (index i+1); ym1/y2 are the outer neighbours (i-1, i+2). Replaces the old
-        // 2-point linear read: linear imaging aliases badly at non-unity playback
-        // rates (the single highest audible defect flagged in the 9.24 audit).
-        inline float hermite4(float ym1, float y0, float y1, float y2, float t)
-        {
-            const float c0 = y0;
-            const float c1 = 0.5f * (y1 - ym1);
-            const float c2 = ym1 - 2.5f * y0 + 2.0f * y1 - 0.5f * y2;
-            const float c3 = 0.5f * (y2 - ym1) + 1.5f * (y0 - y1);
-            return ((c3 * t + c2) * t + c1) * t + c0;
-        }
-    }
 
     void SamplePlayer::trigger(const Spec& spec)
     {

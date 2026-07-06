@@ -1,4 +1,5 @@
 #include "LoopMachine.h"
+#include "../dsp/Interpolation.h"
 #include <algorithm>
 #include <cmath>
 
@@ -138,14 +139,22 @@ namespace lockstep
         double p = std::fmod(pos, static_cast<double>(loopLen_));
         if (p < 0.0) p += static_cast<double>(loopLen_);
 
+        // 4-point Hermite read (9.24). The loop material is periodic, so the
+        // outer neighbours wrap circularly (mod loopLen_) — well-defined across
+        // the loop seam, and a strict quality upgrade over the old 2-point linear
+        // read, which imaged badly whenever the tape/varispeed/beat-repeat path
+        // drove `pos` to a fractional value.
         const auto interp = [&](double x) -> float {
             double q = std::fmod(x, static_cast<double>(loopLen_));
             if (q < 0.0) q += static_cast<double>(loopLen_);
             const int i0 = static_cast<int>(q);
-            const int i1 = (i0 + 1) % loopLen_;
-            const float a = target_->getSample(ch, i0);
-            const float b = target_->getSample(ch, i1);
-            return a + (b - a) * static_cast<float>(q - static_cast<double>(i0));
+            const auto at = [&](int i) {
+                int w = i % loopLen_;
+                if (w < 0) w += loopLen_;
+                return target_->getSample(ch, w);
+            };
+            return hermite4(at(i0 - 1), at(i0), at(i0 + 1), at(i0 + 2),
+                            static_cast<float>(q - static_cast<double>(i0)));
         };
 
         const float base = interp(p);

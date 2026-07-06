@@ -2430,11 +2430,15 @@ exists and this milestone does not add one).
 - [x] **S1 — Vendor Signalsmith DSP.** Submodule + SYSTEM includes + THIRDPARTY row +
       cubic fractional-delay compat proof. signalsmith-basics dropped (dsp primitives
       + juce::dsp suffice).
-- [ ] **S2 — `tools/fx_audition` ear gate + stashed baseline** (impulse / dual-sine /
-      sweep / drum-burst × catalogue × tier × preset).
-- [ ] **S3 — Measurement helpers** (spectrumOf / aliasRatioDb / maxSampleStep /
-      sinePurityDb).
-- [ ] **S4 — SamplePlayer 2-point linear → 4-point Hermite** (highest audible win).
+- [x] **S2 — `tools/fx_audition` ear gate + stashed baseline** (impulse / dual-sine /
+      sweep / drum-burst × catalogue × tier × preset). 120-WAV baseline in gitignored
+      `fx_baseline/`.
+- [x] **S3 — Measurement helpers** (spectrumOf / aliasRatioDb / maxSampleStep /
+      sinePurityDb) in shared `tests/SpectralMeasure.h`.
+- [x] **S4 — SamplePlayer 2-point linear → 4-point Hermite** (highest audible win) via
+      shared `src/dsp/Interpolation.h`. **LoopMachine read folded in** (it was on plain
+      2-point linear too — circular-wrapped Hermite now; overdub writes stay
+      nearest-integer, unchanged).
 - [ ] **S5 — Saturation oversampling** (both faces; HQ swaps Oversampler2x →
       `juce::dsp::Oversampling`).
 - [ ] **S6 — FMMachine oversampling; delete `Oversampler2x`** (both consumers migrated).

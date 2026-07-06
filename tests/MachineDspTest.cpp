@@ -19,6 +19,7 @@
 #include "../src/machine/IEffect.h"
 #include "../src/machine/EffectFactory.h"
 #include "../src/dsp/Oversampler2x.h"
+#include "../src/dsp/Interpolation.h"
 #include "SpectralMeasure.h"
 #include <signalsmith-dsp/delay.h>
 #include <juce_dsp/juce_dsp.h>
@@ -756,10 +757,27 @@ namespace lockstep
               "Signalsmith cubic fractional read not at ramp midpoint");
     }
 
+    // Contract of the shared 4-point Hermite read (src/dsp/Interpolation.h),
+    // used by both SamplePlayer and LoopMachine (9.24 S4). Hermite reproduces a
+    // linear signal exactly, and its endpoints coincide with the sample values.
+    static void testHermiteInterpolator()
+    {
+        // Endpoints: t=0 -> y0, t=1 -> y1 (for any neighbours).
+        CHECK(std::abs(hermite4(0.3f, 1.0f, 2.0f, 2.7f, 0.0f) - 1.0f) < 1e-6f,
+              "hermite4 t=0 should return y0");
+        CHECK(std::abs(hermite4(0.3f, 1.0f, 2.0f, 2.7f, 1.0f) - 2.0f) < 1e-6f,
+              "hermite4 t=1 should return y1");
+        // Exact on a linear ramp: neighbours 0,1,2,3 -> value at 1+t is 1+t.
+        for (float t : { 0.25f, 0.5f, 0.75f })
+            CHECK(std::abs(hermite4(0.0f, 1.0f, 2.0f, 3.0f, t) - (1.0f + t)) < 1e-6f,
+                  "hermite4 must be exact on a linear ramp");
+    }
+
     void runMachineDspTests()
     {
         testSignalsmithCompat();
         testMeasurementHelpers();
+        testHermiteInterpolator();
 
         // --- AnalogMachine ---
         {
