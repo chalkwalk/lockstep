@@ -116,6 +116,10 @@ namespace lockstep::keys
   // Stamped on any P node that holds such a reference so it re-resolves to the pool
   // entry's CURRENT position on load rather than drifting with the flat index.
     inline constexpr const char* kSampleHash = "sh";  // hex xxHash32 of the referenced entry
+  // v31 (9.24 S15): hex xxHash32 of the pool sample used as an insert slot's
+  // convolution IR. Written on an "Ins"/"MIns"/"MSnd" node only when a Persistent
+  // IR ref is set; absent = no IR (bundled-IR or no-IR effects ignore it).
+    inline constexpr const char* kIrHash = "irh";
   // Fill-specific overrides (parallel to TO/PL above):
     inline constexpr const char* kFillTS = "fts";   // FillTrigState enum value
     inline constexpr const char* kFillTO = "FTO";   // fill trig override node

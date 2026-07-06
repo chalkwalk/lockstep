@@ -67,7 +67,13 @@ namespace lockstep
         //      utune/uosh), each written only when set — so a v29 entry loads with
         //      detected values only and every override cleared. Also carried on
         //      Stream-origin entries. Additive; trivial stamp upgrade from v29.
-        inline constexpr int kCurrentVersion = 30;
+        // v31: insert slots (track "Ins", master "MIns"/"MSnd") gain an optional
+        //      convolution IR reference (kIrHash) — the hex content hash of the pool
+        //      sample used as an IR (9.24 S15/S16). Written only when a Persistent
+        //      IR ref is set; a v30 slot loads with an empty irRef. Additive; trivial
+        //      stamp upgrade from v30. Also confirms the appended-param policy for
+        //      chorus_fb (default-load by id needs no serializer work).
+        inline constexpr int kCurrentVersion = 31;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

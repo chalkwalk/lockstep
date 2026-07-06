@@ -13,6 +13,7 @@
 #include "TrackFltrState.h"
 #include "TrackChannelState.h"
 #include "TrackEnvState.h"
+#include "../machine/SampleId.h"
 
 namespace lockstep
 {
@@ -88,6 +89,10 @@ namespace lockstep
             std::string effectId;   // stable id (e.g. "lockstep.delay.v1"); empty = none
             ParamFrame baseParams;
             bool bypass = false;
+            // 9.24 S15: optional pool sample used as this slot's IR (convolution
+            // reverb, S16). Persistent (hash-keyed) refs serialise; Volatile/None
+            // do not. Ignored by every effect that isn't IR-driven.
+            SampleId irRef{};
         };
         std::array<InsertSlot, 2> inserts;
     };

@@ -5460,6 +5460,20 @@ namespace lockstep
         return kit(track).inserts[static_cast<std::size_t>(slot)].bypass;
     }
 
+    void LockstepProcessor::setTrackInsertIrRef(int track, int slot, SampleId ir)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        if (slot < 0 || slot > 1) return;
+        kit(track).inserts[static_cast<std::size_t>(slot)].irRef = ir;
+    }
+
+    SampleId LockstepProcessor::trackInsertIrRef(int track, int slot) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return {};
+        if (slot < 0 || slot > 1) return {};
+        return kit(track).inserts[static_cast<std::size_t>(slot)].irRef;
+    }
+
     // -------------------------------------------------------------------------
     // 6.5 master FX bus
     // -------------------------------------------------------------------------
@@ -5510,6 +5524,18 @@ namespace lockstep
     {
         if (slot < 0 || slot > 1) return false;
         return song().masterInserts[static_cast<std::size_t>(slot)].bypass;
+    }
+
+    void LockstepProcessor::setMasterInsertIrRef(int slot, SampleId ir)
+    {
+        if (slot < 0 || slot > 1) return;
+        song().masterInserts[static_cast<std::size_t>(slot)].irRef = ir;
+    }
+
+    SampleId LockstepProcessor::masterInsertIrRef(int slot) const
+    {
+        if (slot < 0 || slot > 1) return {};
+        return song().masterInserts[static_cast<std::size_t>(slot)].irRef;
     }
 
     bool LockstepProcessor::sendBusEnabled(int slot) const
@@ -5678,6 +5704,18 @@ namespace lockstep
     {
         if (slot < 0 || slot > 1) return {};
         return song().masterSends[static_cast<std::size_t>(slot)].effectId;
+    }
+
+    void LockstepProcessor::setMasterSendIrRef(int slot, SampleId ir)
+    {
+        if (slot < 0 || slot > 1) return;
+        song().masterSends[static_cast<std::size_t>(slot)].irRef = ir;
+    }
+
+    SampleId LockstepProcessor::masterSendIrRef(int slot) const
+    {
+        if (slot < 0 || slot > 1) return {};
+        return song().masterSends[static_cast<std::size_t>(slot)].irRef;
     }
 
     bool LockstepProcessor::hasLiveTrackInsert(int track, int slot) const noexcept

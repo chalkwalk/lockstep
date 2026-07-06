@@ -2506,8 +2506,16 @@ exists and this milestone does not add one).
       no PDC (drops onto the zero-latency master chain); documented as a safety
       limiter, not a brickwall maximiser. Test: +6 dB sine over a -1 dB ceiling is
       held to <= ceiling+0.5 dB while still passing signal.
-- [ ] **S15 — Serializer v31: optional `SampleId irRef` on insert slots** (upgrade
-      = stamped copy).
+- [x] **S15 — Serializer v31: optional `SampleId irRef` on insert slots** (upgrade
+      = stamped copy). `TrackKit::InsertSlot` (and thus master inserts/sends) gain a
+      `SampleId irRef`; `SampleId` extracted to JUCE-free `machine/SampleId.h` so
+      core carries it. Serialised as a content hash (`kIrHash`) on the Ins/MIns/MSnd
+      node, written only for a Persistent ref (Volatile/None dropped, same policy as
+      sample refs); `readIrRef` reconstructs `{Persistent, hash}` (reorder-safe).
+      `kCurrentVersion = 31`; `upgrade_v30_to_v31` = stamp bump (v30 slot loads with
+      empty irRef). Processor get/set API (`setTrackInsertIrRef`/`…IrRef` + master
+      equivalents) added for S16's pool-IR gesture. Test: track/master irRef
+      round-trips, Volatile dropped, appended `chorus_fb` survives.
 - [ ] **S16 — Convolution reverb** (`juce::dsp::Convolution`, zero-latency; IR-select
       Bundled | Pool via `SamplePoolOverlay` pick-IR mode).
 - [ ] **S17 — `tools/ir_bake` + bundled starter IRs** (rendered from our own

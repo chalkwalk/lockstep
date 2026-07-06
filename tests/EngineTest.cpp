@@ -109,6 +109,50 @@ namespace lockstep
         proc.reinstallMachinesFromActiveKit();
     }
 
+    // 9.24 S15: v31 optional convolution IR ref on insert slots round-trips, a
+    // Volatile ref is deliberately dropped, and the appended chorus_fb param
+    // survives (the appended-param serialization policy).
+    static void testInsertIrRefRoundTrip()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        const SampleId ir{ SampleId::Domain::Persistent, 0xABCD1234u };
+
+        // Real machines so the track kits actually serialize (a stub track with
+        // empty baseParams is skipped on write, which would make the round-trip
+        // vacuous — see the newProject stub-track policy).
+        installMachine(proc, 0, DrumMachine::kMachineId);
+        installMachine(proc, 1, DrumMachine::kMachineId);
+
+        proc.setTrackInsert(0, 0, "lockstep.reverb.v1");
+        proc.setTrackInsertIrRef(0, 0, ir);
+        proc.setMasterInsert(0, "lockstep.reverb.v1");
+        proc.setMasterInsertIrRef(0, ir);
+        proc.setMasterSend(0, "lockstep.delay.v1");
+        proc.setMasterSendIrRef(0, ir);
+
+        // A Volatile ref must NOT persist (RAM-only capture, like sample refs).
+        proc.setTrackInsert(1, 0, "lockstep.reverb.v1");
+        proc.setTrackInsertIrRef(1, 0, { SampleId::Domain::Volatile, 7u });
+
+        // Appended chorus_fb (param index 3): a non-default value must survive.
+        proc.setMasterInsert(1, "lockstep.chorus.v1");
+        proc.setMasterInsertParam(1, 3, 0.7f);
+
+        juce::MemoryBlock st;
+        proc.getStateInformation(st);
+        proc.setStateInformation(st.getData(), static_cast<int>(st.getSize()));
+
+        CHECK(proc.trackInsertIrRef(0, 0) == ir, "S15: track insert irRef round-trips");
+        CHECK(proc.masterInsertIrRef(0) == ir, "S15: master insert irRef round-trips");
+        CHECK(proc.masterSendIrRef(0) == ir, "S15: master send irRef round-trips");
+        CHECK(!proc.trackInsertIrRef(1, 0).valid(),
+              "S15: Volatile irRef is not persisted");
+        CHECK(std::abs(proc.masterInsertParam(1, 3) - 0.7f) < 1e-4f,
+              "S15: appended chorus_fb param round-trips (got "
+              + juce::String(proc.masterInsertParam(1, 3), 4) + ")");
+    }
+
     // -----------------------------------------------------------------------
     // Isolated check: Drum produces no NaN with a direct note-on
     // using the same frame that processBlock would pass.
@@ -3199,6 +3243,7 @@ namespace lockstep
         testNaNFreeDefaultState();
         testClockAdvances();
         testStateRoundTrip();
+        testInsertIrRefRoundTrip();
         testTrigProducesAudio();
         testMuteSuppressesAudio();
         testReleaseAllVoicesReleasesHeldSynth();

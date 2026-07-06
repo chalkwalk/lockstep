@@ -34,6 +34,17 @@ namespace lockstep::PluginState
     }
 
     static juce::String hashToHex(std::uint32_t h);  // defined below
+    static std::uint32_t hexToHash(const juce::String& s);  // defined below
+
+    // v31 (9.24 S15): read an insert slot's optional convolution IR ref. Stored as
+    // a content hash (kIrHash) -> a Persistent SampleId; absent = None. The pool
+    // resolves the hash to a live index via indexOf/resolve, so it survives reorder.
+    static SampleId readIrRef(const juce::ValueTree& slotNode)
+    {
+        const juce::String h = slotNode.getProperty(keys::kIrHash, "").toString();
+        if (h.isEmpty()) return {};
+        return { SampleId::Domain::Persistent, hexToHash(h) };
+    }
 
     // 9.18: the machine params that hold a reference to a SamplePool entry.
     static bool isSampleRefId(const juce::String& id)
@@ -471,6 +482,9 @@ namespace lockstep::PluginState
             insNode.setProperty(keys::kEid, juce::String(insSlot.effectId), nullptr);
             if (insSlot.bypass)
                 insNode.setProperty(keys::kBypass, 1, nullptr);
+            // v31: convolution IR ref (Persistent only — Volatile/None not persisted).
+            if (insSlot.irRef.domain == SampleId::Domain::Persistent)
+                insNode.setProperty(keys::kIrHash, hashToHex(insSlot.irRef.key), nullptr);
             const int effNp = tempEff->numParams();
             for (int p = 0; p < effNp; ++p)
             {
@@ -564,6 +578,7 @@ namespace lockstep::PluginState
             auto& insSlot = kit.inserts[static_cast<std::size_t>(s)];
             insSlot.effectId = effId;
             insSlot.bypass = (static_cast<int>(child.getProperty(keys::kBypass, 0)) != 0);
+            insSlot.irRef = readIrRef(child);   // v31 (empty on older docs)
             auto tempEff = makeEffectForId(effId);
             if (tempEff)
             {
@@ -762,6 +777,8 @@ namespace lockstep::PluginState
                 mInsNode.setProperty(keys::kEid, juce::String(mIns.effectId), nullptr);
                 if (mIns.bypass)
                     mInsNode.setProperty(keys::kBypass, 1, nullptr);
+                if (mIns.irRef.domain == SampleId::Domain::Persistent)  // v31
+                    mInsNode.setProperty(keys::kIrHash, hashToHex(mIns.irRef.key), nullptr);
                 const int np = tempEff->numParams();
                 for (int p = 0; p < np; ++p)
                 {
@@ -791,6 +808,8 @@ namespace lockstep::PluginState
                 mSndNode.setProperty(keys::kEid, juce::String(mSnd.effectId), nullptr);
                 if (mSnd.bypass)
                     mSndNode.setProperty(keys::kBypass, 1, nullptr);
+                if (mSnd.irRef.domain == SampleId::Domain::Persistent)  // v31
+                    mSndNode.setProperty(keys::kIrHash, hashToHex(mSnd.irRef.key), nullptr);
                 const int np = tempEff->numParams();
                 for (int p = 0; p < np; ++p)
                 {
@@ -910,6 +929,7 @@ namespace lockstep::PluginState
                     auto& mIns = song.masterInserts[static_cast<std::size_t>(s)];
                     mIns.effectId = effId;
                     mIns.bypass = (static_cast<int>(child.getProperty(keys::kBypass, 0)) != 0);
+                    mIns.irRef = readIrRef(child);   // v31
                     auto tempEff = makeEffectForId(effId, EffectTier::Master);
                     if (tempEff)
                     {
@@ -943,6 +963,7 @@ namespace lockstep::PluginState
                     auto& mSnd = song.masterSends[static_cast<std::size_t>(s)];
                     mSnd.effectId = effId;
                     mSnd.bypass = (static_cast<int>(child.getProperty(keys::kBypass, 0)) != 0);
+                    mSnd.irRef = readIrRef(child);   // v31
                     auto tempEff = makeEffectForId(effId, EffectTier::Master);
                     if (tempEff)
                     {
@@ -2027,6 +2048,17 @@ namespace lockstep::PluginState
         return v30;
     }
 
+    static juce::ValueTree upgrade_v30_to_v31(const juce::ValueTree& v30)
+    {
+        // v31 (9.24 S15): insert slots gain an optional convolution IR ref
+        // (kIrHash), written only when set and read directly by readIrRef. A v30
+        // tree has none → every slot loads with an empty irRef. Nothing structural
+        // to rewrite; stamp bump.
+        juce::ValueTree v31 = v30.createCopy();
+        v31.setProperty(keys::kVersion, 31, nullptr);
+        return v31;
+    }
+
     static juce::ValueTree upgrade_v27_to_v28(const juce::ValueTree& v27)
     {
         // v28 (stream-via-pool): a StreamMachine's source moves from a per-Kit
@@ -2079,6 +2111,7 @@ namespace lockstep::PluginState
         if (version < 28) tree = upgrade_v27_to_v28(tree);
         if (version < 29) tree = upgrade_v28_to_v29(tree);
         if (version < 30) tree = upgrade_v29_to_v30(tree);
+        if (version < 31) tree = upgrade_v30_to_v31(tree);
 
         // 9.18: unconditional — resolve sample references to current pool positions
         // (hash-driven for v29 trees, "i"-bridged for the v28 tree just upgraded).

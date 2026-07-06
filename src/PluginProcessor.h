@@ -835,6 +835,10 @@ namespace lockstep
         void setTrackInsertBypass(int track, int slot, bool bypass);
         [[nodiscard]] std::string trackInsertId(int track, int slot) const;
         [[nodiscard]] bool trackInsertBypass(int track, int slot) const;
+        // 9.24 S15/S16: per-slot convolution IR reference (pool sample). Pure state;
+        // the ConvolutionEffect resolves + loads it. None = no pool IR (bundled/none).
+        void setTrackInsertIrRef(int track, int slot, SampleId ir);
+        [[nodiscard]] SampleId trackInsertIrRef(int track, int slot) const;
 
         // UI: which track insert slot (0/1) owns the param page beginning at the
         // absolute slot `firstSlot`, or -1 if that page is not a track FX-insert
@@ -848,6 +852,8 @@ namespace lockstep
         void setMasterInsertBypass(int slot, bool bypass);
         [[nodiscard]] std::string masterInsertId(int slot) const;
         [[nodiscard]] bool masterInsertBypass(int slot) const;
+        void setMasterInsertIrRef(int slot, SampleId ir);
+        [[nodiscard]] SampleId masterInsertIrRef(int slot) const;
         [[nodiscard]] int masterInsertNumParams(int slot) const;
         [[nodiscard]] float masterInsertParam(int slot, int param) const;
         [[nodiscard]] ParamSpec masterInsertParamSpec(int slot, int param) const;
@@ -859,6 +865,8 @@ namespace lockstep
         void setMasterSendBypass(int slot, bool bypass);
         [[nodiscard]] std::string masterSendId(int slot) const;
         [[nodiscard]] bool masterSendBypass(int slot) const;
+        void setMasterSendIrRef(int slot, SampleId ir);
+        [[nodiscard]] SampleId masterSendIrRef(int slot) const;
         [[nodiscard]] int masterSendNumParams(int slot) const;
         [[nodiscard]] float masterSendParam(int slot, int param) const;
         [[nodiscard]] ParamSpec masterSendParamSpec(int slot, int param) const;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "TransientDetector.h"
+#include "SampleId.h"
 #include "../core/Scale.h"   // kAeolian (key brightness default)
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <cstdint>
@@ -36,19 +37,8 @@ namespace lockstep
     //     serialised. key = a session-local monotonic id assigned at slot creation,
     //     stable for the life of the session across pool reorder.
     // None = an unassigned / cleared reference (resolves to nothing).
-    struct SampleId
-    {
-        enum class Domain : std::uint8_t { None = 0, Persistent, Volatile };
-        Domain        domain = Domain::None;
-        std::uint32_t key    = 0;
-
-        bool valid() const { return domain != Domain::None; }
-        bool operator==(const SampleId& o) const
-        {
-            return domain == o.domain && key == o.key;
-        }
-        bool operator!=(const SampleId& o) const { return !(*this == o); }
-    };
+    // SampleId now lives in machine/SampleId.h (extracted 9.24 S15 so JUCE-free
+    // core types can carry one); it is re-exported here via that include.
 
     struct Sample
     {
