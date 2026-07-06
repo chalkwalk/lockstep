@@ -219,6 +219,11 @@ namespace lockstep
         bool masterFxPickerOpen = false;
         int masterFxInsertSlot = 0;
 
+        // 9.24 S12: which 16-cell page the active FX picker is showing. Paged with
+        // Nav Left/Right while a picker layer is active; reset to 0 on picker open
+        // and in exitFuncReskin. Ephemeral — never serialised.
+        int fxPickerPage = 0;
+
         // 7b: an OnDemand machine console is open (opened/closed by long-pressing
         // the focused machine's consoleSectionIndex() key). Drives
         // SurfaceLayer::MachineConsole via resolveActiveLayer. AlwaysOn consoles
@@ -349,6 +354,7 @@ namespace lockstep
             funcFxInsertSlot = 0;
             masterFxPickerOpen = false;
             masterFxInsertSlot = 0;
+            fxPickerPage = 0;
         }
 
         // Clears the generator hub picker (closes the 3-key hold picker).

@@ -319,6 +319,9 @@ namespace lockstep
         // Tap-to-cycle the target slot while the FX picker is open (replaces the
         // old re-hold-to-cycle gesture). Master: units 0-3; Track: slots 0/1.
         void cycleFxPickerSlot(bool master);
+        // 9.24 S12: page the open FX picker by ±1 (clamped). Returns true iff a
+        // picker was open, so Nav is consumed as paging rather than its normal role.
+        bool pageFxPicker(int delta);
         // FX-picker step selection. Extracted so it can run from the Step case AND
         // the Track-held SelectTrack case (QwertyOverlay routes step keys to the
         // latter while Track is held, so the picker must be reachable from both).

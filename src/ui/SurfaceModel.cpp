@@ -17,6 +17,7 @@
 #include "../core/TrackInputMode.h"
 #include "../core/OutputDest.h"
 #include "../machine/ISliceable.h"
+#include "../machine/EffectPickerModel.h"
 #include <algorithm>
 #include <bit>
 #include <set>
@@ -1263,7 +1264,6 @@ namespace lockstep
                 // Cross-slot: the other insert slot's loaded effect shows a dim EffectLoadedOther hint.
                 const juce::Colour fxTint{ compatColour(CellState::EffectAvailable) };
                 const juce::Colour otherTint{ compatColour(CellState::EffectLoadedOther) };
-                const int numEffects = proc.numAvailableEffects();
                 const std::string loadedId = proc.trackInsertId(activeTrack,
                                                                 ui.funcFxInsertSlot);
                 const std::string otherSlotId = proc.trackInsertId(activeTrack,
@@ -1277,14 +1277,16 @@ namespace lockstep
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                     c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
-                    if (i >= numEffects)
+                    const int cat = fxPickerCellToCatalogue(FxPickerCtx::TrackInsert,
+                                                            ui.fxPickerPage, i);
+                    if (cat < 0)
                     {
                         c.base = CellState::MachineUnavailable;
                         c.baseColour = kStepOutRange;
                     }
                     else
                     {
-                        const auto info = proc.availableEffectInfo(i);
+                        const auto info = proc.availableEffectInfo(cat);
                         const bool isCur = (info.id == loadedId);
                         const bool isOther = !isCur && !otherSlotId.empty() && (info.id == otherSlotId);
                         // Re-picking a loaded effect toggles bypass; a bypassed
@@ -1310,10 +1312,11 @@ namespace lockstep
                 // Active unit's loaded effect = EffectLoaded; other units' effects = EffectLoadedOther.
                 const juce::Colour fxTint{ compatColour(CellState::EffectAvailable) };
                 const juce::Colour otherTint{ compatColour(CellState::EffectLoadedOther) };
-                const int numEffects = proc.numAvailableEffects();
                 const int mUnit = ui.masterFxInsertSlot;
                 const bool mIsSend = (mUnit >= 2);
                 const int mSlot = mIsSend ? mUnit - 2 : mUnit;
+                const FxPickerCtx mCtx = mIsSend ? FxPickerCtx::MasterSend
+                                                 : FxPickerCtx::MasterInsert;
                 const std::string activeId = mIsSend ? proc.masterSendId(mSlot)
                                                      : proc.masterInsertId(mSlot);
                 // Collect IDs from all other units for cross-slot dim hints.
@@ -1330,22 +1333,15 @@ namespace lockstep
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
                     c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
-                    if (i >= numEffects)
+                    const int cat = fxPickerCellToCatalogue(mCtx, ui.fxPickerPage, i);
+                    if (cat < 0)
                     {
                         c.base = CellState::MachineUnavailable;
                         c.baseColour = kStepOutRange;
                     }
                     else
                     {
-                        const auto info = proc.availableEffectInfo(i);
-                        // Item 5: send-only effects (External) are unavailable in a
-                        // master insert slot.
-                        if (info.sendOnly && !mIsSend)
-                        {
-                            c.base = CellState::MachineUnavailable;
-                            c.baseColour = kStepOutRange;
-                            continue;
-                        }
+                        const auto info = proc.availableEffectInfo(cat);
                         const bool isCur = (info.id == activeId);
                         bool isOther = false;
                         if (!isCur && !info.id.empty())

@@ -2480,7 +2480,17 @@ exists and this milestone does not add one).
       regression risk with zero payoff. Future simplification candidates that
       Signalsmith/`juce::dsp` could tidy without changing sound: envelope
       followers (scattered one-poles) and LFO shape generation.
-- [ ] **S12 — FX picker pagination** (single pure helper; catalogue passes 16 cells).
+- [x] **S12 — FX picker pagination** (single pure helper; catalogue passes 16 cells).
+      New `src/machine/EffectPickerModel.h`: pure `fxPickerEntries(ctx)` /
+      `fxPickerPageCount(ctx)` / `fxPickerCellToCatalogue(ctx,page,cell)` over
+      `{TrackInsert, MasterInsert, MasterSend}`. Track drops masterOnly+sendOnly
+      (deliberate compaction — no greyed gaps), master insert drops sendOnly, send
+      keeps the External sentinel. `UiState::fxPickerPage` (reset on open +
+      `resetFxPickers`); Nav L/R pages ±1 clamped while a picker is open; the
+      picker status line shows `P1/2` when >1 page. SurfaceModel render,
+      KeyboardArea paint/labels, and PluginEditor apply-guards all route through
+      the helper. Tests: context filtering, External send-only, page-offset
+      cell→catalogue mapping, out-of-range → -1.
 - [ ] **S13 — New effects: Ladder (`juce::dsp::LadderFilter`) + Freq Shifter
       (Signalsmith Hilbert SSB), track+master.**
 - [ ] **S14 — New effect: Limiter** (master-only, zero-lookahead safety limiter).

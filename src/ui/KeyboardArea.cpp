@@ -11,6 +11,7 @@
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
 #include "../core/TrigCondition.h"
+#include "../machine/EffectPickerModel.h"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -1145,10 +1146,9 @@ namespace lockstep
 
                     if (avail)
                     {
-                        // 8.26: masterOnly effects are dimmed in the track insert picker.
-                        const bool trackVisible = !processor_.availableEffectInfo(idx).masterOnly;
-                        const float ta = trackVisible
-                            ? (isCurrent ? 0.90f : (isOther ? 0.55f : 0.65f)) : 0.20f;
+                        // 9.24 S12: masterOnly effects are compacted out of the track
+                        // picker entirely, so every available cell here is track-legal.
+                        const float ta = isCurrent ? 0.90f : (isOther ? 0.55f : 0.65f);
                         paintGridCellText(g, cell, sc, ta);
                     }
                     if (showKeyLetters)
@@ -1157,8 +1157,12 @@ namespace lockstep
                 }
             }
 
-            const juce::String slotLabel = "INSERT " + juce::String(uiState_.funcFxInsertSlot + 1)
+            juce::String slotLabel = "INSERT " + juce::String(uiState_.funcFxInsertSlot + 1)
                 + "  (tap FX = slot · reselect = bypass · hold = remove)";
+            // 9.24 S12: page indicator when the track catalogue spans >1 page.
+            if (const int tp = fxPickerPageCount(FxPickerCtx::TrackInsert); tp > 1)
+                slotLabel += "   P" + juce::String(uiState_.fxPickerPage + 1)
+                           + "/" + juce::String(tp) + " (Nav L/R)";
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.drawText(slotLabel, navArea, juce::Justification::centred);
@@ -1170,7 +1174,6 @@ namespace lockstep
         {
             const juce::Colour fxTint = col(compatColour(CellState::EffectAvailable));
             const juce::Colour otherTint = col(compatColour(CellState::EffectLoadedOther));
-            const int numEffects = processor_.numAvailableEffects();
 
             for (int row = 0; row < kRows; ++row)
             {
@@ -1204,7 +1207,7 @@ namespace lockstep
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.0f);
                     }
 
-                    if (avail && idx < numEffects)
+                    if (avail)
                         paintGridCellText(g, cell, sc,
                                           isCurrent ? 0.90f : (isOther ? 0.55f : 0.65f));
                     if (showKeyLetters)
@@ -1215,9 +1218,15 @@ namespace lockstep
 
             // 8.26: friendly label for the 4 master units.
             static const char* kUnitNames[4] = { "INSERT 1", "INSERT 2", "SEND A", "SEND B" };
-            const juce::String slotLabel = juce::String("MASTER ")
+            juce::String slotLabel = juce::String("MASTER ")
                 + juce::String(kUnitNames[uiState_.masterFxInsertSlot])
                 + "  (tap FX = unit · reselect = bypass · hold = remove)";
+            // 9.24 S12: page indicator when this unit's catalogue spans >1 page.
+            const FxPickerCtx mCtx = (uiState_.masterFxInsertSlot >= 2)
+                                         ? FxPickerCtx::MasterSend : FxPickerCtx::MasterInsert;
+            if (const int mp = fxPickerPageCount(mCtx); mp > 1)
+                slotLabel += "   P" + juce::String(uiState_.fxPickerPage + 1)
+                           + "/" + juce::String(mp) + " (Nav L/R)";
             g.setColour(juce::Colour::fromRGB(80, 95, 115));
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.drawText(slotLabel, navArea, juce::Justification::centred);

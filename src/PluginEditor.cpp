@@ -16,6 +16,7 @@
 #include "machine/ISliceable.h"
 #include "machine/SampleMachine.h"
 #include "machine/RouteMachine.h"
+#include "machine/EffectPickerModel.h"
 #include "ui/KeyLabel.h"
 #include "ui/MetaBand.h"
 #include "ui/ScopedSectionMatrix.h"
@@ -2292,15 +2293,18 @@ namespace lockstep
 
     bool LockstepEditor::applyMasterFxPick(int index)
     {
+        // 9.24 S12: `index` is the step cell (0..15); the picker is paged and
+        // context-filtered, so translate cell -> catalogue index through the model.
         if (index < 0 || index >= 16) return true;
-        if (index >= processor_.numAvailableEffects()) return true;
-        const auto info = processor_.availableEffectInfo(index);
         // 8.26: units 0-1 = master inserts, units 2-3 = send returns.
         const int mUnit = uiState_.masterFxInsertSlot;
         const bool isSend = (mUnit >= 2);
         const int mSlot = isSend ? mUnit - 2 : mUnit;
-        // Item 5: send-only effects (External) cannot go in a master insert slot.
-        if (info.sendOnly && !isSend) return true;
+        const FxPickerCtx ctx = isSend ? FxPickerCtx::MasterSend
+                                       : FxPickerCtx::MasterInsert;
+        const int cat = fxPickerCellToCatalogue(ctx, uiState_.fxPickerPage, index);
+        if (cat < 0) return true;
+        const auto info = processor_.availableEffectInfo(cat);
         const std::string curId = isSend ? processor_.masterSendId(mSlot)
                                          : processor_.masterInsertId(mSlot);
         if (info.id == curId)
@@ -2377,13 +2381,15 @@ namespace lockstep
 
     bool LockstepEditor::applyTrackFxPick(int index)
     {
+        // 9.24 S12: `index` is the step cell (0..15); masterOnly/sendOnly effects
+        // are compacted out of the track picker, so map cell -> catalogue index.
         if (index < 0 || index >= 16) return true;
         const int at = keyboardArea_.getActiveTrack();
         if (at < 0 || at >= static_cast<int>(kNumTracks)) return true;
-        if (index >= processor_.numAvailableEffects()) return true;
-        const auto info = processor_.availableEffectInfo(index);
-        // 8.26: masterOnly effects cannot be placed in track inserts.
-        if (info.masterOnly) return true;
+        const int cat = fxPickerCellToCatalogue(FxPickerCtx::TrackInsert,
+                                                uiState_.fxPickerPage, index);
+        if (cat < 0) return true;
+        const auto info = processor_.availableEffectInfo(cat);
         const std::string curId = processor_.trackInsertId(at, uiState_.funcFxInsertSlot);
         if (info.id == curId)
         {
@@ -2405,12 +2411,18 @@ namespace lockstep
     // toggles bypass; a long-press removes the effect (see fxPickerStepDown).
     bool LockstepEditor::fxPickerCellIsLoaded(int index, bool master) const
     {
-        if (index < 0 || index >= processor_.numAvailableEffects()) return false;
-        const auto info = processor_.availableEffectInfo(index);
+        // 9.24 S12: `index` is the step cell; resolve it to a catalogue entry via
+        // the same paged/filtered model the render and apply paths use.
+        const int mUnit = uiState_.masterFxInsertSlot;
+        const bool isSend = master && (mUnit >= 2);
+        const FxPickerCtx ctx = !master     ? FxPickerCtx::TrackInsert
+                              : isSend       ? FxPickerCtx::MasterSend
+                                             : FxPickerCtx::MasterInsert;
+        const int cat = fxPickerCellToCatalogue(ctx, uiState_.fxPickerPage, index);
+        if (cat < 0) return false;
+        const auto info = processor_.availableEffectInfo(cat);
         if (master)
         {
-            const int mUnit = uiState_.masterFxInsertSlot;
-            const bool isSend = (mUnit >= 2);
             const int mSlot = isSend ? mUnit - 2 : mUnit;
             const std::string curId = isSend ? processor_.masterSendId(mSlot)
                                              : processor_.masterInsertId(mSlot);
@@ -2543,7 +2555,10 @@ namespace lockstep
         if (master)
         {
             if (!uiState_.masterFxPickerOpen)
+            {
                 uiState_.masterFxInsertSlot = 0;
+                uiState_.fxPickerPage = 0;  // 9.24 S12: fresh open starts on page 1
+            }
             uiState_.masterFxPickerOpen = true;
             keyboardArea_.selectMetaSection(LockstepProcessor::kFxSecIdx, /*toggle=*/false);
             refreshMetaBand();
@@ -2551,7 +2566,10 @@ namespace lockstep
         else
         {
             if (!uiState_.funcFxHeld)
+            {
                 uiState_.funcFxInsertSlot = 0;
+                uiState_.fxPickerPage = 0;
+            }
             uiState_.funcFxHeld = true;
         }
         refreshSurface();
@@ -2566,6 +2584,12 @@ namespace lockstep
         if (master)
         {
             uiState_.masterFxInsertSlot = (uiState_.masterFxInsertSlot + 1) % 4;
+            // Send vs insert have different page counts (External only on sends);
+            // clamp the current page into the new context's range.
+            const bool isSend = uiState_.masterFxInsertSlot >= 2;
+            const int pages = fxPickerPageCount(isSend ? FxPickerCtx::MasterSend
+                                                       : FxPickerCtx::MasterInsert);
+            uiState_.fxPickerPage = std::min(uiState_.fxPickerPage, pages - 1);
             keyboardArea_.selectMetaSection(LockstepProcessor::kFxSecIdx, /*toggle=*/false);
             refreshMetaBand();
         }
@@ -2574,6 +2598,24 @@ namespace lockstep
             uiState_.funcFxInsertSlot = 1 - uiState_.funcFxInsertSlot;
         }
         refreshSurface();
+    }
+
+    // 9.24 S12: page the open FX picker by `delta` (±1), clamped. Returns true
+    // when a picker was open (so Nav is consumed as paging); false otherwise, so
+    // the caller falls through to Nav's normal roles.
+    bool LockstepEditor::pageFxPicker(int delta)
+    {
+        const bool master = uiState_.masterFxPickerOpen;
+        if (!master && !uiState_.funcFxHeld) return false;
+        const int mUnit = uiState_.masterFxInsertSlot;
+        const FxPickerCtx ctx = !master        ? FxPickerCtx::TrackInsert
+                              : (mUnit >= 2)    ? FxPickerCtx::MasterSend
+                                                : FxPickerCtx::MasterInsert;
+        const int pages = fxPickerPageCount(ctx);
+        uiState_.fxPickerPage =
+            std::clamp(uiState_.fxPickerPage + delta, 0, pages - 1);
+        refreshSurface();
+        return true;
     }
 
     bool LockstepEditor::activeTrackContentLocked() const
@@ -4843,6 +4885,8 @@ namespace lockstep
             }
 
             case ControllerButton::NavLeft: {
+                // 9.24 S12: while an FX picker is open, Nav pages the catalogue.
+                if (pageFxPicker(-1)) return true;
                 if (consumeDensityStickyKey(CB::NavLeft)) return true;
                 if (consumeVelStickyKey(CB::NavLeft)) return true;
                 // Note-edit mode and CHROMATIC mode both use NavLeft/Right for octave shift.
@@ -4898,6 +4942,8 @@ namespace lockstep
             }
 
             case ControllerButton::NavRight: {
+                // 9.24 S12: while an FX picker is open, Nav pages the catalogue.
+                if (pageFxPicker(1)) return true;
                 if (consumeDensityStickyKey(CB::NavRight)) return true;
                 if (consumeVelStickyKey(CB::NavRight)) return true;
                 const int tr = keyboardArea_.getActiveTrack();

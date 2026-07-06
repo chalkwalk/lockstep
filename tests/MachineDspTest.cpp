@@ -18,6 +18,7 @@
 #include "../src/machine/SamplePool.h"
 #include "../src/machine/IEffect.h"
 #include "../src/machine/EffectFactory.h"
+#include "../src/machine/EffectPickerModel.h"
 #include "../src/dsp/Oversampler2x.h"
 #include "../src/dsp/Interpolation.h"
 #include "SpectralMeasure.h"
@@ -1536,6 +1537,47 @@ namespace lockstep
                   "tier: verbhq canonicalises to reverb");
             CHECK(canonicalEffectId("lockstep.delayhq.v1") == "lockstep.delay.v1",
                   "tier: delayhq canonicalises to delay");
+        }
+
+        // --- S12: FX picker pagination model ---
+        {
+            const auto all = availableEffects();
+            // Context filtering: track drops masterOnly+sendOnly; master insert
+            // drops sendOnly; send keeps everything master (incl External).
+            const auto track  = fxPickerEntries(FxPickerCtx::TrackInsert);
+            const auto mIns   = fxPickerEntries(FxPickerCtx::MasterInsert);
+            const auto mSend  = fxPickerEntries(FxPickerCtx::MasterSend);
+            for (int cat : track)
+            {
+                const auto& e = all[static_cast<std::size_t>(cat)];
+                CHECK(!e.masterOnly && !e.sendOnly,
+                      "S12: track picker excludes masterOnly/sendOnly (" + juce::String(e.id.c_str()) + ")");
+            }
+            for (int cat : mIns)
+                CHECK(!all[static_cast<std::size_t>(cat)].sendOnly,
+                      "S12: master insert picker excludes sendOnly");
+            // The External send is sendOnly -> only in the send context.
+            bool extInSend = false, extInIns = false, extInTrack = false;
+            for (int cat : mSend)  if (all[static_cast<std::size_t>(cat)].id == kExternalSendId) extInSend = true;
+            for (int cat : mIns)   if (all[static_cast<std::size_t>(cat)].id == kExternalSendId) extInIns = true;
+            for (int cat : track)  if (all[static_cast<std::size_t>(cat)].id == kExternalSendId) extInTrack = true;
+            CHECK(extInSend && !extInIns && !extInTrack,
+                  "S12: External send appears only in the send picker");
+
+            // Page count >= 1; cell->catalogue mapping is contiguous and page-offset.
+            CHECK(fxPickerPageCount(FxPickerCtx::TrackInsert) >= 1, "S12: >=1 page");
+            // Cell 0 of page 0 is the first send entry; cell 0 of page 1 is entry 16.
+            CHECK(fxPickerCellToCatalogue(FxPickerCtx::MasterSend, 0, 0) == mSend.front(),
+                  "S12: page0 cell0 maps to first entry");
+            if (static_cast<int>(mSend.size()) > kFxPickerCellsPerPage)
+                CHECK(fxPickerCellToCatalogue(FxPickerCtx::MasterSend, 1, 0)
+                          == mSend[static_cast<std::size_t>(kFxPickerCellsPerPage)],
+                      "S12: page1 cell0 maps to entry 16");
+            // Out-of-range cells map to -1 (rendered as unavailable).
+            CHECK(fxPickerCellToCatalogue(FxPickerCtx::TrackInsert, 99, 0) == -1,
+                  "S12: past-end page yields -1");
+            CHECK(fxPickerCellToCatalogue(FxPickerCtx::TrackInsert, 0, -1) == -1,
+                  "S12: negative cell yields -1");
         }
 
         // --- Oversampler2x: DC gain, passband, and alias rejection ---

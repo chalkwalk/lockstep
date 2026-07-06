@@ -210,8 +210,12 @@ Phrase ──trigs──▶ Machine ──▶ Foundation (FILTER → AMP) ──
   levels on AMP page 2. Send returns are processed before master inserts.
 - **Master FX** — four Song-scope units (2 inserts + 2 send returns)
   over the summed output. Loaded via `Func+Song+FX`; cycle with
-  repeated press (FX1→FX2→Snd A→Snd B). HQ-only effects are hidden
-  from the track picker.
+  repeated press (FX1→FX2→Snd A→Snd B). Master-only effects are
+  **compacted out** of the track picker (they simply don't appear —
+  no greyed gaps), and the `External` send only appears on the two
+  send units. When a catalogue spans more than one page of 16 cells,
+  the picker pages with **Nav ←/→** (a `P1/2` indicator shows in the
+  picker's status line).
 - **Output routing & buses** — each track's finished signal has **one**
   destination, the **Out** slot in the CHANNEL block: `Master` (default),
   `Track N`, `Aux N`, or `Off`. Out is *single-destination* by construction
