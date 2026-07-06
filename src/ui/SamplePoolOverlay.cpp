@@ -365,6 +365,14 @@ namespace lockstep
         const int poolIdx = selectedPoolIndex();
         if (poolIdx < 0)
             return;
+        // 9.24 S16: in pick-IR mode a double-click routes the sample to a convolution
+        // insert slot's IR ref (handled by the editor) and closes the overlay.
+        if (pickIrMode_)
+        {
+            if (onPickIr) onPickIr(poolIdx);
+            if (onClose) onClose();
+            return;
+        }
         const int track = getActiveTrack ? getActiveTrack() : 0;
         if (track < 0) return;
         const int sampleSlot = processor_.slotForId(track, "sample_id");
@@ -385,11 +393,14 @@ namespace lockstep
         auto titleArea = getLocalBounds().removeFromTop(24).reduced(8, 0);
         g.setFont(juce::Font(juce::FontOptions(11.0f)).boldened());
         g.setColour(juce::Colour::fromRGB(255, 180, 50));
-        g.drawText("SAMPLE POOL", titleArea, juce::Justification::centredLeft);
+        g.drawText(pickIrMode_ ? "PICK IR" : "SAMPLE POOL",
+                   titleArea, juce::Justification::centredLeft);
 
         g.setFont(juce::Font(juce::FontOptions(10.0f)));
         g.setColour(juce::Colour::fromRGB(120, 140, 160));
-        g.drawText("click: preview    dbl-click: assign to track  (p-lock if step held)",
+        g.drawText(pickIrMode_
+                       ? "dbl-click: use this sample as the convolution IR"
+                       : "click: preview    dbl-click: assign to track  (p-lock if step held)",
                    titleArea, juce::Justification::centredRight);
     }
 

@@ -28,6 +28,14 @@ namespace lockstep
         // Props… — the editor opens the sample-properties meta band on it.
         std::function<void(int)> onEditProps;
 
+        // 9.24 S16: "pick IR" mode. When armed (setPickIrMode(true)), a double-click
+        // on a sample fires onPickIr(poolIndex) — routing the sample to a convolution
+        // insert slot's IR ref instead of assigning it to the active track — and the
+        // overlay closes. The title reflects the mode.
+        std::function<void(int)> onPickIr;
+        void setPickIrMode(bool on) { pickIrMode_ = on; repaint(); }
+        [[nodiscard]] bool pickIrMode() const { return pickIrMode_; }
+
         void paint(juce::Graphics& g) override;
         void resized() override;
         void timerCallback() override;
@@ -51,6 +59,7 @@ namespace lockstep
         // and the edit buttons.
         struct DisplayRow { bool isHeader = false; juce::String label; int poolIndex = -1; };
         std::vector<DisplayRow> rows_;
+        bool pickIrMode_ = false;  // 9.24 S16: double-click routes to a conv IR slot
         void rebuildRows();
         // Absolute pool index of the currently-selected display row, or -1 if a
         // header / nothing is selected.

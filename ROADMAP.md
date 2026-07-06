@@ -2516,8 +2516,19 @@ exists and this milestone does not add one).
       empty irRef). Processor get/set API (`setTrackInsertIrRef`/`…IrRef` + master
       equivalents) added for S16's pool-IR gesture. Test: track/master irRef
       round-trips, Volatile dropped, appended `chorus_fb` survives.
-- [ ] **S16 — Convolution reverb** (`juce::dsp::Convolution`, zero-latency; IR-select
-      Bundled | Pool via `SamplePoolOverlay` pick-IR mode).
+- [x] **S16 — Convolution reverb** (`juce::dsp::Convolution`, zero-latency; IR-select
+      Bundled | Pool via `SamplePoolOverlay` pick-IR mode). `ConvolutionEffect`
+      (id `lockstep.conv.v1`, track+master): IR-select (Pool default | Bundled 1..4),
+      Pre-delay, Damp, Mix. IEffect gains a `setImpulseResponse` seam; the processor
+      `pushInsertIr` resolves a slot's v31 irRef to pool PCM and pushes it (on load +
+      on the pick gesture). Pool pick: `SamplePoolOverlay` pick-IR mode
+      (`onPickIr` + `setPickIrMode`), opened with **Confirm** while an FX picker
+      shows a convolution slot; routes to `setTrackInsertIrRef`/master equivalents.
+      `loadBundledIr` synthesises a deterministic decay until S17 ships baked WAVs.
+      Bypass cuts the tail (documented). Tests: latency == 0; known sparse IR ==
+      direct convolution (within 3e-3, spinning the background IR swap + settling the
+      crossfade); missing IR → finite no-crash. **UI gesture (Confirm→pick) is
+      compile-clean but wants hands-on GUI verification.**
 - [ ] **S17 — `tools/ir_bake` + bundled starter IRs** (rendered from our own
       HQReverbEffect presets; shipped via `juce_add_binary_data`).
 - [ ] **S18 — Docs + full A/B sign-off** (ROADMAP / README / THIRDPARTY;

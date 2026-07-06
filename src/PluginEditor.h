@@ -232,6 +232,12 @@ namespace lockstep
         bool stepInspectorFiredMidHold_ = false;  // Part 2: StepInspector opened via long-press this hold
         bool fxPickerRemoveArmed_ = false;        // loaded-cell press deferred to key-up
         bool fxPickerRemoveMaster_ = false;       // which picker the armed press targets
+
+        // 9.24 S16: which insert slot a pool "pick IR" gesture targets. master:
+        // slot 0/1 = insert, 2/3 = send. track: track + slot (0/1).
+        bool irPickTargetMaster_ = false;
+        int irPickTargetTrack_ = 0;
+        int irPickTargetSlot_ = 0;
         bool machineConsoleArmed_ = false;        // 7b: console-section press deferred to key-up
 
         // ── Performance capture (tape deck) ──────────────────────────────────
@@ -322,6 +328,9 @@ namespace lockstep
         // 9.24 S12: page the open FX picker by ±1 (clamped). Returns true iff a
         // picker was open, so Nav is consumed as paging rather than its normal role.
         bool pageFxPicker(int delta);
+        // 9.24 S16: Confirm-on-a-convolution-slot opens the pool browser in pick-IR
+        // mode for that slot. Returns true iff it opened (Confirm consumed).
+        bool tryOpenIrPicker();
         // FX-picker step selection. Extracted so it can run from the Step case AND
         // the Track-held SelectTrack case (QwertyOverlay routes step keys to the
         // latter while Track is held, so the picker must be reachable from both).

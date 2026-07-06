@@ -151,7 +151,11 @@ namespace lockstep
                     p.id = "lockstep.conv.ir";
                     p.label = "IR";
                     p.minValue = 0.0f; p.maxValue = static_cast<float>(kNumSel - 1);
-                    p.defaultValue = 1.0f;  // a bundled IR so a fresh insert makes sound
+                    // Default = Pool: a picked pool IR (S16 gesture) takes effect with
+                    // no extra param move; a fresh insert with no IR is simply inert
+                    // (you pick an IR, as you must for any convolver). Bundled slots
+                    // (S17) are reachable by advancing the param.
+                    p.defaultValue = 0.0f;
                     p.isStepped = true; p.valueLabels = kSelSpan;
                     break;
                 case 1:

@@ -693,6 +693,28 @@ namespace lockstep
             refreshMetaBand();
             refreshSurface();
         };
+        // 9.24 S16: pick-IR mode — route the chosen sample to the armed convolution
+        // insert slot's IR ref (v31). The processor pushes the PCM to the live
+        // effect; the convolution's IR-select defaults to Pool so it takes effect.
+        poolOverlay_.onPickIr = [this](int poolIndex) {
+            if (poolIndex < 0 || poolIndex >= processor_.samplePool().size()) return;
+            const SampleId id = processor_.samplePool().idOf(poolIndex);
+            if (irPickTargetMaster_)
+            {
+                if (irPickTargetSlot_ >= 2)
+                    processor_.setMasterSendIrRef(irPickTargetSlot_ - 2, id);
+                else
+                    processor_.setMasterInsertIrRef(irPickTargetSlot_, id);
+            }
+            else
+            {
+                processor_.setTrackInsertIrRef(irPickTargetTrack_, irPickTargetSlot_, id);
+            }
+            poolOverlay_.setPickIrMode(false);
+            setStatus("IR set: " + processor_.samplePool().displayName(poolIndex));
+            refreshMetaBand();
+            refreshSurface();
+        };
         addChildComponent(poolOverlay_);
 
         soundBankBtn_.setWantsKeyboardFocus(false);
@@ -2598,6 +2620,42 @@ namespace lockstep
             uiState_.funcFxInsertSlot = 1 - uiState_.funcFxInsertSlot;
         }
         refreshSurface();
+    }
+
+    // 9.24 S16: if an FX picker is open on a slot holding the convolution reverb,
+    // arm pick-IR mode for that slot and open the pool browser. Returns true (Confirm
+    // consumed) when it opened the picker; false so Confirm keeps its other roles.
+    bool LockstepEditor::tryOpenIrPicker()
+    {
+        auto arm = [this](bool master, int track, int slot) {
+            irPickTargetMaster_ = master;
+            irPickTargetTrack_ = track;
+            irPickTargetSlot_ = slot;
+            poolOverlay_.setPickIrMode(true);
+            poolOverlay_.setVisible(true);
+            poolOverlay_.toFront(false);
+            setStatus("Pick a sample to use as the convolution IR");
+        };
+        if (uiState_.masterFxPickerOpen)
+        {
+            const int unit = uiState_.masterFxInsertSlot;
+            const std::string id = (unit >= 2) ? processor_.masterSendId(unit - 2)
+                                               : processor_.masterInsertId(unit);
+            if (id != "lockstep.conv.v1") return false;
+            arm(/*master=*/true, 0, unit);
+            return true;
+        }
+        if (uiState_.funcFxHeld)
+        {
+            const int track = keyboardArea_.getActiveTrack();
+            if (track < 0) return false;
+            if (processor_.trackInsertId(track, uiState_.funcFxInsertSlot)
+                    != "lockstep.conv.v1")
+                return false;
+            arm(/*master=*/false, track, uiState_.funcFxInsertSlot);
+            return true;
+        }
+        return false;
     }
 
     // 9.24 S12: page the open FX picker by `delta` (±1), clamped. Returns true
@@ -5261,6 +5319,10 @@ namespace lockstep
             case ControllerButton::VerbConfirm: {
                 using PS = EditMode::PrimaryScope;
                 const bool funcHeld = editMode_.scopeState().func;
+
+                // 9.24 S16: Confirm on a convolution FX-picker slot opens the pool
+                // browser in pick-IR mode for that slot.
+                if (tryOpenIrPicker()) return true;
 
                 // 7c: Route routing console open → bare P = commit staged routes;
                 // Func+P = cancel (revert). Both close the console.
