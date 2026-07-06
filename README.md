@@ -1011,6 +1011,16 @@ or sends. The tier is chosen by *placement* — you do not pick it. So `Reverb`,
 | `PHA` | Phaser | Rate, Depth, Centre, Feedbk, Mix |
 | `LDR` | Ladder | Cutoff, Reso, Drive, Mode (LP/BP/HP · 12/24 dB) — Moog-style self-oscillating ladder |
 | `FSH` | FreqShift | Shift (±Hz), Mix, Feedbk — single-sideband (inharmonic) frequency shifter |
+| `CNV` | Convolve | IR (Pool \| Bundled 1–4), PreDly, Damp, Mix — zero-latency convolution reverb |
+
+**Convolution IR workflow.** The `Convolve` effect's IR comes from either a
+**bundled** starter (Room / Plate / Hall / Long-Dark, rendered from Lockstep's
+own HQ reverb) or **any pool sample** (load a real-space impulse response, or use
+a drum/vocal for creative smearing). To pick a pool IR: load `Convolve` on a slot,
+open its FX picker, and press **Confirm** — the pool browser opens in *pick-IR*
+mode; double-click a sample. The IR reference is saved with the project
+(content-hashed, never the PCM). A fresh `Convolve` with no IR is inert until you
+pick one (IR defaults to *Pool*); advance the IR param to reach the bundled slots.
 
 `Saturation` is the gentle, gluey tape-style cousin of the rougher `Distortion`;
 put the HQ face on a Route track or the master bus for clean bus glue.

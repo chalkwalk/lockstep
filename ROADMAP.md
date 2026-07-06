@@ -2529,8 +2529,15 @@ exists and this milestone does not add one).
       direct convolution (within 3e-3, spinning the background IR swap + settling the
       crossfade); missing IR → finite no-crash. **UI gesture (Confirm→pick) is
       compile-clean but wants hands-on GUI verification.**
-- [ ] **S17 — `tools/ir_bake` + bundled starter IRs** (rendered from our own
-      HQReverbEffect presets; shipped via `juce_add_binary_data`).
+- [x] **S17 — bundled starter IRs (rendered from our own HQReverbEffect presets).**
+      *Deviation:* instead of a `tools/ir_bake` generator writing committed WAVs
+      embedded via `juce_add_binary_data`, the 4 bundled IRs (Room / Plate / Hall /
+      Long-Dark) are **rendered at load time** by driving a unit impulse through
+      `HQReverbEffect` at curated presets. Same source + determinism the plan wanted
+      (HQReverb's mod phase is fixed at `prepare()`), with no binary assets in the
+      repo and no build-system change — cheaper and fully unit-testable. A
+      bake-to-WAV + `BinaryData` embed remains a future option. Test: each bundled
+      preset loads, is finite, non-silent, and decays.
 - [ ] **S18 — Docs + full A/B sign-off** (ROADMAP / README / THIRDPARTY;
       fx_audition A/B vs the S2 baseline).
 

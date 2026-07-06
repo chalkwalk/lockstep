@@ -1196,6 +1196,49 @@ namespace lockstep
             }
         }
 
+        // --- S17: bundled convolution IRs (rendered from HQReverbEffect) ---
+        // Each of the 4 bundled presets must load, produce a finite non-silent
+        // response to an impulse, and decay (tail energy < onset energy).
+        {
+            constexpr double sr = 48000.0;
+            constexpr int blockLen = 1024;
+            for (int preset = 1; preset <= 4; ++preset)   // sel 1..4 = Bundled 1..4
+            {
+                ConvolutionEffect conv;
+                conv.prepare(sr, blockLen);
+                const ParamFrame prm = { static_cast<float>(preset), 0.0f, 0.0f, 1.0f };
+
+                bool live = false;
+                for (int tries = 0; tries < 200 && !live; ++tries)
+                {
+                    juce::AudioBuffer<float> silent(1, blockLen);
+                    silent.clear();
+                    conv.process(silent, blockLen, prm);
+                    if (conv.currentIrSize() > 0) live = true;
+                    else std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                }
+                CHECK(live, "S17: bundled IR " + juce::String(preset) + " loads");
+                if (!live) continue;
+                for (int s = 0; s < 6; ++s)   // settle the crossfade
+                {
+                    juce::AudioBuffer<float> silent(1, blockLen);
+                    silent.clear();
+                    conv.process(silent, blockLen, prm);
+                }
+
+                juce::AudioBuffer<float> buf(1, blockLen);
+                buf.clear();
+                buf.setSample(0, 0, 1.0f);
+                conv.process(buf, blockLen, prm);
+                CHECK(!hasNaNOrInf(buf), "S17: bundled IR " + juce::String(preset) + " finite");
+                double onset = 0.0, tail = 0.0;
+                for (int i = 0; i < 256; ++i) onset += std::abs(buf.getSample(0, i));
+                for (int i = blockLen - 256; i < blockLen; ++i) tail += std::abs(buf.getSample(0, i));
+                CHECK(onset > 1e-3, "S17: bundled IR " + juce::String(preset) + " non-silent");
+                CHECK(tail < onset, "S17: bundled IR " + juce::String(preset) + " decays");
+            }
+        }
+
         // --- AnalogMachine ---
         {
             AnalogMachine va;

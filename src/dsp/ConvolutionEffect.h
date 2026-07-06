@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../machine/IEffect.h"
+#include "HQReverbEffect.h"
 #include <juce_dsp/juce_dsp.h>
 #include <array>
 #include <cmath>
@@ -198,22 +199,48 @@ namespace lockstep
                 juce::dsp::Convolution::Normalise::no);
         }
 
-        // S17 replaces this body with a BinaryData read of a baked WAV. Until then
-        // it synthesises a deterministic exponential-decay noise IR so the Bundled
-        // slots are never silent. `n` in [0, kNumBundled).
+        // Bundled IR: rendered at load time by driving a unit impulse through our
+        // own HQReverbEffect at a curated preset (9.24 S17). This is the plan's
+        // "IRs baked from HQReverbEffect" — realised as a deterministic load-time
+        // render (HQReverbEffect's mod phase is fixed at prepare()) rather than a
+        // committed WAV + BinaryData embed, which keeps binary assets out of the
+        // repo and the build. Message-thread only (allocates + renders ~1-4 s).
+        // `n` in [0, kNumBundled): Room / Plate / Hall / Long-Dark.
         void loadBundledIr(int n)
         {
-            const int len = static_cast<int>(sr_ * (0.6 + 0.4 * n));  // 0.6..1.8 s
-            juce::AudioBuffer<float> ir(1, std::max(1, len));
-            float* d = ir.getWritePointer(0);
-            std::uint32_t rng = 0x1234567u + static_cast<std::uint32_t>(n) * 2654435761u;
-            const float tau = static_cast<float>(sr_) * (0.15f + 0.1f * static_cast<float>(n));
-            for (int i = 0; i < len; ++i)
+            struct Preset { float size, decay, damp, seconds; };
+            static constexpr std::array<Preset, kNumBundled> kPresets = { {
+                { 0.30f, 0.8f, 0.50f, 1.2f },   // Room
+                { 0.50f, 1.5f, 0.25f, 2.0f },   // Plate
+                { 0.80f, 3.0f, 0.40f, 3.0f },   // Hall
+                { 0.90f, 8.0f, 0.80f, 4.0f },   // Long / Dark
+            } };
+            const auto& p = kPresets[static_cast<std::size_t>(
+                juce::jlimit(0, kNumBundled - 1, n))];
+
+            HQReverbEffect verb;
+            constexpr int block = 512;
+            verb.prepare(sr_, block);
+            const int len = std::max(1, static_cast<int>(sr_ * p.seconds));
+            juce::AudioBuffer<float> ir(1, len);
+            ir.clear();
+            // HQReverb params: predelay, size, decay, damp, lowcut, mod, mix(=1 wet).
+            const ParamFrame vp = { 0.0f, p.size, p.decay, p.damp, 60.0f, 0.2f, 1.0f };
+            int written = 0;
+            bool first = true;
+            while (written < len)
             {
-                rng = rng * 1664525u + 1013904223u;
-                const float noise = static_cast<float>(rng >> 9) * (1.0f / 8388608.0f) - 1.0f;
-                d[i] = noise * std::exp(-static_cast<float>(i) / tau);
+                const int m = std::min(block, len - written);
+                juce::AudioBuffer<float> buf(2, m);
+                buf.clear();
+                if (first) { buf.setSample(0, 0, 1.0f); buf.setSample(1, 0, 1.0f); first = false; }
+                verb.process(buf, m, vp);
+                for (int i = 0; i < m; ++i)
+                    ir.setSample(0, written + i, buf.getSample(0, i));
+                written += m;
             }
+            const float peak = ir.getMagnitude(0, len);
+            if (peak > 1e-6f) ir.applyGain(0.5f / peak);
             conv_.loadImpulseResponse(std::move(ir), sr_,
                 juce::dsp::Convolution::Stereo::no,
                 juce::dsp::Convolution::Trim::no,
