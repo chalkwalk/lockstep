@@ -16,11 +16,13 @@ namespace lockstep
     //                            grain API gives free reverse/scrub/zero-speed,
     //                            seamless looping by source-position wrapping, and
     //                            native input↔output rate conversion.
-    //   * deferred offline     = Rubber Band R3 (GPL) render-to-pool — a future
-    //                            OfflineStretchEngine behind this same seam.
+    //   * deferred offline     = a future OfflineStretchEngine behind this same seam
+    //                            for max-quality render-to-pool (latency irrelevant).
+    //                            The engine choice is open — pick by measured quality
+    //                            when built, not assumed.
     //   * real-time fallback   = signalsmith-stretch (MIT, header-only) if Bungee
-    //                            fails the Stage-1 ear test. All callers of this
-    //                            seam are engine-agnostic, so the swap is local.
+    //                            fails the ear test. All callers of this seam are
+    //                            engine-agnostic, so the swap is local.
     //
     // Threading: prepare()/reset()/start() do all allocation and run on the
     // message thread or inside withQuiescedEngine only. process() is

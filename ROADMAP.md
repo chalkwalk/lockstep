@@ -2374,10 +2374,11 @@ loops seamless, and make detected sample metadata user-editable. Plan:
 Engine strategy (locked with user): **Bungee** (github.com/bungee-audio-stretch,
 MPL-2.0; vendors Eigen + PFFFT) is the single real-time stretch engine — its
 pull-based grain API gives free reverse/scrub/zero-speed, seamless looping by
-source-position wrapping, and native input↔output rate conversion. Rubber Band R3
-(GPL) is the deferred offline render-to-pool engine; signalsmith-stretch (MIT) is
-the named real-time fallback if Bungee fails the ear test. WSOLA `dsp/TimeStretch`
-was deleted.
+source-position wrapping, and native input↔output rate conversion. A future
+max-quality offline render-to-pool engine can sit behind the same seam (engine TBD
+— chosen on measured quality when built, not assumed); signalsmith-stretch (MIT)
+is the named real-time fallback if Bungee fails the ear test. WSOLA
+`dsp/TimeStretch` was deleted.
 - [x] **S1 — Bungee + pull-model `IStretchEngine` seam** (`src/dsp/IStretchEngine.h`,
       `BungeeStretchEngine`, `PcmStretchSource`, `tools/stretch_audition`). Granular
       pull loop → planar FIFO; proportional run-in discard aligns onset to startPos;
@@ -2404,9 +2405,10 @@ was deleted.
       Auto cancels the detected deviation; Raw plays as recorded.
 - [~] **S8 — Docs** (this block; DESIGN/README/THIRDPARTY).
 - Follow-ups: player unification part 2 (Looper→Bungee tape/scrub/glide, Stream
-      reverse, Sample/Slicer engine-optional + Hermite interp), Rubber Band R3 offline
-      render-to-pool, Stream→pool wiring (its tempo/one-shot/A440 lookups), FX
-      third-party swap (juce::dsp DelayLine/Oversampling; Signalsmith basics).
+      reverse, Sample/Slicer engine-optional + Hermite interp), a max-quality offline
+      render-to-pool engine behind the seam (engine TBD, benchmark before adopting),
+      Stream→pool wiring (its tempo/one-shot/A440 lookups), FX third-party swap
+      (juce::dsp DelayLine/Oversampling; Signalsmith basics).
 
 ---
 

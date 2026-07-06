@@ -28,7 +28,9 @@ file's source must be made available under the MPL. Practical rule for this repo
 
 ## Deferred / named-but-not-vendored
 
-- **Rubber Band Library** (GPLv2+) — planned offline render-to-pool engine. GPL, so
-  compatible; would be vendored behind the same `IStretchEngine` seam when built.
+- **Offline render-to-pool engine** — a possible future max-quality (latency-
+  irrelevant) engine behind the same `IStretchEngine` seam. The engine is not chosen:
+  candidates (e.g. Rubber Band, GPLv2+) would be benchmarked for quality/CPU before
+  adoption, not assumed. None is vendored today.
 - **signalsmith-stretch** (MIT) — named real-time fallback if Bungee fails the ear
   test; header-only, not currently vendored.
