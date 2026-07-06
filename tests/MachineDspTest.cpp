@@ -20,7 +20,9 @@
 #include "../src/machine/EffectFactory.h"
 #include "../src/dsp/Oversampler2x.h"
 #include <signalsmith-dsp/delay.h>
+#include <juce_dsp/juce_dsp.h>
 #include <cmath>
+#include <vector>
 
 namespace lockstep
 {
@@ -54,6 +56,152 @@ namespace lockstep
             }
         }
         return (n > 0) ? static_cast<float>(std::sqrt(sum / static_cast<double>(n))) : 0.0f;
+    }
+
+    // -----------------------------------------------------------------------
+    // Spectral measurement helpers (9.24 S3). These back the quality assertions
+    // for the DSP-quality stages: sinePurityDb (interpolation quality),
+    // aliasRatioDb (oversampling effectiveness), maxSampleStep (click/seam
+    // detector). Hann-windowed magnitude spectrum via juce::dsp::FFT.
+
+    // Number of bins the exclusion band must span to clear a windowed peak's
+    // main lobe. The Blackman-Harris window below trades main-lobe width for very
+    // low (-92 dB) sidelobes, so a pure tone reads as genuinely pure — essential
+    // for the >55 dB interpolation-purity assertions to be reachable.
+    static constexpr int kSpectralBand = 6;
+
+    // Magnitude spectrum of channel 0 (Blackman-Harris windowed, zero-padded to
+    // fftSize). Returns fftSize/2 linear magnitudes (bin i -> i*sr/fftSize Hz).
+    static std::vector<float> spectrumOf(const juce::AudioBuffer<float>& buf, int fftOrder)
+    {
+        const int fftSize = 1 << fftOrder;
+        std::vector<float> fftData(static_cast<std::size_t>(fftSize) * 2, 0.0f);
+        const int n = std::min(fftSize, buf.getNumSamples());
+        const float* src = buf.getReadPointer(0);
+        // 4-term Blackman-Harris window (sidelobes ~-92 dB).
+        const double a0 = 0.35875, a1 = 0.48829, a2 = 0.14128, a3 = 0.01168;
+        const double denom = std::max(1, n - 1);
+        for (int i = 0; i < n; ++i)
+        {
+            const double x = 2.0 * juce::MathConstants<double>::pi * i / denom;
+            const double w = a0 - a1 * std::cos(x) + a2 * std::cos(2.0 * x)
+                                - a3 * std::cos(3.0 * x);
+            fftData[static_cast<std::size_t>(i)] = src[i] * static_cast<float>(w);
+        }
+        juce::dsp::FFT fft(fftOrder);
+        fft.performFrequencyOnlyForwardTransform(fftData.data());
+        std::vector<float> mags(static_cast<std::size_t>(fftSize / 2));
+        for (int i = 0; i < fftSize / 2; ++i)
+            mags[static_cast<std::size_t>(i)] = fftData[static_cast<std::size_t>(i)];
+        return mags;
+    }
+
+    // Ratio of energy at the fundamental f (± a small band) to all other energy,
+    // in dB. Higher = purer tone. A clean sine ~ >70 dB; interpolation artefacts
+    // (imaging) or aliasing pull it down. `f` in Hz, `sr` the sample rate.
+    static float sinePurityDb(const juce::AudioBuffer<float>& buf, double f, double sr,
+                              int fftOrder = 15)
+    {
+        const auto mags = spectrumOf(buf, fftOrder);
+        const int fftSize = 1 << fftOrder;
+        const double binHz = sr / fftSize;
+        const int fundBin = static_cast<int>(std::lround(f / binHz));
+        const int band = kSpectralBand;
+        double fund = 0.0, rest = 0.0;
+        for (int i = 1; i < static_cast<int>(mags.size()); ++i)
+        {
+            const double e = static_cast<double>(mags[static_cast<std::size_t>(i)])
+                           * static_cast<double>(mags[static_cast<std::size_t>(i)]);
+            if (std::abs(i - fundBin) <= band) fund += e;
+            else                               rest += e;
+        }
+        if (rest < 1e-20) return 120.0f;
+        return static_cast<float>(10.0 * std::log10(fund / rest));
+    }
+
+    // Alias/inharmonic energy relative to the fundamental, in dB (negative =
+    // alias below fundamental). For a memoryless shaper driven by a sine f0, true
+    // harmonics land at k*f0; everything NOT within a band of some k*f0 is
+    // aliasing + noise. Lower (more negative) is cleaner.
+    static float aliasRatioDb(const juce::AudioBuffer<float>& buf, double f0, double sr,
+                              int fftOrder = 15)
+    {
+        const auto mags = spectrumOf(buf, fftOrder);
+        const int fftSize = 1 << fftOrder;
+        const double binHz = sr / fftSize;
+        const int band = kSpectralBand;
+        const int nyqBin = static_cast<int>(mags.size());
+        double fund = 0.0, alias = 0.0;
+        for (int i = 1; i < nyqBin; ++i)
+        {
+            const double hz = i * binHz;
+            // Nearest integer multiple of f0.
+            const long k = std::lround(hz / f0);
+            const double harmHz = static_cast<double>(k) * f0;
+            const bool isHarmonic = std::abs(hz - harmHz) <= band * binHz;
+            const double e = static_cast<double>(mags[static_cast<std::size_t>(i)])
+                           * static_cast<double>(mags[static_cast<std::size_t>(i)]);
+            if (k == 1 && isHarmonic) fund += e;
+            else if (!isHarmonic)     alias += e;
+            // harmonics k>=2 are neither fundamental nor alias — ignored.
+        }
+        if (fund < 1e-20) return 0.0f;
+        return static_cast<float>(10.0 * std::log10(alias / fund));
+    }
+
+    // Largest absolute jump between consecutive samples, across all channels.
+    // A click / discontinuity (bad loop seam, integer-tap retune) spikes this.
+    static float maxSampleStep(const juce::AudioBuffer<float>& buf)
+    {
+        float worst = 0.0f;
+        for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+        {
+            const float* p = buf.getReadPointer(ch);
+            for (int i = 1; i < buf.getNumSamples(); ++i)
+                worst = std::max(worst, std::abs(p[i] - p[i - 1]));
+        }
+        return worst;
+    }
+
+    // Fill channel 0 (and 1 if present) with a sine of frequency f at amplitude a.
+    static void fillSine(juce::AudioBuffer<float>& buf, double f, double sr, float a = 0.5f)
+    {
+        for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+            for (int i = 0; i < buf.getNumSamples(); ++i)
+                buf.setSample(ch, i, a * static_cast<float>(
+                    std::sin(2.0 * juce::MathConstants<double>::pi * f * i / sr)));
+    }
+
+    // Self-test of the S3 measurement helpers so a broken metric can't silently
+    // pass a DSP-quality assertion downstream.
+    static void testMeasurementHelpers()
+    {
+        constexpr double sr = 48000.0;
+        // Pure sine -> very high purity, negligible alias.
+        {
+            juce::AudioBuffer<float> b(1, 1 << 15);
+            fillSine(b, 1000.0, sr);
+            CHECK(sinePurityDb(b, 1000.0, sr) > 60.0f, "pure sine should read >60 dB purity");
+            CHECK(aliasRatioDb(b, 1000.0, sr) < -50.0f, "pure sine should have <-50 dB alias");
+        }
+        // Sine + a strong inharmonic tone -> alias ratio rises well above the floor.
+        {
+            juce::AudioBuffer<float> b(1, 1 << 15);
+            fillSine(b, 1000.0, sr, 0.5f);
+            for (int i = 0; i < b.getNumSamples(); ++i)
+                b.addSample(0, i, 0.25f * static_cast<float>(
+                    std::sin(2.0 * juce::MathConstants<double>::pi * 3300.0 * i / sr)));
+            CHECK(aliasRatioDb(b, 1000.0, sr) > -20.0f,
+                  "added inharmonic tone should lift alias ratio above -20 dB");
+        }
+        // Discontinuity -> maxSampleStep catches the jump.
+        {
+            juce::AudioBuffer<float> b(1, 64);
+            b.clear();
+            for (int i = 0; i < 32; ++i) b.setSample(0, i, 0.1f);
+            for (int i = 32; i < 64; ++i) b.setSample(0, i, 0.9f);
+            CHECK(maxSampleStep(b) > 0.7f, "0.8 step should be detected");
+        }
     }
 
     // Build a default ParamFrame (all defaults) for a machine.
@@ -720,6 +868,7 @@ namespace lockstep
     void runMachineDspTests()
     {
         testSignalsmithCompat();
+        testMeasurementHelpers();
 
         // --- AnalogMachine ---
         {
