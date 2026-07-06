@@ -24,6 +24,13 @@ namespace lockstep
         // tempo-synced effects (e.g. HQ Delay).
         virtual void setTimeInfo(double /*bpm*/) {}
 
+        // 9.24 S16: hand an IR-driven effect (ConvolutionEffect) its impulse
+        // response. Called on the message thread by the processor when a slot's
+        // pool IR ref resolves (on load or via the pick-IR gesture). Default no-op;
+        // effects that don't use an IR ignore it. Empty buffer = clear the IR.
+        virtual void setImpulseResponse(const juce::AudioBuffer<float>& /*ir*/,
+                                        double /*irSampleRate*/) {}
+
         virtual int numParams() const = 0;
         virtual ParamSpec paramSpec(int index) const = 0;
         virtual const std::string& effectId() const = 0;

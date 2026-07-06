@@ -19,6 +19,8 @@
 #include "../src/machine/IEffect.h"
 #include "../src/machine/EffectFactory.h"
 #include "../src/machine/EffectPickerModel.h"
+#include "../src/dsp/ConvolutionEffect.h"
+#include <thread>
 #include "../src/dsp/Oversampler2x.h"
 #include "../src/dsp/Interpolation.h"
 #include "SpectralMeasure.h"
@@ -1113,6 +1115,84 @@ namespace lockstep
                       "S14: limiter holds peak <= ceiling+0.5 dB (peak " + juce::String(peakDb, 2)
                       + " dB, ceil " + juce::String(ceilDb, 1) + ")");
                 CHECK(peak > ceilLin * 0.5f, "S14: limiter still passes signal");
+            }
+        }
+
+        // --- S16: convolution reverb ---
+        // Zero latency (default juce::dsp::Convolution config), and a known 3-tap
+        // IR convolves an impulse to that IR (Mix=1, no predelay/damp). The IR
+        // loads on a background thread, so spin (bounded) until it's live.
+        {
+            constexpr double sr = 48000.0;
+            constexpr int blockLen = 1024;
+            constexpr int irLen = 512;
+            ConvolutionEffect conv;
+            conv.prepare(sr, blockLen);
+            CHECK(conv.reportedLatency() == 0, "S16: convolution is zero-latency");
+
+            // Sparse known IR: taps 1.0@0, 0.5@128, 0.25@256 in a 512-sample buffer
+            // (a full-length IR avoids the FFT convolver's pathological short-IR
+            // behaviour). Pool source (sel=0), Mix=1, no predelay/damp.
+            juce::AudioBuffer<float> ir(1, irLen);
+            ir.clear();
+            ir.setSample(0, 0, 1.0f);
+            ir.setSample(0, 128, 0.5f);
+            ir.setSample(0, 256, 0.25f);
+            conv.setImpulseResponse(ir, sr);
+            const ParamFrame prm = { 0.0f, 0.0f, 0.0f, 1.0f };  // sel=Pool, mix=1
+
+            // Spin the IR load: it swaps on a background thread. Wait for the size
+            // to reach (and stabilise at) the full IR length, not just any >0.
+            bool live = false;
+            for (int tries = 0; tries < 200 && !live; ++tries)
+            {
+                juce::AudioBuffer<float> silent(1, blockLen);
+                silent.clear();
+                conv.process(silent, blockLen, prm);
+                if (conv.currentIrSize() >= irLen - 1) live = true;
+                else std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            }
+            CHECK(live, "S16: convolution IR went live within the spin budget");
+
+            // Settle: juce::dsp::Convolution crossfades the IR in over a block or
+            // two after the swap. Process a few silent blocks so the impulse test
+            // sees the fully-faded-in IR.
+            for (int s = 0; s < 8; ++s)
+            {
+                juce::AudioBuffer<float> silent(1, blockLen);
+                silent.clear();
+                conv.process(silent, blockLen, prm);
+            }
+
+            // Feed a single unit impulse, capture the response.
+            juce::AudioBuffer<float> buf(1, blockLen);
+            buf.clear();
+            buf.setSample(0, 0, 1.0f);
+            conv.process(buf, blockLen, prm);
+            if (live)
+            {
+                CHECK(std::abs(buf.getSample(0, 0) - 1.0f) < 3e-3f,
+                      "S16: conv tap@0 == 1.0 (got " + juce::String(buf.getSample(0, 0), 4) + ")");
+                CHECK(std::abs(buf.getSample(0, 128) - 0.5f) < 3e-3f,
+                      "S16: conv tap@128 == 0.5 (got " + juce::String(buf.getSample(0, 128), 4) + ")");
+                CHECK(std::abs(buf.getSample(0, 256) - 0.25f) < 3e-3f,
+                      "S16: conv tap@256 == 0.25 (got " + juce::String(buf.getSample(0, 256), 4) + ")");
+                CHECK(std::abs(buf.getSample(0, 64)) < 3e-3f, "S16: conv between-taps == 0");
+            }
+        }
+        // Missing / no IR: a Pool-selected convolution with no IR pushed must not
+        // crash and stays finite (it simply produces no wet signal).
+        {
+            auto fx = makeEffectForId("lockstep.conv.v1", EffectTier::Track);
+            CHECK(fx != nullptr, "S16: convolution resolves from the factory");
+            if (fx != nullptr)
+            {
+                fx->prepare(48000.0, 256);
+                juce::AudioBuffer<float> buf(2, 256);
+                fillSine(buf, 440.0, 48000.0, 0.5f);
+                const ParamFrame prm = { 0.0f, 0.0f, 0.3f, 0.3f };  // sel=Pool, no IR
+                fx->process(buf, 256, prm);
+                CHECK(!hasNaNOrInf(buf), "S16: missing-IR convolution stays finite");
             }
         }
 

@@ -21,6 +21,8 @@
 #include "../dsp/FreqShifterEffect.h"
 // S14: master-only safety limiter (9.24)
 #include "../dsp/LimiterEffect.h"
+// S16: convolution reverb (9.24)
+#include "../dsp/ConvolutionEffect.h"
 
 namespace lockstep
 {
@@ -61,6 +63,8 @@ namespace lockstep
         if (id == "lockstep.freqshift.v1")   return std::make_unique<FreqShifterEffect>();
         // S14: master-only safety limiter.
         if (id == "lockstep.limiter.v1")     return std::make_unique<LimiterEffect>();
+        // S16: convolution reverb (track + master; no tier split).
+        if (id == "lockstep.conv.v1")        return std::make_unique<ConvolutionEffect>();
 
         // Backward-compat: deprecated HQ-only ids still resolve (always HQ face)
         // for any path that did not run them through canonicalEffectId() first.
@@ -90,6 +94,8 @@ namespace lockstep
         // S13: ladder filter + frequency shifter (track + master).
         { "lockstep.ladder.v1",      "Ladder",     "LDR", false },
         { "lockstep.freqshift.v1",   "FreqShift",  "FSH", false },
+        // S16: convolution reverb (track + master).
+        { "lockstep.conv.v1",        "Convolve",   "CNV", false },
         // Genuinely master-only effects with no LQ counterpart.
         { "lockstep.buscomp.v1",     "Bus Comp",   "BUS", true,  false },
         { "lockstep.mutility.v1",    "Utility",    "UTL", true,  false },
