@@ -2415,7 +2415,47 @@ is the named real-time fallback if Bungee fails the ear test. WSOLA
       reverse, Sample/Slicer engine-optional + Hermite interp), a max-quality offline
       render-to-pool engine behind the seam (engine TBD, benchmark before adopting),
       Stream→pool wiring (its tempo/one-shot/A440 lookups), FX third-party swap
-      (juce::dsp DelayLine/Oversampling; Signalsmith basics).
+      (juce::dsp DelayLine/Oversampling; Signalsmith basics) — now scheduled as **9.24**.
+
+### 9.24 — FOSS DSP overhaul: FX-catalogue quality + machine-DSP + new effects  *[in progress]*
+Quality-fix the weak bespoke effects and grow the catalogue using the FOSS DSP
+already available: `juce::dsp` (Oversampling/LadderFilter/Limiter/Convolution —
+linked but until now unused) + vendored Signalsmith DSP primitives (9.24 S1). Plan:
+`~/.claude/plans/we-discussed-the-possibility-silly-panda.md`. **Serializer v30 → v31.**
+Discipline: `tools/fx_audition` before/after render matrix is the ear gate (baseline
+stashed before any DSP change); measured alias/purity/click assertions in
+`tests/MachineDspTest.cpp`. Param ids are save-format — swapped internals keep ids +
+ranges; new params appended only. All new DSP is zero-latency-configured (no PDC
+exists and this milestone does not add one).
+- [x] **S1 — Vendor Signalsmith DSP.** Submodule + SYSTEM includes + THIRDPARTY row +
+      cubic fractional-delay compat proof. signalsmith-basics dropped (dsp primitives
+      + juce::dsp suffice).
+- [ ] **S2 — `tools/fx_audition` ear gate + stashed baseline** (impulse / dual-sine /
+      sweep / drum-burst × catalogue × tier × preset).
+- [ ] **S3 — Measurement helpers** (spectrumOf / aliasRatioDb / maxSampleStep /
+      sinePurityDb).
+- [ ] **S4 — SamplePlayer 2-point linear → 4-point Hermite** (highest audible win).
+- [ ] **S5 — Saturation oversampling** (both faces; HQ swaps Oversampler2x →
+      `juce::dsp::Oversampling`).
+- [ ] **S6 — FMMachine oversampling; delete `Oversampler2x`** (both consumers migrated).
+- [ ] **S7 — Distortion 2× oversampling.**
+- [ ] **S8 — Delay fractional taps + tape-style retune slew.**
+- [ ] **S9 — Chorus rebuild** (hand-rolled multi-voice; `juce::dsp::Chorus` is
+      single-voice, not an upgrade). Appends `chorus_fb` (default 0 = legacy sound).
+- [ ] **S10 — HQ FDN reverb: Hermite on modulated reads only** (topology kept).
+- [ ] **S11 — SVF → TPT: assessed, kept** (Cytomic == TPT; docs-only verdict).
+- [ ] **S12 — FX picker pagination** (single pure helper; catalogue passes 16 cells).
+- [ ] **S13 — New effects: Ladder (`juce::dsp::LadderFilter`) + Freq Shifter
+      (Signalsmith Hilbert SSB), track+master.**
+- [ ] **S14 — New effect: Limiter** (master-only, zero-lookahead safety limiter).
+- [ ] **S15 — Serializer v31: optional `SampleId irRef` on insert slots** (upgrade
+      = stamped copy).
+- [ ] **S16 — Convolution reverb** (`juce::dsp::Convolution`, zero-latency; IR-select
+      Bundled | Pool via `SamplePoolOverlay` pick-IR mode).
+- [ ] **S17 — `tools/ir_bake` + bundled starter IRs** (rendered from our own
+      HQReverbEffect presets; shipped via `juce_add_binary_data`).
+- [ ] **S18 — Docs + full A/B sign-off** (ROADMAP / README / THIRDPARTY;
+      fx_audition A/B vs the S2 baseline).
 
 ---
 
