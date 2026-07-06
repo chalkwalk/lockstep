@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../machine/IEffect.h"
+#include "Interpolation.h"
 #include <cmath>
 #include <array>
 #include <vector>
@@ -141,10 +142,21 @@ namespace lockstep
                         modPhase_[static_cast<std::size_t>(l)] -= static_cast<float>(juce::MathConstants<double>::twoPi);
 
                     const float sizeOffset = size * static_cast<float>(len) * 0.5f;
-                    const float rd = static_cast<float>(heads_[static_cast<std::size_t>(l)]) - sizeOffset
-                                     - modDepth * (0.5f + 0.5f * lfoVal);
-                    const int ri = ((static_cast<int>(rd) % len) + len) % len;
-                    lineVals[l] = line[static_cast<std::size_t>(ri)];
+                    // Fractional (sub-sample) modulated read: a 4-point Hermite tap
+                    // (9.24 S10). The old integer read quantised the LFO sweep to
+                    // whole samples, so the modulation stepped audibly at high depth;
+                    // Hermite makes the pitch shimmer continuous. Topology unchanged.
+                    float rd = static_cast<float>(heads_[static_cast<std::size_t>(l)]) - sizeOffset
+                               - modDepth * (0.5f + 0.5f * lfoVal);
+                    rd = std::fmod(rd, static_cast<float>(len));
+                    if (rd < 0.0f) rd += static_cast<float>(len);
+                    const int i0 = static_cast<int>(rd);
+                    const float fr = rd - static_cast<float>(i0);
+                    const auto at = [&](int k) {
+                        const int idx = ((i0 + k) % len + len) % len;
+                        return line[static_cast<std::size_t>(idx)];
+                    };
+                    lineVals[l] = hermite4(at(-1), at(0), at(1), at(2), fr);
                 }
 
                 // Hadamard mix (unnormalized, scaled by 1/sqrt(8) ≈ 0.354).

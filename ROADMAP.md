@@ -2467,8 +2467,19 @@ exists and this milestone does not add one).
       a wide stereo image. Appends `chorus_fb` (default 0 = legacy no-feedback
       sound on old projects; write is exactly the dry input at fb=0). Test: smooth
       (`maxSampleStep < 0.1`) at max depth+rate, and L/R correlation < 0.98.
-- [ ] **S10 — HQ FDN reverb: Hermite on modulated reads only** (topology kept).
-- [ ] **S11 — SVF → TPT: assessed, kept** (Cytomic == TPT; docs-only verdict).
+- [x] **S10 — HQ FDN reverb: Hermite on modulated reads only** (topology kept).
+      The per-line modulated read is now a 4-point Hermite fractional tap; the old
+      integer read quantised the LFO sweep to whole samples (stepped shimmer at
+      high mod depth). Feedback matrix, damping, decay, allpass diffusers untouched.
+      Test: steady tone at max mod depth keeps `maxSampleStep < 0.1`; the existing
+      tail assertion is unchanged.
+- [x] **S11 — SVF → TPT: assessed, kept** (docs-only verdict, folded into S10's
+      commit). The homegrown state-variable filters already use the Cytomic TPT
+      (topology-preserving trapezoidal) formulation — the same structure a
+      `juce::dsp::StateVariableTPTFilter` swap would bring — so the swap is a pure
+      regression risk with zero payoff. Future simplification candidates that
+      Signalsmith/`juce::dsp` could tidy without changing sound: envelope
+      followers (scattered one-poles) and LFO shape generation.
 - [ ] **S12 — FX picker pagination** (single pure helper; catalogue passes 16 cells).
 - [ ] **S13 — New effects: Ladder (`juce::dsp::LadderFilter`) + Freq Shifter
       (Signalsmith Hilbert SSB), track+master.**

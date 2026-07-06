@@ -962,6 +962,46 @@ namespace lockstep
             }
         }
 
+        // --- S10: HQ FDN reverb Hermite modulated reads ---
+        // Drive a steady tone through the reverb at maximum mod depth. The old
+        // integer modulated read quantised the LFO sweep to whole samples, adding
+        // periodic per-sample clicks; the Hermite fractional read keeps the tail
+        // continuous. Bound the wet-output click detector and require the tail to
+        // remain finite (the decay/tail assertion itself lives in the tier block).
+        {
+            constexpr double sr = 48000.0;
+            constexpr int blockLen = 256;
+            auto fx = makeEffectForId("lockstep.reverb.v1", EffectTier::Master);
+            CHECK(fx != nullptr, "S10: HQ reverb must construct");
+            if (fx != nullptr)
+            {
+                fx->prepare(sr, blockLen);
+                fx->reset();
+                // predelay, size, decay, damp, lowcut, mod=1 (max), mix=1 (wet).
+                const ParamFrame prm = { 0.0f, 0.5f, 3.0f, 0.5f, 80.0f, 1.0f, 1.0f };
+                double phase = 0.0;
+                const double w = 2.0 * M_PI * 220.0 / sr;
+                float worst = 0.0f;
+                for (int blk = 0; blk < 48; ++blk)
+                {
+                    juce::AudioBuffer<float> buf(2, blockLen);
+                    for (int n = 0; n < blockLen; ++n)
+                    {
+                        const float s = static_cast<float>(std::sin(phase)) * 0.35f;
+                        buf.setSample(0, n, s);
+                        buf.setSample(1, n, s);
+                        phase += w;
+                    }
+                    fx->process(buf, blockLen, prm);
+                    if (blk >= 16)  // let the FDN fill and settle
+                        worst = std::max(worst, maxSampleStep(buf));
+                }
+                CHECK(std::isfinite(worst), "S10: HQ reverb produced non-finite output");
+                CHECK(worst < 0.1f,
+                      "S10: HQ reverb max-mod tail continuous (step " + juce::String(worst, 4) + ")");
+            }
+        }
+
         // --- AnalogMachine ---
         {
             AnalogMachine va;
