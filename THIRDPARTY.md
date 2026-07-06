@@ -12,7 +12,7 @@ all GPL-compatible. This file records their licences and any obligations.
 | **Bungee** | `modules/bungee/` (submodule) | **MPL-2.0** | Real-time time/pitch stretch engine (9.23). |
 | **Eigen** | `modules/bungee/submodules/eigen/` | **MPL-2.0** | Linear algebra, pulled in by Bungee. |
 | **PFFFT** | `modules/bungee/submodules/pffft/` | BSD-like (FFTPACK-derived) | FFT backend for Bungee. |
-| **Signalsmith DSP** | `modules/signalsmith-dsp/` (submodule) | MIT | Header-only DSP primitives: fractional-delay interpolators (Lagrange/Kaiser-sinc/Hermite), biquad/allpass filters, envelopes, spectral. Used for delay/chorus taps and the SSB frequency shifter (9.24). |
+| **Signalsmith DSP** | `modules/signalsmith-dsp/` (submodule) | MIT | Header-only DSP primitives: fractional-delay interpolators (Lagrange/Kaiser-sinc/Hermite), biquad/allpass filters, envelopes, spectral. Vendored + `-Werror`/C++20-validated in the test suite (9.24 S1) and available for future use. *In practice the shipped 9.24 effects use the project's own 4-point `hermite4` (`src/dsp/Interpolation.h`) for fractional taps — already needed by SamplePlayer — and a homegrown FIR Hilbert for the SSB frequency shifter (Signalsmith ships no Hilbert), so Signalsmith is currently a validated dependency rather than a load-bearing one.* |
 
 ## MPL-2.0 obligation (Bungee + Eigen)
 

@@ -2417,7 +2417,7 @@ is the named real-time fallback if Bungee fails the ear test. WSOLA
       Stream→pool wiring (its tempo/one-shot/A440 lookups), FX third-party swap
       (juce::dsp DelayLine/Oversampling; Signalsmith basics) — now scheduled as **9.24**.
 
-### 9.24 — FOSS DSP overhaul: FX-catalogue quality + machine-DSP + new effects  *[in progress]*
+### 9.24 — FOSS DSP overhaul: FX-catalogue quality + machine-DSP + new effects  *[code complete — pending ear-test A/B]*
 Quality-fix the weak bespoke effects and grow the catalogue using the FOSS DSP
 already available: `juce::dsp` (Oversampling/LadderFilter/Limiter/Convolution —
 linked but until now unused) + vendored Signalsmith DSP primitives (9.24 S1). Plan:
@@ -2538,8 +2538,15 @@ exists and this milestone does not add one).
       repo and no build-system change — cheaper and fully unit-testable. A
       bake-to-WAV + `BinaryData` embed remains a future option. Test: each bundled
       preset loads, is finite, non-silent, and decays.
-- [ ] **S18 — Docs + full A/B sign-off** (ROADMAP / README / THIRDPARTY;
-      fx_audition A/B vs the S2 baseline).
+- [~] **S18 — Docs + full A/B sign-off** (ROADMAP / README / THIRDPARTY). Docs done:
+      ROADMAP S1–S17 checkboxes with per-stage deviation notes; README FX table (Ladder /
+      FreqShift / Convolve + chorus Feedbk + Limiter caveat + conv-IR workflow + picker
+      paging/compaction); THIRDPARTY corrected (Signalsmith is validated/available, not
+      load-bearing — shipped effects use the project's own `hermite4` + FIR Hilbert).
+      **Remaining: the user's `fx_audition` A/B ear-test vs the S2 baseline** (the ear
+      gate — Saturation/Distortion oversampling, chorus rebuild, delay retune, reverb
+      mod; flag any "before" that already sounded wrong). The GUI pick-IR gesture (S16)
+      also wants a hands-on pass. Code + measured assertions are green under -Werror.
 
 ### 9.25 — Sample-rate correctness + bandlimited resampling  *[planned]*
 Make sample playback **sample-rate-correct** and **anti-aliased** via one shared
