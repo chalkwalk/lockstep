@@ -13,10 +13,20 @@ namespace lockstep::dsp
 //   upsample(x, y0, y1)  — interpolate one base-rate sample into two 2x samples
 //   decimate(a, b)       — anti-alias filter two 2x samples down to one base sample
 //
-// Usage A (waveshaper, e.g. HQ saturation):
-//   os.upsample(x, a, b);  a = shape(a); b = shape(b);  out = os.decimate(a, b);
+// Usage A (waveshaper): os.upsample(x, a, b); a = shape(a); b = shape(b);
+//   out = os.decimate(a, b);
 // Usage B (generator, e.g. FM operator core): synthesise a,b at the doubled rate
 //   directly, then  out = os.decimate(a, b);
+//
+// 9.24 note: the waveshaper effects (Saturation S5, Distortion S7) migrated to
+// juce::dsp::Oversampling (block up/process/down, minimum-phase). This class is
+// retained as the anti-alias decimator for oversampled *generators* — the FM
+// operator core (Usage B) — which juce::dsp::Oversampling cannot serve: its API
+// is up-then-down around a processing callback and has no standalone "decimate
+// these two 2x samples" entry point that a generator needs. FMMachine keeps 2x
+// deliberately (a 16-voice poly core; 4x would double the per-voice inner loop
+// for no reported aliasing complaint). The upsample path is kept (complete +
+// unit-tested) for reuse.
 //
 // The up/down paths keep independent delay lines, so a single instance can run
 // both directions concurrently (waveshaper use). Cheap: kBranch MACs per branch.

@@ -2444,7 +2444,12 @@ exists and this milestone does not add one).
       **4x not 2x** — a hot HF tanh is near-square; 2x still folds the 5th harmonic.
       Alias drops ~26 dB vs no-OS (LQ now oversampled too; HQ moved off the homegrown
       Oversampler2x). Absolute floor ~-34 dB at the 10 kHz/full-drive worst case.
-- [ ] **S6 — FMMachine oversampling; delete `Oversampler2x`** (both consumers migrated).
+- [x] **S6 — FMMachine oversampling: assessed, `Oversampler2x` KEPT** (plan said
+      delete). FM is a *generator* (synthesises two sub-samples then `decimate`s);
+      `juce::dsp::Oversampling` is block up→process→down with no standalone decimate
+      entry, so it can't serve a generator without a hacky zero-upsample or a risky
+      rewrite of the working 16-voice synth. The homegrown FIR halfband decimator is
+      the right tool and stays; FM keeps 2x (poly-CPU tradeoff, no aliasing complaint).
 - [ ] **S7 — Distortion 2× oversampling.**
 - [ ] **S8 — Delay fractional taps + tape-style retune slew.**
 - [ ] **S9 — Chorus rebuild** (hand-rolled multi-voice; `juce::dsp::Chorus` is
