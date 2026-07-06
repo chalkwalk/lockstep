@@ -2461,8 +2461,12 @@ exists and this milestone does not add one).
       of sweeping the whole distance. Test: 440 Hz sine while the tempo ramps
       120→121 over 64 blocks keeps `maxSampleStep < 0.1` (whole-sample retune
       would spike far higher). `--bpm-ramp` audition available.
-- [ ] **S9 — Chorus rebuild** (hand-rolled multi-voice; `juce::dsp::Chorus` is
-      single-voice, not an upgrade). Appends `chorus_fb` (default 0 = legacy sound).
+- [x] **S9 — Chorus rebuild** (hand-rolled multi-voice; `juce::dsp::Chorus` is
+      single-voice, not an upgrade). Three 4-point-Hermite voices per channel on
+      phase-offset LFOs (0/120/240 deg), right channel rotated a quarter cycle for
+      a wide stereo image. Appends `chorus_fb` (default 0 = legacy no-feedback
+      sound on old projects; write is exactly the dry input at fb=0). Test: smooth
+      (`maxSampleStep < 0.1`) at max depth+rate, and L/R correlation < 0.98.
 - [ ] **S10 — HQ FDN reverb: Hermite on modulated reads only** (topology kept).
 - [ ] **S11 — SVF → TPT: assessed, kept** (Cytomic == TPT; docs-only verdict).
 - [ ] **S12 — FX picker pagination** (single pure helper; catalogue passes 16 cells).

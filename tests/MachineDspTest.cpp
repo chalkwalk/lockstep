@@ -912,6 +912,56 @@ namespace lockstep
             }
         }
 
+        // --- S9: Chorus rebuild (multi-voice, Hermite, stereo spread) ---
+        // Max depth + max rate must stay smooth (fractional taps, no zipper), and
+        // the three phase-offset voices with the quarter-cycle right-channel
+        // rotation must decorrelate L/R into a wide image (correlation < 0.98).
+        {
+            constexpr double sr = 48000.0;
+            constexpr int blocks = 40;
+            constexpr int blockLen = 256;
+            auto fx = makeEffectForId("lockstep.chorus.v1", EffectTier::Track);
+            CHECK(fx != nullptr, "S9: chorus must construct");
+            if (fx != nullptr)
+            {
+                fx->prepare(sr, blockLen);
+                // rate=1 (5 Hz), depth=1 (full swing), mix=1 (fully wet), fb=0.
+                const ParamFrame prm = { 1.0f, 1.0f, 1.0f, 0.0f };
+                double phase = 0.0;
+                const double w = 2.0 * M_PI * 330.0 / sr;
+                float worst = 0.0f;
+                double sumLR = 0.0, sumLL = 0.0, sumRR = 0.0;
+                for (int blk = 0; blk < blocks; ++blk)
+                {
+                    juce::AudioBuffer<float> buf(2, blockLen);
+                    for (int n = 0; n < blockLen; ++n)
+                    {
+                        const float s = static_cast<float>(std::sin(phase)) * 0.5f;
+                        buf.setSample(0, n, s);   // mono input: any L/R
+                        buf.setSample(1, n, s);   // difference comes from the chorus
+                        phase += w;
+                    }
+                    fx->process(buf, blockLen, prm);
+                    if (blk >= 8)  // let the delay line fill and LFOs spread
+                    {
+                        worst = std::max(worst, maxSampleStep(buf));
+                        for (int n = 0; n < blockLen; ++n)
+                        {
+                            const double l = buf.getSample(0, n);
+                            const double r = buf.getSample(1, n);
+                            sumLR += l * r; sumLL += l * l; sumRR += r * r;
+                        }
+                    }
+                }
+                CHECK(std::isfinite(worst), "S9: chorus produced non-finite output");
+                CHECK(worst < 0.1f,
+                      "S9: chorus smooth at max depth/rate (step " + juce::String(worst, 4) + ")");
+                const double corr = sumLR / std::sqrt(std::max(1e-12, sumLL * sumRR));
+                CHECK(corr < 0.98,
+                      "S9: chorus decorrelates L/R (corr " + juce::String(corr, 3) + ")");
+            }
+        }
+
         // --- AnalogMachine ---
         {
             AnalogMachine va;
