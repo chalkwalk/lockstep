@@ -37,6 +37,7 @@ namespace lockstep
     void runSyncSliceTests();     // 4.9 beat-grid slicing (placeSyncSlices)
     void runStretchEngineTests(); // 9.23 Bungee IStretchEngine seam (pull model)
     void runStretchMachineTests(); // C3 Flex-analog Player (independent pitch+tempo)
+    void runResamplerTests();      // 9.25 R1 shared bandlimited resampler
     void runSamplePlayerTests();   // C1 loop-seam crossfade (borrow-tail / eat-in)
     void runRecordMachineTests();  // 6.2 RecordMachine capture (DESIGN §29.2/§30)
     void runLoopMachineTests();    // 6.3 LoopMachine state machine (DESIGN §29.2)
