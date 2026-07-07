@@ -25,3 +25,6 @@ compile_commands.json
 Thumbs.db
 /fx_after_distfix/
 /ab_out/
+
+# 9.26 play-test audition renders (ear-test, never committed)
+auditions_9_26/
