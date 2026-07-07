@@ -91,6 +91,10 @@ namespace lockstep
         [[nodiscard]] double timeRatioFor() const;
         [[nodiscard]] static double pitchRatioFor(const ParamFrame& params);
         void rebuildEngine();
+        // Apply the loop window from the cached note-on ingredients. Called at
+        // note-on and again from process() when player_loop is toggled mid-voice
+        // (the live re-latch; mirrors StretchMachine).
+        void applyLoop(bool loop);
 
         juce::AudioFormatManager formatManager_;
         juce::TimeSliceThread streamThread_{ "lockstep.stream.io" };
@@ -107,6 +111,10 @@ namespace lockstep
 
         // Playback state (audio thread).
         bool playing_ = false;
+        // Loop-window ingredients cached at note-on so process() can re-apply the
+        // window math when player_loop is toggled while the voice sustains.
+        bool loopOn_ = false;             // latched loop state for the active note
+        juce::int64 startFrame_ = 0;      // trim point (frames) for the active note
 
         // Anti-click gate: a hard start/stop of a disk stream pops. Ramp the block
         // gain toward (playing ? 1 : 0) so note-on, note-off and end-of-file fade

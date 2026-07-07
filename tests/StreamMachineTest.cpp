@@ -198,6 +198,50 @@ namespace lockstep
         CHECK(sm.sampleClass() == IMachine::SampleClass::Stream,
               "StreamMachine is a Stream sample class");
 
+        // Live loop re-latch (9.26): player_loop is note-on latched, but a sustaining
+        // voice never re-fires, so a mid-voice toggle must be honoured live in
+        // process(). ts=Off gives a deterministic natural end (~length in output
+        // samples). Off→On keeps it sounding past that end; On→Off stops it.
+        {
+            juce::TemporaryFile stmp(".wav");
+            const juce::File swav = writeSineWav(stmp, kFileRate, kTone, 0.5);
+
+            auto runReLatch = [&](float startLoop, float endLoop) {
+                StreamMachine sm2;
+                sm2.prepare(kEngineRate, 512);
+                sm2.setFilePath(swav.getFullPathName());
+                double tailEnergy = 0.0;
+                int producedSamples = 0;
+                bool started = false;
+                for (int b = 0; b < 1200; ++b)
+                {
+                    juce::AudioBuffer<float> out(2, 512);
+                    out.clear();
+                    const bool flip = producedSamples >= 8000;  // flip mid-voice, pre-end
+                    sm2.process(b == 0 ? noteOn() : juce::MidiBuffer{},
+                                streamFrame(0.0f, 0.0f, 0.0f, 0.0f /*ts Off*/,
+                                            flip ? endLoop : startLoop),
+                                out);
+                    const float mag = out.getMagnitude(0, 512);
+                    if (!started)
+                    {
+                        if (mag > 1.0e-3f) started = true;
+                        else { juce::Thread::sleep(2); continue; }
+                    }
+                    producedSamples += 512;
+                    if (producedSamples >= 40000)  // well past the ~22050-sample end
+                        tailEnergy += static_cast<double>(mag) * mag;
+                    if (producedSamples >= 80000) break;
+                }
+                return tailEnergy;
+            };
+
+            CHECK(runReLatch(0.0f, 1.0f) > 1.0e-3,
+                  "Stream loop re-latch: Off→On mid-voice keeps it sounding past the end");
+            CHECK(runReLatch(1.0f, 0.0f) < 1.0e-4,
+                  "Stream loop re-latch: On→Off mid-voice stops it after the pass");
+        }
+
         // Old two-slot kit: a v29-shaped {sample_id, start} frame loads defaults for
         // the appended slots (Tempo / no pitch / no loop) and still streams.
         {

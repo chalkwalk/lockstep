@@ -163,6 +163,11 @@ namespace lockstep
         activeSampleId_ = sampleId;
         playedLen_ = std::max(1, reverse ? pcmLen : (pcmLen - startSample));
         activeNote_ = midiNote;
+        // Cache the loop-window ingredients so process() can re-apply the window
+        // math if player_loop is toggled while this voice sustains.
+        reverse_ = reverse;
+        startSample_ = startSample;
+        pcmLen_ = pcmLen;
 
         source_.setSource(&s->pcm, s->sampleRate);
         engine_.setReverse(reverse);
@@ -171,23 +176,29 @@ namespace lockstep
                                         : static_cast<double>(startSample);
         engine_.start(&source_, startPos, timeRatioFor(playedLen_),
                       pitchRatioFor(midiNote, params));
+        applyLoop(loop);
+        playing_ = true;
+    }
+
+    void StretchMachine::applyLoop(bool loop)
+    {
         // Loop window (9.23 S4): under Tempo the window is the full musical length
         // (the whole buffer), so the output period = bars * samplesPerBar exactly
         // and a launch-quantized start stays phase-locked (per-block setRatios keeps
         // the period matched as the tempo glides — no reset). Under Off it free-runs
-        // over the trimmed region at native rate.
+        // over the trimmed region at native rate. Reverse/tsMode stay note-on latched.
         if (loop)
         {
             if (tsMode_ >= 1)
-                engine_.setLoop(0, pcmLen);
+                engine_.setLoop(0, pcmLen_);
             else
-                engine_.setLoop(reverse ? 0 : startSample, pcmLen);
+                engine_.setLoop(reverse_ ? 0 : startSample_, pcmLen_);
         }
         else
         {
             engine_.setLoop(0, 0);
         }
-        playing_ = true;
+        loopOn_ = loop;
     }
 
     void StretchMachine::process(const juce::MidiBuffer& events,
@@ -216,7 +227,16 @@ namespace lockstep
 
         // Live tempo tracking: refresh the stretch ratio each block (tempo glide).
         if (playing_)
+        {
             engine_.setRatios(timeRatioFor(playedLen_), pitchRatioFor(activeNote_, params));
+            // Live loop re-latch: a sustaining voice never re-fires (one-shots
+            // re-arm only on transport/scene launch), so honour a mid-voice
+            // player_loop toggle here or the Loop param is inert.
+            const bool loopNow = (params.size() > kSlotLoop)
+                && std::lround(params[kSlotLoop]) >= 1;
+            if (loopNow != loopOn_)
+                applyLoop(loopNow);
+        }
 
         engine_.process(buffer, 0, numSamples);
 

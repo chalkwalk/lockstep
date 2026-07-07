@@ -263,6 +263,50 @@ namespace lockstep
                   "Loop: still sounding after 3 buffer lengths (one-shot would be silent)");
         }
 
+        // Live loop re-latch (9.26): player_loop is latched only at note-on, but a
+        // sustaining one-shot voice never re-fires (one-shots re-arm on transport /
+        // scene launch), so a mid-voice toggle must be honoured live in process().
+        // (a) start loop Off, flip On before the one-shot ends → still sounding well
+        // past 3 buffer lengths; (b) start loop On, flip Off → silent once the pass
+        // completes.
+        {
+            auto runReLatch = [&](float startLoop, float endLoop, int drainBlocks) {
+                StretchMachine p(pool);
+                p.prepare(kSr, 256);
+                TransportInfo tr;
+                tr.samplesPerBar = static_cast<double>(srcLen);
+                tr.running = true;
+                p.setTransport(tr);
+                auto startFr = playerFrameEx(idx, 0.0f, 1.0f /*Tempo*/, 0.0f, startLoop, 0.0f);
+                auto endFr   = playerFrameEx(idx, 0.0f, 1.0f, 0.0f, endLoop, 0.0f);
+
+                juce::AudioBuffer<float> blk(1, 256);
+                juce::MidiBuffer on;
+                on.addEvent(juce::MidiMessage::noteOn(1, 60, 1.0f), 0);
+                juce::MidiBuffer none;
+
+                const int flipBlock = (srcLen / 2) / 256;   // flip mid-voice, pre-end
+                std::vector<float> tail;
+                int produced = 0;
+                for (int b = 0; b < drainBlocks; ++b)
+                {
+                    blk.clear();
+                    const ParamFrame& fr = (b >= flipBlock) ? endFr : startFr;
+                    p.process(b == 0 ? on : none, fr, blk);
+                    for (int i = 0; i < 256; ++i, ++produced)
+                        if (produced >= srcLen * 3) tail.push_back(blk.getSample(0, i));
+                }
+                double e = 0.0;
+                for (float x : tail) e += static_cast<double>(x) * x;
+                return e;
+            };
+
+            CHECK(runReLatch(0.0f, 1.0f, (srcLen * 4) / 256) > 1.0,
+                  "Loop re-latch: Off→On mid-voice keeps it sounding past 3 buffers");
+            CHECK(runReLatch(1.0f, 0.0f, (srcLen * 5) / 256) < 1.0e-2,
+                  "Loop re-latch: On→Off mid-voice stops it after the pass completes");
+        }
+
         // Reverse: the amplitude envelope plays mirrored. Build a fade-in sine so
         // forward output rises in energy and reverse output falls.
         {

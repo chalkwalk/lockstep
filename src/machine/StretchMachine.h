@@ -77,6 +77,11 @@ namespace lockstep
         [[nodiscard]] double timeRatioFor(int playedLen) const;
         [[nodiscard]] double pitchRatioFor(int midiNote, const ParamFrame& params) const;
         void startNote(int midiNote, const ParamFrame& params);
+        // Apply the loop window from the cached note-on ingredients. Called at
+        // note-on and again from process() when player_loop is toggled mid-voice
+        // (the live re-latch — a sustaining one-shot voice never re-fires, so the
+        // toggle would otherwise be inert).
+        void applyLoop(bool loop);
 
         SamplePool& pool_;
         double sampleRate_ = 44100.0;
@@ -90,6 +95,12 @@ namespace lockstep
         int activeSampleId_ = -1; // pool index of the playing buffer
         int playedLen_ = 0;       // played region length (samples) at note-on
         int tsMode_ = 1;          // resolved timestretch mode for the active note
+        // Loop-window ingredients cached at note-on so process() can re-apply the
+        // exact window math when player_loop is toggled while the voice sustains.
+        bool loopOn_ = false;     // latched loop state for the active note
+        bool reverse_ = false;    // latched reverse for the active note
+        int startSample_ = 0;     // trim point (samples) for the active note
+        int pcmLen_ = 0;          // buffer length (samples) of the active buffer
         float gain_ = 0.0f;       // anti-click gate gain
         float fadeInc_ = 0.0f;    // per-sample gate ramp
 
