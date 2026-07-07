@@ -551,7 +551,8 @@ namespace lockstep
             const auto mode = sectionResolveMode(ui);
             const bool useResolver = (sectionScope != PS::Morph && !overlayRelabel);
             const auto secRes =
-                resolveSectionKey(proc, activeTrack, s, mode.floor, mode.funcLayer);
+                resolveSectionKey(proc, activeTrack, s, mode.floor, mode.funcLayer,
+                                  mode.stepHeld);
             if (useResolver)
             {
                 c.disabled = !secRes.hasContent;

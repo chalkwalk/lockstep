@@ -23,6 +23,9 @@ namespace lockstep
     //                   toggles the TIME/KEY page (metaIndex unused, -1).
     //   funcQualified — true rows exist only while the Func layer is held; they
     //                   are the parallel Func hierarchy (COND/NOTE/TRSP).
+    //   stepQualified — true rows exist only while a step is held (primary layer):
+    //                   bare TRIG promotes to per-step COND while step(s) are down,
+    //                   so trig conditions are reachable without the Func layer.
     //
     // masterSection content indices (see resolveMetaBand / metaContentExists):
     //   0 Cond  1 Trig/NOTE  2 Transport  3 Divider  4 PhraseLen  5 Global(FX)
@@ -34,16 +37,23 @@ namespace lockstep
         SecAction action;
         int metaIndex;
         bool funcQualified;
+        bool stepQualified = false;
     };
 
     // Display/scan order is precedence-agnostic; the resolver sorts by peel.
-    inline constexpr std::array<SectionStackRow, 9> kSectionStackTable = { {
+    inline constexpr std::array<SectionStackRow, 10> kSectionStackTable = { {
         // Primary hierarchy (Func not held).
         { SecOrigin::Track,  0, "DIV",  SecAction::MetaSection, 3, false },
         { SecOrigin::Phrase, 0, "LEN",  SecAction::MetaSection, 4, false },
         { SecOrigin::Scene,  0, "TIME", SecAction::TimeSticky, -1, false },
         { SecOrigin::Song,   0, "TIME", SecAction::TimeSticky, -1, false },
         { SecOrigin::Song,   5, "FX",   SecAction::MetaSection, 5, false },
+        // Held-step promotion (9.26): bare TRIG → per-step COND while a step is held.
+        // Machine origin (colours neutral, like the Func COND row), primary layer
+        // (funcQualified=false), gated by stepQualified in resolveSectionKey. At
+        // floor=Machine (unqualified) it wins over Track DIV by nearest-math (dist 0
+        // vs 1); Track+TRIG still resolves DIV (floor=Track, DIV dist 0).
+        { SecOrigin::Machine, 0, "COND", SecAction::MetaSection, 0, false, /*stepQualified*/ true },
         // Global scope content (9.22): TRSP = transport globals, reached as a real
         // scope by Func+Song (floor = Global, primary layer). Global is floor-only
         // in the resolver so this does NOT leak up into Scene/Song+FILTER — see the
@@ -66,6 +76,6 @@ namespace lockstep
         for (const auto& row : kSectionStackTable)
             if (row.key == key)
                 out.push_back({ row.key, 1, row.origin, row.action, row.metaIndex,
-                                row.funcQualified, row.label });
+                                row.funcQualified, row.stepQualified, row.label });
     }
 }

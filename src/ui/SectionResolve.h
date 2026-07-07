@@ -42,8 +42,11 @@ namespace lockstep
 
     // Full resolution: param candidates + section-stack rows, peeled by floor +
     // func layer. `floor` is the held scope's stack layer (Machine = unqualified).
+    // `stepHeld` enables the held-step promotion (9.26): bare TRIG resolves to
+    // per-step COND while a step is held (primary layer only).
     SectionResolution resolveSectionKey(const LockstepProcessor& proc, int track,
-                                        int canonicalKey, SecOrigin floor, bool funcLayer);
+                                        int canonicalKey, SecOrigin floor, bool funcLayer,
+                                        bool stepHeld = false);
 
     // Map a section-suite PrimaryScope to its stack floor. None ⇒ Machine
     // (unqualified). Morph has no stack floor (the editor keeps its bespoke
@@ -63,6 +66,7 @@ namespace lockstep
     {
         SecOrigin floor = SecOrigin::Machine;
         bool funcLayer = false;
+        bool stepHeld = false;  // 9.26: bare TRIG → per-step COND while a step is held
     };
     SectionResolveMode sectionResolveMode(const UiState& ui) noexcept;
 }

@@ -63,7 +63,8 @@ namespace lockstep
     // scoped-param pinning, no ScopedSectionMatrix — a "scene filter" would paint a
     // colour for an edit that does not exist.
     SectionResolution resolveSectionKey(const LockstepProcessor& proc, int track,
-                                        int canonicalKey, SecOrigin floor, bool funcLayer)
+                                        int canonicalKey, SecOrigin floor, bool funcLayer,
+                                        bool stepHeld)
     {
         std::vector<SecCandidate> all;
 
@@ -92,6 +93,10 @@ namespace lockstep
         // reachable via the Func+7 shortcut through the func-meta layer (funcLayer),
         // where this floor gate does not apply.
         const auto eligible = [&](const SecCandidate& c) {
+            // Held-step promotion (9.26): the stepQualified COND row exists only in
+            // the primary layer while a step is held. It has funcQualified=false, so
+            // it also passes the Func filter below when funcLayer is false.
+            if (c.stepQualified && !(stepHeld && !funcLayer)) return false;
             if (c.funcQualified != funcLayer) return false;  // wrong hierarchy (Func)
             if (!funcLayer && c.origin == SecOrigin::Global && floor != SecOrigin::Global)
                 return false;  // Global is floor-only in the primary layer
@@ -161,11 +166,13 @@ namespace lockstep
         // promotes to the Global scope (primary layer, floor = Global). Func over
         // any other scope (or none) is the bare Func-meta hierarchy. No Func is the
         // plain held scope. Morph is bespoke — the caller gates it out first.
+        // Held-step promotion (9.26) rides the primary layer only; the resolver
+        // gates it further (stepQualified && !funcLayer), so it is inert under Func.
         if (ui.funcHeld && ui.songHeld && !ui.morphHeld)
-            return { SecOrigin::Global, /*funcLayer*/ false };
+            return { SecOrigin::Global, /*funcLayer*/ false, ui.stepHeld };
         if (ui.funcHeld)
-            return { SecOrigin::Machine, /*funcLayer*/ true };
+            return { SecOrigin::Machine, /*funcLayer*/ true, ui.stepHeld };
         return { sectionFloorForScope(firstHeldSectionSuiteScope(ui)),
-                 /*funcLayer*/ false };
+                 /*funcLayer*/ false, ui.stepHeld };
     }
 }

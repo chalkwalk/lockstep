@@ -509,7 +509,8 @@ namespace lockstep
                 else
                 {
                     const auto res = resolveSectionKey(processor_, track, section,
-                                                       mode.floor, mode.funcLayer);
+                                                       mode.floor, mode.funcLayer,
+                                                       mode.stepHeld);
                     origin = res.hasContent ? res.winner : SecOrigin::Machine;
                 }
                 manipulationZone_.setPageOrigin(origin);
@@ -3927,8 +3928,11 @@ namespace lockstep
 
                 const int atSec = keyboardArea_.getActiveTrack();
                 const SecOrigin secFloor = sectionFloorForScope(sectionScope);
+                // Held-step promotion (9.26): bare TRIG → per-step COND while a
+                // step is held (the resolver gates it to the primary layer).
                 const auto secRes = resolveSectionKey(processor_, atSec, ev.index,
-                                                      secFloor, /*funcLayer*/ false);
+                                                      secFloor, /*funcLayer*/ false,
+                                                      uiState_.stepHeld);
                 if (!secRes.hasContent)
                     return true;  // dim: nothing at/below the held floor owns this key
 
@@ -4007,7 +4011,8 @@ namespace lockstep
                 const int at = keyboardArea_.getActiveTrack();
                 const auto mode = sectionResolveMode(uiState_);
                 const auto res = resolveSectionKey(processor_, at, ev.index,
-                                                   mode.floor, mode.funcLayer);
+                                                   mode.floor, mode.funcLayer,
+                                                   mode.stepHeld);
                 if (!res.hasContent)
                     return true;  // dim under Func → swallow the press
                 switch (res.action)

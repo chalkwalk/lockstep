@@ -5,6 +5,7 @@
 #include "TestHarness.h"
 #include "../src/ui/mode/SectionStackTable.h"
 
+#include <algorithm>
 #include <set>
 #include <tuple>
 
@@ -12,14 +13,17 @@ namespace lockstep
 {
     static void testNoDuplicateChords()
     {
-        // A (origin, key, funcQualified) triple is a distinct chord; two rows
-        // sharing one would make resolution non-deterministic.
-        std::set<std::tuple<int, int, bool>> seen;
+        // An (origin, key, funcQualified, stepQualified) tuple is a distinct chord;
+        // two rows sharing one (i.e. both live in the same layer) would make
+        // resolution non-deterministic. stepQualified is part of the key: the
+        // step-held COND row shares (Machine,0,func=false) with nothing else only
+        // because it is the sole step-qualified row there.
+        std::set<std::tuple<int, int, bool, bool>> seen;
         for (const auto& r : kSectionStackTable)
         {
             const auto chord = std::make_tuple(static_cast<int>(r.origin), r.key,
-                                               r.funcQualified);
-            CHECK(seen.insert(chord).second, "no duplicate (origin,key,func) chord");
+                                               r.funcQualified, r.stepQualified);
+            CHECK(seen.insert(chord).second, "no duplicate (origin,key,func,step) chord");
         }
     }
 
@@ -80,10 +84,18 @@ namespace lockstep
 
     static void testAppendCandidates()
     {
-        // Key 0 (TRIG) collects DIV/LEN/two TIMEs + Func COND = 5 rows.
+        // Key 0 (TRIG) collects DIV/LEN/two TIMEs + step-held COND + Func COND = 6.
         std::vector<SecCandidate> out;
         appendSectionStackCandidates(out, 0);
-        CHECK(out.size() == 5, "key 0 appends five stack candidates");
+        CHECK(out.size() == 6, "key 0 appends six stack candidates");
+        // The 9.26 held-step promotion row: primary layer (not funcQualified),
+        // stepQualified, COND meta (0).
+        const auto stepCond = std::find_if(out.begin(), out.end(), [](const SecCandidate& c) {
+            return c.stepQualified;
+        });
+        CHECK(stepCond != out.end() && !stepCond->funcQualified
+                  && stepCond->origin == SecOrigin::Machine && stepCond->metaIndex == 0,
+              "key 0 carries the step-held COND row (Machine, primary, meta 0)");
 
         // Key 3 (AMP) has no stack rows.
         out.clear();

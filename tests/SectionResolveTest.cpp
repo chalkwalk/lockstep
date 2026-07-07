@@ -151,6 +151,35 @@ namespace lockstep
                   "Func released → primary hierarchy DIV (not func COND)");
         }
 
+        // --- Held-step promotion (9.26): bare TRIG → per-step COND while a step is
+        // held (primary layer). Reachability without the Func layer.
+        {
+            // (a) floor Machine + stepHeld → COND (metaIndex 0), winner Machine.
+            const auto cond = resolveSectionKey(proc, 0, 0, O::Machine, /*funcLayer*/ false,
+                                                /*stepHeld*/ true);
+            CHECK(cond.hasContent && cond.action == A::MetaSection && cond.metaIndex == 0
+                      && cond.winner == O::Machine,
+                  "bare TRIG + step held → COND (0), winner Machine");
+            // (b) no step held → the primary underlay DIV (unchanged).
+            const auto div = resolveSectionKey(proc, 0, 0, O::Machine, /*funcLayer*/ false,
+                                               /*stepHeld*/ false);
+            CHECK(div.hasContent && div.action == A::MetaSection && div.metaIndex == 3
+                      && div.winner == O::Track,
+                  "bare TRIG + no step held → DIV (3), winner Track (unchanged)");
+            // (c) Track+TRIG with a step held still resolves DIV (floor=Track wins at
+            // distance 0; the taught canonical chord survives the promotion).
+            const auto tk = resolveSectionKey(proc, 0, 0, O::Track, /*funcLayer*/ false,
+                                              /*stepHeld*/ true);
+            CHECK(tk.hasContent && tk.action == A::MetaSection && tk.metaIndex == 3
+                      && tk.winner == O::Track,
+                  "Track+TRIG + step held → DIV (3) still (canonical chord preserved)");
+            // (d) Func layer is unaffected by stepHeld — Func+TRIG stays func COND.
+            const auto fc = resolveSectionKey(proc, 0, 0, O::Machine, /*funcLayer*/ true,
+                                              /*stepHeld*/ true);
+            CHECK(fc.hasContent && fc.action == A::MetaSection && fc.metaIndex == 0,
+                  "Func+TRIG + step held → COND (func layer, unchanged)");
+        }
+
         // --- Global scope (Func+Song), primary layer at floor = Global (9.22).
         {
             // FILTER → TRSP: Global's own content, winner Global (azure).
@@ -239,6 +268,13 @@ namespace lockstep
             UiState ui; ui.funcHeld = true; ui.trackHeld = true;
             const auto m = sectionResolveMode(ui);
             CHECK(m.funcLayer, "Func+Track (unwired) → falls back to the meta hierarchy");
+        }
+        {
+            // 9.26: stepHeld rides through to the mode so consumers promote bare TRIG.
+            UiState ui; ui.stepHeld = true;
+            const auto m = sectionResolveMode(ui);
+            CHECK(m.floor == O::Machine && !m.funcLayer && m.stepHeld,
+                  "step held (no scope) → Machine primary, stepHeld propagated");
         }
     }
 

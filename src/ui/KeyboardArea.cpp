@@ -829,7 +829,8 @@ namespace lockstep
                 // dim — for every scope, not just Track (Phrase/Song dim their
                 // non-content keys too). Morph keeps its bespoke section handling.
                 const SecOrigin washFloor = sectionFloorForScope(sectionScope);
-                if (!resolveSectionKey(processor_, at, s, washFloor, /*funcLayer*/ false)
+                if (!resolveSectionKey(processor_, at, s, washFloor, /*funcLayer*/ false,
+                                       uiState_.stepHeld)
                          .hasContent)
                 {
                     g.setColour(juce::Colours::black.withAlpha(0.38f));

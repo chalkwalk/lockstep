@@ -409,16 +409,19 @@ use the section-clear gesture).
 
 ### Step 6 — Add a conditional trig
 
-Open the **COND** layer (`Func + TRIG`, i.e. `1 + 5`). With no step held,
-the four controls set the **track's** base condition (probability, iteration
-m:n). Set probability to, say, 50% and that track fires stochastically
-each loop.
+Open the **COND** layer. With no step held, `Func + TRIG` (i.e. `1 + 5`)
+sets the **track's** base condition (probability, iteration m:n). Set
+probability to, say, 50% and that track fires stochastically each loop.
 
 Hold a single step and the same controls now write that **step's**
 condition — so you can make just one trig 50%-likely, or fire it only on
-every 4th pass (set m:n to 1:4). The grid shows you what will fire before
-it happens: certain hits are bright, skips are dim, probabilistic steps
-are in between.
+every 4th pass (set m:n to 1:4). While a step is held you don't need `Func`:
+a **bare `TRIG`** press promotes straight to that step's COND (the `TRIG`
+key relabels COND while any step is down), so the per-step-conditions flow
+is a single held-step gesture. Releasing every step, bare `TRIG` returns to
+its normal `DIV` meta and `Func + TRIG` still reaches the track base
+condition. The grid shows you what will fire before it happens: certain
+hits are bright, skips are dim, probabilistic steps are in between.
 
 ### Step 7 — Record a melody live
 
@@ -866,6 +869,12 @@ preserved on re-save. See DESIGN §36.
 | Step held, machine section active | Step **P-Lock**. |
 | No step held, TRIG/COND meta section | Track defaults / base condition. |
 | Step held, TRIG/COND meta section | Step trig override / step condition. |
+
+Reaching COND: `Func + TRIG` always opens it (track base with no step held).
+While a step is held, a **bare `TRIG`** press also promotes to COND — the
+`TRIG` key relabels COND while any step is down — so per-step conditions are a
+one-hand held-step gesture, no `Func` required. `Track + TRIG` still resolves
+`DIV` (the canonical chord is preserved).
 
 The rule is identical whether the edit comes from an on-screen encoder,
 a mapped MIDI CC, or a QWERTY action.

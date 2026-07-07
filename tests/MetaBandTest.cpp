@@ -1695,12 +1695,53 @@ namespace lockstep
         wav.deleteFile();
     }
 
+    // 9.26: the COND band write target. This is the destination the held-step
+    // promotion (bare TRIG → COND) routes to: with a step held, a COND write fans
+    // onto every held Step::condition; with none, it edits the track baseCond.
+    static void testCondBandWriteTarget()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        auto& trk = proc.sequence().tracks[0];
+
+        UiState ui;
+        ui.masterSection = 0;  // COND band
+        CHECK(resolveMetaBand(ui) == MetaBand::Cond, "masterSection 0 → COND (precondition)");
+
+        // Held step: field 0 (probability) lands on the step, not baseCond.
+        {
+            EditContext ctx;
+            ctx.hold(0, 3);
+            writeMetaField(MetaBand::Cond, 0, 0, 40.0f, proc, 0, ctx, ui);
+            CHECK(trk.steps[static_cast<std::size_t>(3)].condition.probabilityPercent == 40,
+                  "held-step COND write lands in the step's condition");
+            CHECK(trk.baseCond.probabilityPercent == 100,
+                  "held-step COND write does NOT touch baseCond");
+        }
+        // No held step: the write edits the track base condition.
+        {
+            EditContext ctx;  // nothing held
+            writeMetaField(MetaBand::Cond, 0, 0, 55.0f, proc, 0, ctx, ui);
+            CHECK(trk.baseCond.probabilityPercent == 55,
+                  "no held step → COND write lands in baseCond");
+        }
+        // Held step: field 4 (1Shot) sets the step's oneShot flag.
+        {
+            EditContext ctx;
+            ctx.hold(0, 5);
+            writeMetaField(MetaBand::Cond, 0, 4, 1.0f, proc, 0, ctx, ui);
+            CHECK(trk.steps[static_cast<std::size_t>(5)].condition.oneShot,
+                  "held-step COND 1Shot write sets Step::condition.oneShot");
+        }
+    }
+
     void runMetaBandTests()
     {
         testKeyBandResolveAndFields();
         testKeyBandWriteRoundTripSetScope();
         testKeyBandSongOverrideAndInherit();
         testResolveMetaBandMasterSection();
+        testCondBandWriteTarget();
         testResolveMetaBandTransientOutranksMasterSection();
         testResolveMetaBandEuclid();
         testTransportLaunchQuantField();

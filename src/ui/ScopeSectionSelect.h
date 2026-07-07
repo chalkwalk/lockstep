@@ -50,6 +50,7 @@ namespace lockstep
         SecAction action = SecAction::ParamSection;
         int metaIndex = -1;          // masterSection content index (MetaSection only)
         bool funcQualified = false;  // true = only present while the Func layer is held
+        bool stepQualified = false;  // true = only present while a step is held (bare TRIG→COND)
         const char* label = nullptr; // stack-row label (DIV/LEN/…); null ⇒ use section name
     };
 
