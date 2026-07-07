@@ -131,5 +131,32 @@ namespace lockstep
                   "aliased image is strongly attenuated (rms "
                   + juce::String(bandRms) + ")");
         }
+
+        // ── Scatter-add (R4): the transpose of read() ────────────────────────
+        // At rate 1 on integer positions the kernel is a delta, so a scatter is a
+        // bit-exact `+= in` at that position (the unity-overdub guarantee).
+        {
+            std::vector<float> buf(64, 0.0f);
+            rs.scatterAddCircular(buf.data(), 64, 20.0, 1.0, 0.5f);
+            CHECK(std::abs(buf[20] - 0.5f) < 1.0e-4f,
+                  "scatter at an integer position, rate 1 → bit-exact delta");
+            float leak = 0.0f;
+            for (int i = 0; i < 64; ++i)
+                if (i != 20) leak += std::abs(buf[static_cast<std::size_t>(i)]);
+            CHECK(leak < 1.0e-4f, "scatter rate-1 delta has no spread into neighbours");
+        }
+
+        // A constant input stream scattered at rate 1 reconstructs the constant
+        // (DC passes at unity through the scatter, circularly), matching read()'s DC.
+        {
+            std::vector<float> buf(128, 0.0f);
+            for (int i = 0; i < 256; ++i)  // two full circular passes
+                rs.scatterAddCircular(buf.data(), 128, static_cast<double>(i), 1.0, 0.75f);
+            float worst = 0.0f;
+            for (float v : buf) worst = std::max(worst, std::abs(v - 2.0f * 0.75f));
+            CHECK(worst < 5.0e-3f,
+                  "constant scattered over the loop reconstructs the constant (worst "
+                  + juce::String(worst) + ")");
+        }
     }
 }

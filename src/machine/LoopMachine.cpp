@@ -1,10 +1,22 @@
 #include "LoopMachine.h"
 #include "../dsp/Interpolation.h"
+#include "../dsp/Resampler.h"
 #include <algorithm>
 #include <cmath>
 
 namespace lockstep
 {
+    namespace
+    {
+        // Shared bandlimited resampler for the R4 varispeed overdub scatter. const,
+        // stateless, allocation-free; the kernel bank is built once at static init.
+        const Resampler& sharedLoopResampler()
+        {
+            static const Resampler r;
+            return r;
+        }
+    }
+
     ParamSpec LoopMachine::paramSpec(int index) const
     {
         ParamSpec s;
@@ -96,6 +108,8 @@ namespace lockstep
         const int cap = static_cast<int>(sampleRate_ * kLoopMaxSeconds);
         backup_.setSize(2, cap, false, true, false);
         backup_.clear();
+        overdubLayer_.setSize(2, cap, false, true, false);  // R4 overdub layer B
+        overdubLayer_.clear();
         reset();
     }
 
@@ -116,6 +130,7 @@ namespace lockstep
         tapeAction_ = Cmd::None;
         tapeResync_ = false;
         tapeMult_ = 1.0;
+        dropOverdubLayer();
         stateMirror_.store(static_cast<int>(state_), std::memory_order_release);
     }
 
@@ -171,6 +186,48 @@ namespace lockstep
             return base * gOut + interp(into) * gIn;
         }
         return base;
+    }
+
+    float LoopMachine::readLayer(const juce::AudioBuffer<float>& buf, int ch,
+                                 double pos) const
+    {
+        if (loopLen_ <= 0 || ch < 0 || ch >= buf.getNumChannels()) return 0.0f;
+        double p = std::fmod(pos, static_cast<double>(loopLen_));
+        if (p < 0.0) p += static_cast<double>(loopLen_);
+        const int i0 = static_cast<int>(p);
+        const auto at = [&](int i) {
+            int w = i % loopLen_;
+            if (w < 0) w += loopLen_;
+            return buf.getSample(ch, w);
+        };
+        return hermite4(at(i0 - 1), at(i0), at(i0 + 1), at(i0 + 2),
+                        static_cast<float>(p - static_cast<double>(i0)));
+    }
+
+    void LoopMachine::commitOverdubLayer()
+    {
+        // Fold the fresh overdub layer B into the committed loop A (add-only), then
+        // clear B. A's decay/feedback is applied separately (scaleLoop), so this
+        // fold never multiplies existing content — the whole point of layering.
+        if (!overdubPending_) return;
+        if (target_ != nullptr && loopLen_ > 0)
+        {
+            const int tch = std::min(std::min(2, target_->getNumChannels()),
+                                     overdubLayer_.getNumChannels());
+            const int n = std::min(loopLen_, overdubLayer_.getNumSamples());
+            for (int ch = 0; ch < tch; ++ch)
+            {
+                target_->addFrom(ch, 0, overdubLayer_, ch, 0, n);
+                overdubLayer_.clear(ch, 0, n);
+            }
+        }
+        overdubPending_ = false;
+    }
+
+    void LoopMachine::dropOverdubLayer()
+    {
+        if (overdubLayer_.getNumSamples() > 0) overdubLayer_.clear();
+        overdubPending_ = false;
     }
 
     double LoopMachine::syncedLengthSamples() const
@@ -283,11 +340,12 @@ namespace lockstep
                         if (loopLen_ > 0)
                         {
                             snapshotForUndo();
+                            dropOverdubLayer();  // R4: start a fresh overdub layer B
                             state_ = State::Overdubbing;
                         }
                         break;
                     case State::Overdubbing:
-                        state_ = State::Playing;
+                        state_ = State::Playing;  // R4: B folded by the block-start commit
                         break;
                 }
                 break;
@@ -330,6 +388,7 @@ namespace lockstep
             case Cmd::Undo:
                 if (haveBackup_ && loopLen_ > 0 && target_ != nullptr)
                 {
+                    dropOverdubLayer();  // R4: discard the in-progress overdub layer
                     const int chans = std::min(target_->getNumChannels(),
                                                backup_.getNumChannels());
                     const int n = std::min(loopLen_, backup_.getNumSamples());
@@ -347,6 +406,7 @@ namespace lockstep
                                       || state_ == State::Overdubbing
                                       || state_ == State::Stopped))
                 {
+                    commitOverdubLayer();  // R4: fold B at the current length first
                     loopLen_ /= 2;
                     if (playPos_ >= static_cast<double>(loopLen_))
                         playPos_ = std::fmod(playPos_, static_cast<double>(loopLen_));
@@ -366,6 +426,7 @@ namespace lockstep
                     const int newLen = loopLen_ * 2;
                     if (newLen <= capacity_)
                     {
+                        commitOverdubLayer();  // R4: fold B before duplicating content
                         target_->setSize(target_->getNumChannels(), newLen, true, false, true);
                         const int tch = std::min(2, target_->getNumChannels());
                         for (int ch = 0; ch < tch; ++ch)
@@ -532,6 +593,13 @@ namespace lockstep
             perfFifo_.finishedRead(sz1 + sz2);
         }
 
+        // R4: a drained command may have left Overdubbing (RecordCycle, quantized
+        // stop, etc.) with an uncommitted overdub layer — fold it into the loop now
+        // so a partial final pass isn't lost or read while stale (Undo/Clear drop it
+        // instead, clearing overdubPending_ first).
+        if (state_ != State::Overdubbing && overdubPending_)
+            commitOverdubLayer();
+
         // W1: keep the grid-locked record length in step with the LIVE tempo/grid.
         // recLenTarget_ was fixed once at startRecording(); if the BPM or the pushed
         // loop grid changes mid-take — or wasn't yet valid at record-start — the
@@ -642,20 +710,18 @@ namespace lockstep
                     case State::Overdubbing:
                         if (tch && loopLen_ > 0)
                         {
-                            // Overdub at the nearest integer position (varispeed
-                            // write) so the new layer sums coherently into the loop.
-                            // The write always includes `in` (it IS the overdub);
-                            // monitor only governs whether we ALSO hear it live.
-                            int wi = static_cast<int>(std::llround(pos)) % loopLen_;
-                            if (wi < 0) wi += loopLen_;
-                            const float oldLoop = target_->getSample(ch, wi);
-                            // #4 Overdub decay fades the old layer at the write (the
-                            // classic feedback knob); Always decay leaves the write
-                            // alone and fades the whole loop per iteration (below).
-                            const float kept = (decayMode == kDecayOverdub)
-                                ? oldLoop * decayGain : oldLoop;
-                            target_->setSample(ch, wi, kept + in);
-                            loopOut = oldLoop;
+                            // R4: monitor the committed loop A plus the in-progress
+                            // overdub layer B, and scatter the input into B with a
+                            // bandlimited (add-only) fractional write — no integer
+                            // quantisation on a varispeed write. A's decay/feedback
+                            // and the fold of B into A happen once per iteration at
+                            // the wrap (below), decoupled from this write, so the
+                            // windowed spread never multi-decays overlapping slots.
+                            loopOut = loopSample(ch, pos) + readLayer(overdubLayer_, ch, pos);
+                            sharedLoopResampler().scatterAddCircular(
+                                overdubLayer_.getWritePointer(ch), loopLen_, pos,
+                                std::abs(rate_), in);
+                            overdubPending_ = true;
                         }
                         break;
                     case State::Idle:
@@ -672,13 +738,25 @@ namespace lockstep
                 buffer.setSample(ch, i, loopOut + live);
             }
 
-            // #4 Always-decay: the read position wrapping (pos drops below the last)
-            // marks one completed iteration — fade the whole stored loop by decayGain.
-            if (decayMode == kDecayAlways && decayAmt > 0.0f && loopLen_ > 0
-                && !brNow && !tapeNow
+            // One loop iteration completes when the read position wraps (drops below
+            // the last). At that seam do the per-iteration bookkeeping: (#4) decay
+            // the committed loop A, and (R4) commit the fresh overdub layer B into A.
+            //   • Always decay fades A every iteration (tape echo, playing or
+            //     overdubbing); Overdub decay fades A only while overdubbing (the
+            //     feedback knob — was a per-sample write multiply, now an equivalent
+            //     once-per-iteration scale since the overdub touches every slot once).
+            //   • Committing B (add-only) folds the pass in AFTER A's decay, so k
+            //     passes give A = Σ gᵏ⁻ʲ·Bⱼ (the classic feedback-looper sum).
+            if (loopLen_ > 0 && !brNow && !tapeNow
                 && (state_ == State::Playing || state_ == State::Overdubbing)
                 && pos < lastPos_)
-                scaleLoop(decayGain);
+            {
+                const bool decayNow = decayAmt > 0.0f
+                    && (decayMode == kDecayAlways
+                        || (decayMode == kDecayOverdub && state_ == State::Overdubbing));
+                if (decayNow) scaleLoop(decayGain);
+                if (state_ == State::Overdubbing) commitOverdubLayer();
+            }
             lastPos_ = pos;
 
             if (state_ == State::Recording)

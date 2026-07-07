@@ -233,6 +233,16 @@ namespace lockstep
         void snapshotForUndo();
         // Linear-interpolated read of the loop at a fractional position [0,loopLen_).
         [[nodiscard]] float loopSample(int ch, double pos) const;
+        // Circular Hermite read of an arbitrary loop-length buffer (the overdub
+        // layer B) at a fractional position — no wrap crossfade (that is A's job).
+        [[nodiscard]] float readLayer(const juce::AudioBuffer<float>& buf, int ch,
+                                      double pos) const;
+        // R4 overdub layering: commit the fresh overdub layer B into the committed
+        // loop A (add-only) and clear B; or drop B unchanged. commit is a per-loop-
+        // iteration fold at the wrap (and on exit from Overdubbing) so the
+        // bandlimited fractional write in B is decoupled from A's decay/feedback.
+        void commitOverdubLayer();
+        void dropOverdubLayer();
         // Target playback duration (output samples) the loop should occupy at the
         // current project tempo, for the active sync mode; 0 = native (no stretch).
         [[nodiscard]] double targetOutputSamples() const;
@@ -271,6 +281,10 @@ namespace lockstep
         // we overwrite the track buffer with loop playback.
         juce::AudioBuffer<float> backup_;
         juce::AudioBuffer<float> inScratch_;
+        // R4: the fresh overdub layer B (bandlimited fractional writes accumulate
+        // here add-only; folded into the committed loop A once per iteration).
+        juce::AudioBuffer<float> overdubLayer_;
+        bool overdubPending_ = false;  // B holds uncommitted overdub content
 
         // Lock-free SPSC command FIFO (message → audio). Capacity is generous: at most
         // a handful of edges per block (one gesture), drained fully each process().

@@ -467,6 +467,36 @@ namespace lockstep
                       + " m3=" + juce::String(m3) + ")");
         }
 
+        // R4: the overdub is a bandlimited layer folded into the loop per iteration,
+        // add-only — and bit-exact at unity rate. Overdub 0.25 onto a 0.5 loop with
+        // decay off (hold) → the committed loop is exactly 0.75, not smeared or
+        // attenuated by the fractional-write path (Free mode = rate 1, integer pos).
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LoopMachine lp(p); lp.prepare(kSr, 512);
+
+            ParamFrame rec{ 1.0f, 0.0f, 0.0f, 2.0f, 0.0f, 0.0f };  // Free, Off, decay 0
+            runP(lp, 512, 0.5f, Cmd::RecordCycle, rec);            // record 512 of 0.5
+            runP(lp, 512, 0.0f, Cmd::RecordCycle, rec);            // close → Playing (loop 0.5)
+            CHECK(lp.state() == State::Playing, "R4: loop closed to Playing");
+
+            ParamFrame od{ 1.0f, 0.0f, 0.0f, 2.0f, 0.0f, 0.0f };   // decay 0 (hold), Overdub
+            runP(lp, 512, 0.25f, Cmd::RecordCycle, od);            // Playing→Overdubbing (lay B)
+            CHECK(lp.state() == State::Overdubbing, "R4: overdubbing");
+            auto out = runP(lp, 512, 0.0f, Cmd::RecordCycle, od);  // Overdubbing→Playing (fold)
+            CHECK(lp.state() == State::Playing, "R4: overdub committed, back to Playing");
+            // Early-loop mean, before the equal-power wrap crossfade (last loopLen/4
+            // = 128 samples, i.e. 384..512, which peaks a constant loop above its
+            // value): must be exactly 0.75.
+            double sum = 0.0;
+            for (int i = 50; i < 350; ++i) sum += out.getSample(0, i);
+            const double mean = sum / 300.0;
+            CHECK(mean > 0.74 && mean < 0.76,
+                  "R4: unity overdub adds exactly (0.5 + 0.25 = 0.75, got "
+                      + juce::String(mean) + ")");
+        }
+
         // S4: Halve/Double resize the loop *window* with no resample (no pitch change).
         // A manual length edit detaches from grid-lock (manualLen_) so it plays native
         // at rate 1 — the constant loop value is reproduced exactly, not interpolated.

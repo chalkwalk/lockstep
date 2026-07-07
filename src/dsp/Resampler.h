@@ -57,6 +57,36 @@ namespace lockstep
             return acc;
         }
 
+        // Bandlimited scatter-ADD: the transpose of read(). Distribute `in` across
+        // the same kernel taps into `dst` at fractional position `pos`, wrapping
+        // CIRCULARLY over `len` (a periodic loop buffer). Used for varispeed overdub
+        // writes: consecutive input samples land at fractional loop positions, and
+        // the windowed spread band-limits the write (rate-aware cutoff) instead of
+        // quantising it to the nearest integer. Add-only — the caller owns any
+        // decay/feedback, so overlapping windows never multiply existing content.
+        // At rate 1 on integer positions the kernel is a delta ⇒ bit-exact `+= in`.
+        void scatterAddCircular(float* dst, int len, double pos, double rate,
+                                float in) const noexcept
+        {
+            if (len <= 0) return;
+            const Bucket& b = bucketFor(rate);
+            double p = std::fmod(pos, static_cast<double>(len));
+            if (p < 0.0) p += static_cast<double>(len);
+            const double baseF = std::floor(p);
+            const int base = static_cast<int>(baseF);
+            int ph = static_cast<int>((p - baseF) * kPhases + 0.5);
+            if (ph < 0) ph = 0;
+            if (ph > kPhases) ph = kPhases;
+
+            const float* tab = b.table.data() + static_cast<std::size_t>(ph) * kTaps;
+            for (int i = 0; i < kTaps; ++i)
+            {
+                int k = (base - (kHalf - 1) + i) % len;
+                if (k < 0) k += len;
+                dst[k] += in * tab[static_cast<std::size_t>(i)];
+            }
+        }
+
     private:
         struct Bucket
         {

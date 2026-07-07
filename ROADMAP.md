@@ -2557,7 +2557,7 @@ exists and this milestone does not add one).
       mod; flag any "before" that already sounded wrong). The GUI pick-IR gesture (S16)
       also wants a hands-on pass. Code + measured assertions are green under -Werror.
 
-### 9.25 — Sample-rate correctness + bandlimited resampling  *[R1–R3, R5, R6 shipped; R4 deferred]*
+### 9.25 — Sample-rate correctness + bandlimited resampling  *[R1–R6 shipped; R4 varispeed texture pending ear-test]*
 Make sample playback **sample-rate-correct** and **anti-aliased** via one shared
 bandlimited resampler, and stop paying for fixed oversampling at high base rates.
 Surfaced during the 9.24 FOSS-DSP work: the
@@ -2584,22 +2584,23 @@ case for the correctness fix.
       through R1 (or oversample-then-decimate) when rate > 1 so up-pitched bright
       samples don't alias. Test: pitch a bright sample up an octave, `aliasRatioDb`
       bounded. (Down-pitch / rate < 1 stays fine on Hermite.)
-- [ ] **R4 — Looper varispeed write via the resampler.** Bandlimited scatter on
-      the overdub write path (`LoopMachine`, currently nearest-integer at
-      `LoopMachine.cpp:640`), keeping the 1× buffer (no 4× memory). Unity overdub
-      stays bit-exact (integer positions). **Fallback option** if the fractional
-      scatter-add proves too fiddly: a 4× oversampled loop buffer (simpler and
-      robust, but memory ×4 + always-on CPU ×4) — captured as the heavy alternative,
-      not the default.
-      **Deferred (9.26 pass):** the fractional scatter-add interacts with the
-      per-write overdub-decay feedback (`kept = old*decayGain + in`) — a windowed
-      scatter would decay overlapping destination slots multiple times per
-      iteration, so the decay semantics need redesign before this is safe. It is
-      also the one item here that genuinely needs an ear-test (varispeed overdub
-      texture), unlike R1–R3/R5–R6 which are verifiable by measurement. Left
-      unticked pending that design + listen; unity overdub is already bit-exact
-      (integer positions), so the nearest-integer write only affects varispeed
-      overdubs today.
+- [x] **R4 — Looper varispeed write via the resampler (layered overdub).** The
+      overdub is now a bandlimited fractional **scatter-add** (the transpose of the
+      R1 read, `Resampler::scatterAddCircular`) into a **fresh overdub layer B**,
+      folded into the committed loop A once per iteration at the wrap
+      (`A = A·decayGain + B`). This decouples the fractional write from the decay
+      feedback — B is add-only, so a windowed scatter never multi-decays overlapping
+      slots — resolving the blocker that deferred this in the 9.26 pass (credit: the
+      "double-buffer + commit-the-oldest-layer" reframing). Costs 2× loop RAM and
+      negligible CPU (an O(loopLen) fold a few times/sec), not the 4× oversampled
+      buffer the fallback would have. Unity overdub stays bit-exact (rate 1 on
+      integer positions → the kernel is a delta ⇒ `+= in`); k passes give
+      `A = Σ gᵏ⁻ʲ·Bⱼ`, the classic feedback-looper sum. B is committed on exit from
+      Overdubbing / before Halve/Double, dropped on Undo/Clear.
+      **Ear-test note:** the varispeed overdub *texture* still wants a listen — the
+      correctness (add-only fold, unity bit-exactness, decay-per-iteration
+      equivalence) is unit-tested, but the feel of a bandlimited fractional overdub
+      is subjective. Flagged for the same parallel ear-test as 9.24 S18 / 9.23 S1.
 - [x] **R5 — SR-scaled oversampling factor.** Derive the `juce::dsp::Oversampling`
       factor from base `sampleRate` in `prepare()` (e.g. 8×@48k → 4×@96k → 2×@192k)
       for Saturation/Distortion (9.24 S5/S7) and any future OS effect, holding the
