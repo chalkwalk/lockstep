@@ -87,7 +87,14 @@ namespace lockstep
         spec.positionStart = winStart;
         spec.windowStart = winStart;
         spec.windowEnd = winEnd;
-        spec.rate = std::pow(2.0, semitones / 12.0);
+        // R2 sample-rate correctness: the pool stores PCM at the file's rate with
+        // no resample-on-load, so a file whose rate differs from the engine rate
+        // plays at the wrong pitch/length unless we fold fileRate/engineRate into
+        // the read rate (window/loop indices stay file-sample based, unaffected).
+        const double fileRate = (sample != nullptr && sample->sampleRate > 0.0)
+                                    ? sample->sampleRate : sampleRate_;
+        const double rateComp = (sampleRate_ > 0.0) ? fileRate / sampleRate_ : 1.0;
+        spec.rate = std::pow(2.0, semitones / 12.0) * rateComp;
         const float velSens = (params.size() > static_cast<std::size_t>(kSlotVelSens))
                                    ? std::clamp(p(kSlotVelSens), 0.0f, 1.0f) : 0.0f;
         spec.level = p(kSlotLevel) * (1.0f + velSens * (velocity - 1.0f));

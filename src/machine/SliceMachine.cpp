@@ -127,7 +127,13 @@ namespace lockstep
         spec.positionStart = winStart;
         spec.windowStart = winStart;
         spec.windowEnd = winEnd;
-        spec.rate = rateParam * std::pow(2.0, pitchSemis / 12.0);
+        // R2 sample-rate correctness: fold fileRate/engineRate into the read rate
+        // so an off-rate slice plays at the right pitch/length (slice positions are
+        // file-sample based and unaffected — see SampleMachine::buildSpec).
+        const double fileRate = (sample != nullptr && sample->sampleRate > 0.0)
+                                    ? sample->sampleRate : sampleRate_;
+        const double rateComp = (sampleRate_ > 0.0) ? fileRate / sampleRate_ : 1.0;
+        spec.rate = rateParam * std::pow(2.0, pitchSemis / 12.0) * rateComp;
         spec.level = 1.0f;
         spec.attackSamples = static_cast<int>(fadeSamples);
         spec.holdSamples = 0;

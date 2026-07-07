@@ -127,6 +127,70 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // R2 (9.25) sample-rate correctness: a sample whose file rate differs from
+    // the engine rate must play at the correct pitch. The pool stores PCM at the
+    // file rate with no resample-on-load; before the fix spec.rate ignored
+    // fileRate/engineRate, so a 44.1 kHz sample in a 48 kHz session pitched UP by
+    // 48/44.1 (~+1.5 semitones). Root note (60), no pitch/tune → the output tone
+    // must match the source tone, not the mis-rated one.
+    static void testSampleRateCorrectness()
+    {
+        constexpr double kEngine = 48000.0;
+        constexpr double kFile = 44100.0;
+        constexpr double kTone = 1000.0;
+        constexpr int kLen = 44100;  // 1 s at the file rate
+
+        SamplePool pool;
+        const int idx = pool.addVolatile();
+        pool.prepareVolatile(kFile, 1, kLen);
+        auto* pcm = pool.mutableVolatilePcm(idx);
+        for (int i = 0; i < kLen; ++i)
+            pcm->setSample(0, i, static_cast<float>(std::sin(
+                2.0 * juce::MathConstants<double>::pi * kTone * i / kFile)));
+
+        SampleMachine sampler(pool);
+        sampler.prepare(kEngine, 256);
+        sampler.reset();
+        ParamFrame frame = defaultFrame(sampler);
+        CHECK(setSlot(sampler, frame, "sample_id", static_cast<float>(idx)),
+              "R2: sample_id slot resolved");
+
+        std::vector<float> out;
+        juce::AudioBuffer<float> blk(2, 256);
+        for (int b = 0; static_cast<int>(out.size()) < 16384; ++b)
+        {
+            juce::MidiBuffer mb;
+            if (b == 0)
+                mb.addEvent(juce::MidiMessage::noteOn(1, 60,
+                            static_cast<juce::uint8>(100)), 0);
+            blk.clear();
+            sampler.process(mb, frame, blk);
+            for (int i = 0; i < 256; ++i)
+                out.push_back(blk.getSample(0, i));
+        }
+
+        // Magnitude of the output (past the attack) at a target frequency.
+        const auto magAt = [&](double f) {
+            double re = 0.0, im = 0.0;
+            for (std::size_t i = 2048; i < out.size(); ++i)
+            {
+                const double ph = 2.0 * juce::MathConstants<double>::pi * f
+                                * static_cast<double>(i) / kEngine;
+                re += out[i] * std::cos(ph);
+                im -= out[i] * std::sin(ph);
+            }
+            return std::sqrt(re * re + im * im);
+        };
+
+        const double correct = magAt(kTone);                       // 1000 Hz
+        const double misrated = magAt(kTone * kEngine / kFile);     // ~1088 Hz
+        CHECK(correct > misrated * 4.0,
+              "R2: off-rate sample plays at the source pitch (1000 Hz mag "
+              + juce::String(correct) + " vs mis-rated 1088 Hz mag "
+              + juce::String(misrated) + ")");
+    }
+
+    // -----------------------------------------------------------------------
     // Synthesis machine smoke test.
     // releaseSlotId: param id whose minimum value gives a short release (e.g.
     // "va_amp_r"). If not found the release-tail silence check is skipped.
@@ -799,6 +863,7 @@ namespace lockstep
         testSignalsmithCompat();
         testMeasurementHelpers();
         testHermiteInterpolator();
+        testSampleRateCorrectness();
 
         // --- S5: Saturation oversampling (both faces) ---
         // A hot 10 kHz sine at full drive is nearly a square wave: an

@@ -2567,12 +2567,12 @@ still aliases. No serializer bump (playback-rate + DSP only; no new persistent
 state). Discipline: reuse the 9.24 `fx_audition` ear gate + `SpectralMeasure.h`
 alias/purity assertions; a 44.1 k-sample-in-48 k-session render is the acceptance
 case for the correctness fix.
-- [ ] **R1 — Shared bandlimited `Resampler`** (`src/dsp/Resampler.h`) built on
+- [x] **R1 — Shared bandlimited `Resampler`** (`src/dsp/Resampler.h`) built on
       Signalsmith `InterpolatorKaiserSincN` (windowed-sinc, min-phase variants —
       already vendored in 9.24 S1). Rate-aware: the lowpass cutoff tracks the
       playback rate so reads faster than unity are anti-aliased. Unit-tested
       (pitch-up purity, unity passthrough, DC gain).
-- [ ] **R2 — Sample-rate-correctness fix (bug).** Fold `fileRate/engineRate` into
+- [x] **R2 — Sample-rate-correctness fix (bug).** Fold `fileRate/engineRate` into
       the Sample/Slice playback rate (`SampleMachine.cpp:90`, `SliceMachine.cpp:130`
       — currently `pow(2, semis/12)` only; the pool stores PCM at *file* rate with
       no resample-on-load). Window/loop indices are file-sample based (unaffected).
