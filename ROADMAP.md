@@ -2591,14 +2591,26 @@ case for the correctness fix.
       scatter-add proves too fiddly: a 4× oversampled loop buffer (simpler and
       robust, but memory ×4 + always-on CPU ×4) — captured as the heavy alternative,
       not the default.
-- [ ] **R5 — SR-scaled oversampling factor.** Derive the `juce::dsp::Oversampling`
+      **Deferred (9.26 pass):** the fractional scatter-add interacts with the
+      per-write overdub-decay feedback (`kept = old*decayGain + in`) — a windowed
+      scatter would decay overlapping destination slots multiple times per
+      iteration, so the decay semantics need redesign before this is safe. It is
+      also the one item here that genuinely needs an ear-test (varispeed overdub
+      texture), unlike R1–R3/R5–R6 which are verifiable by measurement. Left
+      unticked pending that design + listen; unity overdub is already bit-exact
+      (integer positions), so the nearest-integer write only affects varispeed
+      overdubs today.
+- [x] **R5 — SR-scaled oversampling factor.** Derive the `juce::dsp::Oversampling`
       factor from base `sampleRate` in `prepare()` (e.g. 8×@48k → 4×@96k → 2×@192k)
       for Saturation/Distortion (9.24 S5/S7) and any future OS effect, holding the
       effective processed rate ~constant — avoids ~1.5 MHz internal processing at
       192 k for no audible gain. May be pulled forward into 9.24.
-- [ ] **R6 — SR-normalise remaining fixed one-pole corners** (minor): saturation
+- [x] **R6 — SR-normalise remaining fixed one-pole corners** (minor): saturation
       `preZ`/`lowZ` (and peers) use hardcoded coefficients whose corner drifts in Hz
       with the sample rate; derive from `sr` so tonal character holds. Low priority.
+      (Done for the two structural one-poles — HF-emphasis pre-LP ~5.3 kHz and
+      low-shelf LP ~640 Hz. `toneCoef` is left as a user tone control, not a fixed
+      corner.)
 
 ---
 

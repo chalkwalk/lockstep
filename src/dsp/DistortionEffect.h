@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../machine/IEffect.h"
+#include "OversamplingStages.h"
 #include <juce_dsp/juce_dsp.h>
 #include <array>
 #include <cmath>
@@ -31,7 +32,8 @@ namespace lockstep
             for (auto& os : os_)
             {
                 os = std::make_unique<juce::dsp::Oversampling<float>>(
-                    1, 3, juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR);
+                    1, static_cast<std::size_t>(oversamplingStagesForRate(sampleRate, 3)),
+                    juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR);
                 os->initProcessing(static_cast<std::size_t>(maxB));
             }
             dryScratch_.assign(static_cast<std::size_t>(maxB), 0.0f);

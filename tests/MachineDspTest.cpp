@@ -22,6 +22,7 @@
 #include "../src/dsp/ConvolutionEffect.h"
 #include <thread>
 #include "../src/dsp/Oversampler2x.h"
+#include "../src/dsp/OversamplingStages.h"
 #include "../src/dsp/Interpolation.h"
 #include "SpectralMeasure.h"
 #include <signalsmith-dsp/delay.h>
@@ -188,6 +189,20 @@ namespace lockstep
               "R2: off-rate sample plays at the source pitch (1000 Hz mag "
               + juce::String(correct) + " vs mis-rated 1088 Hz mag "
               + juce::String(misrated) + ")");
+    }
+
+    // -----------------------------------------------------------------------
+    // R5 (9.25): oversampling stages scale down with the session rate so the
+    // internal processed rate stays roughly constant (8x@48k → 4x@96k → 2x@192k),
+    // floored at one stage (2x) so the shaper is always oversampled.
+    static void testOversamplingStageScaling()
+    {
+        CHECK(oversamplingStagesForRate(48000.0, 3) == 3, "R5: distortion 8x @48k");
+        CHECK(oversamplingStagesForRate(96000.0, 3) == 2, "R5: distortion 4x @96k");
+        CHECK(oversamplingStagesForRate(192000.0, 3) == 1, "R5: distortion 2x @192k");
+        CHECK(oversamplingStagesForRate(44100.0, 2) == 2, "R5: saturation 4x @44.1k");
+        CHECK(oversamplingStagesForRate(96000.0, 2) == 1, "R5: saturation 2x @96k");
+        CHECK(oversamplingStagesForRate(192000.0, 2) == 1, "R5: saturation floored at 2x");
     }
 
     // -----------------------------------------------------------------------
@@ -919,6 +934,7 @@ namespace lockstep
         testHermiteInterpolator();
         testSampleRateCorrectness();
         testSamplePitchUpAntiAlias();
+        testOversamplingStageScaling();
 
         // --- S5: Saturation oversampling (both faces) ---
         // A hot 10 kHz sine at full drive is nearly a square wave: an

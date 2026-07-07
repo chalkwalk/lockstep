@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../machine/IEffect.h"
+#include "OversamplingStages.h"
 #include <juce_dsp/juce_dsp.h>
 #include <algorithm>
 #include <array>
@@ -38,11 +39,22 @@ namespace lockstep
             smoothCoef_ = 1.0f - std::exp(-1.0f / static_cast<float>(0.005 * sampleRate));
             // Program-compression envelope follower: ~30ms.
             envCoef_ = 1.0f - std::exp(-1.0f / static_cast<float>(0.030 * sampleRate));
+            // R6 (9.25): the fixed structural one-pole corners (HF-emphasis pre-LP
+            // and low-shelf LP) were hardcoded coefficients (0.5 / 0.08) tuned at
+            // 48 kHz — their corner in Hz drifts with the session rate. Derive them
+            // from the target Hz so the tonal character holds at any rate.
+            const auto onePole = [sampleRate](double fcHz) {
+                return static_cast<float>(1.0 - std::exp(
+                    -2.0 * juce::MathConstants<double>::pi * fcHz / sampleRate));
+            };
+            preCoef_ = onePole(5300.0);  // ~0.5 @ 48k
+            lowCoef_ = onePole(640.0);   // ~0.08 @ 48k
             const int maxB = std::max(1, maxBlockSize);
             for (auto& os : os_)
             {
                 os = std::make_unique<juce::dsp::Oversampling<float>>(
-                    1, 2, juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR);
+                    1, static_cast<std::size_t>(oversamplingStagesForRate(sampleRate, 2)),
+                    juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR);
                 os->initProcessing(static_cast<std::size_t>(maxB));
             }
             dryScratch_.assign(static_cast<std::size_t>(maxB), 0.0f);
@@ -119,7 +131,7 @@ namespace lockstep
 
                     if (hq_ && crisp > 0.0f)
                     {
-                        preZ_[si] += 0.5f * (in - preZ_[si]);          // one-pole LP
+                        preZ_[si] += preCoef_ * (in - preZ_[si]);      // one-pole LP
                         in = in + crisp * (in - preZ_[si]);            // + HF emphasis
                     }
 
@@ -152,7 +164,7 @@ namespace lockstep
                     float wet = data[i];
                     if (hq_ && lowAmt != 0.0f)
                     {
-                        lowZ_[si] += 0.08f * (wet - lowZ_[si]);        // one-pole LP (lows)
+                        lowZ_[si] += lowCoef_ * (wet - lowZ_[si]);     // one-pole LP (lows)
                         wet += lowAmt * lowZ_[si];
                     }
 
@@ -233,6 +245,9 @@ namespace lockstep
         std::array<float, 2> toneZ_{};
         std::array<float, 2> lowZ_{};
         std::array<float, 2> preZ_{};
+        // R6: SR-normalised corners for the structural one-poles (set in prepare).
+        float preCoef_ = 0.5f;
+        float lowCoef_ = 0.08f;
         std::array<float, 2> env_{};
         // One mono 2x oversampler per channel (built in prepare, so process() is
         // allocation-free). dryScratch_ holds one channel's dry input across the
