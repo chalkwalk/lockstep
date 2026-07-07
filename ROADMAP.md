@@ -2602,6 +2602,33 @@ case for the correctness fix.
 
 ---
 
+### 9.26 — Play-test fixes: live loop re-latch, held-step COND, universal page dots  *[Stages A–C shipped]*
+Three play-test findings, fixed as focused slices (commit per stage; no serializer
+bump):
+- [x] **Stage A — Live `player_loop` re-latch (bug).** `player_loop` was latched
+      only at note-on, but a sustaining voice never re-fires (one-shots re-arm on
+      transport / scene launch, not per pattern cycle), so toggling Loop on an
+      auto-fit loop track was inert. `StretchMachine`/`StreamMachine` now cache the
+      loop-window ingredients at note-on and re-apply the window math in `process()`
+      when the effective `player_loop` changes; `tsMode`/`reverse` stay note-on
+      latched. Tests: Off→On mid-voice keeps it sounding past the natural end,
+      On→Off stops it after the pass.
+- [x] **Stage B — Held-step COND promotion.** Trig conditions were only reachable
+      via `Func+TRIG`; with a step held, bare `TRIG` stayed on `DIV`. Added a
+      `stepQualified` COND row + a `stepHeld` input to `resolveSectionKey` (rides
+      `SectionResolveMode`, so all four consumers agree); the nearest-to-ceiling math
+      makes bare `TRIG`+step→COND while `Track+TRIG`→`DIV` and `Func+TRIG` are
+      unchanged. The COND band's held-step write path (fan across held steps, else
+      `baseCond`) is unchanged. Tests: resolver promotion cases + COND write target.
+- [x] **Stage C — Universal "re-press cycles" page dots.** Generalised the existing
+      `pageDots` channel: subpage overlays (VEL→AMP, DENSITY→MOD, TIME/KEY→TRIG)
+      publish `{count, active}` onto their owning section key, and the param-page dot
+      count now routes through the same `buildParamCandidates`+`selectScopeSections`
+      path the dispatcher pages with (fixes the raw-schema over-count). One
+      affordance for every re-press-to-cycle key.
+
+---
+
 ## Phase 10 — Melodic & Harmonic Authoring  *[active]*
 
 The tonal layer: a key-signature system built on the **circle-of-fifths

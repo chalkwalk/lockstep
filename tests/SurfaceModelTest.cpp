@@ -1076,9 +1076,73 @@ namespace lockstep
         }
     }
 
+    // 9.26 Stage C: the "press again to cycle" page-dot affordance. Param-page
+    // dots equal the selectScopeSections cycle length (the dispatcher's own path,
+    // no double-count); an active subpage overlay overrides its owning key's dots.
+    static void testOverlayPageDots()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        proc.setTrackMachine(0, AnalogMachine::kMachineId);  // a synth with real sections
+        EditContext ec;
+
+        // Param-page dots route through the same buildParamCandidates +
+        // selectScopeSections path KeyboardArea::sectionsForKey pages with, so the
+        // dot count equals the real re-press cycle length (no raw-schema drift).
+        {
+            UiState ui;
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            for (int s = 0; s < IMachine::kMaxSections; ++s)
+            {
+                const auto cands = buildParamCandidates(proc, 0, s);
+                int expected = 0;
+                for (const auto& c : selectScopeSections(cands, SecOrigin::Machine))
+                    expected += std::max(1, c.pageCount);
+                CHECK(m.pageDots[static_cast<std::size_t>(s)].count
+                          == static_cast<uint8_t>(expected),
+                      juce::String("section ") + juce::String(s)
+                          + " page dots equal the selectScopeSections cycle length");
+            }
+        }
+
+        // Vel overlay → AMP key (3): 4 subpage dots, active = current subpage,
+        // overriding whatever param-page dots the key otherwise carried.
+        {
+            UiState ui;
+            ui.overlay = Overlay::Vel;
+            ui.velSubPage = UiState::VelSubPage::Mode;  // index 2
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            CHECK(m.pageDots[3].count == 4 && m.pageDots[3].active == 2,
+                  "Vel overlay → AMP key: 4 subpage dots, active = current subpage");
+        }
+        // Density overlay → MOD key (4): 3 subpage dots.
+        {
+            UiState ui;
+            ui.overlay = Overlay::Density;
+            ui.densitySubPage = UiState::DensitySubPage::Selection;  // index 2
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            CHECK(m.pageDots[4].count == 3 && m.pageDots[4].active == 2,
+                  "Density overlay → MOD key: 3 subpage dots, active = current subpage");
+        }
+        // Time overlay → TRIG key (0): 2 subpage dots (TIME<->KEY).
+        {
+            UiState ui;
+            ui.overlay = Overlay::Time;
+            ui.sigPage = UiState::SigPage::Key;  // index 1
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            CHECK(m.pageDots[0].count == 2 && m.pageDots[0].active == 1,
+                  "Time overlay → TRIG key: 2 subpage dots (TIME<->KEY), active = KEY");
+        }
+    }
+
     void runSurfaceModelTests()
     {
         testPanicKeyLabel();
+        testOverlayPageDots();
         testQuantizedMutePendingChrome();
         testNavKeyFuncPromotion();
         testSectionKeyLabel();

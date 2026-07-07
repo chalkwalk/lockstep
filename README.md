@@ -398,6 +398,14 @@ FX). Press a section key (e.g. **SRC**, the sound-source section) to
 bring its parameters into the **Manipulation Zone**. Turn the on-screen
 encoders (or a mapped MIDI knob) to adjust them.
 
+**Page dots** under a section key mean *pressing it again cycles* — one
+dot per page, the current one filled. A key with several parameter pages
+(e.g. Analog's two FILTER pages) shows a dot per page; while a subpage
+overlay is open its owning section key shows its subpages instead (VEL on
+AMP = 4 dots, DENSITY on MOD = 3, TIME/KEY on TRIG = 2). If a key shows one
+dot or none, a re-press does nothing to cycle. This is the single "re-press
+to cycle" affordance across the whole surface.
+
 Now the magic: **hold a step key** and turn the same control. Instead of
 changing the track's base value, you've written a **P-Lock** — that
 parameter change applies *only* on that step. Hold step 9 and drop the

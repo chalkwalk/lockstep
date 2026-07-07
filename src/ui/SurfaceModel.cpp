@@ -2334,26 +2334,25 @@ namespace lockstep
         model.gridBanner = layerBanner(activeLayer, ui);
 
         // ── pageDots ─────────────────────────────────────────────────────────
-        // Per-section: how many pages does the active track's section have?
+        // "Press again to cycle" affordance (9.26): how many pages does a re-press
+        // of this section key cycle through? Computed through the SAME
+        // buildParamCandidates + selectScopeSections path the dispatcher pages with
+        // (KeyboardArea::sectionsForKey), so the dot count always equals the real
+        // cycle length — including track-scope pages and extension sections, and
+        // NOT double-counting a track page the machine already owns (the "buried FM
+        // AMP" miscount).
         {
             const int ti = activeTrack;
-            const int numSecs = proc.numSections(ti);
             for (int s = 0; s < IMachine::kMaxSections; ++s)
             {
+                const bool keyScope =
+                    ui.trackPageTrackScope[static_cast<std::size_t>(ti)]
+                                          [static_cast<std::size_t>(s)];
+                const auto cands = buildParamCandidates(proc, ti, s);
                 int totalPages = 0;
-                if (s < numSecs)
-                {
-                    const auto info = proc.section(ti, s);
-                    if (info.firstSlot >= 0)
-                        totalPages = std::max(1, info.pageCount);
-                }
-                // Extension sections with same parentCanonical add more pages.
-                for (int ex = IMachine::kMaxSections; ex < numSecs; ++ex)
-                {
-                    const auto info = proc.section(ti, ex);
-                    if (info.parentCanonical == s && info.firstSlot >= 0)
-                        totalPages += std::max(1, info.pageCount);
-                }
+                for (const auto& c : selectScopeSections(
+                         cands, keyScope ? SecOrigin::Track : SecOrigin::Machine))
+                    totalPages += std::max(1, c.pageCount);
 
                 auto& dots = model.pageDots[static_cast<std::size_t>(s)];
                 dots.count = static_cast<uint8_t>(totalPages);
@@ -2363,6 +2362,35 @@ namespace lockstep
                                                              [static_cast<std::size_t>(s)] %
                                                          totalPages)
                                   : 0u;
+            }
+
+            // Overlay subpage cycling: several overlays cycle subpages when their
+            // owning section key is re-pressed (Vel→AMP, Density→MOD, Time/Key→
+            // TRIG). While such an overlay is active its dots override the section's
+            // param-page dots so the re-press affordance is visible. Exhaustive over
+            // the closed Overlay enum (no default:) — a new overlay is a compile
+            // error until its dot wiring (or explicit no-dots) is declared.
+            int odKey = -1, odCount = 0, odActive = 0;
+            switch (ui.overlay)
+            {
+                case Overlay::Vel:
+                    odKey = 3; odCount = 4; odActive = static_cast<int>(ui.velSubPage); break;
+                case Overlay::Density:
+                    odKey = 4; odCount = 3; odActive = static_cast<int>(ui.densitySubPage); break;
+                case Overlay::Time:
+                    odKey = 0; odCount = 2; odActive = static_cast<int>(ui.sigPage); break;
+                case Overlay::None:
+                case Overlay::Euclid:
+                case Overlay::Melodic:
+                case Overlay::Harmony:
+                case Overlay::SampleProps:
+                    break;  // no subpage cycling on a section key
+            }
+            if (odKey >= 0)
+            {
+                auto& dots = model.pageDots[static_cast<std::size_t>(odKey)];
+                dots.count = static_cast<uint8_t>(odCount);
+                dots.active = static_cast<uint8_t>(odActive);
             }
         }
 
