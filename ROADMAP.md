@@ -2557,7 +2557,7 @@ exists and this milestone does not add one).
       mod; flag any "before" that already sounded wrong). The GUI pick-IR gesture (S16)
       also wants a hands-on pass. Code + measured assertions are green under -Werror.
 
-### 9.25 — Sample-rate correctness + bandlimited resampling  *[planned]*
+### 9.25 — Sample-rate correctness + bandlimited resampling  *[R1–R3, R5, R6 shipped; R4 deferred]*
 Make sample playback **sample-rate-correct** and **anti-aliased** via one shared
 bandlimited resampler, and stop paying for fixed oversampling at high base rates.
 Surfaced during the 9.24 FOSS-DSP work: the
