@@ -191,6 +191,60 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // R3 (9.25) anti-aliased pitch-up: reading a sample faster than unity images
+    // its spectrum above the destination Nyquist, folding back as aliasing —
+    // worst on bright samples. The shared bandlimited resampler (rate > 1) rejects
+    // out-of-band source content, so a 15 kHz tone pitched up an octave (rate 2,
+    // cutoff ~12 kHz) is strongly attenuated, while an in-band 5 kHz tone survives.
+    static void testSamplePitchUpAntiAlias()
+    {
+        constexpr double kSR = 48000.0;
+        constexpr int kLen = 48000;
+
+        auto renderTone = [&](double toneHz) {
+            SamplePool pool;
+            const int idx = pool.addVolatile();
+            pool.prepareVolatile(kSR, 1, kLen);
+            auto* pcm = pool.mutableVolatilePcm(idx);
+            for (int i = 0; i < kLen; ++i)
+                pcm->setSample(0, i, static_cast<float>(0.5 * std::sin(
+                    2.0 * juce::MathConstants<double>::pi * toneHz * i / kSR)));
+
+            SampleMachine sampler(pool);
+            sampler.prepare(kSR, 256);
+            sampler.reset();
+            ParamFrame frame = defaultFrame(sampler);
+            setSlot(sampler, frame, "sample_id", static_cast<float>(idx));
+            setSlot(sampler, frame, "pitch", 12.0f);  // +1 octave → read rate 2
+
+            juce::AudioBuffer<float> blk(2, 256);
+            double sumSq = 0.0;
+            int total = 0;
+            for (int b = 0; total < 12000; ++b)
+            {
+                juce::MidiBuffer mb;
+                if (b == 0)
+                    mb.addEvent(juce::MidiMessage::noteOn(1, 60,
+                                static_cast<juce::uint8>(100)), 0);
+                blk.clear();
+                sampler.process(mb, frame, blk);
+                for (int i = 0; i < 256; ++i, ++total)
+                {
+                    const double v = blk.getSample(0, i);
+                    sumSq += v * v;
+                }
+            }
+            return std::sqrt(sumSq / total);
+        };
+
+        const double bright = renderTone(15000.0);  // images to 18 kHz (aliases)
+        const double inBand = renderTone(5000.0);    // → 10 kHz, in-band
+        CHECK(bright < inBand * 0.4,
+              "R3: pitch-up rejects out-of-band content (15 kHz rms " + juce::String(bright)
+              + " << in-band 5 kHz rms " + juce::String(inBand) + ")");
+    }
+
+    // -----------------------------------------------------------------------
     // Synthesis machine smoke test.
     // releaseSlotId: param id whose minimum value gives a short release (e.g.
     // "va_amp_r"). If not found the release-tail silence check is skipped.
@@ -864,6 +918,7 @@ namespace lockstep
         testMeasurementHelpers();
         testHermiteInterpolator();
         testSampleRateCorrectness();
+        testSamplePitchUpAntiAlias();
 
         // --- S5: Saturation oversampling (both faces) ---
         // A hot 10 kHz sine at full drive is nearly a square wave: an

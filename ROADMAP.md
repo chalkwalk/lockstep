@@ -2580,7 +2580,7 @@ case for the correctness fix.
       Regression: a 44.1 k sample in a 48 k (and 96/192 k) session plays at correct
       pitch/length; sync-slice alignment holds (analysis already uses file rate, so
       today analysis and playback disagree at any mismatch).
-- [ ] **R3 — Anti-aliased sample pitch-up on read.** Route `SamplePlayer`'s read
+- [x] **R3 — Anti-aliased sample pitch-up on read.** Route `SamplePlayer`'s read
       through R1 (or oversample-then-decimate) when rate > 1 so up-pitched bright
       samples don't alias. Test: pitch a bright sample up an octave, `aliasRatioDb`
       bounded. (Down-pitch / rate < 1 stays fine on Hermite.)

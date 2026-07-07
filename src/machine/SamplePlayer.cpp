@@ -1,11 +1,24 @@
 #include "SamplePlayer.h"
 #include "../dsp/Interpolation.h"
+#include "../dsp/Resampler.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
 namespace lockstep
 {
+    namespace
+    {
+        // Shared bandlimited resampler (9.25 R3). read() is const, stateless, and
+        // allocation-free, so one instance serves every voice; the kernel bank is
+        // built once at static-init (off the audio thread). Used only for pitch-up
+        // reads (rate > 1) where Hermite would alias; down-pitch stays on Hermite.
+        const Resampler& sharedResampler()
+        {
+            static const Resampler r;
+            return r;
+        }
+    }
 
     void SamplePlayer::trigger(const Spec& spec)
     {
@@ -178,14 +191,24 @@ namespace lockstep
             const bool loopActive =
                 (loopMode == LoopMode::Sust && stage == Stage::Sustain) || (loopMode == LoopMode::SustAndRel && (stage == Stage::Sustain || stage == Stage::Release)) || (loopMode == LoopMode::All);
 
-            // Interpolated read of the continuous waveform at fractional `pos`
-            // (4-point Hermite). Direction-agnostic — sampling the reconstructed
-            // waveform at `pos` is the same whether the voice plays forward or
-            // reverse. Outer neighbour indices are clamped at the buffer edges.
-            auto readInterpFwd = [&pcm, numSrc](double pos) -> float {
+            // Interpolated read of the continuous waveform at fractional `pos`.
+            // Direction-agnostic — sampling the reconstructed waveform at `pos` is
+            // the same whether the voice plays forward or reverse. Outer neighbour
+            // indices are clamped at the buffer edges.
+            //
+            // R3 (9.25): reading faster than unity (pitch-up) images the source
+            // above the destination Nyquist and folds it back as aliasing, worst on
+            // bright samples pitched up. For |rate| > 1 route through the shared
+            // bandlimited resampler, whose cutoff tracks the rate. At or below unity
+            // Hermite is clean (anti-imaging only) and cheaper, so keep it there.
+            const double readRate = rate;
+            const float* src0 = pcm.getReadPointer(0);
+            auto readInterpFwd = [&pcm, src0, numSrc, readRate](double pos) -> float {
                 const int i0 = static_cast<int>(pos);
                 if (i0 < 0 || i0 >= numSrc)
                     return 0.0f;
+                if (std::abs(readRate) > 1.0)
+                    return sharedResampler().read(src0, numSrc, pos, readRate);
                 const auto clamp = [numSrc](int i) {
                     return juce::jlimit(0, numSrc - 1, i);
                 };
