@@ -1162,6 +1162,78 @@ namespace lockstep
             }
         }
 
+        // --- S9 regression: wet-path oversampling suppresses Doppler aliasing ---
+        // The moving Hermite read tap is a time-varying resampler; on bright,
+        // near-Nyquist content it images/aliases (the "siren" the dualsine probe
+        // exposed). The wet path now runs 2x oversampled at <= 48 kHz so that
+        // fold-back lands above base-Nyquist and is filtered on decimation. Three
+        // checks: (1) extreme settings stay finite and level-sane (no collapse /
+        // blow-up); (2) a slow-rate, high-depth 12 kHz probe keeps the carrier
+        // dominant (narrow legit FM skirt, so broadband alias fold-back would show
+        // as lost purity); (3) an unmodulated (depth=0) delay is near-transparent.
+        {
+            constexpr double sr = 48000.0;
+            constexpr int N = 1 << 15;
+            auto fx = makeEffectForId("lockstep.chorus.v1", EffectTier::Track);
+            CHECK(fx != nullptr, "chorus (alias) constructs");
+            if (fx != nullptr)
+            {
+                // (1) extreme depth/rate, fully wet, bright probe -> finite + sane.
+                fx->prepare(sr, N);
+                fx->reset();
+                juce::AudioBuffer<float> buf(1, N);
+                fillSine(buf, 12000.0, sr, 0.5f);
+                const ParamFrame extreme = { 1.0f, 1.0f, 1.0f, 0.0f };
+                fx->process(buf, N, extreme);
+                CHECK(!hasNaNOrInf(buf), "chorus extreme: finite");
+                const float rms = blockRms(buf);
+                CHECK(rms > 0.05f && rms < 1.0f,
+                      "chorus extreme wet level sane (RMS " + juce::String(rms, 4) + ")");
+
+                // (2) alias fold-back guard. A 12 kHz carrier chorused at extreme
+                // depth/rate has a legit FM+AM skirt of at most ~±1.5 kHz; anything
+                // outside a generous ±2 kHz window around 12 kHz is Doppler alias
+                // fold-back. Measure that out-of-window energy relative to the
+                // in-window carrier region. Oversampling keeps it well down; the
+                // old non-oversampled read let it fold into the audible band.
+                fx->prepare(sr, N);
+                fx->reset();
+                fillSine(buf, 12000.0, sr, 0.5f);
+                const ParamFrame extreme2 = { 1.0f, 1.0f, 1.0f, 0.0f };
+                fx->process(buf, N, extreme2);
+                {
+                    const auto mags = spectrumOf(buf, 15);
+                    const double binHz = sr / static_cast<double>(1 << 15);
+                    double inBand = 0.0, outBand = 0.0;
+                    for (int i = 1; i < static_cast<int>(mags.size()); ++i)
+                    {
+                        const double hz = i * binHz;
+                        const double e = static_cast<double>(mags[static_cast<std::size_t>(i)])
+                                       * static_cast<double>(mags[static_cast<std::size_t>(i)]);
+                        if (hz >= 10000.0 && hz <= 14000.0) inBand += e;
+                        else                                outBand += e;
+                    }
+                    const float aliasDb = static_cast<float>(
+                        10.0 * std::log10(std::max(1e-20, outBand)
+                                          / std::max(1e-20, inBand)));
+                    CHECK(aliasDb < -20.0f,
+                          "chorus alias fold-back >20 dB below carrier band "
+                          "(got " + juce::String(aliasDb, 1) + " dB)");
+                }
+
+                // (3) depth=0 -> static 11 ms delay, near-transparent wet.
+                fx->prepare(sr, N);
+                fx->reset();
+                fillSine(buf, 12000.0, sr, 0.5f);
+                const ParamFrame flat = { 0.5f, 0.0f, 1.0f, 0.0f };
+                fx->process(buf, N, flat);
+                const float flatPurity = sinePurityDb(buf, 12000.0, sr);
+                CHECK(flatPurity > 40.0f,
+                      "chorus depth=0 wet is near-transparent (purity "
+                      + juce::String(flatPurity, 1) + " dB)");
+            }
+        }
+
         // --- S10: HQ FDN reverb Hermite modulated reads ---
         // Drive a steady tone through the reverb at maximum mod depth. The old
         // integer modulated read quantised the LFO sweep to whole samples, adding
