@@ -3401,6 +3401,86 @@ namespace lockstep
               "cycle boundary instead of being cut off (E " + juce::String(once, 4) + ")");
     }
 
+    // The flip side of the one-shot fix: the "step last fired but doesn't fire
+    // now" branch exists to prevent a STUCK NOTE. An open-ended (gate=None) voice
+    // outlives the block it fired in; if the trig that started it is then removed
+    // (toggled off) or its condition fails, nothing else would ever release it, so
+    // the branch closes it when the playhead returns to that step. The one-shot
+    // guard must NOT reopen that hole -- a removed trig's held voice must still be
+    // cut. Same long-sample-on-a-short-track rig: fire once, toggle the trig off
+    // mid-flight, and require the voice to be silenced by the next cycle boundary.
+    static void testRemovedTrigStillClosesHeldVoice()
+    {
+        constexpr double sr = EngineHarness::kSampleRate;   // 48 kHz
+        constexpr int    blk = EngineHarness::kBlockSize;   // 256
+        const int sampleLen = static_cast<int>(sr * 2.0);   // 2 s sample (>> cycle)
+
+        int tsSlot = -1, loopSlot = -1;
+        {
+            SamplePool probePool;
+            StretchMachine probe(probePool);
+            for (int i = 0; i < probe.numParams(); ++i)
+            {
+                const juce::String id(probe.paramSpec(i).id);
+                if (id == "player_timestretch") tsSlot = i;
+                else if (id == "player_loop")   loopSlot = i;
+            }
+        }
+
+        // toggleOff == true: remove the trig after it fires (must close -> silent).
+        // toggleOff == false: leave it (re-fires each cycle -> keeps sounding).
+        auto lateEnergy = [&](bool toggleOff) {
+            EngineHarness h;
+            auto& p = h.processor();
+            p.setTrackMachine(0, StretchMachine::kMachineId);
+            auto& pool = p.samplePool();
+            const int idx = pool.addVolatile();
+            pool.prepareVolatile(sr, 1, sampleLen);
+            if (auto* pcm = pool.mutableVolatilePcm(idx))
+                for (int i = 0; i < pcm->getNumSamples(); ++i) pcm->setSample(0, i, 0.3f);
+            const int sslot = p.sampleSlotForTrack(0);
+            p.writeParam(0, sslot, static_cast<float>(idx));
+            p.writeParam(0, tsSlot, 0.0f);    // native rate
+            p.writeParam(0, loopSlot, 0.0f);  // no loop
+            p.setTrackLength(0, 4);           // 0.5 s cycle at 120 BPM
+            auto& trk = p.sequence().tracks[0];
+            for (int i = 0; i < trk.length; ++i)
+                trk.steps[static_cast<std::size_t>(i)].trig = false;
+            trk.steps[0].trig = true;         // plain trig, open-ended (gate=None)
+
+            const int totalBlocks = static_cast<int>(sr * 1.5) / blk;
+            const int lateFrom  = static_cast<int>(sr * 0.75);
+            const int removeBlk = 5;          // ~0.03 s: after it fires, before return
+            double e = 0.0;
+            for (int b = 0; b < totalBlocks; ++b)
+            {
+                if (toggleOff && b == removeBlk)
+                    trk.steps[0].trig = false;   // remove the trig mid-flight
+                h.renderBlocks(1);
+                if (b * blk >= lateFrom)
+                {
+                    const auto& bu = h.buffer();
+                    for (int c = 0; c < bu.getNumChannels(); ++c)
+                        for (int i = 0; i < bu.getNumSamples(); ++i)
+                        {
+                            const double v = bu.getSample(c, i);
+                            e += v * v;
+                        }
+                }
+            }
+            return e;
+        };
+
+        const double kept    = lateEnergy(false);  // trig kept: still sounding
+        const double removed = lateEnergy(true);     // trig removed: must be closed
+        CHECK(kept > 1.0e-2,
+              "stuck-note guard: control with the trig kept still sounds (E "
+              + juce::String(kept, 4) + ")");
+        CHECK(removed < 1.0e-6,
+              "stuck-note guard: a removed trig's open-ended voice is still closed "
+              "on the step's return -- not left stuck (E " + juce::String(removed, 8) + ")");
+    }
+
     // Part 3 MIDI-out VU: note-ons sent to a MIDI-out track accumulate a
     // velocity-proportional loudness, and a CC send trips the dot pulse.
     static void testMidiOutVuVelocityAndCc()
@@ -3456,6 +3536,7 @@ namespace lockstep
         testAutoFitLoopTrackOnAssign();
         testLoopReLatchInteractive();
         testOneShotDoesNotChokeHeldVoice();
+        testRemovedTrigStillClosesHeldVoice();
         testTransposeTrack();
         testLoopGridSeamFeedsTrackLength();
         testLoopRecordLengthTracksTempo();
