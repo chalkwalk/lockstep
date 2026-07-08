@@ -3166,6 +3166,160 @@ namespace lockstep
         }
     }
 
+    // 9.26 A regression (interactive route). A live player_loop toggle must be
+    // honoured mid-voice through the REAL UI write path -- writeParam (no step
+    // held) -> SetBaseParam -> StateResolver -> processBlock -- not just when the
+    // frame is injected straight into the machine (that machine-level path is
+    // covered by StretchMachineTest::runReLatch). Under Loop Off a Stretch voice
+    // free-runs the trimmed region once at native rate then falls silent while the
+    // gate is still open; flipping Loop On before that pass ends must re-latch the
+    // sustaining voice into a seamless loop. Also documents the gate-shorter-than-
+    // pass case: once the note has ended, the toggle is a no-op (re-latch is gated
+    // on the voice still sounding) -- the "toggling did nothing" the tester saw was
+    // that case, not a bug.
+    static void testLoopReLatchInteractive()
+    {
+        constexpr double sr = EngineHarness::kSampleRate;   // 48 kHz
+        constexpr int    blk = EngineHarness::kBlockSize;   // 256
+        const int sampleLen = static_cast<int>(sr * 0.5);   // 0.5 s one-shot pass
+
+        // Resolve slot indices by stable id (the slot constants are private) --
+        // the same schema-position lookup autoFitLoopTrack uses.
+        int loopSlot = -1, tsSlot = -1;
+        {
+            SamplePool probePool;
+            StretchMachine probe(probePool);
+            for (int i = 0; i < probe.numParams(); ++i)
+            {
+                const juce::String id(probe.paramSpec(i).id);
+                if (id == "player_loop")        loopSlot = i;
+                else if (id == "player_timestretch") tsSlot = i;
+            }
+        }
+        CHECK(loopSlot >= 0 && tsSlot >= 0, "re-latch(interactive): resolved player slots");
+
+        // Stretch track 0: a constant-tone sample, Tempo playback, and a single
+        // one-shot trig on step 0 (gate per the arg). Pre-seeding the trig makes
+        // autoFitLoopTrack a no-op (it leaves a sequenced track untouched), so the
+        // loop state is ours to drive via writeParam. Track length 64 (4 bars)
+        // keeps step 0 from re-firing inside the 3 s render window.
+        auto setup = [&](EngineHarness& h, MusicalGate gate) {
+            auto& p = h.processor();
+            p.setTrackMachine(0, StretchMachine::kMachineId);
+            auto& pool = p.samplePool();
+            const int idx = pool.addVolatile();
+            pool.prepareVolatile(sr, 1, sampleLen);
+            if (auto* pcm = pool.mutableVolatilePcm(idx))
+                for (int i = 0; i < pcm->getNumSamples(); ++i)
+                    pcm->setSample(0, i, 0.3f);
+            // Stamp a musical length so Tempo mode has a defined loop period. A
+            // 0.25-bar loop is 0.5 s at 120 BPM = unity playback of this sample, so
+            // one Loop-Off pass is 0.5 s and the 1..3 s window is silent under Off.
+            pool.setSourceBars(idx, 0.25);
+            const int sslot = p.sampleSlotForTrack(0);
+            p.writeParam(0, sslot, static_cast<float>(idx));            // assign
+            p.writeParam(0, tsSlot, 1.0f);    // Tempo mode (the loop-player default)
+            p.setTrackLength(0, 64);
+            auto& trk = p.sequence().tracks[0];
+            for (int i = 0; i < trk.length; ++i)
+                trk.steps[static_cast<std::size_t>(i)].trig = false;
+            auto& s0 = trk.steps[0];
+            s0.trig = true;
+            s0.condition.oneShot = true;
+            // gate == None -> inherit the track's default gate (the sustaining
+            // loop-trig behaviour the auto-fit path relies on); otherwise pin a
+            // specific (short) gate to exercise the note-ended case.
+            if (gate != MusicalGate::None)
+            {
+                s0.trigOverride.hasGate = true;
+                s0.trigOverride.gateValue = gate;
+            }
+        };
+
+        // Render totalBlocks; optionally flip Loop at toggleBlock (via writeParam,
+        // the real route); return output energy over blocks starting at/after
+        // fromSample. toggleBlock < 0 = never toggle.
+        auto energyFrom = [&](EngineHarness& h, int totalBlocks, int fromSample,
+                              int toggleBlock, float toggleTo) {
+            double e = 0.0;
+            for (int b = 0; b < totalBlocks; ++b)
+            {
+                if (b == toggleBlock)
+                    h.processor().writeParam(0, loopSlot, toggleTo);
+                h.renderBlocks(1);
+                if (b * blk >= fromSample)
+                {
+                    const auto& buf = h.buffer();
+                    for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+                        for (int i = 0; i < buf.getNumSamples(); ++i)
+                        {
+                            const double v = buf.getSample(ch, i);
+                            e += v * v;
+                        }
+                }
+            }
+            return e;
+        };
+
+        const int totalBlocks = static_cast<int>(sr * 3.0) / blk;   // 3 s render
+        const int lateFrom    = static_cast<int>(sr * 1.0);         // window 1..3 s
+        const int toggleBlk   = static_cast<int>(sr * 0.25) / blk;  // 0.25 s (mid-pass)
+
+        // (a) Long gate (G4): the note is held across the render. Under Loop Off the
+        //     voice runs one 0.5 s pass then is silent; the 1..3 s window reads ~0.
+        //     Flipping Loop On mid-pass (via writeParam, no step held) re-latches the
+        //     still-sounding voice, so the same window now carries loop audio.
+        //     Absolute loop-sustain length is exercised at the DSP level in
+        //     StretchMachineTest::runReLatch; here the signal is relative -- On is
+        //     audible where Off is silent -- which is exactly what the write route
+        //     must deliver. baseLoopAfter confirms the write reached the track base.
+        double offLate = 0.0, onLate = 0.0;
+        {
+            EngineHarness h; setup(h, MusicalGate::G4);
+            h.processor().writeParam(0, loopSlot, 0.0f);  // start Off
+            offLate = energyFrom(h, totalBlocks, lateFrom, -1, 0.0f);
+        }
+        float baseLoopAfter = 0.0f;
+        {
+            EngineHarness h; setup(h, MusicalGate::G4);
+            h.processor().writeParam(0, loopSlot, 0.0f);  // start Off
+            onLate = energyFrom(h, totalBlocks, lateFrom, toggleBlk, 1.0f);
+            baseLoopAfter = h.processor().baseParamValue(0, loopSlot);
+        }
+        CHECK(offLate < 1.0e-6,
+              "re-latch(interactive): Loop Off pass is silent in the late window "
+              "(E " + juce::String(offLate, 8) + ")");
+        CHECK(baseLoopAfter > 0.5f,
+              "re-latch(interactive): the mid-note writeParam reached the track base");
+        CHECK(onLate > 1.0e-3 && onLate > offLate * 1.0e4,
+              "re-latch(interactive): Off->On mid-pass makes a held voice audible where "
+              "Loop Off is silent (on E " + juce::String(onLate, 5) + " vs off "
+              + juce::String(offLate, 8) + ")");
+
+        // (b) Gate shorter than the pass (G1_16 ~0.125 s): the note-off lands before
+        //     the 0.25 s toggle, so the voice has already ended and Off->On is a
+        //     no-op (re-latch is gated on the voice still sounding). The late window
+        //     is ~0 with or without the toggle -- equivalence, not a bug. The note
+        //     did fire (early energy > 0), so this is a genuine already-ended case.
+        double shortEarly = 0.0, shortToggle = 0.0;
+        {
+            EngineHarness h; setup(h, MusicalGate::G1_16);
+            h.processor().writeParam(0, loopSlot, 0.0f);
+            shortEarly = energyFrom(h, totalBlocks, 0, -1, 0.0f);
+        }
+        {
+            EngineHarness h; setup(h, MusicalGate::G1_16);
+            h.processor().writeParam(0, loopSlot, 0.0f);
+            shortToggle = energyFrom(h, totalBlocks, lateFrom, toggleBlk, 1.0f);
+        }
+        CHECK(shortEarly > 1.0e-4,
+              "re-latch(interactive): the short-gate note did fire (early E "
+              + juce::String(shortEarly, 5) + ")");
+        CHECK(shortToggle < 1.0e-6,
+              "re-latch(interactive): a gate shorter than the pass makes Off->On a "
+              "no-op -- the note already ended (late E " + juce::String(shortToggle, 8) + ")");
+    }
+
     // Part 3 MIDI-out VU: note-ons sent to a MIDI-out track accumulate a
     // velocity-proportional loudness, and a CC send trips the dot pulse.
     static void testMidiOutVuVelocityAndCc()
@@ -3219,6 +3373,7 @@ namespace lockstep
         testExternalSendRoutesToHostBus();
         testStreamViaPoolPlaysAndRoundTrips();
         testAutoFitLoopTrackOnAssign();
+        testLoopReLatchInteractive();
         testTransposeTrack();
         testLoopGridSeamFeedsTrackLength();
         testLoopRecordLengthTracksTempo();
