@@ -748,8 +748,12 @@ by the Bungee time/pitch stretcher) transposes without changing duration and, in
 bar-length — so a loop stays in time as you change the BPM. Alongside **Pitch** it
 adds a **Tune** (±50 cents) fine control, a **Loop** toggle (seamless — the loop
 wraps by source position with no click, so a held trig plays the whole cycle instead
-of retriggering per step) and a **Rev** (reverse) toggle. Point it at any pool slot,
-including a live Record/Loop capture.
+of retriggering per step) and a **Rev** (reverse) toggle. The **Loop** toggle takes
+effect **live on a sounding voice** — flip it on mid-note and the current pass
+re-latches into a loop, flip it off and the pass plays out then stops — but only
+while the note is still held; if the trig's gate has already ended, or the sample
+was auto-fitted (which sets Loop on for you), toggling looks inert. Point it at any
+pool slot, including a live Record/Loop capture.
 *In performance:* you resample a phrase into a REC slot, play it back on a Stretch
 track locked to the grid, then pull the master tempo down for a breakdown — the
 captured loop follows in time and in tune instead of chipmunking.
