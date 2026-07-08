@@ -50,6 +50,10 @@ namespace lockstep
             const float feedbackTarget = params.size() > 1 ? params[1] : 0.4f;
             const float mixTarget = params.size() > 2 ? params[2] : 0.3f;
             const float lpf = params.size() > 3 ? params[3] : 1.0f;
+            // LPF -> one-pole coefficient. Floored (0 -> very dark, not a frozen
+            // filter): the raw-`lpf`-as-coefficient form froze the wet path at 0,
+            // muting the delay entirely. Mirrors DistortionEffect's toneCoef.
+            const float lpfCoef = 0.02f + lpf * lpf * 0.98f;
 
             const int bufSize = static_cast<int>(buf_[0].size());
 
@@ -84,7 +88,7 @@ namespace lockstep
                         return b[static_cast<std::size_t>(idx)];
                     };
                     float wet = hermite4(at(-1), at(0), at(1), at(2), fr);
-                    lpZ += lpf * (wet - lpZ);
+                    lpZ += lpfCoef * (wet - lpZ);
                     b[static_cast<std::size_t>(wr)] = data[i] + lpZ * fbkZ;
                     wr = (wr + 1) % bufSize;
                     data[i] = data[i] * (1.0f - mixZ) + lpZ * mixZ;

@@ -1081,6 +1081,37 @@ namespace lockstep
             }
         }
 
+        // --- S8 regression: LPF=0 must be "very dark", not a frozen/muted wet ---
+        // The fx_audition "extreme" preset drives the track Delay at lpf=0, mix=1.
+        // The old raw-lpf-as-coefficient one-pole froze at 0 there, so the wet tap
+        // never tracked the input and (with dry removed by mix=1) the delay was
+        // silent — only the mix ramp leaked the transient (the "just a tick" bug).
+        // A steady tone through short fed-back echoes at that preset must produce
+        // sustained output well past the ~5 ms smoothing window.
+        {
+            constexpr double sr = 48000.0;
+            constexpr int N = 1 << 14;
+            auto fx = makeEffectForId("lockstep.delay.v1", EffectTier::Track);
+            CHECK(fx != nullptr, "delay (track) constructs");
+            if (fx != nullptr)
+            {
+                fx->prepare(sr, N);
+                fx->reset();
+                juce::AudioBuffer<float> buf(1, N);
+                fillSine(buf, 220.0, sr, 0.5f);
+                // time 0.05s, feedback 0.4, mix 1 (fully wet), lpf 0 (extreme).
+                const ParamFrame prm = { 0.05f, 0.4f, 1.0f, 0.0f };
+                fx->process(buf, N, prm);
+                CHECK(!hasNaNOrInf(buf), "delay extreme: finite");
+                // RMS of the last quarter (well past mix smoothing) must be audible.
+                juce::AudioBuffer<float> tail(1, N / 4);
+                tail.copyFrom(0, 0, buf, 0, 3 * N / 4, N / 4);
+                CHECK(blockRms(tail) > 1e-2f,
+                      "delay extreme (lpf=0,mix=1) sustains dark repeats, not just a tick "
+                      "(tail RMS " + juce::String(blockRms(tail), 4) + ")");
+            }
+        }
+
         // --- S9: Chorus rebuild (multi-voice, Hermite, stereo spread) ---
         // Max depth + max rate must stay smooth (fractional taps, no zipper), and
         // the three phase-offset voices with the quarter-cycle right-channel
