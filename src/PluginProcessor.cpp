@@ -2893,8 +2893,18 @@ namespace lockstep
                         else
                         {
                             // Step that last fired has cycled back but doesn't fire now
-                            // (toggled off or condition failed). Close any open-ended note.
-                            if (stepIdx == firedStepIdx_[i] && firedStepIdx_[i] >= 0)
+                            // (toggled off or condition failed). Close any open-ended
+                            // note -- EXCEPT a spent one-shot: its trig is still present
+                            // and deliberately does not re-fire, so its held voice is
+                            // meant to sustain (a long stem, or a Stretch/Stream loop
+                            // wrapping seamlessly). Closing it here was the "one-shot
+                            // chokes the loop" bug — the note-off cut the voice the
+                            // instant the playhead returned to the one-shot's step.
+                            const bool spentOneShot =
+                                step.trig && cond.oneShot
+                                && oneShotSpent_[i][static_cast<std::size_t>(stepIdx)];
+                            if (!spentOneShot
+                                && stepIdx == firedStepIdx_[i] && firedStepIdx_[i] >= 0)
                             {
                                 auto& pnf = pendingNoteOffs_[i];
                                 if (pnf.openEnded)

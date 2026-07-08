@@ -3320,6 +3320,87 @@ namespace lockstep
               "no-op -- the note already ended (late E " + juce::String(shortToggle, 8) + ")");
     }
 
+    // A **spent one-shot** trig must not choke its own held voice when the
+    // playhead cycles back to it. The trig is still present and deliberately does
+    // not re-fire, so an open-ended (gate=None) voice -- a long stem, or a
+    // Stretch/Stream loop -- has to keep sounding across the pattern boundary.
+    // The bug: the "step last fired but doesn't fire now" branch closed the
+    // open-ended note the instant the playhead returned to the one-shot step,
+    // cutting long audio off at one cycle (any loop/stretch setting). This isolates
+    // the choke with a LONG, NON-looping sample on a SHORT track, so it depends
+    // only on the note staying open, not on loop-wrap behaviour.
+    static void testOneShotDoesNotChokeHeldVoice()
+    {
+        constexpr double sr = EngineHarness::kSampleRate;   // 48 kHz
+        constexpr int    blk = EngineHarness::kBlockSize;   // 256
+        const int sampleLen = static_cast<int>(sr * 2.0);   // 2 s sample (>> cycle)
+
+        int loopSlot = -1, tsSlot = -1;
+        {
+            SamplePool probePool;
+            StretchMachine probe(probePool);
+            for (int i = 0; i < probe.numParams(); ++i)
+            {
+                const juce::String id(probe.paramSpec(i).id);
+                if (id == "player_loop")             loopSlot = i;
+                else if (id == "player_timestretch") tsSlot = i;
+            }
+        }
+
+        auto lateEnergy = [&](bool oneShot) {
+            EngineHarness h;
+            auto& p = h.processor();
+            p.setTrackMachine(0, StretchMachine::kMachineId);
+            auto& pool = p.samplePool();
+            const int idx = pool.addVolatile();
+            pool.prepareVolatile(sr, 1, sampleLen);
+            if (auto* pcm = pool.mutableVolatilePcm(idx))
+                for (int i = 0; i < pcm->getNumSamples(); ++i) pcm->setSample(0, i, 0.3f);
+            const int sslot = p.sampleSlotForTrack(0);
+            p.writeParam(0, sslot, static_cast<float>(idx));
+            p.writeParam(0, tsSlot, 0.0f);    // native rate: the 2 s sample plays as 2 s
+            p.writeParam(0, loopSlot, 0.0f);  // no loop -- just a long one-shot pass
+            // Short 4-step track = 0.25 bar = 0.5 s cycle at 120 BPM, so the trig's
+            // step returns at 0.5 s and 1.0 s, well before the 2 s sample ends.
+            p.setTrackLength(0, 4);
+            auto& trk = p.sequence().tracks[0];
+            for (int i = 0; i < trk.length; ++i)
+                trk.steps[static_cast<std::size_t>(i)].trig = false;
+            trk.steps[0].trig = true;
+            trk.steps[0].condition.oneShot = oneShot;   // gate=None -> open-ended note
+
+            // Render 1.5 s; measure energy in 0.75..1.5 s (past two cycle returns,
+            // before the 2 s sample ends). A choke at the boundary zeroes it.
+            const int totalBlocks = static_cast<int>(sr * 1.5) / blk;
+            const int lateFrom = static_cast<int>(sr * 0.75);
+            double e = 0.0;
+            for (int b = 0; b < totalBlocks; ++b)
+            {
+                h.renderBlocks(1);
+                if (b * blk >= lateFrom)
+                {
+                    const auto& bu = h.buffer();
+                    for (int c = 0; c < bu.getNumChannels(); ++c)
+                        for (int i = 0; i < bu.getNumSamples(); ++i)
+                        {
+                            const double v = bu.getSample(c, i);
+                            e += v * v;
+                        }
+                }
+            }
+            return e;
+        };
+
+        const double plain = lateEnergy(false);   // non-one-shot re-fires: sounds
+        const double once  = lateEnergy(true);     // one-shot: must NOT be choked
+        CHECK(plain > 1.0e-2,
+              "one-shot choke: non-one-shot control sounds past the cycle (E "
+              + juce::String(plain, 4) + ")");
+        CHECK(once > 1.0e-2,
+              "one-shot choke: a spent one-shot's held voice keeps sounding past the "
+              "cycle boundary instead of being cut off (E " + juce::String(once, 4) + ")");
+    }
+
     // Part 3 MIDI-out VU: note-ons sent to a MIDI-out track accumulate a
     // velocity-proportional loudness, and a CC send trips the dot pulse.
     static void testMidiOutVuVelocityAndCc()
@@ -3374,6 +3455,7 @@ namespace lockstep
         testStreamViaPoolPlaysAndRoundTrips();
         testAutoFitLoopTrackOnAssign();
         testLoopReLatchInteractive();
+        testOneShotDoesNotChokeHeldVoice();
         testTransposeTrack();
         testLoopGridSeamFeedsTrackLength();
         testLoopRecordLengthTracksTempo();
