@@ -18,7 +18,10 @@
 //               faces differ (detected by param-count mismatch).
 //   * preset  — "default" (all param defaults) and "extreme" (each param pushed
 //               to the range end farthest from its default — maximal character,
-//               the alias/click stress render).
+//               the alias/click stress render). Level-defining params are pinned
+//               so an extreme stresses character, not muting: `mix` is held at a
+//               0.5 dry/wet blend (both presets) and `lpf` is kept off its
+//               filter-freezing end — see makeFrame.
 //   * signal  — impulse (tail/IR), dualsine (440 Hz + 12 kHz alias probe),
 //               sweep (20 Hz–20 kHz log), drum (synthetic burst — the main ear
 //               signal).
@@ -132,6 +135,28 @@ namespace
         return s;
     }
 
+    // A synthetic reverb impulse response for the convolver's Pool slot. Without
+    // this the default (Pool) IR source is inert — the convolver passes nothing —
+    // so `cnv_*_default_*` renders were silent. A direct spike plus exponentially
+    // decaying noise (~0.5 s) gives an audible, obviously-reverberant IR. Handed to
+    // every render via setImpulseResponse(); non-IR effects ignore it (no-op base).
+    juce::AudioBuffer<float> makeSyntheticIr()
+    {
+        const int len = static_cast<int>(kRate * 0.5);
+        juce::AudioBuffer<float> ir(1, len);
+        ir.clear();
+        auto* d = ir.getWritePointer(0);
+        juce::Random rng(9001);
+        d[0] = 1.0f;   // direct spike for definition
+        for (int i = 1; i < len; ++i)
+        {
+            const double t = static_cast<double>(i) / kRate;
+            const double env = std::exp(-t / 0.12);   // ~0.5 s RT
+            d[i] = static_cast<float>((rng.nextFloat() * 2.0f - 1.0f) * env * 0.5);
+        }
+        return ir;
+    }
+
     struct Signal { const char* name; std::vector<float> mono; };
 
     // ---- Preset helpers ---------------------------------------------------
@@ -139,6 +164,15 @@ namespace
     // "extreme" pushes each param to the range end farthest from its default —
     // maximal departure from the default sound, so the render maximises whatever
     // aliasing / clicks / character the DSP produces.
+    //
+    // Level-defining params are pinned so an extreme stresses CHARACTER, not
+    // muting: pushing a wet/dry `mix` to its extreme (0 = dry-only, or a send
+    // face's 1 = wet-only with no dry reference) yields an un-auditionable file,
+    // and an `lpf` coefficient at 0 freezes the filter to silence. Both were false
+    // "bugs" in the 9.26 audition (delay "just a tick", reverb "no reverb", master
+    // delay "no repeats"). We pin `mix` to a 0.5 dry/wet blend (audible effect +
+    // dry reference, every render, both presets) and, on extreme, keep `lpf` off
+    // its muting end. Everything else is still slammed.
     ParamFrame makeFrame(IEffect& fx, bool extreme)
     {
         ParamFrame f(static_cast<std::size_t>(fx.numParams()));
@@ -152,6 +186,11 @@ namespace
                 const float toMin = std::abs(ps.defaultValue - ps.minValue);
                 v = (toMax >= toMin) ? ps.maxValue : ps.minValue;
             }
+            const juce::String pid(ps.id);
+            if (pid.containsIgnoreCase(".mix"))
+                v = 0.5f;                                 // guaranteed dry/wet blend
+            else if (extreme && pid.containsIgnoreCase(".lpf"))
+                v = 0.5f;                                 // don't freeze the filter to silence
             f[static_cast<std::size_t>(i)] = v;
         }
         return f;
@@ -163,6 +202,7 @@ namespace
     // hard digital clipping.
     juce::AudioBuffer<float> renderThrough(IEffect& fx, const std::vector<float>& mono,
                                            const ParamFrame& params, bool bpmRamp,
+                                           const juce::AudioBuffer<float>& poolIr,
                                            float& appliedGain)
     {
         const int probeLen = static_cast<int>(mono.size());
@@ -171,6 +211,9 @@ namespace
 
         fx.prepare(kRate, kBlock);
         fx.reset();
+        // Hand every effect a Pool IR; only the convolver uses it (no-op elsewhere),
+        // so the default (Pool) convolution render is audible instead of inert.
+        fx.setImpulseResponse(poolIr, kRate);
 
         juce::AudioBuffer<float> out(2, total);
         out.clear();
@@ -272,6 +315,8 @@ int main(int argc, char* argv[])
         { "drum",     makeDrum()     },
     };
 
+    const juce::AudioBuffer<float> poolIr = makeSyntheticIr();
+
     std::cout << "fx_audition  " << kRate << " Hz  -> " << outDir.getFullPathName() << "\n";
     if (bpmRamp) std::cout << "  (bpm-ramp 120->150 across each render)\n";
     if (abMode)  std::cout << "  (A/B: dry -> gap -> wet in one file)\n";
@@ -306,7 +351,7 @@ int main(int argc, char* argv[])
                     const ParamFrame params = makeFrame(*fx, extreme);
 
                     float gain = 1.0f;
-                    auto rendered = renderThrough(*fx, sig.mono, params, bpmRamp, gain);
+                    auto rendered = renderThrough(*fx, sig.mono, params, bpmRamp, poolIr, gain);
                     if (abMode)
                         rendered = makeAbBuffer(sig.mono, rendered);
 
