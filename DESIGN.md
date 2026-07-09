@@ -4246,9 +4246,23 @@ volatile entry, writing it to `samples/recorded/` and converting it
 to a persistent entry. This is the bridge between performance
 (transient buffers) and the studio (saved, serialisable samples).
 
-The default project provides a small fixed set of volatile buffer
-slots (target count TBD, ~8) so recorder trigs and the §22 capture
-overlay always have somewhere to write.
+The default project provides a fixed set of **16** volatile buffer
+slots so recorder trigs and the §22 capture overlay always have
+somewhere to write. Two rules keep sixteen slots from costing sixteen
+buffers' worth of RAM:
+
+- **Lazy commit.** A slot's capacity is allocated *without zero-fill*,
+  so an untouched slot costs address space, not resident pages. The
+  maximum capture length is a project setting (default 60 s) rather
+  than a compile-time 12 s.
+- **Used length.** Every volatile slot carries its recorded length, and
+  nothing — playback, promote, waveform display — ever reads past it.
+  (Past it, the memory is uninitialised, not silent.)
+
+Slot exhaustion is a **deliberate choice, never a silent reuse**: when
+every slot is occupied the capture surfaces the collision and asks which
+slot to overwrite. The same lazy-commit / used-length discipline governs
+the deck medium (§40.3).
 
 ### 28.1 Sample analysis metadata (4.9)
 
@@ -4436,9 +4450,19 @@ first is an ordinary playback engine; the latter three consume audio via
   half-speed/reverse resync to the grid on release. The mini-seq strip is
   the loop-position display (playhead + pending-edge landing pip).
 
-This split — overwrite in Record, overdub in Loop — mirrors the
-Octatrack (track recorders vs. pickup machine) and keeps the recorder
-trig path simple and stateless.
+- **Tape** *(designed, §40; not built)*. The linear, position-addressed
+  face of the same deck engine Record and Loop are faces of: four
+  sub-tracks recorded against the **project timeline**, with overdub
+  layers, quantized punch, markers, jog/scrub, and varispeed. Its output
+  is an ordinary track output. See §40 for the whole model — including
+  why all three names stay, and why each deck defaults to a single
+  stereo sub-track.
+
+This split — overwrite in Record, overdub in Loop, position in Tape —
+mirrors the Octatrack (track recorders vs. pickup machine) and keeps the
+recorder trig path simple and stateless. The three are one engine wearing
+three faces (§40.1); the catalogue entries above describe the faces a
+performer picks, not three implementations.
 
 ## 30. Special Trig Types
 
@@ -5947,9 +5971,9 @@ repository.
 
 The ABI's job is **generators and effects** (§29: "granular, physical-model
 specialities are the first examples of what the module ABI is *for*").
-**Capture and console machines — `RecordMachine`, `LoopMachine`, and any
-machine that owns an always-on console — are first-party, statically linked,
-and out of ABI scope.** This is a deliberate boundary, not a missing feature,
+**Capture and console machines — `RecordMachine`, `LoopMachine`, the `Tape`
+face of the same deck engine (§40), and any machine that owns an always-on
+console — are first-party, statically linked, and out of ABI scope.** This is a deliberate boundary, not a missing feature,
 and it is drawn where it is for two structural reasons:
 
 - **The console is host-owned UI, and generalising it means generalising the
@@ -6802,3 +6826,298 @@ no chord theory — it is a scale-constrained multi-voice step buffer (ladder ru
 existing trigs where they are and assigns each the chord of the bar it falls in
 (harmony follows the bars, rhythm preserved) — the harmonic twin of the melodic
 SRC "Keep" transform.
+
+## 40. The Deck Engine — Record, Loop, and Tape
+
+> **Status: design only.** This section is the contract; the implementation is
+> its own later milestone arc (ROADMAP). Nothing here ships with the Part-A
+> bug/feature round that accompanied its writing.
+
+### 40.1 One engine, three faces
+
+Lockstep already has two capture machines (§29): **Record** overwrites a
+volatile buffer on a recorder trig; **Loop** is a circular sound-on-sound
+looper with an always-on console. A play-testing round asked for the third
+thing both of them gesture at and neither is — a **tape**: a linear, multitrack
+medium you punch into against the song's own timeline.
+
+The answer is **not** three machines with three code paths. Record, Loop, and
+Tape are **three faces of one deck engine**:
+
+| Face | Medium topology | Driven by | Product |
+|---|---|---|---|
+| **Record** | linear, overwrite | recorder trigs (§30) | a volatile pool buffer to *process* |
+| **Loop** | circular, layered | console verbs, quantized edges (§25) | a looping performance part |
+| **Tape** | linear, layered, position-addressed | console verbs against the project timeline | a take on the song's timeline |
+
+Every deck has **four sub-tracks** and **defaults to one stereo sub-track**.
+This default is a hard requirement, not a nicety: a freshly loaded Record or
+Loop must behave *exactly* as it does today — same console, same slots, same
+memory, same CUJ. The 4-track depth is opt-in, reached through the deck's
+console, and Record may well never present it.
+
+That default is what makes the unification honest rather than a mega-machine
+(§24: a machine is named by its role, one bare word). The three names remain
+three roles the performer reasons about; they simply stop being three
+implementations of overdub, undo, punch, varispeed, and capture-close.
+
+**What this replaces.** An earlier draft coordinated several Loop *machines*
+into a "loop group" so four tracks could arm and punch together. That is
+rejected: cross-machine grouping puts the coordination state in a place no
+single machine owns, invents a second launch-timing conversation (§25), and
+makes the surface answer "which tracks are in the group?" before it can answer
+"what am I recording?". A 4-track deck keeps the coordination **local** — one
+machine, one arm state, one punch. The §15 "batch selection is free" gesture
+stays available if a genuine cross-machine need ever appears.
+
+### 40.2 One project timeline
+
+A tape is made of **position**, and Lockstep's transport has deliberately had
+none: tracks advance phase, patterns loop, scenes are launched, and the
+corollary of PRINCIPLES §25 is that there is no per-track `Stopped` state and no
+song ruler to locate on. Fence #1 refuses a stored arrangement. So where does a
+tape's position come from?
+
+**From the transport, which gains it.** Split what the transport authority
+carries into two facts:
+
+- **Rate and grid** — BPM, the launch quantum, phase. This is what §25 has
+  always owned.
+- **Absolute position** — how far into the performance we are, in samples/ppq
+  from a zero.
+
+The second is not a rival authority; it is the same authority carrying one more
+field. Lockstep already computes it (the internal clock counts samples from
+transport start). The amendment (PRINCIPLES §25) is to make it **first-class,
+single-sourced, and shared**:
+
+- **Hosted in a DAW, the host timeline *is* the tape timeline.** The host is
+  the root of transport (PRINCIPLES §3): its play head is our position, its
+  locate is our locate. Winding the tape *is* dragging the host playhead. This
+  falls out of §3 rather than fighting it, and it is the single strongest
+  argument that the tape belongs inside Lockstep rather than beside it.
+- **Standalone, Lockstep exposes its own absolute clock** as that same field.
+  The standalone gains a locate; it does not gain a second timeline.
+
+**Locate is a transport act, and patterns absorb it deterministically.**
+Position is not pattern state. On a locate, each track re-derives its phase as
+`position mod trackLength` — the same arithmetic the clock already does every
+block, evaluated once at the new position. Nothing is "recalled": scenes,
+mutes, kits, and P-locks are *state*, and state does not travel with position
+(that is the fence-#1 line, and it is why a locate never reproduces "what the
+song sounded like there" — only what the tape sounded like there). Pending
+launch edges re-derive against the new position's grid.
+
+**Scrub is a decoupled audition.** While scrubbing, the deck's playhead
+detaches from the transport and plays the medium under the jog; the sequencer
+keeps running. On release the transport commits to the scrubbed position at the
+next quantum (§25's one grid, again). This is the tape idiom — you hear the
+medium while you wind, and the band comes back in on the bar.
+
+**Varispeed is a medium-rate deviation**, exactly as the looper's Free-Len /
+tape-FX rate envelope already is, and it never re-times the sequencer.
+
+**Multiple decks share the one timeline.** Two Tape machines are two media
+addressed by one position, like two tracks of one reel. There is no per-deck
+timeline and no timeline negotiation.
+
+### 40.3 The deck engine
+
+**Sub-tracks.** Four, each stereo (§40.8), each with `level` / `pan` / `mute`
+as ordinary machine params (so they are OEB-resolved, P-lockable, scene-able,
+Morph-able like every other param — §7). Sub-track count is a deck param,
+default 1.
+
+**The medium.** For Tape, a **fixed-length RAM medium**, settable, allocated
+lazily. An honest, visible limit is the OP-1 lesson: a tape you can fill is a
+tape you make decisions on. At 48 kHz:
+
+| Medium length | 1 sub-track (f32) | 4 sub-tracks (f32) | 4 sub-tracks (i16) |
+|---|---|---|---|
+| 1 min | 23 MB | 92 MB | 46 MB |
+| 5 min | 115 MB | 461 MB | 230 MB |
+| 10 min | 230 MB | 922 MB | 461 MB |
+
+Default 5 minutes; a 16-bit medium option halves it. **Lazy commit**: the
+buffer is allocated without zero-fill and never read past each sub-track's
+recorded high-water mark, so an unused sub-track and an unrecorded tail cost
+address space, not resident pages. (This is the same discipline A5 brings to
+the volatile slots, and the two share the used-length rule.)
+
+Loop keeps the circular medium it has; Record keeps the volatile pool slot it
+writes. The engine differs in *addressing*, not in machinery.
+
+**Input is a tap-only pull matrix.** Each sub-track selects its own source from
+the existing `input_source` enum (§27): `None | External | Master | Track N`.
+The deck's console shows this as a Route-style grid — sub-tracks down, sources
+across — and it reuses the tap-fork edge class wholesale: read-only, same-block,
+already in the topological sort, already cycle-checked at assignment.
+
+There is deliberately **no push side**. A `Trk6-1`-style output destination
+(source track pushes into deck sub-track 1) was considered and rejected: the
+CHANNEL "Out" enum would grow from `{Master | Track N | Off}` to
+`{Master | Track N | Track N sub-track M | Off}` — 4× the entries, on the one
+selector every track has — and it would create a second edge class into the
+topo-sort with its own cycle rules. The pull model expresses every routing the
+push model does, from the place that already knows how to express it.
+
+**Overdub and undo** are the looper's, unchanged: a take is a stack of layers;
+`UNDO` pops the last; a new layer begins at each record edge.
+
+**Punch** is a span-replace expressed as a layer: the punched span is recorded
+into a fresh layer whose contribution is zero outside the span. Edges are
+quantized by the §25 authority (double-tap = instant, the universal override).
+Punch-out is therefore never destructive — undo restores the take, which is what
+keeps fence #8 satisfied while still *feeling* like tape.
+
+**Bounce** renders sub-tracks 1..N down to one, in place or to a new deck; it is
+the deck's `Confirm`-gated commit. **Promote** hands the take to the pool via the
+9.18 machinery (`promoteVolatileToFile`), producing a take-group (§40.8).
+
+### 40.4 Markers are dumb
+
+Markers are **navigation points on the timeline**: a position, an ordinal, an
+optional auto-label. They are dropped
+
+- **automatically**, at every Scene or Song switch that happens *while a deck is
+  recording* — so a take you performed by launching scenes comes back with the
+  launches marked; and
+- **manually**, by a console marker cell.
+
+They are metadata, survive every audio operation (overdub, punch, bounce), and
+are removed only by an explicit delete.
+
+**Markers never fire anything.** A marker does not recall a scene, and a deck
+never emits a scene/song change during playback. This is precisely where fence
+#1 sits: recording *what you performed* is a recording; replaying position-keyed
+launches would be a stored arrangement, and the whole instrument would tilt into
+the session view we have twice refused. A marker tells you where the chorus was.
+You still launch the chorus.
+
+### 40.5 The console
+
+The deck is a console machine (`consoleMode`, §29/§35): a focused deck turns its
+16-button step grid into an always-on console. Because a deck now has more to
+say than one loop did, the console **pages** (nav left/right), and a
+single-sub-track deck simply has fewer pages:
+
+- **`DECK`** (always) — the current looper layout: transport + length on the top
+  row, momentary performance (beat-repeat, tape FX) on the bottom.
+- **`TRACKS`** (when sub-tracks > 1) — four rows of four: `ARM · MUTE · SOLO ·
+  SRC` per sub-track. `SRC` opens the tap matrix (§40.3), which is the Route
+  machine's routing grid, reused.
+- **`MARKS`** (Tape face) — eight marker cells. Tap = cue (quantized), double-tap
+  = cue now. That is the §25 instant-override family, not a new gesture.
+
+Elsewhere in the grammar: **nav = rewind / fast-forward**, held; **one MZ
+encoder is the jog** (scrub per §40.2); the remaining MZ slots carry medium
+length, varispeed, punch in/out, monitor mode, level. Every one of these is an
+existing key doing an existing thing to a new scope — no bespoke button (§2).
+
+### 40.6 The timeline strip
+
+A tape you cannot see the position of is a tape you cannot punch into. The
+answer is **not** a canvas (fence #5) and not a mode: it is a second
+**inspector-class always-on chrome strip** (the 9.11 precedent, §6.11.3),
+placed under the context inspector, carrying:
+
+bars and beats · every deck's markers · the position cursor · the armed punch
+region · each deck's recorded extent.
+
+It is **display-only, forever.** You never click it, drag it, or edit in it —
+interaction is the console and the jog encoder, both of which a hardware surface
+has. Built from a pure `buildTimelineModel(...)` beside `buildInspectorModel`,
+so a controller display can render it (PRINCIPLES §19, dual-target).
+
+Its **hardware proxies** — the performable subset that must survive with no
+screen (§19) — are console-cell chrome: marker-approach (marker cell brightens
+as the cursor nears it), punch-armed (in/out cells pulse), region-active (punch
+cells solid while inside the span), medium-full warning (transport cell reddens
+in the last 10 %). Everything the strip adds beyond those is enrichment.
+
+### 40.7 Take-groups and the channel policy
+
+**Take-groups.** Promoting a 4-track take writes **N+1 files**: one WAV per
+non-empty sub-track plus a **materialized downmix**. They are linked into a
+**take-group** — a new, explicit group id stamped on each pool entry, distinct
+from the existing origin groups (`FILE / STREAM / RECORD / LOOP`, which is what
+`SamplePool::groupOrdinal` numbers within). Each member keeps an ordinary
+hash-keyed persistent ref (§12): a take-group is a *link*, never a container of
+PCM.
+
+Pickers then behave by capability (9.18 `sampleClass`):
+
+- **Deck-class pickers** load a take-group as **one entity** — pick the take,
+  get its sub-tracks back on the deck's sub-tracks.
+- **Sample-class pickers** see the **members**: the downmix plus each non-empty
+  sub-track. A 4-track take therefore reads as "up to 5 samples", every one of
+  which is an ordinary pool citizen you can slice, stretch, or stream.
+
+**Channel policy** (stated once, here, because it has been implicit and
+accidental):
+
+- **The engine boundary is a stereo invariant.** Deck sub-tracks, players, and
+  volatile capture emit and consume two channels. Mono material reads as two
+  identical channels. This makes the `min(2, …)` clamps scattered through
+  `LoopMachine` and friends *policy* rather than defensive accident.
+- **Storage keeps the native channel count.** A mono file stays 1-channel in the
+  pool and on disk; the duplication happens at the engine boundary, not in RAM
+  and not in `samples/`.
+- **The deck medium is therefore 4 stereo sub-tracks** (8 channels), with empty
+  sub-tracks effectively free under lazy commit.
+
+### 40.8 Serialization
+
+- **Tape audio is never PCM in project state** (§12). A take is saved by being
+  promoted (files + hash refs) or it is lost with the session, exactly like
+  today's volatile buffers. This is the fence-#8 answer restated: the medium is
+  a reference-holder, not a bag of bytes.
+- **The marker lane** serialises as a small list of `{position, ordinal, label}`
+  on the deck, independent of the audio.
+- **Deck config** — sub-track count, per-sub-track tap + level/pan/mute, medium
+  length and bit depth — is ordinary machine param + kit state.
+- **Take-groups** serialise as the group id on each member entry; missing files
+  surface through the 9.18/9.19 relink banner unchanged.
+
+### 40.9 Gate and fences
+
+Against the 9-rung gate (PRINCIPLES "How to use this document"):
+
+1. **Grammar** — no new keys. Console cells, the five verbs, nav, MZ encoders,
+   the §25 double-tap instant override.
+2. **Cost** — arm/punch are rung-1 (single press, very common in a take);
+   sub-track routing is rung-3 (console page + grid, rare, set once).
+3. **Mastery** — the practised skills are *punch timing* (hitting the edge with
+   the quantum, or beating it with the instant override), *jog cueing* (finding
+   the seam by ear), and *bounce economy* (four tracks is a budget, and a fixed
+   medium makes committing a skill).
+4. **Surface** — grid and scope changes only; the timeline is chrome, not a
+   canvas; the jog is an encoder, which hardware has.
+5. **Equality** — a deck's output is an ordinary track output (§6): FX, mute,
+   scene, Morph, and `Out` all apply. A MIDI-out track can sit beside it and
+   nothing special-cases either.
+6. **Resolution** — every deck control is a machine param under OEB (§7).
+7. **Sections** — the deck is a machine (it *captures*: §9's "generate or
+   capture"); its processing is the ordinary post-machine chain (§14).
+8. **Chrome** — the strip, the console cells, and the hardware proxies ship with
+   the behaviour (§10).
+9. **Fences** —
+   - **#8 (destructive tape)** — cleared. Layers + undo + span-replace-as-layer;
+     the medium holds refs on save. Nothing overwrites nothing.
+   - **#1 (arrangement)** — cleared by the marker rule: a deck records audio and
+     marks where you launched; it never launches. The moment a marker fires a
+     scene, we have built the thing we refused.
+   - **#5 (canvas)** — cleared: the strip is a fixed-height display, interaction
+     lives on the 16 cells.
+   - **#10 (dual project)** — untouched: one timeline, one set.
+
+### 40.10 Deferred to the implementation arc
+
+- Scrub DSP quality (windowing, the granular-vs-varispeed choice at low rates).
+- Whether the metronome (A6) monitors *through* a recording deck or beside it.
+- The practical limit on simultaneous decks, and whether the medium length is
+  per-deck or a project budget.
+- Loop's 4-track face: whether sub-tracks may hold **different loop lengths**
+  within one deck (polymetric looping) or share the deck's window, and whether
+  punch is per-sub-track or deck-wide. The single-track face must not regress
+  either way.
