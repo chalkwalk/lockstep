@@ -143,6 +143,7 @@ namespace lockstep
         trackAnchorPpq_.fill(0.0);
         firedStepIdx_.fill(-1);
         parkedStepIdx_.fill(-1);
+        motionStepIdx_.fill(-1);
         lastRecordedStepNum_.fill(std::numeric_limits<int64_t>::min());
         for (auto& d : trackDensity_) d.store(1.0f, std::memory_order_relaxed);
         masterDensity_.store(0.0f, std::memory_order_relaxed);
@@ -481,6 +482,16 @@ namespace lockstep
         }
     }
 
+    // A3: is a bare parameter write a *recording*? Only when the transport runs, the
+    // sequencer is record-armed, and no step is held — a held step is the classic,
+    // more-specific write target (PRINCIPLES §13), and it wins.
+    bool LockstepProcessor::motionRecordArmed() const
+    {
+        return clock_.isRecordArmed()
+            && blockTransport_.running
+            && !editContext_.isActiveForEditing();
+    }
+
     // A2: single owner of "the playhead just crossed this step". firedStepIdx_ is
     // live fire state — refloorAllCursors clears it on a locate/stop so playback
     // re-anchors — while parkedStepIdx_ is a memory that must survive exactly that,
@@ -698,6 +709,7 @@ namespace lockstep
         }
         firedStepIdx_.fill(-1);
         parkedStepIdx_.fill(-1);
+        motionStepIdx_.fill(-1);
         lastScheduledStepNum_.fill(-1);
         nextTriggerPpq_.fill(0.0);
         trackAnchorPpq_.fill(0.0);
@@ -2500,6 +2512,24 @@ namespace lockstep
         // independent (probability/density are deterministic by track+step), so
         // reordering does not affect trig decisions.
         const auto routeOrderRun = routing::computeOrder(routingEdges(), tapEdges());
+
+        // A3: live P-Lock (motion) recording. The recorder decides *when* a slot is
+        // being recorded; this sink decides what recording one means. An override on
+        // a step that emits no note is inert under OEB, so a recorded motion promotes
+        // an empty step to a trigless (lock-only) trig — precisely what the grid's
+        // off → note → lock-only cycle prints by hand (DESIGN §30). A Record track's
+        // trig is a capture trigger, where lock-only is meaningless, so it is left
+        // alone (matching the grid's own refusal).
+        const double nowSeconds = juce::Time::getMillisecondCounterHiRes() * 0.001;
+        auto motionSink = [this](const MotionRecorder::Lock& lk) {
+            auto& trk = sequence().tracks[static_cast<std::size_t>(lk.track)];
+            if (lk.step < 0 || lk.step >= trk.length) return;
+            auto& st = trk.steps[static_cast<std::size_t>(lk.step)];
+            st.overrides.set(lk.slot, lk.value);
+            if (!st.trig && !isRecorderTrack(lk.track))
+                st.lockOnly = true;
+        };
+
         for (std::size_t oi = 0; oi < kNumTracks; ++oi)
         {
             const std::size_t i = static_cast<std::size_t>(routeOrderRun[oi]);
@@ -2853,6 +2883,14 @@ namespace lockstep
                         (nextTriggerPpq_[i] - trackAnchorPpq_[i]) / divPpq);
                     const int stepIdx = static_cast<int>(
                         stepNum % static_cast<std::int64_t>(trackLen));
+
+                    // A3: the playhead entered this step. Any open motion window on
+                    // this track paints its current value here — that is how a
+                    // gesture records across the steps it passes. Idempotent, so the
+                    // pendingTrigs-drain overlap below costs nothing.
+                    motionStepIdx_[i] = stepIdx;
+                    motionRecorder_.closeExpired(static_cast<int>(i), nowSeconds);
+                    motionRecorder_.paintStep(static_cast<int>(i), stepIdx, motionSink);
 
                     // Dedup: skip if emitted during pendingTrigs drain above.
                     if (stepNum != lastScheduledStepNum_[i])
@@ -3211,6 +3249,12 @@ namespace lockstep
                     }
                 }
             }
+
+            // A3: a knob moved mid-step still records onto the step the playhead is
+            // standing on, so a turn is audible on the step you are already inside
+            // rather than only from the next one.
+            motionRecorder_.closeExpired(static_cast<int>(i), nowSeconds);
+            motionRecorder_.paintDirty(static_cast<int>(i), motionStepIdx_[i], motionSink);
 
             // Resolve ParamFrame for the machine using the last-fired step so that
             // P-Locks (including fill-layer overrides) persist for the full note
@@ -3634,6 +3678,15 @@ namespace lockstep
         }
         else
         {
+            // A3: record-armed + running + no step held = the knob is *recording*.
+            // Open (or refresh) this slot's motion window; the audio thread paints
+            // the value into every step the playhead crosses until the gesture ends.
+            // The base write below still happens — motion recording adds locks, it
+            // does not take the encoder away from you.
+            if (motionRecordArmed())
+                motionRecorder_.arm(track, slot, value,
+                                    juce::Time::getMillisecondCounterHiRes() * 0.001);
+
             auto* wm = machines_[ti].get();
             const int mnp = wm->numParams();
             writeParamQueued(*this, track, slot, value);

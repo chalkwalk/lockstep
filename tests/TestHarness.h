@@ -57,6 +57,7 @@ namespace lockstep
     void runHarmonyGenTests();
     // Performance capture: tape-deck state machine (CaptureController)
     void runCaptureControllerTests();
+    void runMotionRecorderTests();
     // Phase 8 characterisation tests
     void runEditModeTests();
     void runLayerResolveTests();

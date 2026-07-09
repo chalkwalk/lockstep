@@ -891,6 +891,18 @@ one-hand held-step gesture, no `Func` required. `Track + TRIG` still resolves
 The rule is identical whether the edit comes from an on-screen encoder,
 a mapped MIDI CC, or a QWERTY action.
 
+**Live P-Lock recording (motion recording).** With the transport **running**, the
+sequencer **record-armed**, and **no step held**, turning a knob records that
+motion into the pattern: the live value is written as a P-Lock onto every step the
+playhead crosses while you keep moving. One pass round the loop records one loop;
+keep turning and the next pass overwrites it — that is the escape hatch, not a
+mode. Steps you never cross keep the locks they had. A step with no trig is
+promoted to a **trigless trig** so the motion is actually heard (§5.13, "lock-only
+trig"). The slot's name turns **record red** while it is recording, and the
+recording stops on its own about a beat after you let go. Holding a step still
+means what it always meant — edit *that* step — so the classic gesture is never
+taken away from you.
+
 ### 5.8 Sections and the Manipulation Zone
 
 | Key | Section (machine layer) |

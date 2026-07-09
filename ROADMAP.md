@@ -2670,14 +2670,21 @@ first (DESIGN §40, PRINCIPLES §25.1, `docs/partner-app-concept.md`).
       crossfade — deferred), `ParamSpec::noteOnLatched` states the fact and the MZ
       marks such a lock `*!` instead of `*`. Machines opt in as they are audited;
       Stretch and Stream are done.
-- [ ] **A3 — Live P-lock (motion) recording.** Record-armed + playing + no step
+- [x] **A3 — Live P-lock (motion) recording.** Record-armed + playing + no step
       held: turning a knob opens a per-slot motion window that writes the live value
       as a P-lock into each step the playhead crosses, closing ~150 ms after the last
       motion. One gesture over one loop records one loop (the Volca / Liven idiom);
       holding longer **overwrites** — that is the escape hatch, not a mode. Held-step
       writes keep classic behaviour (§13, more-specific-wins). A pure, unit-tested
-      `MotionRecorder` is the single seam both the MZ and CC paths funnel through
-      (§20); MZ rec tint ships in the same commit (§10).
+      `core/MotionRecorder.h` is the single seam both the MZ and CC paths funnel
+      through (§20): `arm()` publishes a value from whichever thread wrote it, and
+      every painting decision happens on the audio thread inside the step scan, over
+      a fixed table of atomics. An override on a step that emits no note is inert
+      under OEB, so a recorded motion **promotes an empty step to a trigless trig** —
+      exactly what the grid's `off → note → lock-only` cycle prints by hand (a Record
+      track, where lock-only is meaningless, is left alone). MZ record-red slot tint
+      ships in the same commit (§10). No serializer bump: locks and lock-only are
+      already state.
 - [ ] **A4 — HQ delay: divisions on a bare turn, continuous with `Func`.** One
       continuous **beat-fraction** axis replaces the stepped division index. A bare
       turn snaps to the (already length-sorted, dotted/triplet-inclusive) lattice; a

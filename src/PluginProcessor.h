@@ -12,6 +12,7 @@
 #include "core/ChannelMode.h"
 #include "core/Clock.h"
 #include "core/Metronome.h"
+#include "core/MotionRecorder.h"
 #include "core/Song.h"
 #include "core/Arrangement.h"
 #include "core/Project.h"
@@ -153,6 +154,14 @@ namespace lockstep
         // idle render path calls it, and it is what keeps a trigless trig's P-Locks
         // alive on a sustaining voice after the transport stops (A2).
         [[nodiscard]] int idleResolveStep(int track) const;
+
+        // A3: true when a bare parameter write is a *recording* — transport running,
+        // record-armed, no step held. Exposed so chrome can tint the recording slots.
+        [[nodiscard]] bool motionRecordArmed() const;
+        [[nodiscard]] bool motionRecording(int track, int slot) const
+        {
+            return motionRecorder_.isOpen(track, slot);
+        }
 
         // ── Working buffer = arrangement_.working (the resolver reads this) ───
         Sequence& sequence() { return arrangement_.working; }
@@ -1314,6 +1323,12 @@ namespace lockstep
         std::array<TrackEnvDsp, kNumTracks> trackEnvs_;
         // Last step index that actually fired per track; -1 until first fire.
         // Used for FLTR P-Lock resolution in the sequencer path.
+        // A3: live P-Lock (motion) recording, and the step each track's playhead is
+        // currently standing on (which is every boundary, not just the fired ones —
+        // unlike parkedStepIdx_ below).
+        MotionRecorder motionRecorder_;
+        std::array<int, kNumTracks> motionStepIdx_{};
+
         std::array<int, kNumTracks> firedStepIdx_{};
         // The last step the playhead crossed, per track (A2). Unlike firedStepIdx_
         // this is NOT cleared by refloorAllCursors: it is what the idle render path

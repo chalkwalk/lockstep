@@ -3384,6 +3384,99 @@ namespace lockstep
         }
     }
 
+    // A3: live P-Lock (motion) recording through the real write path. Record-armed +
+    // running + no step held: turning a knob records the value into every step the
+    // playhead crosses, and an empty step is promoted to a trigless trig so the
+    // motion is actually heard. Held-step writes keep their classic meaning.
+    static void testMotionRecordingWritesCrossedSteps()
+    {
+        constexpr int kSlot = 0;   // a machine slot on the default sampler
+
+        // Armed + running + nothing held = the write is a recording.
+        {
+            EngineHarness h;
+            auto& p = h.processor();
+            p.setTrackLength(0, 4);
+            p.clock().setRecordArmed(true);
+
+            CHECK(!p.motionRecordArmed(),
+                  "motion: not armed until a block has seen the transport running");
+            h.renderBlocks(1);
+            CHECK(p.motionRecordArmed(), "motion: armed once the transport is running");
+
+            p.writeParam(0, kSlot, 0.42f);
+            CHECK(p.motionRecording(0, kSlot), "motion: the write opened a window");
+            CHECK(!p.motionRecording(0, kSlot + 1), "motion: only the touched slot");
+
+            // Run a full pass of the 4-step pattern. Every step it crosses is locked,
+            // and each empty step becomes a trigless trig so the lock is audible.
+            h.renderBlocks(80);
+            const auto& trk = p.sequence().tracks[0];
+            int locked = 0, trigless = 0;
+            for (int i = 0; i < trk.length; ++i)
+            {
+                const auto& st = trk.steps[static_cast<std::size_t>(i)];
+                if (st.overrides.has(kSlot)) ++locked;
+                if (st.lockOnly) ++trigless;
+            }
+            CHECK(locked > 0, "motion: crossed steps carry the recorded lock");
+            CHECK(trigless == locked,
+                  "motion: an empty step recorded onto becomes a trigless trig");
+        }
+
+        // Not armed: an ordinary base write, no locks anywhere.
+        {
+            EngineHarness h;
+            auto& p = h.processor();
+            p.setTrackLength(0, 4);
+            h.renderBlocks(1);
+            CHECK(!p.motionRecordArmed(), "motion: record-arm is required");
+
+            p.writeParam(0, kSlot, 0.42f);
+            h.renderBlocks(80);
+            const auto& trk = p.sequence().tracks[0];
+            for (int i = 0; i < trk.length; ++i)
+                CHECK(!trk.steps[static_cast<std::size_t>(i)].overrides.has(kSlot),
+                      "motion: an unarmed write records nothing");
+        }
+
+        // A held step keeps the classic meaning: the lock lands on the held step
+        // only, and no motion window opens (PRINCIPLES §13 — more specific wins).
+        {
+            EngineHarness h;
+            auto& p = h.processor();
+            p.setTrackLength(0, 4);
+            p.clock().setRecordArmed(true);
+            h.renderBlocks(1);
+
+            p.editContext().hold(0, 2);
+            CHECK(!p.motionRecordArmed(), "motion: a held step disarms motion recording");
+            p.writeParam(0, kSlot, 0.9f);
+            CHECK(!p.motionRecording(0, kSlot), "motion: no window opens under a hold");
+            p.editContext().release(2);
+
+            h.renderBlocks(80);
+            const auto& trk = p.sequence().tracks[0];
+            CHECK(trk.steps[2].overrides.has(kSlot), "motion: the held step took the lock");
+            CHECK(!trk.steps[0].overrides.has(kSlot) && !trk.steps[1].overrides.has(kSlot),
+                  "motion: no other step was touched");
+        }
+
+        // Stopped: armed, but the playhead is not crossing anything.
+        {
+            EngineHarness h;
+            auto& p = h.processor();
+            p.setTrackLength(0, 4);
+            p.clock().setRecordArmed(true);
+            h.renderBlocks(1);
+            p.clock().setInPluginPlaying(false);
+            h.playHead().setPlaying(false);
+            h.renderBlocks(2);
+
+            CHECK(!p.motionRecordArmed(), "motion: a stopped transport records nothing");
+        }
+    }
+
     // A2 (ii): a P-Lock on a note-on-latched slot cannot reach a sustaining voice,
     // so on a lock-only step it is a lock that does nothing. The schema says which
     // slots those are, and the MZ marker says so to the performer.
@@ -3782,6 +3875,7 @@ namespace lockstep
         testOnsetSeedsLoopStart();
         testIdleResolveStepParksOnLastFired();
         testNoteOnLatchedSlotsAreMarked();
+        testMotionRecordingWritesCrossedSteps();
         testLoopReLatchInteractive();
         testOneShotDoesNotChokeHeldVoice();
         testRemovedTrigStillClosesHeldVoice();

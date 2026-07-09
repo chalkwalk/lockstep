@@ -6,6 +6,7 @@
 #include "../machine/InputSource.h"
 #include "KeyboardArea.h"
 #include "KeyLabel.h"  // originColour (7d)
+#include "UITheme.h"   // kVerbRecAccent (A3 motion-record tint)
 #include <algorithm>
 #include <cmath>
 
@@ -705,6 +706,15 @@ namespace lockstep
             else
                 nameText = juce::String(slot);
             labels_[si].setText(nameText, juce::dontSendNotification);
+
+            // A3: while this slot's motion window is open, the knob is writing into
+            // the pattern, not the track base. Say so on the slot itself (§10) —
+            // record red, the same red the Record verb wears.
+            labels_[si].setColour(
+                juce::Label::textColourId,
+                processor_.motionRecording(track, slot)
+                    ? juce::Colour(theme::kVerbRecAccent)
+                    : findColour(juce::Label::textColourId));
 
             clearBtns_[si].setEnabled(hasLock);
             clearBtns_[si].setAlpha(hasLock ? 1.0f : 0.3f);

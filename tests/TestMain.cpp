@@ -33,6 +33,7 @@ int main()
     lockstep::runMelodyGenTests();
     lockstep::runHarmonyGenTests();
     lockstep::runCaptureControllerTests();
+    lockstep::runMotionRecorderTests();
     // Phase 8 characterisation tests
     lockstep::runEditModeTests();
     lockstep::runLayerResolveTests();
