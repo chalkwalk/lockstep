@@ -327,6 +327,12 @@ namespace lockstep
         void transportPlay();
         void transportPause();
         void transportStopReset();
+        // Layered stop model (DESIGN): the graceful stop is transportPause (sources
+        // release, FX ring). transportTrackCut fast-cuts the track outputs but leaves
+        // the send + master FX ringing; transportMasterCut kills everything. Both
+        // hold phase (only transportStopReset rewinds). Escalated by Play tap-count.
+        void transportTrackCut();
+        void transportMasterCut();
 
         SamplePool& samplePool() { return samplePool_; }
 
@@ -1114,6 +1120,17 @@ namespace lockstep
                     soloOverrideActive_[i].store(false, std::memory_order_release);
             }
         }
+        // Layered stop cut depth (DESIGN): 0 = playing / graceful (no cut, sources
+        // release + FX ring), 2 = track cut (track outputs muted fast, sends+master
+        // ring), 3 = master cut (everything killed). Set by the transport verbs on the
+        // message thread; the audio thread ramps trackCutGain_/masterCutGain_ toward
+        // it. Any transportPlay clears it back to 0.
+        std::atomic<int> cutLevel_{ 0 };  // [ATOMIC]
+        float trackCutGain_ = 1.0f;   // audio-thread: pre-send track output cut ramp
+        float masterCutGain_ = 1.0f;  // audio-thread: post-FX master output cut ramp
+        bool  masterFxCleared_ = false;  // reset master/send FX once per master cut
+        std::vector<float> cutRampScratch_;  // per-block track-cut gain trajectory
+
         // Legacy: queued pattern switch. -1/-1 means no switch pending.
         std::atomic<int> previewPoolIndex_{ -1 };  // [ATOMIC]
         std::atomic<int> previewReqTrack_{ 0 };   // [ATOMIC]

@@ -513,12 +513,31 @@ namespace lockstep
 
     void LockstepProcessor::transportPlay()
     {
+        // Any Play toggle clears a pending stop cut (resume unmutes / a graceful
+        // stop needs no cut — sources release on the falling edge, FX ring).
+        cutLevel_.store(0, std::memory_order_release);
         // Hosted Locked: Play toggles the arm gate (park / unpark under the DAW).
         // Everywhere else it toggles the in-plugin transport as before.
         if (hostedLocked())
             setPluginArmed(!isPluginArmed());
         else
             clock_.setInPluginPlaying(!clock_.inPluginPlaying());
+    }
+
+    void LockstepProcessor::transportTrackCut()
+    {
+        // Second Play tap: stop (hold phase) and fast-cut the track outputs, leaving
+        // the send + master FX ringing (they hold pre-cut tails).
+        transportPause();
+        cutLevel_.store(2, std::memory_order_release);
+    }
+
+    void LockstepProcessor::transportMasterCut()
+    {
+        // Third Play tap: stop (hold phase) and kill everything, master + send FX
+        // tails included — total silence.
+        transportPause();
+        cutLevel_.store(3, std::memory_order_release);
     }
 
     void LockstepProcessor::transportPause()
@@ -587,6 +606,11 @@ namespace lockstep
     {
         preparedSampleRate_ = sampleRate;
         preparedBlockSize_ = samplesPerBlock;
+
+        // Layered-stop cut ramp scratch (per-block track-cut gain trajectory).
+        cutRampScratch_.assign(static_cast<std::size_t>(std::max(1, samplesPerBlock)), 1.0f);
+        trackCutGain_ = 1.0f;
+        masterCutGain_ = 1.0f;
 
         clock_.prepare(sampleRate);
         metronome_.prepare(sampleRate);
@@ -894,6 +918,20 @@ namespace lockstep
                 fxFrame[static_cast<std::size_t>(p)] = resolved;
             }
             eff->process(trackBuffers_[i], numBlockSamples, fxFrame);
+        }
+
+        // Layered stop: apply this block's track-cut gain (1 normally, ramping to 0
+        // on a track/master cut) BEFORE the send taps and the master deposit, so the
+        // tracks (dry + their own FX) fall silent while the send + master FX ring on.
+        if (trackCutGain_ < 1.0f || cutRampScratch_[0] < 1.0f)
+        {
+            const int cutChans = trackBuffers_[i].getNumChannels();
+            const int cutN = std::min(numBlockSamples, static_cast<int>(cutRampScratch_.size()));
+            for (int cutCh = 0; cutCh < cutChans; ++cutCh)
+            {
+                auto* d = trackBuffers_[i].getWritePointer(cutCh);
+                for (int s = 0; s < cutN; ++s) d[s] *= cutRampScratch_[static_cast<std::size_t>(s)];
+            }
         }
 
         // 8.26: post-insert, post-level send taps. MIDI-out tracks skipped by caller.
@@ -1936,6 +1974,25 @@ namespace lockstep
             // Drain engine parameter commands (writeParam, P-Lock writes).
             drainEngineCmds();
 
+            // Layered stop: precompute this block's track-cut gain trajectory — a
+            // fast (~8 ms) ramp toward 0 on a track/master cut, back to 1 on play.
+            // Applied to each track's output before its send taps, so the tracks go
+            // silent while the send + master FX ring on. Reused by processTrackChain.
+            {
+                const int cl = cutLevel_.load(std::memory_order_acquire);
+                const float target = (cl >= 2) ? 0.0f : 1.0f;
+                const double sr = getSampleRate() > 0.0 ? getSampleRate() : 48000.0;
+                const float inc = static_cast<float>(1.0 / (0.008 * sr));
+                if (static_cast<int>(cutRampScratch_.size()) < numBlockSamples)
+                    cutRampScratch_.assign(static_cast<std::size_t>(numBlockSamples), 1.0f);
+                for (int i = 0; i < numBlockSamples; ++i)
+                {
+                    if (trackCutGain_ < target)      trackCutGain_ = std::min(target, trackCutGain_ + inc);
+                    else if (trackCutGain_ > target) trackCutGain_ = std::max(target, trackCutGain_ - inc);
+                    cutRampScratch_[static_cast<std::size_t>(i)] = trackCutGain_;
+                }
+            }
+
             // Apply a pending pre-staged scene switch at the top of the block
             // (DESIGN §38.4 / 8.17). The message thread pre-built the new working
             // Sequence in queueScene; we swap here so the sequencer reads the new
@@ -2199,6 +2256,27 @@ namespace lockstep
             // Master insert chain — shared helper used by both transport paths.
             processMasterChain(buffer, mainOut, numBlockSamples);
 
+            // Layered stop: master cut (cutLevel 3) kills the master + send FX tails
+            // too. Clear their buffers once on entry so no stale tail blooms back on
+            // resume, then ramp the master output to 0 alongside (masterCutGain_).
+            {
+                const int cl = cutLevel_.load(std::memory_order_acquire);
+                if (cl >= 3)
+                {
+                    if (!masterFxCleared_)
+                    {
+                        for (auto& eff : masterInserts_) if (eff) eff->reset();
+                        for (auto& eff : masterSends_)   if (eff) eff->reset();
+                        for (auto& sb : sendBusBufs_)    sb.clear();
+                        masterFxCleared_ = true;
+                    }
+                }
+                else
+                {
+                    masterFxCleared_ = false;
+                }
+            }
+
             // Keep audio path (gain smoothing, DC blocker) running so it doesn't freeze.
             const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
             gainSmoothed_.setTargetValue(
@@ -2208,9 +2286,19 @@ namespace lockstep
             const int numSamples = mainOut.getNumSamples();
             const int numDcChans = std::min(numOut, static_cast<int>(dcX1_.size()));
 
+            // Layered stop: master-cut output ramp (fast ~8 ms to 0 at cutLevel 3).
+            const float masterCutTarget =
+                (cutLevel_.load(std::memory_order_acquire) >= 3) ? 0.0f : 1.0f;
+            const float masterCutInc = static_cast<float>(
+                1.0 / (0.008 * (getSampleRate() > 0.0 ? getSampleRate() : 48000.0)));
+
             for (int i = 0; i < numSamples; ++i)
             {
-                const float gain = gainSmoothed_.getNextValue();
+                if (masterCutGain_ < masterCutTarget)
+                    masterCutGain_ = std::min(masterCutTarget, masterCutGain_ + masterCutInc);
+                else if (masterCutGain_ > masterCutTarget)
+                    masterCutGain_ = std::max(masterCutTarget, masterCutGain_ - masterCutInc);
+                const float gain = gainSmoothed_.getNextValue() * masterCutGain_;
                 for (int ch = 0; ch < numOut; ++ch)
                 {
                     float s = mainOut.getSample(ch, i) * gain;

@@ -889,6 +889,72 @@ namespace lockstep
               "-- master chain may not be in the playing path");
     }
 
+    // Layered stop model (DESIGN): the three silence depths.
+    //   - master cut (transportMasterCut) kills everything, master/send FX tails
+    //     included -> total silence.
+    //   - track cut (transportTrackCut) silences the track outputs but leaves the
+    //     master FX (here a reverb) ringing its pre-cut tail.
+    //   - both are audio-path gain ramps + (master) FX reset, so they silence the
+    //     output even while the sequencer keeps firing (the harness playhead stays
+    //     "playing"); that lets the test isolate the cut ramps from transport stop.
+    static void testLayeredStopCuts()
+    {
+        auto run = [](int cutKind, bool withReverb) {
+            EngineHarness h;
+            auto& p = h.processor();
+            installMachine(p, 0, DrumMachine::kMachineId);
+            p.setTrackLength(0, 4);  // short -> the drum re-fires continuously
+            auto& trk = p.sequence().tracks[0];
+            for (int s = 0; s < trk.length; ++s)
+            {
+                trk.steps[static_cast<std::size_t>(s)].trig = true;
+                trk.steps[static_cast<std::size_t>(s)].trigOverride.hasGate = true;
+                trk.steps[static_cast<std::size_t>(s)].trigOverride.gateValue = MusicalGate::G1_16;
+            }
+            if (withReverb) p.setMasterInsert(0, "lockstep.reverb.v1");
+            for (int b = 0; b < 24; ++b) h.renderBlocks(1);  // build audio + tail
+            if (cutKind == 2)      p.transportTrackCut();
+            else if (cutKind == 3) p.transportMasterCut();
+            else                   p.transportPause();  // graceful: no cut ramp
+            // Late window past the ~8 ms cut ramp (blocks >= 8 of the post-cut render).
+            double e = 0.0;
+            for (int b = 0; b < 40; ++b)
+            {
+                h.renderBlocks(1);
+                if (b >= 8)
+                {
+                    const auto& bu = h.buffer();
+                    for (int c = 0; c < bu.getNumChannels(); ++c)
+                        for (int i = 0; i < bu.getNumSamples(); ++i)
+                        {
+                            const double v = bu.getSample(c, i);
+                            e += v * v;
+                        }
+                }
+            }
+            return e;
+        };
+
+        const double gracefulDry = run(0, false);  // no cut: drum still firing -> loud
+        const double trackCutDry = run(2, false);  // track cut, no FX -> silent
+        const double trackCutRev = run(2, true);    // track cut + reverb -> tail rings
+        const double masterCutRev = run(3, true);    // master cut -> dead
+
+        CHECK(gracefulDry > 1.0e-2,
+              "layered stop: control (no cut) keeps sounding (E "
+              + juce::String(gracefulDry, 4) + ")");
+        CHECK(trackCutDry < gracefulDry * 0.02 + 1.0e-6,
+              "track cut: track dry is silenced fast (E " + juce::String(trackCutDry, 6)
+              + " vs control " + juce::String(gracefulDry, 4) + ")");
+        CHECK(masterCutRev < 1.0e-5,
+              "master cut: master + FX tails killed -> total silence (E "
+              + juce::String(masterCutRev, 8) + ")");
+        CHECK(trackCutRev > masterCutRev * 100.0 + 1.0e-4,
+              "track cut: master reverb tail keeps ringing where master cut is dead "
+              "(ring " + juce::String(trackCutRev, 4) + " vs dead "
+              + juce::String(masterCutRev, 8) + ")");
+    }
+
     // -----------------------------------------------------------------------
     // v17 state round-trip: masterSends, kit amp sendA/sendB, and step P-Locks
     // on AMP slot ≥ 8 (string-keyed "lockstep.amp.sendA") survive save→load.
@@ -3583,6 +3649,7 @@ namespace lockstep
         testSurfaceDirtyOnParamApply();
         testFocusStepAdvances();
         testMasterInsertRunsWhilePlaying();
+        testLayeredStopCuts();
         testV17StateRoundTrip();
         testLaunchQuantRoundTrip();
         testPerTrackLaunchQuantOverride();
