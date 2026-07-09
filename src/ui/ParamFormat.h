@@ -10,8 +10,32 @@ namespace lockstep
     // Handles unit suffixes, stepped integers, and closed-enum valueLabels.
     // This is the single source of truth for value text — used by ManipulationZone
     // and SurfaceModel (for controller display lines).
-    inline juce::String formatParamValue(float v, const ParamSpec& spec)
+    // `bpm` is only consulted for Unit::Beats, where an off-detent value has no
+    // musical name and reads as milliseconds at the current tempo instead. Callers
+    // without a tempo to hand (controller displays) get the beat fraction.
+    inline juce::String formatParamValue(float v, const ParamSpec& spec, double bpm = 0.0)
     {
+        // A continuous slot with a detent lattice (A4): name the detent it rests on,
+        // otherwise fall through and describe where it is between them. Checked
+        // before the stepped/valueLabels branch, whose labels index the value.
+        if (!spec.detents.empty())
+        {
+            const int di = detentIndexAt(spec, v);
+            if (di >= 0 && di < static_cast<int>(spec.valueLabels.size()))
+                return juce::String(spec.valueLabels[static_cast<std::size_t>(di)]);
+
+            if (spec.unit == ParamSpec::Unit::Beats)
+            {
+                if (bpm > 0.0)
+                {
+                    const double ms = static_cast<double>(v) * 60000.0 / bpm;
+                    return juce::String(static_cast<int>(std::round(ms))) + " ms";
+                }
+                return juce::String(v, 2) + " bt";
+            }
+            return juce::String(v, 2);
+        }
+
         if (!spec.valueLabels.empty())
         {
             const int idx = std::clamp(static_cast<int>(std::round(v)),
@@ -48,6 +72,11 @@ namespace lockstep
             }
             case ParamSpec::Unit::Percent:
                 return juce::String(static_cast<int>(v * 100.0f)) + "%";
+            case ParamSpec::Unit::Beats:
+                return (bpm > 0.0)
+                    ? juce::String(static_cast<int>(
+                          std::round(static_cast<double>(v) * 60000.0 / bpm))) + " ms"
+                    : juce::String(v, 2) + " bt";
             case ParamSpec::Unit::None:
             default:
                 return juce::String(v, 2);

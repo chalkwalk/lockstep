@@ -1029,10 +1029,20 @@ or sends. The tier is chosen by *placement* — you do not pick it. So `Reverb`,
 `Delay` and `Saturation` show a single picker entry; drop them on a track for the
 4-param version, on master for the 8-param oversampled version.
 
+**Delay time: divisions by default, continuous with `Func`.** The master (HQ)
+delay's `Time` is one continuous **tempo-relative** axis. A bare encoder turn
+snaps it to the musical divisions — `1/16 · 1/8T · 1/8 · 1/8. · 1/4 · 1/4. · 1/2`
+— and reads out by name. Hold **`Func`** while you turn and it sweeps freely
+between them, reading out in milliseconds at the current tempo; the next bare turn
+re-snaps to the nearest division. Either way the tape-bend glide absorbs the
+change, so a sweep bends and a jump crossfades. The track (LQ) `Delay` keeps its
+plain millisecond `Time` — that is the absolute, character delay, and it does not
+follow the tempo.
+
 *Track inserts (any slot):*
 | Badge | Name | Key params |
 |---|---|---|
-| `DLY` | Delay | Time, Feedbk, Mix, LPF *(HQ on master: + Color, Width, tempo div)* |
+| `DLY` | Delay | Time, Feedbk, Mix, LPF — Time is in **milliseconds** here (the absolute, character delay). *(HQ on master: + Color, Width, and a **tempo-relative** Time — see below)* |
 | `REV` | Reverb | Size, Decay, Damp, Mix *(HQ on master: + PreDly, LoCut, Mod)* |
 | `DRV` | Distortion | Drive, Tone, Mix |
 | `SAT` | Saturation | Drive, Tone, Mix, Output *(HQ on master: + Bias, Comp, Crisp, Low — 2× oversampled tape glue)* |

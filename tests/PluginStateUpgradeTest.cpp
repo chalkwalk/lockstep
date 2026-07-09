@@ -486,6 +486,46 @@ namespace
                              "v28->v29: durable hash stamped from the bridged entry");
             }
 
+            beginTest("v31 -> v32: HQ delay time index becomes the beat fraction");
+            {
+                // A v31 doc stored the delay time as an index into the division
+                // table; v32 stores the beats themselves. Index 2 named 1/8.
+                juce::ValueTree v31(keys::kLockstepState);
+                v31.setProperty(keys::kVersion, 31, nullptr);
+                auto hierarchy = juce::ValueTree(keys::kNewHierarchy);
+                auto mIns = juce::ValueTree(keys::kMasterIns);
+                mIns.setProperty("slot", 0, nullptr);
+                mIns.setProperty(keys::kEid, "lockstep.delay.v1", nullptr);
+                auto pTime = juce::ValueTree("P");
+                pTime.setProperty("id", "lockstep.delayhq.time", nullptr);
+                pTime.setProperty("v", 2.0f, nullptr);          // 1/8
+                mIns.appendChild(pTime, nullptr);
+                auto pFbk = juce::ValueTree("P");
+                pFbk.setProperty("id", "lockstep.delayhq.feedback", nullptr);
+                pFbk.setProperty("v", 0.6f, nullptr);
+                mIns.appendChild(pFbk, nullptr);
+                hierarchy.appendChild(mIns, nullptr);
+                v31.appendChild(hierarchy, nullptr);
+                v31.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
+                v31.appendChild(juce::ValueTree(keys::kMisc), nullptr);
+
+                const auto result = lockstep::PluginState::applyUpgrades(v31);
+                expectEquals(static_cast<int>(result.getProperty(keys::kVersion, 0)),
+                             lockstep::PluginState::kCurrentVersion,
+                             "v31->v32: version stamp bumped");
+
+                const auto mInsR = result.getChildWithName(keys::kNewHierarchy)
+                                       .getChildWithName(keys::kMasterIns);
+                const auto timeR = mInsR.getChild(0);
+                expectWithinAbsoluteError(
+                    static_cast<float>(timeR.getProperty("v")), 0.5f, 1.0e-4f,
+                    "v31->v32: division index 2 becomes 0.5 beats (1/8)");
+                const auto fbkR = mInsR.getChild(1);
+                expectWithinAbsoluteError(
+                    static_cast<float>(fbkR.getProperty("v")), 0.6f, 1.0e-4f,
+                    "v31->v32: other delay params are untouched");
+            }
+
             beginTest("future version: valid tree returned without crash");
             {
                 juce::ValueTree future(keys::kLockstepState);

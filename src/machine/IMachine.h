@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <span>
 #include <string>
 #include <vector>
@@ -24,8 +25,11 @@ namespace lockstep
             Ms,
             Semitones,
             Percent,
-            Cents  // appended last: table-driven machines cast raw unit ordinals,
-                   // so a new Unit must not shift the existing values.
+            Cents,  // appended last: table-driven machines cast raw unit ordinals,
+                    // so a new Unit must not shift the existing values.
+            Beats   // a musical duration in beats (1.0 = a quarter note). Reads as
+                    // its division name on a detent, and as milliseconds at the
+                    // current tempo between them.
         };
 
         // Closed set of semantic roles. Used by Control-All as an id-fallback
@@ -81,7 +85,17 @@ namespace lockstep
         // Optional textual labels for stepped/enum slots (MHZ.2.5).
         // Non-empty → MZ renders valueLabels[round(value)] instead of a numeric string.
         // Must point to static-lifetime data; the span is non-owning.
+        // When `detents` is also set, these name the detents rather than index the
+        // value (the slot is continuous — see below).
         std::span<const char* const> valueLabels = {};
+
+        // Optional detent lattice for a *continuous* slot (A4). A bare encoder turn
+        // snaps to the nearest of these; `Func` + turn sweeps the axis freely, and a
+        // later bare turn re-snaps to the nearest detent. This is how a delay time
+        // offers musical divisions by default without becoming a stepped enum you
+        // cannot slide between. Ascending, static-lifetime, non-owning; when
+        // `valueLabels` is present it is parallel to this and names each detent.
+        std::span<const float> detents = {};
 
         // When true, writeParam() snaps this slot's value to the nearest
         // zero-crossing in the currently-loaded sample before storing it.
@@ -123,6 +137,33 @@ namespace lockstep
         // per-block pitch, filter cutoff) leave it false.
         bool noteOnLatched = false;
     };
+
+    // Snap `v` to the nearest of a slot's detents (A4). `funcHeld` bypasses the
+    // lattice, which is the whole gesture: a bare turn is musical, `Func` + turn is
+    // free. A slot with no detents is returned untouched, so this is safe to call on
+    // the way into every parameter write — one owner, every input path.
+    [[nodiscard]] inline float snapToDetents(const ParamSpec& spec, float v, bool funcHeld)
+    {
+        if (funcHeld || spec.detents.empty()) return v;
+        float best = spec.detents.front();
+        float bestDist = std::abs(v - best);
+        for (const float d : spec.detents)
+        {
+            const float dist = std::abs(v - d);
+            if (dist < bestDist) { bestDist = dist; best = d; }
+        }
+        return best;
+    }
+
+    // Index of the detent `v` is resting on, or -1 when it sits between them.
+    // The epsilon is relative so it means the same thing at 1/16 and at 1/2.
+    [[nodiscard]] inline int detentIndexAt(const ParamSpec& spec, float v)
+    {
+        for (std::size_t i = 0; i < spec.detents.size(); ++i)
+            if (std::abs(v - spec.detents[i]) <= 1.0e-3f * std::max(1.0f, std::abs(v)))
+                return static_cast<int>(i);
+        return -1;
+    }
 
     // Returned by LockstepProcessor::section() after augmenting the machine's
     // raw label with computed layout fields (firstSlot, pageCount).

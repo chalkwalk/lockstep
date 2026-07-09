@@ -2059,6 +2059,37 @@ namespace lockstep::PluginState
         return v31;
     }
 
+    // v32 (9.27 A4): the HQ delay's time slot stopped being a stepped index into a
+    // division table and became the beat fraction itself, so a bare turn can snap to
+    // the divisions while `Func` + turn sweeps between them. Old documents stored the
+    // index; rewrite it to the beats it named. Values at the old default (index 4 =
+    // 1/4) were never written at all — the save path skips defaults — and the new
+    // default is 1.0 beats, the same 1/4. So this only touches docs that had moved
+    // the knob.
+    static juce::ValueTree upgrade_v31_to_v32(const juce::ValueTree& v31)
+    {
+        static constexpr float kLegacyDivBeats[] = {
+            0.25f, 1.0f/3.0f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f
+        };
+        juce::ValueTree v32 = v31.createCopy();
+
+        const std::function<void(juce::ValueTree&)> rewrite = [&](juce::ValueTree& node) {
+            if (node.getType() == juce::Identifier("P")
+                && node.getProperty("id", "").toString() == "lockstep.delayhq.time")
+            {
+                const int idx = juce::jlimit(0, 6,
+                    static_cast<int>(std::lround(getFloat(node, "v", 4.0f))));
+                node.setProperty("v", kLegacyDivBeats[static_cast<std::size_t>(idx)], nullptr);
+            }
+            for (auto child : node)
+                rewrite(child);
+        };
+        rewrite(v32);
+
+        v32.setProperty(keys::kVersion, 32, nullptr);
+        return v32;
+    }
+
     static juce::ValueTree upgrade_v27_to_v28(const juce::ValueTree& v27)
     {
         // v28 (stream-via-pool): a StreamMachine's source moves from a per-Kit
@@ -2112,6 +2143,7 @@ namespace lockstep::PluginState
         if (version < 29) tree = upgrade_v28_to_v29(tree);
         if (version < 30) tree = upgrade_v29_to_v30(tree);
         if (version < 31) tree = upgrade_v30_to_v31(tree);
+        if (version < 32) tree = upgrade_v31_to_v32(tree);
 
         // 9.18: unconditional — resolve sample references to current pool positions
         // (hash-driven for v29 trees, "i"-bridged for the v28 tree just upgraded).

@@ -2685,14 +2685,19 @@ first (DESIGN §40, PRINCIPLES §25.1, `docs/partner-app-concept.md`).
       track, where lock-only is meaningless, is left alone). MZ record-red slot tint
       ships in the same commit (§10). No serializer bump: locks and lock-only are
       already state.
-- [ ] **A4 — HQ delay: divisions on a bare turn, continuous with `Func`.** One
-      continuous **beat-fraction** axis replaces the stepped division index. A bare
-      turn snaps to the (already length-sorted, dotted/triplet-inclusive) lattice; a
-      `Func`-turn sweeps the same axis freely; re-snap is nearest-detent. Readout is
-      the division name on-lattice and derived ms off it. A `funcContinuous` ParamSpec
-      flag carries it, mirroring the Harmony/Density Func-incremental precedent. The
-      plain `DelayEffect` stays free-ms — it is the absolute/character delay.
-      Serializer bump + upgrade mapping (the slot's domain changes).
+- [x] **A4 — HQ delay: divisions on a bare turn, continuous with `Func`.** One
+      continuous **beat-fraction** axis replaces the stepped division index. The
+      schema carries it: `ParamSpec::detents` is a static, ascending lattice on a
+      *continuous* slot, with `valueLabels` naming each detent in parallel; the pure
+      `snapToDetents(spec, v, funcHeld)` is the single owner of the snap, so a bare
+      turn is musical and a `Func`-turn is free, and a slot with no lattice passes
+      through untouched. Readout is the division name on-lattice and derived ms off
+      it (`ParamSpec::Unit::Beats`, appended last). The tape-bend slew and >50 ms
+      crossfade already in the effect absorb both the sweep and the jump. The plain
+      `DelayEffect` stays free-ms — it is the absolute/character delay.
+      **Serializer v31→v32**: `upgrade_v31_to_v32` rewrites the stored index to the
+      beats it named. Old docs at the default never wrote the slot, and both defaults
+      are 1/4.
 - [ ] **A5 — Volatile slots: 16, adjustable, lazily committed.** 8×12 s fixed
       becomes 16 slots with a project-set maximum length (default 60 s), allocated
       without zero-fill so RSS tracks what was recorded. Formalise per-slot **used

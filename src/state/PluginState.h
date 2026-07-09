@@ -73,7 +73,13 @@ namespace lockstep
         //      IR ref is set; a v30 slot loads with an empty irRef. Additive; trivial
         //      stamp upgrade from v30. Also confirms the appended-param policy for
         //      chorus_fb (default-load by id needs no serializer work).
-        inline constexpr int kCurrentVersion = 31;
+        // v32: the HQ delay's "lockstep.delayhq.time" slot changed domain — a
+        //      stepped index into the division table became the continuous beat
+        //      fraction itself (9.27 A4), so a bare encoder turn snaps to the
+        //      divisions and Func+turn sweeps between them. upgrade_v31_to_v32
+        //      rewrites any stored index to the beats it named. Old docs at the
+        //      default never wrote the slot, and both defaults are 1/4.
+        inline constexpr int kCurrentVersion = 32;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

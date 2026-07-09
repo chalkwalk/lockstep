@@ -20,14 +20,20 @@ namespace lockstep
     class HQDelayEffect final : public IEffect
     {
         static constexpr int kFxSec = 5;
-        // Divisions: 1/16, 1/8T, 1/8, 1/8., 1/4, 1/4., 1/2
-        static constexpr double kDivBeats[] = {
-            0.25, 1.0/3.0, 0.5, 0.75, 1.0, 1.5, 2.0
+        // The division lattice, in beats (1.0 = a quarter note), ascending:
+        // 1/16, 1/8T, 1/8, 1/8., 1/4, 1/4., 1/2. Delay time is a *continuous*
+        // beat-fraction that a bare encoder turn snaps to one of these, and a
+        // Func-turn sweeps freely between (A4). Tempo-relative either way — the
+        // absolute/character delay is the plain DelayEffect, in milliseconds.
+        static constexpr float kDivBeats[] = {
+            0.25f, 1.0f/3.0f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f
         };
         static constexpr const char* const kDivLabels[] = {
             "1/16", "1/8T", "1/8", "1/8.", "1/4", "1/4.", "1/2"
         };
         static constexpr int kNumDivs = 7;
+        static constexpr float kMinBeats = kDivBeats[0];
+        static constexpr float kMaxBeats = kDivBeats[kNumDivs - 1];
 
     public:
         void prepare(double sampleRate, int /*maxBlockSize*/) override
@@ -72,9 +78,9 @@ namespace lockstep
             const int numCh = buffer.getNumChannels();
             if (numCh == 0 || numSamples <= 0) return;
 
-            const int divIdx   = params.size() > 0
-                                     ? juce::jlimit(0, kNumDivs - 1, static_cast<int>(params[0]))
-                                     : 4;
+            const float beats  = params.size() > 0
+                                     ? juce::jlimit(kMinBeats, kMaxBeats, params[0])
+                                     : 1.0f;
             const float fbkTgt = params.size() > 1
                                      ? juce::jlimit(0.0f, 1.1f, params[1])
                                      : 0.4f;
@@ -88,7 +94,10 @@ namespace lockstep
                                      ? juce::jlimit(0.0f, 1.0f, params[4])
                                      : 1.0f;
 
-            if (divIdx != lastDivIdx_) { lastDivIdx_ = divIdx; updateDelayLen(); }
+            // Any change re-derives the target; the tape-bend slew (or, past ~50 ms,
+            // the crossfade) absorbs it, so a free sweep glides and a detent jump
+            // does not dive in pitch.
+            if (std::abs(beats - lastBeats_) > 1.0e-6f) { lastBeats_ = beats; updateDelayLen(); }
 
             const float colorAlpha = 1.0f - std::exp(
                 -2.0f * static_cast<float>(M_PI) * (color >= 0.0f ? 3000.0f : 200.0f)
@@ -205,9 +214,12 @@ namespace lockstep
                 case 0:
                     p.id = "lockstep.delayhq.time";
                     p.label = "Time";
-                    p.minValue = 0.0f; p.maxValue = static_cast<float>(kNumDivs - 1);
-                    p.defaultValue = 4.0f; p.isStepped = true;
-                    p.valueLabels = kDivSpan;
+                    p.minValue = kMinBeats; p.maxValue = kMaxBeats;
+                    p.defaultValue = 1.0f;   // 1/4
+                    p.unit = ParamSpec::Unit::Beats;
+                    p.detents = std::span<const float>(kDivBeats,
+                        static_cast<std::size_t>(kNumDivs));
+                    p.valueLabels = kDivSpan;   // parallel to `detents`, not indexed
                     break;
                 case 1:
                     p.id = "lockstep.delayhq.feedback";
@@ -239,8 +251,8 @@ namespace lockstep
     private:
         void updateDelayLen()
         {
-            const double divBeats = kDivBeats[static_cast<std::size_t>(
-                juce::jlimit(0, kNumDivs - 1, lastDivIdx_))];
+            const double divBeats = static_cast<double>(
+                juce::jlimit(kMinBeats, kMaxBeats, lastBeats_));
             const double beatSecs = 60.0 / bpm_;
             const double maxLen = static_cast<double>(buf_[0].size());
             // Keep two samples of head-room for the Hermite neighbours.
@@ -264,7 +276,7 @@ namespace lockstep
         double bigJumpThresh_ = 2205.0; // >~50 ms jump -> crossfade, not slew
         int xfadeLen_ = 882;            // ~20 ms crossfade
         int xfadeCount_ = 0;            // samples remaining in the crossfade
-        int lastDivIdx_ = 4;
+        float lastBeats_ = 1.0f;   // 1/4 (the default detent)
 
         float fbkZ_[2] = { 0.0f, 0.0f };
         float mixZ_[2] = { 1.0f, 1.0f };

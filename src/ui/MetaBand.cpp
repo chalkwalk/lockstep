@@ -525,8 +525,10 @@ namespace lockstep
             v.writable = true;
             v.hasOverride = false;
             // Route through the value-text SSOT so units, enum labels and min/maxLabel
-            // ("Auto") render here exactly as they do for machine params.
-            v.valueText = formatParamValue(val, spec);
+            // ("Auto") render here exactly as they do for machine params. The live
+            // tempo lets a Beats slot read as milliseconds when it sits off its
+            // division lattice (A4).
+            v.valueText = formatParamValue(val, spec, proc.effectiveBpm());
             v.ringMode = RingMode::UnipolarFill;
         }
         return result;
@@ -2274,10 +2276,16 @@ namespace lockstep
             case MetaBand::Global: {
                 // 8.26: units 0-1 = master inserts, units 2-3 = send returns.
                 const int mUnit = ui.masterFxInsertSlot;
-                if (mUnit >= 2)
-                    proc.setMasterSendParam(mUnit - 2, field, value);
+                // A4: a slot with a detent lattice (the HQ delay's time) snaps to its
+                // musical divisions on a bare turn; `Func` + turn sweeps it freely.
+                const bool isSend = (mUnit >= 2);
+                const auto spec = isSend ? proc.masterSendParamSpec(mUnit - 2, field)
+                                         : proc.masterInsertParamSpec(mUnit, field);
+                const float v = snapToDetents(spec, value, ui.funcHeld);
+                if (isSend)
+                    proc.setMasterSendParam(mUnit - 2, field, v);
                 else
-                    proc.setMasterInsertParam(mUnit, field, value);
+                    proc.setMasterInsertParam(mUnit, field, v);
                 break;
             }
 

@@ -20,6 +20,7 @@
 #include "../src/machine/SliceMachine.h"
 #include "../src/machine/MidiOutMachine.h"
 #include "../src/machine/SamplePool.h"
+#include "../src/machine/EffectFactory.h"
 #include "../src/ui/ParamFormat.h"
 #include <string>
 #include <unordered_set>
@@ -503,8 +504,46 @@ namespace lockstep
         CHECK(formatParamValue(0.0f, q) == "0.0 ms", "no minLabel -> numeric floor");
     }
 
+    // A4: a continuous slot with a detent lattice. A bare turn lands on a division;
+    // Func + turn sweeps between them; the readout names the division on-lattice and
+    // gives milliseconds at the current tempo off it.
+    static void testDetentAxis()
+    {
+        auto delay = makeEffectForId("lockstep.delay.v1", EffectTier::Master);
+        CHECK(delay != nullptr, "detents: master delay resolves to the HQ face");
+        const auto time = delay->paramSpec(0);
+        CHECK(juce::String(time.id) == "lockstep.delayhq.time", "detents: slot 0 is Time");
+        CHECK(!time.isStepped, "detents: the time axis is continuous, not stepped");
+        CHECK(time.detents.size() == 7 && time.valueLabels.size() == 7,
+              "detents: seven divisions, each named");
+        CHECK(feq(time.minValue, 0.25f) && feq(time.maxValue, 2.0f),
+              "detents: the axis spans 1/16 .. 1/2 in beats");
+        CHECK(feq(time.defaultValue, 1.0f), "detents: the default is a quarter note");
+
+        // A bare turn snaps to the nearest division; Func passes the value through.
+        CHECK(feq(snapToDetents(time, 0.60f, false), 0.5f), "detents: 0.60 snaps to 1/8");
+        CHECK(feq(snapToDetents(time, 0.70f, false), 0.75f), "detents: 0.70 snaps to 1/8.");
+        CHECK(feq(snapToDetents(time, 5.00f, false), 2.0f), "detents: past the top snaps to 1/2");
+        CHECK(feq(snapToDetents(time, 0.60f, true), 0.60f), "detents: Func sweeps freely");
+
+        // A slot with no lattice is never touched, so this is safe on every write.
+        ParamSpec plain;
+        plain.minValue = 0.0f; plain.maxValue = 1.0f;
+        CHECK(feq(snapToDetents(plain, 0.37f, false), 0.37f),
+              "detents: a slot without a lattice passes through");
+
+        // Readout.
+        CHECK(formatParamValue(0.5f, time) == "1/8", "detents: on-lattice reads its name");
+        CHECK(formatParamValue(1.0f, time) == "1/4", "detents: the default reads 1/4");
+        CHECK(formatParamValue(0.6f, time, 120.0) == "300 ms",
+              "detents: off-lattice reads ms at the current tempo");
+        CHECK(formatParamValue(0.6f, time) == "0.60 bt",
+              "detents: off-lattice with no tempo reads the beat fraction");
+    }
+
     void runParamSpecTests()
     {
+        testDetentAxis();
         testAnalogMachineParams();
         testFMMachineParams();
         testDrumMachineParams();
