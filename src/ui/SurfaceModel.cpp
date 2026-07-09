@@ -2468,6 +2468,22 @@ namespace lockstep
                 c.doubleTapLabel = secVisible(dbl) ? juce::String(dbl.primary) : juce::String();
                 c.tripleTapLabel = secVisible(trip) ? juce::String(trip.primary) : juce::String();
 
+                // VerbPlay is transport-stateful: the CUT / MASTER CUT depths only exist
+                // while running (there is nothing to cut when stopped), and the primary
+                // reads PLAY when stopped, PAUSE when running. Bare key only — a held
+                // scope already promotes PASTE and hides these secondaries.
+                if (c.button == ControllerButton::VerbPlay && heldMods == kModNone)
+                {
+                    const bool playing = proc.hostedLocked() ? proc.isPluginArmed()
+                                                             : proc.clock().inPluginPlaying();
+                    c.primary = playing ? juce::String("PAUSE") : juce::String("PLAY");
+                    if (!playing)
+                    {
+                        c.doubleTapLabel = juce::String();
+                        c.tripleTapLabel = juce::String();
+                    }
+                }
+
                 // Under Func, section keys are remapped to the meta-section layer
                 // (ButtonLayers), so a Func+section never reaches the FX picker
                 // arming in the Section dispatch. Suppress the section hold/tap rails

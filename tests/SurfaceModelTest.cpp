@@ -661,15 +661,42 @@ namespace lockstep
             CHECK(c.doubleTapLabel.isEmpty(), "Func+Song: bare LATCH suppressed");
         }
 
-        // VerbPlay (functionRow[7]): promoted=Tap, tap=PLAY, dbl=STOP.
+        // VerbPlay (functionRow[7]) is transport-stateful (layered stop):
+        //  - stopped: primary=PLAY, no CUT / MASTER CUT secondaries (nothing to cut);
+        //  - running: primary=PAUSE, dbl=CUT, triple=MASTER CUT.
         {
-            const auto& c = model.functionRow[7];  // VerbPlay
-            CHECK(c.primaryGesture == Gesture::Tap, "VerbPlay: primaryGesture=Tap");
-            const auto tap = resolveBinding(CB::VerbPlay, -1, kModNone, SL::Base, Gesture::Tap);
-            const auto dbl = resolveBinding(CB::VerbPlay, -1, kModNone, SL::Base, Gesture::DoubleTap);
-            CHECK(c.primary == juce::String(tap.primary), "VerbPlay: primary=PLAY");
-            CHECK(c.tapLabel.isEmpty(), "VerbPlay: tapLabel empty (tap is primary)");
-            CHECK(c.doubleTapLabel == juce::String(dbl.primary), "VerbPlay: doubleTapLabel=STOP");
+            const auto dbl  = resolveBinding(CB::VerbPlay, -1, kModNone, SL::Base, Gesture::DoubleTap);
+            const auto trip = resolveBinding(CB::VerbPlay, -1, kModNone, SL::Base, Gesture::TripleTap);
+
+            proc.transportPause();  // force stopped
+            const auto stopped = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                                   GridDisplayMode::Ortholinear);
+            const auto& cs = stopped.functionRow[7];
+            CHECK(cs.primaryGesture == Gesture::Tap, "VerbPlay: primaryGesture=Tap");
+            CHECK(cs.primary == juce::String("PLAY"), "VerbPlay stopped: primary=PLAY");
+            CHECK(cs.tapLabel.isEmpty(), "VerbPlay: tapLabel empty (tap is primary)");
+            CHECK(cs.doubleTapLabel.isEmpty(), "VerbPlay stopped: no CUT (nothing to cut)");
+            CHECK(cs.tripleTapLabel.isEmpty(), "VerbPlay stopped: no MASTER CUT");
+
+            proc.transportPlay();  // -> running
+            const auto running = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                                   GridDisplayMode::Ortholinear);
+            const auto& cr = running.functionRow[7];
+            CHECK(cr.primary == juce::String("PAUSE"), "VerbPlay running: primary=PAUSE");
+            CHECK(cr.doubleTapLabel == juce::String(dbl.primary), "VerbPlay running: doubleTapLabel=CUT");
+            CHECK(cr.tripleTapLabel == juce::String(trip.primary), "VerbPlay running: tripleTapLabel=MASTER CUT");
+            proc.transportPause();  // restore
+        }
+
+        // VerbRecord (functionRow[6]): tap REC keeps the primary; RESET is the hold
+        // secondary (the RESET row must not steal the big label).
+        {
+            const auto& c = model.functionRow[6];  // VerbRecord
+            const auto tap  = resolveBinding(CB::VerbRecord, -1, kModNone, SL::Base, Gesture::Tap);
+            const auto hold = resolveBinding(CB::VerbRecord, -1, kModNone, SL::Base, Gesture::Hold);
+            CHECK(c.primaryGesture == Gesture::Tap, "VerbRecord: primaryGesture=Tap");
+            CHECK(c.primary == juce::String(tap.primary), "VerbRecord: primary=REC");
+            CHECK(c.holdLabel == juce::String(hold.primary), "VerbRecord: holdLabel=RESET");
         }
     }
 

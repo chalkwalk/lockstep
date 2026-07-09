@@ -111,7 +111,11 @@ namespace lockstep
         { CB::VerbRecord, -1, kModPhrase, SL::Base, AId::VerbCopy, u8"COPY", u8"", CS::Resting },
         { CB::VerbRecord, -1, kModScene, SL::Base, AId::VerbBakeScene, u8"BAKE", u8"COPY", CS::Resting },
         { CB::VerbRecord, -1, kModSong, SL::Base, AId::VerbCopy, u8"COPY", u8"CAPTURE", CS::Resting },
-        { CB::VerbRecord, -1, kModNone, SL::Base, AId::VerbRecord, u8"REC", u8"", CS::Resting },
+        // Promoted so the tap REC keeps the primary slot over the RESET hold secondary
+        // (below): at equal specificity deriveSlots' fallback would otherwise let the
+        // hold win, flipping the key's big label to RESET.
+        { CB::VerbRecord, -1, kModNone, SL::Base, AId::VerbRecord, u8"REC", u8"", CS::Resting,
+          Gesture::Tap, true },
 
         // ── VerbPlay / PLAY (key I) ───────────────────────────────────────────
         // Scope+VerbPlay = PASTE for Track/Phrase/Song. Scene bare is inert (verbs::scene
