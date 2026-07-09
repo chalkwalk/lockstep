@@ -28,6 +28,7 @@ namespace lockstep
         const auto tap  = resolveBinding(btn, index, kModNone, SurfaceLayer::Base, Gesture::Tap);
         const auto hold = resolveBinding(btn, index, kModNone, SurfaceLayer::Base, Gesture::Hold);
         const auto dbl  = resolveBinding(btn, index, kModNone, SurfaceLayer::Base, Gesture::DoubleTap);
+        const auto trip = resolveBinding(btn, index, kModNone, SurfaceLayer::Base, Gesture::TripleTap);
         const Gesture prom = promotedGesture(btn, index, kModNone, SurfaceLayer::Base);
 
         const auto& promRow = (prom == Gesture::Hold) ? hold : tap;
@@ -51,6 +52,8 @@ namespace lockstep
         }
         if (dbl.action != ActionId::None)
             gestures += juce::String(u8" dbl=") + juce::String(dbl.primary);
+        if (trip.action != ActionId::None)
+            gestures += juce::String(u8" triple=") + juce::String(trip.primary);
 
         return name + gestures;
     }

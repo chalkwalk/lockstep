@@ -103,7 +103,9 @@ namespace lockstep
         LatchSongScope,      // SongScope double-tap
         LatchMuteScope,      // MuteScope double-tap
         LatchFillScope,      // FillScope double-tap
-        PlayStopReset,       // VerbPlay double-tap: stop + rewind
+        PlayStopReset,       // VerbRecord hold: reset (stop + rewind) — display row
+        TransportTrackCut,   // VerbPlay double-tap: track cut (sends+master ring) — display row
+        TransportMasterCut,  // VerbPlay triple-tap: master cut (dead) — display row
         RecordArmToggle,     // RecordArm tap: arm / disarm record
         RecordArmOverdub,    // RecordArm double-tap: enable overdub
         RestoreFloor,        // Func+VerbSnapshot hold: restore to floor

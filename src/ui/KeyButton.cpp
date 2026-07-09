@@ -286,6 +286,14 @@ namespace lockstep
         g.fillEllipse(juce::Rectangle<float>(static_cast<float>(x + 5), static_cast<float>(y), 3.5f, 3.5f));
     }
 
+    // Triple-tap glyph: three filled dots side-by-side (layered stop: MASTER CUT)
+    static void paintTripleTapGlyph(juce::Graphics& g, int x, int y) noexcept
+    {
+        g.fillEllipse(juce::Rectangle<float>(static_cast<float>(x),     static_cast<float>(y), 3.5f, 3.5f));
+        g.fillEllipse(juce::Rectangle<float>(static_cast<float>(x + 5), static_cast<float>(y), 3.5f, 3.5f));
+        g.fillEllipse(juce::Rectangle<float>(static_cast<float>(x + 10),static_cast<float>(y), 3.5f, 3.5f));
+    }
+
     // Hold glyph: hollow ring ~6px
     static void paintHoldGlyph(juce::Graphics& g, int x, int y) noexcept
     {
@@ -293,9 +301,10 @@ namespace lockstep
     }
 
     // Rendered width of a gesture glyph, for right-justified placement.
-    // `glyphType`: 0=tap, 1=dblTap, 2=hold, 3=func (amber chip)
+    // `glyphType`: 0=tap, 1=dblTap, 2=hold, 3=func (amber chip), 4=tripleTap
     static int glyphWidthFor(int glyphType) noexcept
     {
+        if (glyphType == 4) return 14; // tripleTap is three dots
         return (glyphType == 1) ? 9 : 5; // dblTap is two dots; others ~5px
     }
 
@@ -305,6 +314,7 @@ namespace lockstep
         if (glyphType == 0)      paintTapGlyph(g, x, y);
         else if (glyphType == 1) paintDoubleTapGlyph(g, x, y);
         else if (glyphType == 2) paintHoldGlyph(g, x, y);
+        else if (glyphType == 4) paintTripleTapGlyph(g, x, y);
         else // func chip: small filled rectangle
             g.fillRect(juce::Rectangle<float>(
                 static_cast<float>(x), static_cast<float>(y), 5.0f, 4.0f));
@@ -337,7 +347,8 @@ namespace lockstep
                        grp, st, showKeyHint, compound, latchCol);
 
         if (c.primary.isEmpty() && c.doubleTapLabel.isEmpty()
-            && c.tapLabel.isEmpty() && c.holdLabel.isEmpty() && c.funcHint.isEmpty())
+            && c.tapLabel.isEmpty() && c.holdLabel.isEmpty() && c.funcHint.isEmpty()
+            && c.tripleTapLabel.isEmpty())
             return;  // nothing to render
 
         const auto inner = cell.reduced(1, 1);
@@ -354,10 +365,20 @@ namespace lockstep
         //                     which centres the *widest* line within the cell.
         //   • secondary glyph: right-justified at the cell edge.
         //   • PRIMARY glyph : in the left gutter, under the key-title letter.
-        const juce::String* const labels[5] =
-            { &c.doubleTapLabel, &c.tapLabel, &c.primary, &c.holdLabel, &c.funcHint };
-        const int glyphs[5] = { 1 /*dblTap*/, 0 /*tap*/, -1 /*primary→gutter*/,
-                                2 /*hold*/, 3 /*func*/ };
+        // A triple-tap affordance (Play: MASTER CUT) surrenders the key's single-tap
+        // secondary slot so both cut depths show without shifting the PRIMARY row — the
+        // §19 primary-lock is preserved (still five fixed slots). Only keys with no
+        // single-tap secondary (Play's single tap IS the primary) ever set tripleTap:
+        // the top slot becomes MASTER CUT (three dots), the second becomes CUT (two).
+        const bool hasTriple = c.tripleTapLabel.isNotEmpty();
+        const juce::String* const tripLabels[5] =
+            { &c.tripleTapLabel, &c.doubleTapLabel, &c.primary, &c.holdLabel, &c.funcHint };
+        const juce::String* const normLabels[5] =
+            { &c.doubleTapLabel, &c.tapLabel,       &c.primary, &c.holdLabel, &c.funcHint };
+        const int tripGlyphs[5] = { 4 /*tripleTap*/, 1 /*dblTap*/, -1, 2 /*hold*/, 3 /*func*/ };
+        const int normGlyphs[5] = { 1 /*dblTap*/,    0 /*tap*/,    -1, 2 /*hold*/, 3 /*func*/ };
+        const juce::String* const* const labels = hasTriple ? tripLabels : normLabels;
+        const int* const glyphs = hasTriple ? tripGlyphs : normGlyphs;
 
         const float primFont = (c.primary.length() <= 6)   ? 13.0f
                                : (c.primary.length() <= 8) ? 11.0f

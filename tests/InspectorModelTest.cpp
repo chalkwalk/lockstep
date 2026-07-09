@@ -60,10 +60,11 @@ namespace lockstep
         CHECK(tapKey.key.containsIgnoreCase("GEN HUB"), "TapTempo key region shows GEN HUB");
         CHECK(tapKey.key.containsIgnoreCase("TAP"), "TapTempo key region shows TAP gesture");
 
-        // VerbPlay: tap label = PLAY, dbl-tap = STOP.
+        // VerbPlay: tap label = PLAY, dbl-tap = CUT, triple-tap = MASTER CUT (layered stop).
         const auto play = build(ui, ec, proc, ControllerButton::VerbPlay, -1);
         CHECK(play.key.containsIgnoreCase("PLAY"), "VerbPlay key region shows PLAY");
-        CHECK(play.key.containsIgnoreCase("STOP"), "VerbPlay key region shows STOP (dbl)");
+        CHECK(play.key.containsIgnoreCase("dbl=CUT"), "VerbPlay key region shows CUT (dbl)");
+        CHECK(play.key.containsIgnoreCase("triple=MASTER CUT"), "VerbPlay key region shows MASTER CUT (triple)");
 
         // Step button: index + shared gesture summary (no per-cell label on the grid).
         const auto step = build(ui, ec, proc, ControllerButton::Step, 4);

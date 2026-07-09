@@ -321,8 +321,11 @@ namespace lockstep
         // PhraseScope dbl = LATCH.
         CHECK(resolveG(CB::PhraseScope, kModNone, Gesture::DoubleTap) == AId::LatchPhraseScope, "Phrase dbl");
 
-        // VerbPlay dbl = STOP.
-        CHECK(resolveG(CB::VerbPlay, kModNone, Gesture::DoubleTap) == AId::PlayStopReset, "Play dbl = STOP");
+        // VerbPlay layered stop (display rows; dispatch is editor-owned via playTapCount):
+        // dbl = track CUT, triple = MASTER CUT. Rewind moved to VerbRecord hold = RESET.
+        CHECK(resolveG(CB::VerbPlay, kModNone, Gesture::DoubleTap) == AId::TransportTrackCut,  "Play dbl = CUT");
+        CHECK(resolveG(CB::VerbPlay, kModNone, Gesture::TripleTap) == AId::TransportMasterCut, "Play triple = MASTER CUT");
+        CHECK(resolveG(CB::VerbRecord, kModNone, Gesture::Hold)    == AId::PlayStopReset,       "Record hold = RESET");
 
         // NavRight dbl = UNLOCK.
         CHECK(resolveG(CB::NavRight, kModNone, Gesture::DoubleTap) == AId::NavPageUnlock, "NavRight dbl = UNLOCK");

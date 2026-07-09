@@ -2423,6 +2423,8 @@ namespace lockstep
                                                  SurfaceLayer::Base, Gesture::Hold);
                 const auto dbl  = resolveBinding(c.button, c.index, heldMods,
                                                  SurfaceLayer::Base, Gesture::DoubleTap);
+                const auto trip = resolveBinding(c.button, c.index, heldMods,
+                                                 SurfaceLayer::Base, Gesture::TripleTap);
 
                 // Primary = the most-specific of {tap, hold} for the CURRENT heldMods,
                 // so a held modifier promotes its context action into the large slot
@@ -2464,6 +2466,7 @@ namespace lockstep
                 c.holdLabel = (prim->gesture != Gesture::Hold && secVisible(hold))
                               ? juce::String(hold.primary) : juce::String();
                 c.doubleTapLabel = secVisible(dbl) ? juce::String(dbl.primary) : juce::String();
+                c.tripleTapLabel = secVisible(trip) ? juce::String(trip.primary) : juce::String();
 
                 // Under Func, section keys are remapped to the meta-section layer
                 // (ButtonLayers), so a Func+section never reaches the FX picker

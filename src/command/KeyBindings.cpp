@@ -237,9 +237,19 @@ namespace lockstep
         { CB::TapTempo, -1, kModNone, SL::Base, AId::OpenGeneratorHub, u8"GEN HUB", u8"", CS::Resting,
           Gesture::Hold, true },
 
-        // VerbPlay (key I): dbl-tap = STOP.
-        { CB::VerbPlay, -1, kModNone, SL::Base, AId::PlayStopReset, u8"STOP", u8"", CS::Resting,
+        // VerbPlay (key I): layered stop by tap-count (dispatch is editor-owned via
+        // GestureRecognizer::playTapCount — these rows are display-only affordances).
+        // dbl-tap = track CUT (sends + master ring); triple-tap = MASTER CUT (dead).
+        // Rewind is decoupled onto hold-Record (see VerbRecord RESET below).
+        { CB::VerbPlay, -1, kModNone, SL::Base, AId::TransportTrackCut, u8"CUT", u8"", CS::Resting,
           Gesture::DoubleTap, false },
+        { CB::VerbPlay, -1, kModNone, SL::Base, AId::TransportMasterCut, u8"MASTER CUT", u8"", CS::Resting,
+          Gesture::TripleTap, false },
+
+        // VerbRecord (key U): hold = RESET (stop + rewind, re-arm one-shots). Dispatch
+        // is editor-owned (long-press on kTransportResetToken); this row is display-only.
+        { CB::VerbRecord, -1, kModNone, SL::Base, AId::PlayStopReset, u8"RESET", u8"", CS::Resting,
+          Gesture::Hold, false },
 
         // VerbSnapshot Func+Y (RESTORE): hold = RESTORE → FLOOR.
         { CB::VerbSnapshot, -1, kModFunc, SL::Base, AId::RestoreFloor, u8"→ FLOOR", u8"", CS::Resting,

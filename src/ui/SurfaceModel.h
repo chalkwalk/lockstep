@@ -250,6 +250,10 @@ namespace lockstep
         juce::String tapLabel;
         juce::String holdLabel;
         juce::String doubleTapLabel;
+        // Triple-tap secondary (layered stop: Play triple = MASTER CUT). When present,
+        // the key surrenders its unused single-tap slot to show both cut depths without
+        // shifting the primary row (KeyButton.cpp preserves the §19 primary-lock).
+        juce::String tripleTapLabel;
         Gesture primaryGesture = Gesture::Tap;
     };
 
