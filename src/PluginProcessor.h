@@ -28,6 +28,7 @@
 #include "machine/IEffect.h"
 #include "machine/EffectFactory.h"
 #include "machine/IMachine.h"
+#include "machine/InputSource.h"   // kVolatileBufferLabels (sizes the REC bank)
 #include "machine/ITempoAware.h"
 #include "machine/SamplePool.h"
 #include "core/EngineCommand.h"
@@ -252,13 +253,13 @@ namespace lockstep
         // freshly pooled sample to the focused track uniformly.
         [[nodiscard]] int sampleSlotForTrack(int track) const;
 
-        // D1 multi-capture: capture machines (Record/Loop) share the 8-slot
-        // volatile REC bank via their "target_buffer" slot. captureTargetSlot
-        // returns that 0..7 ordinal (or -1 for a non-capture track);
-        // nextFreeCaptureSlot picks the lowest slot no other capture track uses (so
-        // a freshly-assigned capture machine defaults to a distinct slot);
-        // captureSlotShared flags when >1 capture track targets one slot (the soft
-        // collision indicator — no hard lock).
+        // D1 multi-capture: capture machines (Record/Loop) share the volatile REC
+        // bank (kNumVolatileSlots) via their "target_buffer" slot. captureTargetSlot
+        // returns that ordinal (or -1 for a non-capture track); nextFreeCaptureSlot
+        // picks the lowest slot no other capture track uses, or **-1 when the bank
+        // is full** (A5 — never a silent fall back to slot 0); captureSlotShared
+        // flags when >1 capture track targets one slot, which the MZ marks on the
+        // target_buffer readout. Sharing stays legal — it is just never accidental.
         [[nodiscard]] int captureTargetSlot(int track) const;
         [[nodiscard]] int nextFreeCaptureSlot(int exceptTrack) const;
         [[nodiscard]] bool captureSlotShared(int track) const;
@@ -358,15 +359,23 @@ namespace lockstep
         // re-seeded on every load. volatilePoolIndex(slot) maps a logical slot
         // 0..kNumVolatileSlots-1 to its absolute pool index (the pool is the single
         // source of truth via nthVolatileIndex), or -1 if out of range.
-        static constexpr int kNumVolatileSlots = 8;
-        // Per-slot capacity for the reserved REC buffers (seconds at the prepared
-        // rate). A recorder captures up to this length before truncating.
-        static constexpr double kVolatileMaxSeconds = 12.0;
+        static constexpr int kNumVolatileSlots = 16;
+        static_assert(kVolatileBufferLabels.size() == kNumVolatileSlots,
+                      "target_buffer's rotary is sized by kVolatileBufferLabels — "
+                      "grow both or the picker silently loses slots");
         int volatilePoolIndex(int slot) const
         {
             if (slot < 0 || slot >= kNumVolatileSlots) return -1;
             return samplePool_.nthVolatileIndex(slot);
         }
+
+        // Per-slot capacity for the reserved REC buffers, in seconds at the prepared
+        // rate (A5). A project setting rather than a compile-time constant, because
+        // the buffers are allocated lazily: an unrecorded slot costs address space,
+        // not resident memory, so the ceiling can afford to be generous. Setting it
+        // reallocates the slots on the message thread.
+        [[nodiscard]] double volatileMaxSeconds() const { return project_.volatileMaxSeconds; }
+        void setVolatileMaxSeconds(double seconds);
 
         EditContext& editContext() { return editContext_; }
         CCMappingTable& ccMappingTable() { return ccMappingTable_; }

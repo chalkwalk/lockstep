@@ -144,7 +144,7 @@ namespace lockstep
         SamplePool pool;
         const int idx = pool.addVolatile();
         pool.prepareVolatile(kFile, 1, kLen);
-        auto* pcm = pool.mutableVolatilePcm(idx);
+        auto* pcm = pool.beginVolatileCapture(idx, kLen);
         for (int i = 0; i < kLen; ++i)
             pcm->setSample(0, i, static_cast<float>(std::sin(
                 2.0 * juce::MathConstants<double>::pi * kTone * i / kFile)));
@@ -220,7 +220,7 @@ namespace lockstep
             SamplePool pool;
             const int idx = pool.addVolatile();
             pool.prepareVolatile(kSR, 1, kLen);
-            auto* pcm = pool.mutableVolatilePcm(idx);
+            auto* pcm = pool.beginVolatileCapture(idx, kLen);
             for (int i = 0; i < kLen; ++i)
                 pcm->setSample(0, i, static_cast<float>(0.5 * std::sin(
                     2.0 * juce::MathConstants<double>::pi * toneHz * i / kSR)));

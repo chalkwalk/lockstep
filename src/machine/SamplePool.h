@@ -208,6 +208,24 @@ namespace lockstep
         // Call from prepareToPlay(); message/prepare thread only.
         void prepareVolatile(double sampleRate, int numChannels, int maxSamples);
 
+        // A5: open a volatile slot for writing `lengthSamples` of audio. Sets the
+        // used length and zeroes exactly that region — never reallocating, because
+        // prepareVolatile() already reserved the capacity. Returns the writable
+        // buffer, or nullptr for a non-volatile / out-of-range slot or a length past
+        // the capacity.
+        //
+        // This is the ONLY way a volatile buffer becomes readable. A prepared slot
+        // reports length 0 and its pages are uncommitted; the recorder declares how
+        // much of it it is about to fill, and nothing may read past that.
+        juce::AudioBuffer<float>* beginVolatileCapture(int index, int lengthSamples);
+
+        // A5: how much of a volatile slot has actually been recorded, in samples.
+        // 0 = nothing yet. This is the hard read limit — a volatile buffer is
+        // allocated without zero-filling (so untouched pages are never committed),
+        // and past the used length the memory is *uninitialised*, not silent.
+        // Playback, promotion, waveform display and metering all stop here.
+        [[nodiscard]] int volatileUsedLength(int index) const;
+
         bool isVolatileIndex(int index) const;
 
         // Absolute pool index of the nth volatile (REC) entry, or -1 if there is

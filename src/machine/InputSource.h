@@ -58,8 +58,12 @@ namespace lockstep
     // Loop). One per reserved slot; the count matches kNumVolatileSlots in the
     // processor. The capture machine's target_buffer is a stepped 0..N-1 ordinal
     // into pool.nthVolatileIndex().
-    inline constexpr std::array<const char* const, 8> kVolatileBufferLabels = {
-        "REC1", "REC2", "REC3", "REC4", "REC5", "REC6", "REC7", "REC8"
+    // One label per reserved volatile REC slot. Must stay the same length as
+    // LockstepProcessor::kNumVolatileSlots — it is what sizes the target_buffer
+    // rotary (A5 grew the bank from 8 to 16).
+    inline constexpr std::array<const char* const, 16> kVolatileBufferLabels = {
+        "REC1", "REC2", "REC3",  "REC4",  "REC5",  "REC6",  "REC7",  "REC8",
+        "REC9", "REC10", "REC11", "REC12", "REC13", "REC14", "REC15", "REC16"
     };
 
     // Encode a source selection back to the stepped float (inverse of decode):

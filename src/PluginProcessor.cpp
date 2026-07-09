@@ -676,11 +676,11 @@ namespace lockstep
             prevMasterBuf_.setSize(numOut, samplesPerBlock, false, true, false);
             prevMasterBuf_.clear();
             // 6.2: pre-size the reserved volatile REC buffers to their capacity so
-            // a recorder can shrink-to-length on the audio thread without
-            // reallocating (DESIGN §28). Capacity = kVolatileMaxSeconds at the
-            // prepared rate.
+            // a recorder can grow-to-length on the audio thread without
+            // reallocating (DESIGN §28). Lazily committed (A5), so the ceiling is a
+            // project setting rather than a compile-time 12 s.
             const int volatileCap =
-                static_cast<int>(sampleRate * kVolatileMaxSeconds);
+                static_cast<int>(sampleRate * project_.volatileMaxSeconds);
             samplePool_.prepareVolatile(sampleRate, numOut, volatileCap);
         }
         for (auto& choke : trackChokes_)
@@ -6492,8 +6492,15 @@ namespace lockstep
         // all pile onto slot 0. Deliberate sharing is still possible by reassigning.
         const int tbSlot = nm->slotForId("target_buffer");
         if (tbSlot >= 0 && tbSlot < np)
-            k.baseParams[static_cast<std::size_t>(tbSlot)] =
-                static_cast<float>(nextFreeCaptureSlot(track));
+        {
+            // A5: -1 means the bank is full. Leave the machine's default in place;
+            // the sharing is then announced (MZ "!" on target_buffer) rather than
+            // happening behind the performer's back.
+            const int freeSlot = nextFreeCaptureSlot(track);
+            if (freeSlot >= 0)
+                k.baseParams[static_cast<std::size_t>(tbSlot)] =
+                    static_cast<float>(freeSlot);
+        }
 
         withQuiescedEngine([&] {
             machines_[ti] = std::move(nm);
@@ -6722,7 +6729,12 @@ namespace lockstep
         }
         for (int s = 0; s < kNumVolatileSlots; ++s)
             if (!used[static_cast<std::size_t>(s)]) return s;
-        return 0;  // all slots taken — fall back to slot 0 (deliberate sharing)
+        // A5: every slot is spoken for. Say so rather than silently reusing slot 0
+        // and letting two capture tracks overwrite each other's takes. The caller
+        // keeps whatever the machine defaults to, and captureSlotShared() lights the
+        // collision up in the MZ so the choice of which slot to share is the
+        // performer's, made on purpose.
+        return -1;
     }
 
     bool LockstepProcessor::captureSlotShared(int track) const
@@ -7062,10 +7074,29 @@ namespace lockstep
         // Size them if the rate is already known (prepareToPlay may run later).
         if (preparedSampleRate_ > 0.0)
         {
-            const int cap = static_cast<int>(preparedSampleRate_ * kVolatileMaxSeconds);
+            const int cap = static_cast<int>(preparedSampleRate_ * project_.volatileMaxSeconds);
             samplePool_.prepareVolatile(preparedSampleRate_,
                                         std::max(1, getTotalNumOutputChannels()), cap);
         }
+    }
+
+    // A5: change the volatile slots' capacity. Message thread; reallocating under a
+    // quiesced engine, because a recorder holds a raw pointer into the buffer it is
+    // writing. Anything already captured is discarded — the new capacity is a fresh
+    // allocation, and a volatile buffer was never going to survive the session
+    // anyway (§12).
+    void LockstepProcessor::setVolatileMaxSeconds(double seconds)
+    {
+        const double clamped = std::clamp(seconds, 1.0, 600.0);
+        if (std::abs(clamped - project_.volatileMaxSeconds) < 1.0e-6) return;
+        project_.volatileMaxSeconds = clamped;
+        if (preparedSampleRate_ <= 0.0) return;
+
+        withQuiescedEngine([&] {
+            const int cap = static_cast<int>(preparedSampleRate_ * clamped);
+            samplePool_.prepareVolatile(preparedSampleRate_,
+                                        std::max(1, getTotalNumOutputChannels()), cap);
+        });
     }
 
     void LockstepProcessor::newProject()

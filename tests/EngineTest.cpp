@@ -3189,7 +3189,7 @@ namespace lockstep
             auto& pool = p.samplePool();
             const int idx = pool.addVolatile();
             pool.prepareVolatile(48000.0, 1, 48000);
-            if (auto* pcm = pool.mutableVolatilePcm(idx))
+            if (auto* pcm = pool.beginVolatileCapture(idx, 48000))
                 for (int i = 0; i < pcm->getNumSamples(); ++i)
                     pcm->setSample(0, i, 0.2f);
             pool.setSourceBars(idx, 2.0);
@@ -3477,6 +3477,87 @@ namespace lockstep
         }
     }
 
+    // A5: sixteen volatile REC slots, addressed by ordinal; a capacity that is a
+    // project setting rather than a compile-time constant; and no silent reuse of
+    // slot 0 when the bank fills up.
+    static void testVolatileBank()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+
+        CHECK(LockstepProcessor::kNumVolatileSlots == 16, "volatile: sixteen REC slots");
+        for (int s = 0; s < LockstepProcessor::kNumVolatileSlots; ++s)
+            CHECK(p.volatilePoolIndex(s) >= 0, "volatile: every slot resolves to a pool entry");
+        CHECK(p.volatilePoolIndex(16) == -1, "volatile: no seventeenth slot");
+        CHECK(p.volatilePoolIndex(-1) == -1, "volatile: negative ordinal is inert");
+
+        // Capacity follows the setting, and nothing is used until a capture claims it.
+        CHECK(feq(static_cast<float>(p.volatileMaxSeconds()), 60.0f),
+              "volatile: the default capacity is 60 s");
+        {
+            const int poolIdx = p.volatilePoolIndex(0);
+            const int expected = static_cast<int>(EngineHarness::kSampleRate * 60.0);
+            CHECK(p.samplePool().volatileCapacity(poolIdx) == expected,
+                  "volatile: prepared to the setting's capacity");
+            CHECK(p.samplePool().volatileUsedLength(poolIdx) == 0,
+                  "volatile: nothing recorded, nothing readable");
+        }
+
+        p.setVolatileMaxSeconds(5.0);
+        CHECK(feq(static_cast<float>(p.volatileMaxSeconds()), 5.0f),
+              "volatile: the capacity setting takes");
+        {
+            const int poolIdx = p.volatilePoolIndex(3);
+            const int expected = static_cast<int>(EngineHarness::kSampleRate * 5.0);
+            CHECK(p.samplePool().volatileCapacity(poolIdx) == expected,
+                  "volatile: the bank reallocates to the new capacity");
+            CHECK(p.samplePool().volatileUsedLength(poolIdx) == 0,
+                  "volatile: a reallocated slot is still unrecorded");
+        }
+        p.setVolatileMaxSeconds(-100.0);
+        CHECK(p.volatileMaxSeconds() >= 1.0, "volatile: the capacity is clamped sane");
+    }
+
+    // A5: a freshly-assigned capture machine takes the next free REC slot. When the
+    // bank is full, nextFreeCaptureSlot says so (-1) instead of silently handing back
+    // slot 0 for two tracks to overwrite each other in.
+    static void testCaptureSlotCollisionGuard()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+
+        // No capture tracks yet: the lowest slot is free.
+        CHECK(p.nextFreeCaptureSlot(-1) == 0, "capture: an empty bank hands out slot 0");
+        CHECK(p.captureTargetSlot(0) == -1, "capture: a non-capture track has no slot");
+
+        // Fill every slot with a Record machine; each takes a distinct one.
+        std::array<bool, LockstepProcessor::kNumVolatileSlots> seen{};
+        for (int t = 0; t < LockstepProcessor::kNumVolatileSlots; ++t)
+        {
+            p.setTrackMachine(t, RecordMachine::kMachineId);
+            const int slot = p.captureTargetSlot(t);
+            CHECK(slot >= 0 && slot < LockstepProcessor::kNumVolatileSlots,
+                  "capture: track " + juce::String(t) + " took a real slot");
+            CHECK(!seen[static_cast<std::size_t>(slot)],
+                  "capture: track " + juce::String(t) + " took a distinct slot");
+            seen[static_cast<std::size_t>(slot)] = true;
+            CHECK(!p.captureSlotShared(t), "capture: no collision while slots remain");
+        }
+
+        // The bank is full. -1, not a silent slot-0 collision.
+        CHECK(p.nextFreeCaptureSlot(-1) == -1,
+              "capture: a full bank reports exhaustion rather than reusing slot 0");
+
+        // Sharing stays legal — it is just announced.
+        const int slot0 = p.captureTargetSlot(0);
+        const int tbSlot = p.machineForTrack(1)->slotForId("target_buffer");
+        CHECK(tbSlot >= 0, "capture: Record exposes target_buffer");
+        p.writeParam(1, tbSlot, static_cast<float>(slot0));
+        h.renderBlocks(1);   // writeParam is queued; drain it into the working track
+        CHECK(p.captureSlotShared(0) && p.captureSlotShared(1),
+              "capture: a deliberate share is flagged on both tracks");
+    }
+
     // A2 (ii): a P-Lock on a note-on-latched slot cannot reach a sustaining voice,
     // so on a lock-only step it is a lock that does nothing. The schema says which
     // slots those are, and the MZ marker says so to the performer.
@@ -3547,7 +3628,7 @@ namespace lockstep
             auto& pool = p.samplePool();
             const int idx = pool.addVolatile();
             pool.prepareVolatile(sr, 1, sampleLen);
-            if (auto* pcm = pool.mutableVolatilePcm(idx))
+            if (auto* pcm = pool.beginVolatileCapture(idx, sampleLen))
                 for (int i = 0; i < pcm->getNumSamples(); ++i)
                     pcm->setSample(0, i, 0.3f);
             // Stamp a musical length so Tempo mode has a defined loop period. A
@@ -3692,7 +3773,7 @@ namespace lockstep
             auto& pool = p.samplePool();
             const int idx = pool.addVolatile();
             pool.prepareVolatile(sr, 1, sampleLen);
-            if (auto* pcm = pool.mutableVolatilePcm(idx))
+            if (auto* pcm = pool.beginVolatileCapture(idx, sampleLen))
                 for (int i = 0; i < pcm->getNumSamples(); ++i) pcm->setSample(0, i, 0.3f);
             const int sslot = p.sampleSlotForTrack(0);
             p.writeParam(0, sslot, static_cast<float>(idx));
@@ -3774,7 +3855,7 @@ namespace lockstep
             auto& pool = p.samplePool();
             const int idx = pool.addVolatile();
             pool.prepareVolatile(sr, 1, sampleLen);
-            if (auto* pcm = pool.mutableVolatilePcm(idx))
+            if (auto* pcm = pool.beginVolatileCapture(idx, sampleLen))
                 for (int i = 0; i < pcm->getNumSamples(); ++i) pcm->setSample(0, i, 0.3f);
             const int sslot = p.sampleSlotForTrack(0);
             p.writeParam(0, sslot, static_cast<float>(idx));
@@ -3876,6 +3957,8 @@ namespace lockstep
         testIdleResolveStepParksOnLastFired();
         testNoteOnLatchedSlotsAreMarked();
         testMotionRecordingWritesCrossedSteps();
+        testVolatileBank();
+        testCaptureSlotCollisionGuard();
         testLoopReLatchInteractive();
         testOneShotDoesNotChokeHeldVoice();
         testRemovedTrigStillClosesHeldVoice();

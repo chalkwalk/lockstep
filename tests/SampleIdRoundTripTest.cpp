@@ -31,11 +31,10 @@ namespace lockstep
         // Write a short sine capture into the volatile REC slot at `volIdx`.
         void captureInto(SamplePool& pool, int volIdx, int len)
         {
-            auto* buf = pool.mutableVolatilePcm(volIdx);
+            // Declare the captured region (A5) — nothing may read past it.
+            auto* buf = pool.beginVolatileCapture(volIdx, len);
             if (buf == nullptr) return;
-            // Shrink the reported length to the "captured" region without realloc.
             const int ch = std::max(1, buf->getNumChannels());
-            buf->setSize(ch, len, false, false, /*avoidReallocating*/ true);
             for (int c = 0; c < ch; ++c)
                 for (int i = 0; i < len; ++i)
                     buf->setSample(c, i, 0.2f * std::sin(2.0f * 3.14159265f * 440.0f

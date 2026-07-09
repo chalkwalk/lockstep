@@ -612,6 +612,11 @@ namespace lockstep::PluginState
         // stored a legacy bar count; upgrade_v24_to_v25 remaps them). See
         // LaunchQuant.h.
         nhNode.setProperty(keys::kLaunchQuant, proc.project().launchQuant, nullptr);
+        // A5: volatile REC slot capacity (seconds). Additive — a doc without it
+        // loads the 60 s default, which is exactly the pre-A5 behaviour scaled up,
+        // so this needs no version bump.
+        if (std::abs(proc.volatileMaxSeconds() - 60.0) > 1.0e-6)
+            nhNode.setProperty(keys::kVolatileSecs, proc.volatileMaxSeconds(), nullptr);
         // v27: hosted-Locked arm gate. Default-armed, so only write when parked to
         // keep old files byte-identical on re-save when armed.
         if (!proc.isPluginArmed())
@@ -845,6 +850,8 @@ namespace lockstep::PluginState
         // remapped from a legacy bar count by upgrade_v24_to_v25). Missing → Bar.
         proc.project().launchQuant = static_cast<int>(
             nhNode.getProperty(keys::kLaunchQuant, static_cast<int>(LaunchQuant::Bar)));
+        proc.setVolatileMaxSeconds(
+            static_cast<double>(nhNode.getProperty(keys::kVolatileSecs, 60.0)));
         // v27: hosted-Locked arm gate. Missing (v26 and earlier, or armed) → armed.
         proc.setPluginArmed(static_cast<int>(nhNode.getProperty(keys::kPluginArmed, 1)) != 0);
         // v21: Set-level default time signature.

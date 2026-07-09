@@ -20,6 +20,9 @@ namespace lockstep::keys
     inline constexpr const char* kActivePiece = "activePiece";
     inline constexpr const char* kActiveSect = "activeSect";
     inline constexpr const char* kLaunchQuant = "launchQuant";
+    // A5: volatile REC slot capacity in seconds. Written only when it differs from
+    // the 60 s default, so an unchanged project stays byte-identical on re-save.
+    inline constexpr const char* kVolatileSecs = "volatileSecs";
     inline constexpr const char* kPluginArmed = "pluginArmed";  // v27: hosted-Locked arm gate
 
   // ── Song node ───────────────────────────────────────────────────────────────

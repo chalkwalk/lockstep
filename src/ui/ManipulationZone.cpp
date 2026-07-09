@@ -693,6 +693,12 @@ namespace lockstep
                 {
                     valueText = formatParamValue(value, meta);
                 }
+                // A5: two capture tracks pointing at one REC slot overwrite each
+                // other's takes. That is legal, and sometimes wanted — but never
+                // accidental, so the collision is announced on the slot itself.
+                if (juce::String(meta.id) == "target_buffer"
+                    && processor_.captureSlotShared(track))
+                    valueText += " !";
                 valueText += lockMark(hasLock, deadLock);
                 valueLabels_[si].setText(valueText, juce::dontSendNotification);
             }

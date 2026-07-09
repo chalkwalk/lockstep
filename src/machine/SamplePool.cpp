@@ -404,12 +404,44 @@ namespace lockstep
             if (!s->isVolatile) continue;
             s->sampleRate = sampleRate;
             // Capacity allocation happens here (message/prepare thread); a recorder
-            // later shrinks the reported size with avoidReallocating, never grows
-            // past this capacity.
-            s->pcm.setSize(chans, cap, false, true, false);
-            s->pcm.clear();
+            // later grows the reported size with avoidReallocating, never past this
+            // capacity.
+            //
+            // A5: allocate *without* zero-filling, so the pages of a slot nobody
+            // records into are never committed — sixteen sixty-second slots cost
+            // address space, not memory. The reported length is then dropped to
+            // zero, which is the used length: nothing may read past it, because
+            // past it the memory is uninitialised rather than silent. A recorder
+            // grows it back to what it captured (LoopMachine / RecordMachine both
+            // clear the region they are about to write).
+            s->pcm.setSize(chans, cap, false, false, false);
+            s->pcm.setSize(chans, 0, false, false, /*avoidReallocating*/ true);
             s->volatileCapacity = cap;
         }
+    }
+
+    juce::AudioBuffer<float>* SamplePool::beginVolatileCapture(int index, int lengthSamples)
+    {
+        auto* buf = mutableVolatilePcm(index);
+        if (buf == nullptr || lengthSamples <= 0) return nullptr;
+        if (lengthSamples > volatileCapacity(index)) return nullptr;
+
+        // avoidReallocating: prepareVolatile reserved the capacity, so growing back
+        // up to it only moves the reported length. The clear commits (and defines)
+        // exactly the region about to be written.
+        buf->setSize(buf->getNumChannels(), lengthSamples, false, false, true);
+        buf->clear();
+        return buf;
+    }
+
+    int SamplePool::volatileUsedLength(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return 0;
+        const auto& s = samples_[static_cast<std::size_t>(index)];
+        // The reported buffer length *is* the used length: prepareVolatile drops it
+        // to zero and a recorder grows it to what it captured.
+        return s->isVolatile ? s->pcm.getNumSamples() : 0;
     }
 
     int SamplePool::volatileCapacity(int index) const

@@ -72,11 +72,16 @@ namespace lockstep
             static_cast<double>(recSeconds) * sampleRate_));
         recLen = std::clamp(recLen, 1, std::max(1, cap));
 
-        // Shrink/grow the reported length to the capture length without
-        // reallocating (capacity was pre-allocated in prepareVolatile, and recLen
-        // is clamped to it), then clear so an interrupted capture has no stale tail.
-        target_->setSize(target_->getNumChannels(), recLen, false, false, true);
-        target_->clear();
+        // Declare the used length and clear exactly that region (A5): the slot's
+        // capacity was reserved in prepareVolatile but never committed, so nothing
+        // may read past what a capture claims.
+        target_ = pool_.beginVolatileCapture(poolIdx, recLen);
+        if (target_ == nullptr)
+        {
+            capturing_ = false;
+            samplesRemaining_ = 0;
+            return;
+        }
 
         // Stamp the captured musical length (bars) so a tempo-tracking Player can
         // stretch the buffer to the project tempo (B1/B2). 0 when tempo is unknown.

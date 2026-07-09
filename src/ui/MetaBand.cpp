@@ -592,10 +592,13 @@ namespace lockstep
             { "Scale", 0.0f, 2.0f, true, true },
             { "LaunchQ", 0.0f, 5.0f, true, true },
             { "T-LnchQ", 0.0f, 7.0f, true, true },
-            { "", 0.0f, 1.0f, false, false },
+            // A5: per-slot capacity of the volatile REC bank. Lazily committed, so a
+            // long ceiling costs nothing until you record into it.
+            { "RecLen", 1.0f, 300.0f, false, true },
             { "", 0.0f, 1.0f, false, false },
         } };
-        const std::array<float, 8> vals = { gain, sync, chan, scl, lq, tlq, 0.0f, 0.0f };
+        const float recLen = static_cast<float>(proc.volatileMaxSeconds());
+        const std::array<float, 8> vals = { gain, sync, chan, scl, lq, tlq, recLen, 0.0f };
 
         std::array<MetaFieldView, 8> result{};
         for (int i = 0; i < 8; ++i)
@@ -624,6 +627,8 @@ namespace lockstep
                 f.valueText = launchQuantSetLabel(static_cast<int>(vals[si]));
             else if (i == 5)
                 f.valueText = launchQuantTrackLabel(static_cast<int>(vals[si]));
+            else if (i == 6)
+                f.valueText = juce::String(static_cast<int>(std::round(vals[si]))) + " s";
         }
         return result;
     }
@@ -2311,6 +2316,10 @@ namespace lockstep
                     case 5:  // Per-track override: display 0..7 → launchQuant -1..6 (Follow..Phrase)
                         if (track >= 0)
                             proc.kit(track).launchQuant = std::clamp(juce::roundToInt(value), 0, 7) - 1;
+                        break;
+                    case 6:  // A5: volatile REC slot capacity, in seconds. Reallocates
+                             // the bank (message thread, engine quiesced).
+                        proc.setVolatileMaxSeconds(static_cast<double>(value));
                         break;
                     default: break;
                 }

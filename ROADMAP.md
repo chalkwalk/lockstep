@@ -2698,12 +2698,20 @@ first (DESIGN §40, PRINCIPLES §25.1, `docs/partner-app-concept.md`).
       **Serializer v31→v32**: `upgrade_v31_to_v32` rewrites the stored index to the
       beats it named. Old docs at the default never wrote the slot, and both defaults
       are 1/4.
-- [ ] **A5 — Volatile slots: 16, adjustable, lazily committed.** 8×12 s fixed
-      becomes 16 slots with a project-set maximum length (default 60 s), allocated
-      without zero-fill so RSS tracks what was recorded. Formalise per-slot **used
-      length** (nothing reads past it — the memory is uninitialised, not silent) and
-      replace the silent slot-0 clobber in `nextFreeCaptureSlot` with a surfaced
-      collision and a deliberate pick. DESIGN §28.
+- [x] **A5 — Volatile slots: 16, adjustable, lazily committed.** 8×12 s fixed
+      becomes 16 slots with a project-set maximum length (`Project::volatileMaxSeconds`,
+      default 60 s, on the `Func+7` transport-globals page), allocated without
+      zero-fill so RSS tracks what was recorded. **Used length** is now the invariant:
+      `prepareVolatile` reserves the capacity and reports length 0, and
+      `beginVolatileCapture(index, len)` is the only way a slot becomes readable —
+      it claims the length and clears exactly that region, refusing a claim past the
+      capacity rather than reallocating under the audio thread. Nothing reads past
+      it, because past it the memory is uninitialised, not silent. `nextFreeCaptureSlot`
+      returns **-1** on exhaustion instead of silently handing back slot 0, and the
+      MZ marks a shared `target_buffer` with `!` — sharing stays legal, never
+      accidental. `kVolatileBufferLabels` is static-asserted against the slot count.
+      Serialization is additive (`volatileSecs`, written only when non-default), so
+      no version bump. DESIGN §28.
 - [ ] **A6 — Metronome + pre-roll.** Both absent, both app-wide. A bar-synced,
       accented click that honours per-Song/Scene time-signature overrides, routed to
       the Cue bus when there is one; and an N-bar count-in before **Lockstep-initiated**

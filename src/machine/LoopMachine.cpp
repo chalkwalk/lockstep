@@ -282,8 +282,15 @@ namespace lockstep
             state_ = State::Idle;
             return;
         }
-        target_->setSize(target_->getNumChannels(), capacity_, false, false, true);
-        target_->clear();
+        // A5: claim the whole capacity as the used length and clear it — a looper
+        // does not know how long its take will be until the gesture closes, and it
+        // shrinks to loopLen_ then.
+        target_ = pool_.beginVolatileCapture(targetSlot_, capacity_);
+        if (target_ == nullptr)
+        {
+            state_ = State::Idle;
+            return;
+        }
         loopLen_ = 0;
         recPos_ = 0;
         haveBackup_ = false;

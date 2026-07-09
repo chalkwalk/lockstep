@@ -29,6 +29,12 @@ namespace lockstep
         // Default = C Ionian.
         KeySig defaultKeySig{};
 
+        // Per-slot capacity of the volatile (RAM-only) REC buffers, in seconds
+        // (DESIGN §28). The buffers are allocated lazily — untouched pages are never
+        // committed — so a generous ceiling costs address space, not memory, until
+        // you actually record into a slot. Default 60 s.
+        double volatileMaxSeconds = 60.0;
+
         SoundPool soundPool{};  // project-scope sound library
     };
 }

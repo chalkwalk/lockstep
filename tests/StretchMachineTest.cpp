@@ -23,7 +23,7 @@ namespace lockstep
         {
             const int idx = pool.addVolatile();
             pool.prepareVolatile(kSr, 1, len);
-            auto* pcm = pool.mutableVolatilePcm(idx);
+            auto* pcm = pool.beginVolatileCapture(idx, len);
             for (int i = 0; i < len; ++i)
                 pcm->setSample(0, i, static_cast<float>(
                     std::sin(2.0 * juce::MathConstants<double>::pi * freq
@@ -400,7 +400,7 @@ namespace lockstep
             const int rl = 24000;
             const int ridx = pool.addVolatile();
             pool.prepareVolatile(kSr, 1, rl);
-            auto* rp = pool.mutableVolatilePcm(ridx);
+            auto* rp = pool.beginVolatileCapture(ridx, rl);
             for (int i = 0; i < rl; ++i)
             {
                 const double env = static_cast<double>(i) / rl;   // 0 -> 1 ramp

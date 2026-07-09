@@ -100,19 +100,35 @@ namespace lockstep
 
             const Sample* s = pool.get(v);
             CHECK(s != nullptr && s->pcm.getNumChannels() == 2, "prepared to 2 ch");
-            CHECK(s != nullptr && s->pcm.getNumSamples() == cap, "prepared to capacity");
             CHECK(s != nullptr && s->sampleRate == 48000.0, "prepared sample rate set");
+            // A5: capacity is reserved, but nothing is *used* until a capture claims
+            // it — the pages are not even committed, so the buffer must report zero.
+            CHECK(pool.volatileCapacity(v) == cap, "capacity reserved");
+            CHECK(pool.volatileUsedLength(v) == 0, "a prepared slot has recorded nothing");
+            CHECK(s != nullptr && s->pcm.getNumSamples() == 0,
+                  "an unrecorded slot reports zero length (never reads uninitialised)");
 
             auto* buf = pool.mutableVolatilePcm(v);
             CHECK(buf != nullptr, "mutable handle for volatile entry");
 
-            // Shrink to a captured length without reallocating, then verify the
-            // data pointer is unchanged (capacity preserved) and the reported
-            // length now matches the capture.
+            // Claiming a capture length grows the reported size back, without
+            // reallocating (the capacity is still there), and zeroes that region.
+            auto* cap1 = pool.beginVolatileCapture(v, 1000);
+            CHECK(cap1 == buf, "beginVolatileCapture returns the same buffer");
+            CHECK(buf->getNumSamples() == 1000, "used length = the claimed capture");
+            CHECK(pool.volatileUsedLength(v) == 1000, "used length is reported");
+            CHECK(feq(buf->getSample(0, 999), 0.0f), "the claimed region is cleared");
+
             const float* before = buf->getReadPointer(0);
-            buf->setSize(2, 1000, false, false, /*avoidReallocating*/ true);
-            CHECK(buf->getNumSamples() == 1000, "shrunk to captured length");
+            buf->setSize(2, 500, false, false, /*avoidReallocating*/ true);
+            CHECK(buf->getNumSamples() == 500, "shrunk to captured length");
             CHECK(buf->getReadPointer(0) == before, "no reallocation on shrink");
+
+            // A claim past the capacity is refused rather than reallocating under
+            // the audio thread.
+            CHECK(pool.beginVolatileCapture(v, cap + 1) == nullptr,
+                  "a capture past the capacity is refused");
+            CHECK(pool.beginVolatileCapture(v, 0) == nullptr, "a zero-length capture is refused");
         }
 
         // nthVolatileIndex addresses REC slots by ordinal, robust to shifts ---
