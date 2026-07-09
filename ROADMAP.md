@@ -2640,6 +2640,52 @@ bump):
       path the dispatcher pages with (fixes the raw-schema over-count). One
       affordance for every re-press-to-cycle key.
 
+### 9.27 — Capture-round: two bugs, four features  *[active]*
+The play-test round that produced the deck-engine design (DESIGN §40, Phase 11)
+also produced two bugs and four independent features. They are unrelated to each
+other and to the deck; one commit each, each with tests. Docs for the deck landed
+first (DESIGN §40, PRINCIPLES §25.1, `docs/partner-app-concept.md`).
+- [ ] **A1 — Stretch/Stream start on the first transient.** Onset detection
+      exists (`findFirstOnsetSample`) but only the Slice SYNC grid calls it, so an
+      auto-fit loop with silent pre-roll starts before the 1. Stamp
+      `firstOnsetSample` on the pool entry at analysis; `autoFitLoopTrack` seeds the
+      `start` param from it, but **only when the onset is pre-roll-like** (early /
+      under a beat) so mid-file hits never trim material. All assignment paths.
+- [ ] **A2 — Trigless (lock-only) trigs are inert until the step is re-held.**
+      Two gaps behind one symptom. (i) While stopped, the resolver runs with
+      `resolveStep = -1` unless a step is physically held — resolve against the last
+      fired step instead, without disturbing held-step editing. (ii) Note-on-latched
+      slots (`startSample_`, `reverse_`, `tsMode_`) can't be moved by a lock-only
+      step at all; re-latch only the start-class ones on the playback ride, and give
+      the un-rideable slots distinct chrome on a lock-only step rather than lying.
+- [ ] **A3 — Live P-lock (motion) recording.** Record-armed + playing + no step
+      held: turning a knob opens a per-slot motion window that writes the live value
+      as a P-lock into each step the playhead crosses, closing ~150 ms after the last
+      motion. One gesture over one loop records one loop (the Volca / Liven idiom);
+      holding longer **overwrites** — that is the escape hatch, not a mode. Held-step
+      writes keep classic behaviour (§13, more-specific-wins). A pure, unit-tested
+      `MotionRecorder` is the single seam both the MZ and CC paths funnel through
+      (§20); MZ rec tint ships in the same commit (§10).
+- [ ] **A4 — HQ delay: divisions on a bare turn, continuous with `Func`.** One
+      continuous **beat-fraction** axis replaces the stepped division index. A bare
+      turn snaps to the (already length-sorted, dotted/triplet-inclusive) lattice; a
+      `Func`-turn sweeps the same axis freely; re-snap is nearest-detent. Readout is
+      the division name on-lattice and derived ms off it. A `funcContinuous` ParamSpec
+      flag carries it, mirroring the Harmony/Density Func-incremental precedent. The
+      plain `DelayEffect` stays free-ms — it is the absolute/character delay.
+      Serializer bump + upgrade mapping (the slot's domain changes).
+- [ ] **A5 — Volatile slots: 16, adjustable, lazily committed.** 8×12 s fixed
+      becomes 16 slots with a project-set maximum length (default 60 s), allocated
+      without zero-fill so RSS tracks what was recorded. Formalise per-slot **used
+      length** (nothing reads past it — the memory is uninitialised, not silent) and
+      replace the silent slot-0 clobber in `nextFreeCaptureSlot` with a surfaced
+      collision and a deliberate pick. DESIGN §28.
+- [ ] **A6 — Metronome + pre-roll.** Both absent, both app-wide. A bar-synced,
+      accented click that honours per-Song/Scene time-signature overrides, routed to
+      the Cue bus when there is one; and an N-bar count-in before **Lockstep-initiated**
+      record arming. Hosted, the host owns transport start (§3) — pre-roll never
+      delays host play. Lives on the transport-globals page; no bespoke key (§2/§4).
+
 ---
 
 ## Phase 10 — Melodic & Harmonic Authoring  *[active]*
@@ -2747,6 +2793,51 @@ A placement mode that keeps the track's existing trigs in place and assigns each
 the chord of the bar it falls in (harmony follows bars, rhythm preserved) — the
 harmonic twin of the melodic SRC "Keep" transform (`fixedOnsets`). Needs a
 placement selector (Nav-right sub-page or a repurposed slot — settle at build).
+
+---
+
+## Phase 11 — The Deck Engine: Record, Loop, Tape  *[design landed; unbuilt]*
+
+Record, Loop, and a new **Tape** face become three faces of one four-sub-track
+deck engine that **defaults to a single stereo sub-track** — so today's Record
+and Loop behave identically on day one and the depth is opt-in. Full design in
+**DESIGN §40**; the transport amendment it rests on is **PRINCIPLES §25.1**
+(absolute position joins the one authority: hosted, the DAW timeline *is* the
+tape timeline). The standalone distillation is a concept brief only
+(`docs/partner-app-concept.md`), not a milestone.
+
+Rejected en route, recorded so they are not re-proposed: scene-scoped audio
+clips (session-view drift), a forward-only reel, a master-bus tape fixture,
+tape-as-an-effect, and **loop groups** — cross-machine coordination lost to the
+4-track deck, which keeps the coordination local to one machine.
+
+- [ ] **11.1 — Transport gains position.** Absolute position as a first-class,
+      single-sourced field on the transport authority: host-rooted when hosted,
+      internal clock when standalone. Locate = a transport act; tracks re-derive
+      phase as `position mod length`; pending launch edges re-derive against the new
+      position. No state travels with position (PRINCIPLES §25.1, Non-Goals #1).
+- [ ] **11.2 — Deck engine core.** Four sub-tracks (default 1 stereo), layers +
+      undo, span-replace punch as a layer, varispeed, jog/scrub as a decoupled
+      audition committing at the next quantum. Record and Loop re-seat onto it with
+      **zero behaviour change** — that is the acceptance test.
+- [ ] **11.3 — Tap-only input matrix.** Per-sub-track `input_source` selection on
+      the console's Route-style grid, reusing the §27 tap-fork edge class. No
+      push-side `Out` entries; no new edge class in the topological sort.
+- [ ] **11.4 — Tape face + markers.** Linear, position-addressed medium
+      (fixed-length RAM, settable, lazily committed). Markers are **dumb**:
+      auto-dropped at Scene/Song switches while recording, manually droppable, cued
+      by console cells — and they never fire a launch. The fence-#1 line lives here.
+- [ ] **11.5 — Console pages + timeline strip.** `DECK` / `TRACKS` / `MARKS`
+      console pages (nav-paged; a single-sub-track deck simply has fewer). A second
+      inspector-class, **display-only** always-on strip (the 9.11 precedent) from a
+      pure `buildTimelineModel`, with console-cell hardware proxies for the
+      performable subset (§19).
+- [ ] **11.6 — Take-groups + channel policy.** Promote writes per-sub-track WAVs
+      plus a materialized downmix, linked by a take-group id (distinct from the
+      origin groups `groupOrdinal` numbers). Deck-class pickers load the group as one
+      entity; sample-class pickers see the members ("up to 5 samples"). Codify the
+      **stereo-engine / native-storage** channel policy, retiring the scattered
+      `min(2, …)` clamps as policy rather than accident.
 
 ---
 

@@ -39,7 +39,7 @@ the *form*, then offer the performable version of the same desire.
 | 5 | Unbounded / scrolling canvas | Synthstrom Deluge | *The grid is the menu*; *Hardware = fewer-key QWERTY* | A fixed, memorisable 10×4 surface with paging; muscle memory settles |
 | 6 | Control axis the hardware can't honestly provide (MPE / pressure / tilt / per-track faders) | Ableton Push 3, TE EP-133, Roland Aira D-Motion, Roland MC-707 channel strips | *Hardware = fewer-key QWERTY* | Eight encoders + the single crossfader; no axis a typing keyboard can't stand in for |
 | 7 | Foreign-plugin / standalone-host ecosystem | Ableton Push 3, Akai Force | "No sub-host" (DESIGN §2, §36) | A bespoke, in-process machine module ABI — trusted native modules, no IPC, no sandbox |
-| 8 | Destructive tape workflow | Teenage Engineering OP-1 | *State refs, not contents* | Non-destructive P-locks / overrides; Recorder + Looper for live audio (refs, never baked-in PCM) |
+| 8 | Destructive tape workflow | Teenage Engineering OP-1 | *State refs, not contents* | Non-destructive P-locks / overrides; the **deck engine** — Record, Loop, and Tape as one machine (DESIGN §40) — where overdub is layers, punch is span-replace-as-a-layer, undo pops, and a saved take is a file reference, never baked-in PCM |
 | 9 | Companion app / external editor as the primary surface | Yamaha Seqtrak | One *Surface model* (DESIGN §35.8) | A single `buildSurfaceModel()` both screen and controllers render from; the host's own window — standalone or DAW — is the screen |
 | 10 | Dual-project concurrent playback | Squarp Hapax | *Performance is the goal* | One set, performed; transitions are Scene/Song launches, not a second project |
 | 11 | Heavyweight performance-FX **mode** | Polyend Play FX grid, OP-Z punch-in, Roland MC-707 Scatter, Sonicware stutter | *Reward mastery* (dead weight); "No design/perform split" | A **thin "Animate" toggle** (Novation-Peak style) that momentarily bypasses/enables the existing inserts — power without a mode. Shipped (6.5): hold `FX` + step. |
@@ -56,9 +56,23 @@ not this" anchors:
 - **Soma Ornament-8 (#3)** — its un-clocked, behavioural timing is the
   antithesis of *Pragmatic determinism*. We admire it; we are not it.
 - **OP-1 tape (#8)** — a destructive, linear tape metaphor is the opposite of
-  a non-destructive, reference-based state model.
+  a non-destructive, reference-based state model. What we took from the OP-1 is
+  its *honesty* (a fixed medium you can fill, so committing is a skill) and its
+  *feel* (punch, jog, varispeed), not its irreversibility.
 
-One fence is narrower than it first reads, and the boundary is worth stating:
+Two fences are narrower than they first read, and the boundaries are worth
+stating:
+
+- **Recording a performance is not arranging one (#1)** — fence #1 refuses a
+  *stored, authored* linear arrangement: a chain you build and the machine plays
+  back. It does **not** refuse a **recording** of what you played. The deck
+  engine's Tape face (DESIGN §40) records audio against the project timeline and
+  auto-drops **markers** where you launched Scenes — and the markers are
+  deliberately **dumb**. A marker is a place you can wind to; it never fires a
+  Scene, and no deck ever emits a launch during playback. That line is exactly
+  where the fence sits: *the tape remembers what you did; you still do it.* The
+  day a marker recalls a scene, we have shipped the session view we refused
+  twice.
 
 - **Faders / extra axes on a controller you already own (#6)** — fence #6
   rejects *designing the grammar around* an axis the eventual hardware can't

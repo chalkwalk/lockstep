@@ -885,7 +885,13 @@ The sole exception is an **I/O designation that is inherently directional**
 words earn their place. This principle governs the stock catalogue and any
 contributed machine (DESIGN §29 / §36); the same instinct applies to effects.
 
-## 25. Launch timing is one authority
+## 25. Transport is one authority — rate, grid, and position
+
+*(Amended: this principle read "Launch timing is one authority" and owned rate
+and grid only. The deck-engine design — DESIGN §40 — added absolute position to
+the same authority rather than letting a tape grow a second timeline. The
+launch-timing text below is unchanged; §25.1 is the addition. Citations of
+"§25" elsewhere still resolve.)*
 
 Every action that can be *deferred to a musical boundary* — launching a Scene,
 switching a Song, swapping a Phrase, muting or un-muting a track, re-anchoring a
@@ -918,6 +924,36 @@ declick) and "restarted" as *unmute + phase-reset*. A distinct stopped state
 would force held-phase/resume bookkeeping the proxy avoids, and it would break
 the "tracks always advance" invariant every launch path relies on. DESIGN §4.8
 (the grid), §13.4 (mutes + phase-reset), §16 (live launch).
+
+### 25.1 Position is the third field, not a second timeline
+
+The same authority carries **absolute position** — how far into the performance
+we are — alongside rate and grid. It is one field on one transport, and it is
+**single-sourced**:
+
+- **Hosted, the host owns it.** Its playhead is our position and its locate is
+  our locate; this is §3 ("the host is the root of transport") spent, not
+  contradicted.
+- **Standalone, Lockstep's own absolute clock is it.** Standalone gains a
+  locate. It does not gain a rival ruler.
+
+Three rules keep this from re-opening the arrangement fence (Non-Goals #1):
+
+- **Locate is a transport act, and it is deterministic.** Tracks re-derive phase
+  as `position mod length` at the new position. Nothing is scheduled *by*
+  position; nothing is recalled by arriving somewhere.
+- **Position carries no state.** Scenes, mutes, kits, and P-locks are state.
+  State is launched, never located-into. A performer who winds the tape back to
+  the chorus hears the chorus's *audio*, not the chorus's *scene* — because the
+  scene is something they perform.
+- **A medium may be audition-decoupled, and only momentarily.** Scrubbing a deck
+  detaches its playhead while the sequencer keeps running; the transport commits
+  to the scrubbed position at the next quantum. One authority, briefly
+  disagreed with, then obeyed.
+
+The corollary is the same shape as the one above: **do not give a subsystem its
+own position.** A tape, a scrub, a second deck — all address the one field. Two
+positions are two songs (Non-Goals #10). DESIGN §40.2.
 
 ---
 

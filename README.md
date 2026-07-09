@@ -1612,6 +1612,50 @@ On top of the key:
 
 Design: PRINCIPLES §23, DESIGN §4.10 + §39.11–39.12.
 
+---
+
+### 5.22 The deck engine — Record, Loop, Tape *(planned — Phase 11)*
+
+Note the difference from §5.20 above: the **tape deck** is a capture *device*
+that writes your master output to a WAV file. The **deck engine** is a
+*machine* — audio you record onto a medium, inside the instrument, that you
+then play, overdub, punch into, and sample from.
+
+Record and Loop already exist (§2.5). Phase 11 makes them, and a new **Tape**,
+three faces of one four-sub-track deck:
+
+| Face | What its medium is | You reach for it to… |
+|---|---|---|
+| **Record** | linear, overwritten each trig | grab a volatile sample to *process* |
+| **Loop** | circular, layered | build a looping part live |
+| **Tape** | linear, layered, on the song's timeline | record a take you can punch into |
+
+**Every deck starts as a single stereo track.** Record and Loop behave exactly
+as they do today until you go looking for the other three sub-tracks, on the
+deck's console. Nothing you already know changes.
+
+- **There is one timeline, and in a DAW it is the host's.** Winding the tape is
+  dragging the host playhead; the tape and the sequencer are never two clocks.
+  Standalone, Lockstep's own clock is that timeline. (PRINCIPLES §25.1.)
+- **Markers are places, not cues.** While a deck records, every Scene or Song
+  you launch drops a marker; you can drop them by hand too. A marker lets you
+  wind back to the chorus. It never *plays* the chorus for you — Lockstep does
+  not have, and will not have, an arrangement that performs itself.
+- **Nothing you record is destroyed.** Overdubs are layers, a punch is a layer
+  over a span, and `UNDO` pops. A take is saved by promoting it to the pool
+  (per-sub-track files plus a downmix, all one "take") — never as audio buried
+  inside the project file.
+- **Scrub and jog.** One encoder is the jog wheel: the deck plays under your
+  hand while the band keeps playing, and the transport catches up at the next
+  bar when you let go.
+- **A timeline strip** appears under the context inspector: bars, markers, the
+  cursor, the punch region. You read it; you never click it. Everything you
+  *do* lives on the 16 console cells and the encoders — the way hardware will
+  have to do it too.
+
+Design: DESIGN §40, PRINCIPLES §25.1. The standalone tape instrument that would
+grow from the same engine is a concept brief only: `docs/partner-app-concept.md`.
+
 <a name="6-implemented-vs-planned"></a>
 ## 6. Implemented vs. planned
 
@@ -1686,7 +1730,9 @@ special trig types `5.6`; UI polish + state-colour palette `5.8`); and **Phase 6
 routing, FX & platform (audio-input boundary + Route `6.1`, recorder buffers `6.2`
 and looper `6.3` all shipped — freeze-to-disk of REC buffers deferred; cue bus `6.4`;
 master FX bus `6.5b`; external controller surfaces `6.6`, in progress; the Machine
-Module ABI `6.7`; beta polish `6.8`).
+Module ABI `6.7`; beta polish `6.8`); and **Phase 11**, the deck engine — Record,
+Loop and Tape as one four-sub-track machine on one project timeline (§5.22,
+DESIGN §40).
 
 See `ROADMAP.md` for the authoritative milestone breakdown and current
 status — it is the single source of truth for what ships when.
