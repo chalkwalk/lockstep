@@ -178,8 +178,8 @@ namespace lockstep
         CHECK(!sm.setFilePath("/no/such/file_xyz.wav"), "missing file rejected");
         CHECK(sm.filePath().isEmpty(), "bad path clears the stored path");
 
-        // Schema: sample_id + start kept; pitch/tune/timestretch/loop appended.
-        CHECK(sm.numParams() == 6, "StreamMachine exposes 6 slots after the S3 append");
+        // Schema: sample_id + start kept; pitch/tune/timestretch/loop/release appended.
+        CHECK(sm.numParams() == 7, "StreamMachine exposes 7 slots (after release append)");
         CHECK(juce::String(sm.paramSpec(0).id) == "sample_id",
               "sample_id is slot 0 (picker renders first)");
         CHECK(juce::String(sm.paramSpec(1).id) == "start", "start keeps id + slot 1");
@@ -191,6 +191,9 @@ namespace lockstep
         const auto loopSpec = sm.paramSpec(5);
         CHECK(juce::String(loopSpec.id) == "player_loop" && feq(loopSpec.defaultValue, 0.0f),
               "slot 5 = player_loop default Off");
+        CHECK(juce::String(sm.paramSpec(6).id) == "player_release"
+              && feq(sm.paramSpec(6).defaultValue, 0.5f),
+              "slot 6 = player_release default 0.5 (graceful-stop fade)");
         CHECK(sm.paramSpec(0).isStepped, "sample_id is stepped (picker index)");
         CHECK(sm.paramSpec(0).sectionIndex == IMachine::kSrcSecIdx, "sample_id lives on SRC");
         CHECK(sm.numSections() == IMachine::kSrcSecIdx + 1,

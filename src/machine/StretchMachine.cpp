@@ -81,6 +81,14 @@ namespace lockstep
                 s.isStepped = true;
                 s.valueLabels = std::span<const char* const>(kTuneModeLabels.data(), kTuneModeLabels.size());
                 return s;
+            case kSlotRelease:
+                s.id = "player_release";
+                s.label = "Release";
+                s.minValue = 0.0f;
+                s.maxValue = 1.0f;
+                s.defaultValue = 0.5f;  // ~100 ms graceful-stop fade (see process())
+                s.isStepped = false;
+                return s;
             default:
                 return {};
         }
@@ -96,6 +104,7 @@ namespace lockstep
         engine_.prepare(-1.0, sampleRate_, 2, maxBlock_);
         // ~5 ms anti-click gate ramp.
         fadeInc_ = static_cast<float>(1.0 / (0.005 * sampleRate_));
+        releaseInc_ = fadeInc_;  // until a param is seen (see process())
         reset();
     }
 
@@ -103,10 +112,23 @@ namespace lockstep
     {
         engine_.reset();
         playing_ = false;
+        releasing_ = false;
         activeNote_ = -1;
         activeSampleId_ = -1;
         playedLen_ = 0;
         gain_ = 0.0f;
+    }
+
+    void StretchMachine::releaseAllVoices()
+    {
+        // Graceful stop: fade the held voice out over the release time rather than
+        // note-off's fast gate. releaseInc_ is cached from player_release in
+        // process(); the down-ramp below keys off `releasing_`.
+        if (playing_ || gain_ > 0.0f)
+        {
+            releasing_ = true;
+            playing_ = false;
+        }
     }
 
     double StretchMachine::pitchRatioFor(int midiNote, const ParamFrame& params) const
@@ -178,6 +200,7 @@ namespace lockstep
                       pitchRatioFor(midiNote, params));
         applyLoop(loop);
         playing_ = true;
+        releasing_ = false;  // a fresh note cancels any in-flight graceful release
     }
 
     void StretchMachine::applyLoop(bool loop)
@@ -206,6 +229,15 @@ namespace lockstep
                                 juce::AudioBuffer<float>& buffer)
     {
         const int numSamples = buffer.getNumSamples();
+
+        // Cache the graceful-stop release ramp from player_release (0..1 -> ~5 ms .. 2 s,
+        // exponential feel). releaseAllVoices() reads this to fade the voice out.
+        {
+            const float relT = (params.size() > kSlotRelease)
+                ? juce::jlimit(0.0f, 1.0f, params[kSlotRelease]) : 0.5f;
+            const double relSec = 0.005 * std::pow(400.0, static_cast<double>(relT));
+            releaseInc_ = static_cast<float>(1.0 / (relSec * sampleRate_));
+        }
 
         // Apply note edges at block granularity (MVP): last note-on wins; a note-off
         // for the active note gates the voice out.
@@ -240,12 +272,14 @@ namespace lockstep
 
         engine_.process(buffer, 0, numSamples);
 
-        // Anti-click gate toward (playing ? 1 : 0).
+        // Anti-click gate toward (playing ? 1 : 0). A graceful-stop release fades
+        // down over releaseInc_ (slow); a note-off / note-on uses the fast gate.
         const float target = playing_ ? 1.0f : 0.0f;
+        const float downInc = releasing_ ? releaseInc_ : fadeInc_;
         for (int i = 0; i < numSamples; ++i)
         {
             if (gain_ < target)      gain_ = std::min(target, gain_ + fadeInc_);
-            else if (gain_ > target) gain_ = std::max(target, gain_ - fadeInc_);
+            else if (gain_ > target) gain_ = std::max(target, gain_ - downInc);
             for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
                 buffer.setSample(ch, i, buffer.getSample(ch, i) * gain_);
         }

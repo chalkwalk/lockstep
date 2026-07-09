@@ -80,6 +80,14 @@ namespace lockstep
                 s.isStepped = true;
                 s.valueLabels = std::span<const char* const>(kLoopLabels.data(), kLoopLabels.size());
                 return s;
+            case kSlotRelease:
+                s.id = "player_release";
+                s.label = "Release";
+                s.minValue = 0.0f;
+                s.maxValue = 1.0f;
+                s.defaultValue = 0.5f;  // ~100 ms graceful-stop fade (see process())
+                s.isStepped = false;
+                return s;
             default:
                 return {};
         }
@@ -151,6 +159,7 @@ namespace lockstep
         maxBlock_ = maxBlockSize > 0 ? maxBlockSize : 512;
         // ~5 ms anti-click gate ramp.
         fadeInc_ = static_cast<float>(1.0 / (0.005 * sampleRate_));
+        releaseInc_ = fadeInc_;  // until a param is seen (see process())
         if (!streamThread_.isThreadRunning())
             streamThread_.startThread();
         rebuildEngine();  // (re)build at the current engine rate + any open reader
@@ -161,7 +170,20 @@ namespace lockstep
     {
         engine_.reset();
         playing_ = false;
+        releasing_ = false;
         gain_ = 0.0f;
+    }
+
+    void StreamMachine::releaseAllVoices()
+    {
+        // Graceful stop: fade the stream out over player_release rather than the
+        // fast note-off gate. releaseInc_ is cached in process(); the down-ramp
+        // below keys off `releasing_`.
+        if (playing_ || gain_ > 0.0f)
+        {
+            releasing_ = true;
+            playing_ = false;
+        }
     }
 
     void StreamMachine::applyLoop(bool loop)
@@ -183,6 +205,14 @@ namespace lockstep
     {
         const int numSamples = buffer.getNumSamples();
         buffer.clear();
+
+        // Cache the graceful-stop release ramp from player_release (0..1 -> ~5 ms .. 2 s).
+        {
+            const float relT = (params.size() > kSlotRelease)
+                ? juce::jlimit(0.0f, 1.0f, params[kSlotRelease]) : 0.5f;
+            const double relSec = 0.005 * std::pow(400.0, static_cast<double>(relT));
+            releaseInc_ = static_cast<float>(1.0 / (relSec * sampleRate_));
+        }
 
         // Note-on starts streaming from `start`; note-off stops. (Take the last
         // event of each kind in the block — monophonic.)
@@ -207,6 +237,7 @@ namespace lockstep
                     startFrame_ = startFrame;  // cache for a live loop re-latch
                     applyLoop(loop);
                     playing_ = true;
+                    releasing_ = false;  // fresh note cancels an in-flight release
                 }
                 else
                 {
@@ -245,13 +276,15 @@ namespace lockstep
         if (!engine_.isActive())
             playing_ = false;  // end of file — fade out from here
 
-        // Anti-click gate toward (playing ? 1 : 0), ramped over ~5 ms.
+        // Anti-click gate toward (playing ? 1 : 0). A graceful-stop release fades
+        // down over releaseInc_ (slow); note-on/off and EOF use the fast gate.
         const float target = playing_ ? 1.0f : 0.0f;
+        const float downInc = releasing_ ? releaseInc_ : fadeInc_;
         const int chans = buffer.getNumChannels();
         for (int i = 0; i < numSamples; ++i)
         {
             if (gain_ < target)      gain_ = std::min(target, gain_ + fadeInc_);
-            else if (gain_ > target) gain_ = std::max(target, gain_ - fadeInc_);
+            else if (gain_ > target) gain_ = std::max(target, gain_ - downInc);
             for (int ch = 0; ch < chans; ++ch)
                 buffer.setSample(ch, i, buffer.getSample(ch, i) * gain_);
         }

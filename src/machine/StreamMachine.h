@@ -52,6 +52,11 @@ namespace lockstep
                      const ParamFrame& params,
                      juce::AudioBuffer<float>& buffer) override;
 
+        // Transport graceful-stop release (mirrors StretchMachine). A note-off stays
+        // a crisp ~5 ms gate; releaseAllVoices() fades the stream out over the
+        // adjustable `player_release` time so a single-tap graceful stop rings down.
+        void releaseAllVoices() override;
+
         [[nodiscard]] int numParams() const override { return kNumSlots; }
         [[nodiscard]] ParamSpec paramSpec(int index) const override;
 
@@ -86,7 +91,8 @@ namespace lockstep
         static constexpr int kSlotTune = 3;         // ±50 cents fine-tune
         static constexpr int kSlotTimestretch = 4;  // 0 = Off (native), 1 = Tempo
         static constexpr int kSlotLoop = 5;         // 0 = Off, 1 = On
-        static constexpr int kNumSlots = 6;
+        static constexpr int kSlotRelease = 6;      // graceful-stop fade time (0..1)
+        static constexpr int kNumSlots = 7;
 
         [[nodiscard]] double timeRatioFor() const;
         [[nodiscard]] static double pitchRatioFor(const ParamFrame& params);
@@ -123,6 +129,8 @@ namespace lockstep
         int maxBlock_ = 512;
         float gain_ = 0.0f;
         float fadeInc_ = 0.0f;
+        float releaseInc_ = 0.0f;  // graceful-stop down-ramp (cached from player_release)
+        bool  releasing_ = false;  // true = fading out under a graceful stop
 
         static constexpr std::array<const char* const, 2> kTsLabels = { "Off", "Tempo" };
         static constexpr std::array<const char* const, 2> kLoopLabels = { "Off", "On" };

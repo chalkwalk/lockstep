@@ -161,10 +161,14 @@ namespace lockstep
         // Param defaults: a v29-shaped 4-slot frame loads tune=0/loop=Off/rev=Fwd.
         {
             StretchMachine p(pool);
-            CHECK(p.numParams() == 8, "Player: 8 slots after tune/loop/reverse/tune_mode");
+            CHECK(p.numParams() == 9,
+                  "Player: 9 slots after tune/loop/reverse/tune_mode/release");
             CHECK(juce::String(p.paramSpec(7).id) == "player_tune_mode"
                   && feq(p.paramSpec(7).defaultValue, 0.0f),
                   "Player: slot 7 = player_tune_mode default Auto");
+            CHECK(juce::String(p.paramSpec(8).id) == "player_release"
+                  && feq(p.paramSpec(8).defaultValue, 0.5f),
+                  "Player: slot 8 = player_release default 0.5 (graceful-stop fade)");
             const auto tuneSpec = p.paramSpec(4);
             const auto loopSpec = p.paramSpec(5);
             const auto revSpec  = p.paramSpec(6);
@@ -305,6 +309,47 @@ namespace lockstep
                   "Loop re-latch: Off→On mid-voice keeps it sounding past 3 buffers");
             CHECK(runReLatch(1.0f, 0.0f, (srcLen * 5) / 256) < 1.0e-2,
                   "Loop re-latch: On→Off mid-voice stops it after the pass completes");
+        }
+
+        // Graceful-stop release: releaseAllVoices() fades the held voice out over
+        // player_release, NOT the ~5 ms note-off gate. With a long release the voice
+        // is still clearly audible ~50 ms after the stop; with a short release it is
+        // already silent. Loop On keeps the engine sustaining so the gain ramp is the
+        // only thing changing the level.
+        {
+            auto runRelease = [&](float releaseVal) {
+                StretchMachine p(pool);
+                p.prepare(kSr, 256);
+                TransportInfo tr;
+                tr.samplesPerBar = static_cast<double>(srcLen);
+                tr.running = true;
+                p.setTransport(tr);
+                // sampleId, pitch, ts(Tempo), start, tune, loop(On), reverse, tuneMode, release
+                ParamFrame fr{ static_cast<float>(idx), 0.0f, 1.0f, 0.0f,
+                               0.0f, 1.0f, 0.0f, 0.0f, releaseVal };
+                juce::AudioBuffer<float> blk(1, 256);
+                juce::MidiBuffer on;
+                on.addEvent(juce::MidiMessage::noteOn(1, 60, 1.0f), 0);
+                juce::MidiBuffer none;
+                p.process(on, fr, blk);
+                for (int b = 0; b < 6; ++b) { blk.clear(); p.process(none, fr, blk); }
+                p.releaseAllVoices();
+                double e = 0.0;  // energy over ~48 ms (9 * 256 / 48k) after the stop
+                for (int b = 0; b < 9; ++b)
+                {
+                    blk.clear();
+                    p.process(none, fr, blk);
+                    for (int i = 0; i < 256; ++i)
+                        e += static_cast<double>(blk.getSample(0, i)) * blk.getSample(0, i);
+                }
+                return e;
+            };
+            const double longRel  = runRelease(1.0f);  // ~2 s fade
+            const double shortRel = runRelease(0.0f);   // ~5 ms fade
+            CHECK(longRel > shortRel * 20.0 + 1.0,
+                  "graceful release: a long player_release keeps the voice sounding ~50 ms "
+                  "past the stop where a short release is already silent (long "
+                  + juce::String(longRel, 2) + " vs short " + juce::String(shortRel, 4) + ")");
         }
 
         // Reverse: the amplitude envelope plays mirrored. Build a fade-in sine so

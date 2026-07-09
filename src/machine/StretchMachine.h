@@ -42,6 +42,13 @@ namespace lockstep
                      const ParamFrame& params,
                      juce::AudioBuffer<float>& buffer) override;
 
+        // Transport graceful-stop release (DESIGN: layered stop model). A note-off
+        // (gate end) stays a crisp ~5 ms anti-click gate; releaseAllVoices() instead
+        // fades the held voice out over the adjustable `player_release` time, so a
+        // single-tap graceful stop lets a long stem ring down musically instead of
+        // being cut. Called on the transport falling edge for every non-MIDI track.
+        void releaseAllVoices() override;
+
         [[nodiscard]] int numParams() const override { return kNumSlots; }
         [[nodiscard]] ParamSpec paramSpec(int index) const override;
 
@@ -72,7 +79,8 @@ namespace lockstep
         static constexpr int kSlotLoop = 5;         // 0 = Off, 1 = On
         static constexpr int kSlotReverse = 6;      // 0 = Fwd, 1 = Rev
         static constexpr int kSlotTuneMode = 7;     // 0 = Auto (cancel A440 dev), 1 = Raw
-        static constexpr int kNumSlots = 8;
+        static constexpr int kSlotRelease = 8;      // graceful-stop fade time (0..1)
+        static constexpr int kNumSlots = 9;
 
         [[nodiscard]] double timeRatioFor(int playedLen) const;
         [[nodiscard]] double pitchRatioFor(int midiNote, const ParamFrame& params) const;
@@ -102,7 +110,10 @@ namespace lockstep
         int startSample_ = 0;     // trim point (samples) for the active note
         int pcmLen_ = 0;          // buffer length (samples) of the active buffer
         float gain_ = 0.0f;       // anti-click gate gain
-        float fadeInc_ = 0.0f;    // per-sample gate ramp
+        float fadeInc_ = 0.0f;    // per-sample gate ramp (note-on/off anti-click)
+        float releaseInc_ = 0.0f; // per-sample down-ramp for a graceful stop (cached
+                                  // from player_release each block; used by releaseAllVoices)
+        bool  releasing_ = false; // true = fading out under a graceful stop, not a note-off
 
         static constexpr std::array<const char* const, 2> kTsLabels = { "Off", "Tempo" };
         static constexpr std::array<const char* const, 2> kLoopLabels = { "Off", "On" };
