@@ -32,7 +32,7 @@ namespace lockstep
     void Metronome::trigger(bool strong)
     {
         phase_ = 0.0;
-        amplitude_ = strong ? kStrongAmp : kWeakAmp;
+        amplitude_ = (strong ? kStrongAmp : kWeakAmp) * level_;
         decayRate_ = strong ? decayRateStrong_ : decayRateWeak_;
         freqIncrement_ = juce::MathConstants<double>::twoPi * (strong ? kStrongFreq : kWeakFreq) / sampleRate_;
     }

@@ -559,9 +559,90 @@ namespace lockstep
         // Hosted Locked: Play toggles the arm gate (park / unpark under the DAW).
         // Everywhere else it toggles the in-plugin transport as before.
         if (hostedLocked())
+        {
             setPluginArmed(!isPluginArmed());
-        else
-            clock_.setInPluginPlaying(!clock_.inPluginPlaying());
+            return;
+        }
+
+        // A6: a count-in stands between arming a record and the downbeat, so the
+        // first bar you play is in time. Only Lockstep's own Play starts one —
+        // hosted, the host owns transport start (PRINCIPLES §3), and pressing Play
+        // there never delays the DAW.
+        if (preRollActive_.load(std::memory_order_relaxed))
+        {
+            cancelPreRoll();   // a second Play aborts the count-in
+            return;
+        }
+        if (!clock_.inPluginPlaying() && clock_.isRecordArmed() && project_.preRollBars > 0)
+        {
+            beginPreRoll();
+            return;
+        }
+        clock_.setInPluginPlaying(!clock_.inPluginPlaying());
+    }
+
+    void LockstepProcessor::beginPreRoll()
+    {
+        preRollPpq_ = 0.0;
+        preRollEndPpq_ = effectiveTimeSig().barPpq() * static_cast<double>(project_.preRollBars);
+        metronome_.reset();
+        preRollActive_.store(true, std::memory_order_release);
+    }
+
+    void LockstepProcessor::cancelPreRoll()
+    {
+        preRollActive_.store(false, std::memory_order_release);
+        preRollPpq_ = 0.0;
+    }
+
+    // A6: the click, from whichever path is running. During a count-in it always
+    // sounds (that is the point) and runs off its own ppq, because the sequencer's
+    // has not started yet. Otherwise it follows the CLICK toggle and the transport.
+    // Either way it lands on the Cue bus when the host has one enabled — a click in
+    // the front-of-house mix is nobody's idea of a good time — and on master if not.
+    void LockstepProcessor::processMetronome(juce::AudioBuffer<float>& buffer,
+                                             juce::AudioBuffer<float>& mainOut,
+                                             double blockStart, double blockEnd,
+                                             double samplesPerPpq, int numBlockSamples)
+    {
+        metronome_.setLevel(project_.metronomeLevel);
+        const auto metroCt = effectiveTimeSig();
+        const auto* cueBus = getBus(false, 1);
+        const bool toCue = (cueBus != nullptr && cueBus->isEnabled());
+        auto cueOut = toCue ? getBusBuffer(buffer, false, 1) : juce::AudioBuffer<float>();
+        auto& metroOut = toCue ? cueOut : mainOut;
+
+        if (preRollActive_.load(std::memory_order_acquire))
+        {
+            const double ppqPerBlock = (samplesPerPpq > 0.0)
+                ? static_cast<double>(numBlockSamples) / samplesPerPpq : 0.0;
+            const double preRollEnd = preRollPpq_ + ppqPerBlock;
+            metronome_.process(preRollPpq_, preRollEnd, samplesPerPpq, metroOut,
+                               metroCt.numerator, metroCt.denominator);
+            preRollPpq_ = preRollEnd;
+
+            // Count-in over: start for real. The fresh-start path re-anchors every
+            // track to step 0, so the downbeat lands where the last click did.
+            if (preRollPpq_ >= preRollEndPpq_)
+            {
+                preRollActive_.store(false, std::memory_order_release);
+                freshStartPending_.store(true, std::memory_order_release);
+                clock_.setInPluginPlaying(true);
+            }
+            return;
+        }
+
+        if (clock_.isMetronomeEnabled())
+            metronome_.process(blockStart, blockEnd, samplesPerPpq, metroOut,
+                               metroCt.numerator, metroCt.denominator);
+    }
+
+    std::pair<int, int> LockstepProcessor::preRollProgress() const
+    {
+        if (!preRollActive_.load(std::memory_order_acquire)) return { 0, 0 };
+        const double barPpq = effectiveTimeSig().barPpq();
+        if (barPpq <= 0.0) return { 0, project_.preRollBars };
+        return { static_cast<int>(preRollPpq_ / barPpq), project_.preRollBars };
     }
 
     void LockstepProcessor::transportTrackCut()
@@ -582,6 +663,7 @@ namespace lockstep
 
     void LockstepProcessor::transportPause()
     {
+        cancelPreRoll();   // A6: stopping mid-count-in abandons it
         if (hostedLocked())
             setPluginArmed(false);
         else
@@ -590,6 +672,7 @@ namespace lockstep
 
     void LockstepProcessor::transportStopReset()
     {
+        cancelPreRoll();   // A6
         // Hosted Locked: park only. Phase is always derived from host PPQ, so a
         // "reset" cannot shift the pattern against the DAW (decision C). The next
         // unpark (arm rising edge) re-floors the cursors and re-arms one-shots via
@@ -2342,6 +2425,11 @@ namespace lockstep
                 }
             }
 
+            // A6: a count-in runs with the sequencer stopped — that is what it is
+            // for — so the click has to sound on the idle path too.
+            processMetronome(buffer, mainOut, blockStart, blockEnd, samplesPerPpq,
+                             numBlockSamples);
+
             // Keep audio path (gain smoothing, DC blocker) running so it doesn't freeze.
             const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
             gainSmoothed_.setTargetValue(
@@ -3335,12 +3423,7 @@ namespace lockstep
         // Master insert chain — before metronome so the click is not sent through FX.
         processMasterChain(buffer, mainOut, numBlockSamples);
 
-        if (clock_.isMetronomeEnabled())
-        {
-            const auto metroCt = effectiveTimeSig();
-            metronome_.process(blockStart, blockEnd, samplesPerPpq, mainOut,
-                               metroCt.numerator, metroCt.denominator);
-        }
+        processMetronome(buffer, mainOut, blockStart, blockEnd, samplesPerPpq, numBlockSamples);
 
         // Output stage: smoothed gain → DC blocker → transparent soft-knee clip
         const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();

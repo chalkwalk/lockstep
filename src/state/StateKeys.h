@@ -23,6 +23,10 @@ namespace lockstep::keys
     // A5: volatile REC slot capacity in seconds. Written only when it differs from
     // the 60 s default, so an unchanged project stays byte-identical on re-save.
     inline constexpr const char* kVolatileSecs = "volatileSecs";
+    // A6: metronome click level and count-in length. Both written only when they
+    // differ from their defaults (0.6 / 0 bars).
+    inline constexpr const char* kMetroLevel = "metroLevel";
+    inline constexpr const char* kPreRollBars = "preRollBars";
     inline constexpr const char* kPluginArmed = "pluginArmed";  // v27: hosted-Locked arm gate
 
   // ── Song node ───────────────────────────────────────────────────────────────

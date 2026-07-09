@@ -2,6 +2,7 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <array>
+#include <algorithm>
 #include <cstdint>
 
 namespace lockstep
@@ -17,6 +18,13 @@ namespace lockstep
     {
     public:
         void prepare(double sampleRate);
+
+        // Click loudness, 0..1 (A6). Scales both the strong and weak clicks; the
+        // ratio between them — and their decay — is the metronome's identity and
+        // does not move. 0 is silence, which is what `CLICK OFF` already gives you,
+        // so the useful range is "quiet enough to play over".
+        void setLevel(float level) { level_ = std::clamp(level, 0.0f, 1.0f); }
+        [[nodiscard]] float level() const { return level_; }
 
         // blockStartPpq / blockEndPpq must be the ppqOffset-adjusted positions
         // (same coordinate space used by the sequencer tick loop).
@@ -39,6 +47,7 @@ namespace lockstep
         float decayRateStrong_ = 1.0f;
         float decayRateWeak_ = 1.0f;
         double freqIncrement_ = 0.0;
+        float level_ = 0.6f;
 
         void trigger(bool strong);
     };

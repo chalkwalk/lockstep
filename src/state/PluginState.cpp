@@ -617,6 +617,11 @@ namespace lockstep::PluginState
         // so this needs no version bump.
         if (std::abs(proc.volatileMaxSeconds() - 60.0) > 1.0e-6)
             nhNode.setProperty(keys::kVolatileSecs, proc.volatileMaxSeconds(), nullptr);
+        // A6: click level + count-in. Additive; defaults are the pre-A6 behaviour.
+        if (std::abs(proc.project().metronomeLevel - 0.6f) > 1.0e-6f)
+            nhNode.setProperty(keys::kMetroLevel, proc.project().metronomeLevel, nullptr);
+        if (proc.project().preRollBars != 0)
+            nhNode.setProperty(keys::kPreRollBars, proc.project().preRollBars, nullptr);
         // v27: hosted-Locked arm gate. Default-armed, so only write when parked to
         // keep old files byte-identical on re-save when armed.
         if (!proc.isPluginArmed())
@@ -852,6 +857,10 @@ namespace lockstep::PluginState
             nhNode.getProperty(keys::kLaunchQuant, static_cast<int>(LaunchQuant::Bar)));
         proc.setVolatileMaxSeconds(
             static_cast<double>(nhNode.getProperty(keys::kVolatileSecs, 60.0)));
+        proc.project().metronomeLevel =
+            static_cast<float>(static_cast<double>(nhNode.getProperty(keys::kMetroLevel, 0.6)));
+        proc.project().preRollBars =
+            static_cast<int>(nhNode.getProperty(keys::kPreRollBars, 0));
         // v27: hosted-Locked arm gate. Missing (v26 and earlier, or armed) → armed.
         proc.setPluginArmed(static_cast<int>(nhNode.getProperty(keys::kPluginArmed, 1)) != 0);
         // v21: Set-level default time signature.

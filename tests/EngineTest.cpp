@@ -28,6 +28,7 @@
 #include "../src/machine/StreamMachine.h"
 #include "../src/machine/StretchMachine.h"
 #include "../src/ui/ManipulationZone.h"   // lockMark (A2 chrome)
+#include "../src/ParameterIDs.h"
 #include "../src/machine/InputSource.h"
 #include "../src/core/OutputDest.h"
 #include "../src/core/Subdivision.h"
@@ -3477,6 +3478,141 @@ namespace lockstep
         }
     }
 
+    // A6: the count-in. Play, while record-armed with a non-zero PreRoll, clicks for
+    // N bars before the sequencer starts; a second Play aborts it. Hosted-Locked is
+    // untouched — the host owns transport start (PRINCIPLES §3).
+    static void testPreRollCountsInBeforeRecord()
+    {
+        constexpr double bpm = 120.0;      // EngineHarness default
+        constexpr double secsPerBar = 4.0 * 60.0 / bpm;   // 4/4 → 2 s
+        const int blocksPerBar = static_cast<int>(
+            secsPerBar * EngineHarness::kSampleRate / EngineHarness::kBlockSize);
+
+        // The harness reports as a plugin, and the default SyncMode is Locked, where
+        // Play toggles the host arm gate rather than a transport we own. Pre-roll is
+        // a standalone/Auto affair (PRINCIPLES §3), so switch these to Auto.
+        const auto setAuto = [](LockstepProcessor& proc) {
+            if (auto* sm = proc.apvts().getParameter(ParamIDs::syncMode))
+                sm->setValueNotifyingHost(1.0f);   // Auto
+        };
+
+        // Off by default: Play starts the transport immediately.
+        {
+            EngineHarness h;
+            auto& p = h.processor();
+            setAuto(p);
+            CHECK(p.project().preRollBars == 0, "pre-roll: off by default");
+            p.clock().setInPluginPlaying(false);
+            p.clock().setRecordArmed(true);
+            p.transportPlay();
+            CHECK(!p.preRollActive(), "pre-roll: no count-in when it is off");
+            CHECK(p.clock().inPluginPlaying(), "pre-roll: Play starts the transport");
+        }
+
+        // Armed + 2 bars: Play counts in, the sequencer stays stopped, and the
+        // transport starts at the end of the second bar.
+        {
+            EngineHarness h;
+            auto& p = h.processor();
+            setAuto(p);
+            p.clock().setInPluginPlaying(false);
+            p.clock().setRecordArmed(true);
+            p.project().preRollBars = 2;
+
+            p.transportPlay();
+            CHECK(p.preRollActive(), "pre-roll: Play begins the count-in");
+            CHECK(!p.clock().inPluginPlaying(),
+                  "pre-roll: the sequencer does not run during the count-in");
+            CHECK(p.preRollProgress().second == 2, "pre-roll: two bars to count");
+
+            // Most of the way through the first bar, still counting.
+            h.renderBlocks(blocksPerBar / 2);
+            CHECK(p.preRollActive(), "pre-roll: still counting inside bar 1");
+            CHECK(p.preRollProgress().first == 0, "pre-roll: reports bar 1");
+
+            h.renderBlocks(blocksPerBar);   // now inside bar 2
+            CHECK(p.preRollActive(), "pre-roll: still counting inside bar 2");
+            CHECK(p.preRollProgress().first == 1, "pre-roll: reports bar 2");
+
+            // Past the second bar: the count-in ends and the transport starts.
+            h.renderBlocks(blocksPerBar);
+            CHECK(!p.preRollActive(), "pre-roll: the count-in ends after N bars");
+            CHECK(p.clock().inPluginPlaying(), "pre-roll: the transport starts on the downbeat");
+        }
+
+        // Not record-armed: Play just plays. A count-in belongs to a record.
+        {
+            EngineHarness h;
+            auto& p = h.processor();
+            setAuto(p);
+            p.clock().setInPluginPlaying(false);
+            p.clock().setRecordArmed(false);
+            p.project().preRollBars = 2;
+            p.transportPlay();
+            CHECK(!p.preRollActive(), "pre-roll: no count-in without a record arm");
+            CHECK(p.clock().inPluginPlaying(), "pre-roll: Play plays");
+        }
+
+        // A second Play aborts the count-in without starting the transport.
+        {
+            EngineHarness h;
+            auto& p = h.processor();
+            setAuto(p);
+            p.clock().setInPluginPlaying(false);
+            p.clock().setRecordArmed(true);
+            p.project().preRollBars = 4;
+            p.transportPlay();
+            CHECK(p.preRollActive(), "pre-roll: counting");
+            p.transportPlay();
+            CHECK(!p.preRollActive(), "pre-roll: a second Play aborts it");
+            CHECK(!p.clock().inPluginPlaying(), "pre-roll: an aborted count-in never starts");
+            const auto idleProgress = p.preRollProgress();
+            CHECK(idleProgress.first == 0 && idleProgress.second == 0,
+                  "pre-roll: no progress to report when idle");
+        }
+
+        // Stopping mid-count-in abandons it.
+        {
+            EngineHarness h;
+            auto& p = h.processor();
+            setAuto(p);
+            p.clock().setInPluginPlaying(false);
+            p.clock().setRecordArmed(true);
+            p.project().preRollBars = 2;
+            p.transportPlay();
+            h.renderBlocks(4);
+            p.transportStopReset();
+            CHECK(!p.preRollActive(), "pre-roll: Stop abandons the count-in");
+        }
+    }
+
+    // A6: the click follows the time signature — a strong beat on each bar's 1, and
+    // a weak one on the rest. The metronome is the only source, so the master output
+    // level *is* the click.
+    static void testMetronomeLevelAndTimeSig()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+        p.clock().setMetronomeEnabled(true);
+        p.project().metronomeLevel = 1.0f;
+
+        // Silence the sequencer so the click is all that reaches the output.
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            p.setTrackMachine(t, StubMachine::kMachineId);
+
+        h.renderBlocks(1);
+        const float loud = h.lastBufferRms();
+        CHECK(loud > 0.0f, "metronome: an enabled click reaches the output");
+
+        // Level scales it; zero silences it without touching the toggle.
+        p.project().metronomeLevel = 0.0f;
+        p.clock().setInPluginPlaying(false);
+        h.playHead().resetPosition();
+        p.clock().setInPluginPlaying(true);
+        h.renderBlocks(1);
+        CHECK(h.lastBufferRms() < loud, "metronome: Level scales the click");
+    }
+
     // A5: sixteen volatile REC slots, addressed by ordinal; a capacity that is a
     // project setting rather than a compile-time constant; and no silent reuse of
     // slot 0 when the bank fills up.
@@ -3959,6 +4095,8 @@ namespace lockstep
         testMotionRecordingWritesCrossedSteps();
         testVolatileBank();
         testCaptureSlotCollisionGuard();
+        testPreRollCountsInBeforeRecord();
+        testMetronomeLevelAndTimeSig();
         testLoopReLatchInteractive();
         testOneShotDoesNotChokeHeldVoice();
         testRemovedTrigStillClosesHeldVoice();

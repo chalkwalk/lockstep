@@ -29,6 +29,15 @@ namespace lockstep
         // Default = C Ionian.
         KeySig defaultKeySig{};
 
+        // Metronome click level, 0..1 (A6). On/off lives on the Clock (it is a live
+        // performance toggle); how loud the click is, is a project preference.
+        float metronomeLevel = 0.6f;
+
+        // Count-in before a Lockstep-initiated record start, in bars: 0 (off), 1, 2
+        // or 4 (A6). Hosted, the host owns transport start (PRINCIPLES §3), so this
+        // never delays host play — only the record arming Lockstep itself begins.
+        int preRollBars = 0;
+
         // Per-slot capacity of the volatile (RAM-only) REC buffers, in seconds
         // (DESIGN §28). The buffers are allocated lazily — untouched pages are never
         // committed — so a generous ceiling costs address space, not memory, until

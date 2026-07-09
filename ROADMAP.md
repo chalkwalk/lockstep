@@ -2712,11 +2712,21 @@ first (DESIGN §40, PRINCIPLES §25.1, `docs/partner-app-concept.md`).
       accidental. `kVolatileBufferLabels` is static-asserted against the slot count.
       Serialization is additive (`volatileSecs`, written only when non-default), so
       no version bump. DESIGN §28.
-- [ ] **A6 — Metronome + pre-roll.** Both absent, both app-wide. A bar-synced,
-      accented click that honours per-Song/Scene time-signature overrides, routed to
-      the Cue bus when there is one; and an N-bar count-in before **Lockstep-initiated**
-      record arming. Hosted, the host owns transport start (§3) — pre-roll never
-      delays host play. Lives on the transport-globals page; no bespoke key (§2/§4).
+- [x] **A6 — Metronome + pre-roll.** The bar-synced accented click already existed
+      and already honoured the time signature (9.10); what it lacked was a **Level**
+      and a home other than the master bus. It now scales, and it lands on the **Cue**
+      output bus when the host has one enabled. **Pre-roll** is new: `Off / 1 / 2 / 4
+      Bar`, and with the sequencer record-armed, `Play` clicks for that many bars
+      before the transport starts (a second `Play`, or `Stop`, aborts). The count-in
+      runs on its own ppq, because the sequencer's has not started, and ends by
+      going through the ordinary fresh-start path — so the downbeat lands where the
+      last click did. Hosted, the host owns transport start (§3): a count-in is a
+      standalone/Auto affair and never delays host play. `processMetronome()` is the
+      single home for the click, called from both the running and the idle path (the
+      count-in *is* the idle path). Both controls join `CLICK` on the TIME band —
+      they are the click; no bespoke key (§2/§4). Chrome: the inspector reads
+      `COUNT-IN — bar 1 of 2`. Serialization is additive (`metroLevel`,
+      `preRollBars`), so no version bump.
 
 ---
 

@@ -342,6 +342,15 @@ namespace lockstep
         // Hosted Locked: Play toggles arm, Pause/StopReset park (no phase change ever).
         // Standalone / Auto: drive inPluginPlaying / resetPhase as before.
         void transportPlay();
+        // A6: the count-in. Play, while record-armed and with a non-zero preRollBars,
+        // clicks for N bars before the sequencer starts; a second Play aborts it.
+        // Standalone / Auto only — hosted, the host owns transport start (§3).
+        [[nodiscard]] bool preRollActive() const
+        {
+            return preRollActive_.load(std::memory_order_acquire);
+        }
+        // Bars elapsed / total, for the count-in readout. {0,0} when not counting in.
+        [[nodiscard]] std::pair<int, int> preRollProgress() const;
         void transportPause();
         void transportStopReset();
         // Layered stop model (DESIGN): the graceful stop is transportPause (sources
@@ -1335,6 +1344,20 @@ namespace lockstep
         // A3: live P-Lock (motion) recording, and the step each track's playhead is
         // currently standing on (which is every boundary, not just the fired ones —
         // unlike parkedStepIdx_ below).
+        // A6: count-in state. preRollPpq_ runs on its own because the sequencer's
+        // clock has not started yet; when it reaches preRollEndPpq_ the audio thread
+        // starts the transport through the ordinary fresh-start path.
+        std::atomic<bool> preRollActive_{ false };
+        double preRollPpq_ = 0.0;
+        double preRollEndPpq_ = 0.0;
+        void beginPreRoll();
+        void cancelPreRoll();
+        // One home for the click, called from both the running and idle paths.
+        void processMetronome(juce::AudioBuffer<float>& buffer,
+                              juce::AudioBuffer<float>& mainOut,
+                              double blockStart, double blockEnd,
+                              double samplesPerPpq, int numBlockSamples);
+
         MotionRecorder motionRecorder_;
         std::array<int, kNumTracks> motionStepIdx_{};
 

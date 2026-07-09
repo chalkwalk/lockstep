@@ -106,6 +106,16 @@ namespace lockstep
     static juce::String buildOverlayRegion(const UiState& ui,
                                            const LockstepProcessor& proc) noexcept
     {
+        // A6: a count-in is running. It outranks any modal narration — the performer
+        // needs to know how many bars are left, and the click is already saying so.
+        if (proc.preRollActive())
+        {
+            const auto [elapsed, total] = proc.preRollProgress();
+            const juce::String head = u8"COUNT-IN — bar ";
+            return head + juce::String(elapsed + 1) + " of "
+                   + juce::String(total) + "  Play=abort";
+        }
+
         // One cascade: narrate the active modal via the read SSOT (activeModal),
         // so the inspector text always agrees with what the grid/MZ shows. The
         // switch is exhaustive over Modal (no default) — adding a modal without an

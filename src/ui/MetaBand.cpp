@@ -21,6 +21,17 @@ namespace lockstep
     // Ratchet rates for per-step RTG authored field (9.10).
     // Matches the kRetrigRates table in PluginEditor.cpp; duplicated here to
     // avoid exposing PluginEditor internals to MetaBand.
+    // A6: the count-in lengths, and their encoder ordinals.
+    static constexpr std::array<int, 4> kPreRollBars = { { 0, 1, 2, 4 } };
+    static constexpr std::array<const char*, 4> kPreRollLabels = { { "Off", "1 Bar", "2 Bar", "4 Bar" } };
+
+    static int preRollIndexFor(int bars) noexcept
+    {
+        for (std::size_t i = 0; i < kPreRollBars.size(); ++i)
+            if (kPreRollBars[i] == bars) return static_cast<int>(i);
+        return 0;
+    }
+
     static constexpr std::array<double, 8> kRetrigRates = { {
         1.0,          // /4
         2.0 / 3.0,    // /4T
@@ -1717,6 +1728,29 @@ namespace lockstep
             const bool metOn = proc.clock().isMetronomeEnabled();
             click.value = metOn ? 1.0f : 0.0f;
             click.valueText = metOn ? juce::String("ON") : juce::String("OFF");
+
+            // A6: how loud the click is, and how many bars of it come before a
+            // record start. Both live beside CLICK because they are the click.
+            auto& lvl = result[3];
+            lvl.active = true;
+            lvl.label = "Level";
+            lvl.minValue = 0.0f;
+            lvl.maxValue = 1.0f;
+            lvl.writable = true;
+            lvl.ringMode = RingMode::UnipolarFill;
+            lvl.value = proc.project().metronomeLevel;
+            lvl.valueText = juce::String(static_cast<int>(lvl.value * 100.0f)) + "%";
+
+            auto& pre = result[4];
+            pre.active = true;
+            pre.label = "PreRoll";
+            pre.minValue = 0.0f;
+            pre.maxValue = 3.0f;   // Off / 1 / 2 / 4 bars
+            pre.stepped = true;
+            pre.writable = true;
+            pre.ringMode = RingMode::Dot;
+            pre.value = static_cast<float>(preRollIndexFor(proc.project().preRollBars));
+            pre.valueText = kPreRollLabels[static_cast<std::size_t>(pre.value)];
             return result;
         }
         if (band == MetaBand::StepPosition)
@@ -2528,6 +2562,15 @@ namespace lockstep
                 else if (field == 2)  // CLICK — metronome on/off (9.10)
                 {
                     proc.clock().setMetronomeEnabled(value >= 0.5f);
+                }
+                else if (field == 3)  // A6: click level
+                {
+                    proc.project().metronomeLevel = std::clamp(value, 0.0f, 1.0f);
+                }
+                else if (field == 4)  // A6: count-in, Off / 1 / 2 / 4 bars
+                {
+                    const int i = std::clamp(juce::roundToInt(value), 0, 3);
+                    proc.project().preRollBars = kPreRollBars[static_cast<std::size_t>(i)];
                 }
                 break;
             }
