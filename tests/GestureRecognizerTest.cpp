@@ -84,6 +84,28 @@ namespace lockstep
         CHECK(g.playDoubleTap(1200.0),           "play double-tap survives intervening token press");
     }
 
+    // ── playTapCount (layered stop: 1=graceful, 2=track cut, 3=master cut) ──────
+
+    static void testPlayTapCountEscalatesWithinWindow()
+    {
+        GestureRecognizer g;
+        const double t = 1000.0;
+        const double dt = 200.0;  // < kDoubleTapMs
+        CHECK(g.playTapCount(t) == 1,          "first play tap = 1 (graceful)");
+        CHECK(g.playTapCount(t + dt) == 2,     "second within window = 2 (track cut)");
+        CHECK(g.playTapCount(t + 2 * dt) == 3, "third within window = 3 (master cut)");
+        CHECK(g.playTapCount(t + 3 * dt) == 3, "fourth clamps at 3 (master cut)");
+    }
+
+    static void testPlayTapCountResetsAfterGap()
+    {
+        GestureRecognizer g;
+        g.playTapCount(1000.0);
+        g.playTapCount(1000.0 + 100.0);  // -> 2
+        const double late = 1000.0 + 100.0 + GestureRecognizer::kDoubleTapMs + 1.0;
+        CHECK(g.playTapCount(late) == 1, "a gap past the window resets the count to 1");
+    }
+
     // ── longPress ─────────────────────────────────────────────────────────────
 
     static void testLongPressShortHold()
@@ -169,6 +191,8 @@ namespace lockstep
         testPlayDoubleTapHitsWithinThreshold();
         testPlayDoubleTapMissesAfterThreshold();
         testPlayDoubleTapIndependentFromTokenPool();
+        testPlayTapCountEscalatesWithinWindow();
+        testPlayTapCountResetsAfterGap();
         testLongPressShortHold();
         testLongPressLongHold();
         testLongPressNotArmedReturnsNotArmed();

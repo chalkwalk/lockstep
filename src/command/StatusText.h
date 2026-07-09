@@ -138,6 +138,7 @@ namespace lockstep::status
     inline juce::String panic() { return "Panic"; }
     inline juce::String quantized() { return "Quantized"; }
     inline juce::String cancelled() { return "Cancelled"; }
+    inline juce::String transportReset() { return "Reset to start"; }
 
     // ---- clipboard / paste flow ---------------------------------------------
 

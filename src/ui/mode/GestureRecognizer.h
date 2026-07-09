@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <cstdint>
 #include "../../io/DoubleTapDetector.h"
 
@@ -45,6 +46,17 @@ namespace lockstep
             return r;
         }
 
+        // Play tap counter for the layered stop: consecutive Play presses within
+        // kDoubleTapMs increment the count (1, 2, 3, …); a longer gap resets to 1.
+        // 1 = graceful stop, 2 = track cut, 3 = master cut (clamped at 3).
+        int playTapCount(double nowMs) noexcept
+        {
+            playTapCount_ = (nowMs - playLastMs_) < kDoubleTapMs
+                                ? std::min(3, playTapCount_ + 1) : 1;
+            playLastMs_ = nowMs;
+            return playTapCount_;
+        }
+
         // ── Long-press ─────────────────────────────────────────────────────────
         // Arm on key-down; resolve on key-up with checkLongPress.
         void armLongPress(int token, double nowMs) noexcept
@@ -77,6 +89,7 @@ namespace lockstep
     private:
         DoubleTapDetector dtap_;
         double playLastMs_     = 0.0;
+        int    playTapCount_   = 0;
         int    longPressToken_  = -1;
         double longPressStartMs_ = 0.0;
         bool   longPressActive_ = false;
@@ -106,6 +119,10 @@ namespace lockstep
     // a double-tap forces the edge instantly, overriding the sync-mode quantize (#2).
     static constexpr int kLooperRecordToken = 7100;
     static constexpr int kLooperPlayToken   = 7200;
+
+    // Hold-Record = transport reset (rewind to phrase start). Long-press on the
+    // bare Record verb; the tap path keeps the ordinary record-arm/overdub.
+    static constexpr int kTransportResetToken = 7300;
 
     // 9.17: per-view step-token bases for the launch-quantize instant override.
     // Each launch view double-taps `base + stepIndex` so a step double-tap in one

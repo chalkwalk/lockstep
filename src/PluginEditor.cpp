@@ -1287,6 +1287,15 @@ namespace lockstep
                 captureLongPressFired_ = true;
                 runCaptureOut(captureController_.onLongPress());
             }
+            // Hold-Record = transport reset (rewind), fired mid-hold so it lands
+            // while held rather than on release.
+            if (recordResetHeld_ && !recordResetFired_
+                && gesture_.longPressElapsed(kTransportResetToken, nowMs))
+            {
+                recordResetFired_ = true;
+                processor_.transportStopReset();
+                setStatus(status::transportReset());
+            }
             const float capPeak = std::max(processor_.masterPeak(), processor_.masterPeakR());
             const bool capPlaying = processor_.clock().inPluginPlaying();
             const auto prevPhase = captureController_.phase();
@@ -5140,14 +5149,15 @@ namespace lockstep
                 playKeyHeld_ = true;
 
                 const double now = juce::Time::getMillisecondCounterHiRes();
-                const bool isDouble = gesture_.playDoubleTap(now);
-
-                // Route through the mode-aware verbs (single home for the decision,
-                // v27): standalone/Auto → toggle in-plugin Play (double-tap = stop+
-                // reset); hosted-Locked → arm/park the plugin (the in-plugin Play
-                // toggle is inert there, so driving it directly was a lying control).
-                if (isDouble)
-                    processor_.transportStopReset();
+                // Layered stop by Play tap-count (DESIGN): 1 = play/graceful-stop
+                // toggle, 2 = track cut (sends+master ring), 3 = master cut (dead).
+                // All hold phase; rewind is decoupled onto hold-Record. Immediate-
+                // then-upgrade: tap 1 acts now, taps 2/3 escalate the silence.
+                const int taps = gesture_.playTapCount(now);
+                if (taps >= 3)
+                    processor_.transportMasterCut();
+                else if (taps == 2)
+                    processor_.transportTrackCut();
                 else
                     processor_.transportPlay();
                 return true;
@@ -5273,22 +5283,17 @@ namespace lockstep
                     setStatus(status::capturedAll());
                     return true;
                 }
-                // Double-tap = overdub record; single tap = plain (overwrite) record.
-                {
-                    const double now = juce::Time::getMillisecondCounterHiRes();
-                    const bool isDouble = gesture_.doubleTap(
-                        1000 + static_cast<int>(ControllerButton::VerbRecord), now);
-                    if (isDouble)
-                    {
-                        processor_.clock().setRecordArmed(true);
-                        processor_.clock().setOverdubArmed(true);
-                    }
-                    else
-                    {
-                        processor_.clock().setOverdubArmed(false);
-                        processor_.clock().setRecordArmed(!processor_.clock().isRecordArmed());
-                    }
-                }
+                // Bare Record: hold = transport reset (rewind), tap = record-arm,
+                // double-tap = overdub. Reset must not fire on press (that would make
+                // record-arm the accidental default of a hold), and firing on release
+                // is fine for a reset (unlike Play, which stays press-triggered). So
+                // arm the long-press and defer tap/double-tap/reset resolution to
+                // key-up (mirrors the CAPTURE cell); the timer may fire the reset
+                // mid-hold.
+                gesture_.armLongPress(kTransportResetToken,
+                                      juce::Time::getMillisecondCounterHiRes());
+                recordResetHeld_ = true;
+                recordResetFired_ = false;
                 return true;
             }
 
@@ -6107,29 +6112,63 @@ namespace lockstep
                 break;
 
             case CB::VerbRecord: {
-                // CAPTURE cell resolution (tape deck). Other VerbRecord uses act on
-                // key-down and no-op here.
-                if (!captureCellHeld_) break;
-                captureCellHeld_ = false;
-                const double now = juce::Time::getMillisecondCounterHiRes();
                 using LPR = GestureRecognizer::LongPressResult;
-                const LPR lp = gesture_.checkLongPress(kCaptureToken, now);
-                if (captureLongPressFired_)
+                const double now = juce::Time::getMillisecondCounterHiRes();
+                // CAPTURE cell resolution (tape deck).
+                if (captureCellHeld_)
                 {
-                    // Long-press already serviced mid-hold (timer path). Consume.
-                    captureLongPressFired_ = false;
+                    captureCellHeld_ = false;
+                    const LPR lp = gesture_.checkLongPress(kCaptureToken, now);
+                    if (captureLongPressFired_)
+                    {
+                        // Long-press already serviced mid-hold (timer path). Consume.
+                        captureLongPressFired_ = false;
+                    }
+                    else if (lp == LPR::LongHold)
+                    {
+                        // Released just past the threshold before the timer ticked.
+                        runCaptureOut(captureController_.onLongPress());
+                    }
+                    else  // ShortHold / NotArmed → a tap; double-tap refines it.
+                    {
+                        const bool dbl = gesture_.doubleTap(kCaptureToken, now);
+                        const bool playing = processor_.clock().inPluginPlaying();
+                        runCaptureOut(dbl ? captureController_.onDoubleTap()
+                                          : captureController_.onTap(playing));
+                    }
+                    break;
                 }
-                else if (lp == LPR::LongHold)
+                // Bare Record: hold = transport reset, tap = record-arm, double-tap
+                // = overdub. Deferred from key-down so a hold doesn't also arm record.
+                if (recordResetHeld_)
                 {
-                    // Released just past the threshold before the timer ticked.
-                    runCaptureOut(captureController_.onLongPress());
-                }
-                else  // ShortHold / NotArmed → a tap; double-tap refines it.
-                {
-                    const bool dbl = gesture_.doubleTap(kCaptureToken, now);
-                    const bool playing = processor_.clock().inPluginPlaying();
-                    runCaptureOut(dbl ? captureController_.onDoubleTap()
-                                      : captureController_.onTap(playing));
+                    recordResetHeld_ = false;
+                    const LPR lp = gesture_.checkLongPress(kTransportResetToken, now);
+                    if (recordResetFired_)
+                    {
+                        recordResetFired_ = false;  // reset already fired mid-hold; consume
+                    }
+                    else if (lp == LPR::LongHold)
+                    {
+                        processor_.transportStopReset();  // released just past threshold
+                        setStatus(status::transportReset());
+                    }
+                    else  // tap → record-arm; double-tap → overdub
+                    {
+                        const bool isDouble = gesture_.doubleTap(
+                            1000 + static_cast<int>(ControllerButton::VerbRecord), now);
+                        if (isDouble)
+                        {
+                            processor_.clock().setRecordArmed(true);
+                            processor_.clock().setOverdubArmed(true);
+                        }
+                        else
+                        {
+                            processor_.clock().setOverdubArmed(false);
+                            processor_.clock().setRecordArmed(!processor_.clock().isRecordArmed());
+                        }
+                    }
+                    break;
                 }
                 break;
             }
