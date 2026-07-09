@@ -112,6 +112,17 @@ namespace lockstep
         // Cached per-block analysis for transient detection (message thread only).
         // Populated by SamplePool::load(); empty for missing entries.
         BlockAnalysis analysis;
+
+        // ── First-onset hint (A1) ────────────────────────────────────────────
+        // Where the audio actually starts, memoised by SamplePool::firstOnset().
+        // A loop exported with a sliver of silence in front of its downbeat must
+        // still fire on the 1; the players consume this as a normalised `start`.
+        // Both are 0 when the material starts on the 1 (or no onset was found) —
+        // that is the common case and the safe default. Derived data: recomputed
+        // on load, never serialised.
+        double onsetNorm = 0.0;      // 0..1 fraction of the source length
+        double onsetSeconds = 0.0;   // the same position, in seconds
+        bool   onsetComputed = false;
     };
 
     // Holds decoded PCM for every sample loaded into the session.
@@ -148,6 +159,18 @@ namespace lockstep
         // serializer for a MISSING file, so its cache survives a session where
         // the file could not be found). Message-thread only.
         void adoptCachedAnalysis(int index, const CachedAnalysis& ca);
+
+        // Where the audio actually begins (A1). `norm` is a 0..1 fraction of the
+        // source length, `seconds` the same position in time. {0, 0} means the
+        // material starts on the 1, no onset was found inside the search window,
+        // or the entry cannot be inspected — all of which callers treat alike.
+        //
+        // PCM entries read the block analysis load() already computed. PCM-less
+        // Stream entries decode a short head window from disk, so a streamed loop
+        // gets the same treatment as a RAM one. Computed once per entry and
+        // memoised on it. Message-thread only.
+        struct Onset { double norm = 0.0; double seconds = 0.0; };
+        Onset firstOnset(int index);
 
         // Append a placeholder entry for a file that could not be found.
         // Preserves the pool index so P-Lock references remain valid.

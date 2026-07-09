@@ -1420,6 +1420,9 @@ namespace lockstep
         // the box. A track that already has trigs is left untouched (no clobber).
         // Message thread (called from writeParam's sample-assign branch).
         void autoFitLoopTrack(int track, int poolIndex);
+        // Seed the loop player's `start` from the source's first transient, when
+        // that transient is pre-roll rather than a musical intro (A1).
+        void seedStartFromOnset(int track, int poolIndex);
 
         // Per-track launch-boundary test. Bar-family grids resolve against the
         // absolute bar/beat grid; PhraseEnd resolves against the track's own

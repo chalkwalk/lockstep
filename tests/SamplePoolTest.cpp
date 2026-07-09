@@ -290,6 +290,84 @@ namespace lockstep
             wav.deleteFile();
         }
 
+        // A1: firstOnset — where the audio actually starts ---------------------
+        {
+            const double sr = 44100.0;
+
+            // 0.1 s of silence, then a hard percussive attack that decays.
+            auto withPreRoll = [sr](double silenceSeconds, double totalSeconds) {
+                const int n = static_cast<int>(sr * totalSeconds);
+                const int hit = static_cast<int>(sr * silenceSeconds);
+                juce::AudioBuffer<float> b(1, n);
+                b.clear();
+                float* d = b.getWritePointer(0);
+                for (int i = hit; i < n; ++i)
+                {
+                    const double t = static_cast<double>(i - hit) / sr;
+                    d[i] = static_cast<float>(
+                        0.8 * std::exp(-t * 30.0)
+                        * std::sin(2.0 * juce::MathConstants<double>::pi * 220.0 * t));
+                }
+                return b;
+            };
+
+            // Pre-roll: the attack is found, and reported in both units.
+            {
+                juce::File wav = writeTempWav(withPreRoll(0.1, 1.0), sr, "lockstep_onset_pre");
+                SamplePool pool;
+                const int idx = pool.load(wav.getFullPathName());
+                const auto on = pool.firstOnset(idx);
+                CHECK(on.seconds > 0.05 && on.seconds < 0.15,
+                      "firstOnset: 100 ms pre-roll located (got "
+                      + juce::String(on.seconds, 4) + " s)");
+                CHECK(on.norm > 0.05 && on.norm < 0.15,
+                      "firstOnset: norm is the same position as a fraction");
+                // Memoised: a second call returns the same answer.
+                const auto again = pool.firstOnset(idx);
+                CHECK(feq(static_cast<float>(again.seconds),
+                          static_cast<float>(on.seconds)), "firstOnset memoises");
+                wav.deleteFile();
+            }
+
+            // Starts on the 1: no pre-roll to find, so {0, 0} — the safe default.
+            {
+                juce::File wav = writeTempWav(withPreRoll(0.0, 1.0), sr, "lockstep_onset_on1");
+                SamplePool pool;
+                const int idx = pool.load(wav.getFullPathName());
+                const auto on = pool.firstOnset(idx);
+                CHECK(feq(static_cast<float>(on.seconds), 0.0f) && feq(static_cast<float>(on.norm), 0.0f),
+                      "firstOnset: material starting on the 1 reports zero");
+                wav.deleteFile();
+            }
+
+            // A PCM-less Stream entry decodes a head window rather than giving up.
+            {
+                juce::File wav = writeTempWav(withPreRoll(0.1, 1.0), sr, "lockstep_onset_stream");
+                SamplePool pool;
+                const int idx = pool.addStreamRef(wav.getFullPathName());
+                CHECK(pool.get(idx) != nullptr && pool.get(idx)->pcm.getNumSamples() == 0,
+                      "firstOnset(stream): still PCM-less going in");
+                const auto on = pool.firstOnset(idx);
+                CHECK(on.seconds > 0.05 && on.seconds < 0.15,
+                      "firstOnset: stream entry locates its onset from disk (got "
+                      + juce::String(on.seconds, 4) + " s)");
+                CHECK(pool.get(idx)->pcm.getNumSamples() == 0,
+                      "firstOnset(stream): the head window never enters the pool");
+                wav.deleteFile();
+            }
+
+            // A volatile capture has no analysis and reports zero — the performer's
+            // punch defined the start, and nothing may move it.
+            {
+                SamplePool pool;
+                const int v = pool.addVolatile();
+                pool.prepareVolatile(sr, 1, 4096);
+                const auto on = pool.firstOnset(v);
+                CHECK(feq(static_cast<float>(on.norm), 0.0f),
+                      "firstOnset: volatile capture reports zero");
+            }
+        }
+
         // Item 6: addStreamRef — path + light hash, NO PCM; dedupe; ensurePcm ---
         {
             const double sr = 44100.0;

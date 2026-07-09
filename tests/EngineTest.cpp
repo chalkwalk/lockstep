@@ -3232,6 +3232,106 @@ namespace lockstep
         }
     }
 
+    // A1: a loop exported with a sliver of silence before its downbeat must still
+    // fire on the 1. Assigning it to an empty Stretch track seeds `player_start`
+    // with the first transient — but only when that transient really is pre-roll.
+    // Under Tempo the loop window stays the whole buffer, so a non-zero start
+    // rotates the loop (period unchanged) rather than trimming it.
+    static void testOnsetSeedsLoopStart()
+    {
+        constexpr double sr = 48000.0;
+
+        // A WAV of `total` seconds whose first attack lands at `hit` seconds.
+        auto writeHitAt = [](juce::TemporaryFile& tmp, double hit, double total) {
+            const juce::File& f = tmp.getFile();
+            const int len = static_cast<int>(sr * total);
+            const int at = static_cast<int>(sr * hit);
+            juce::AudioBuffer<float> data(1, len);
+            data.clear();
+            for (int i = at; i < len; ++i)
+            {
+                const double t = static_cast<double>(i - at) / sr;
+                data.setSample(0, i, static_cast<float>(
+                    0.8 * std::exp(-t * 30.0)
+                    * std::sin(2.0 * juce::MathConstants<double>::pi * 220.0 * t)));
+            }
+            juce::WavAudioFormat wav;
+            std::unique_ptr<juce::OutputStream> os(f.createOutputStream());
+            const auto opt = juce::AudioFormatWriterOptions{}
+                                 .withSampleRate(sr).withNumChannels(1).withBitsPerSample(32)
+                                 .withSampleFormat(
+                                     juce::AudioFormatWriterOptions::SampleFormat::floatingPoint);
+            if (auto w = wav.createWriterFor(os, opt))
+                w->writeFromAudioSampleBuffer(data, 0, len);
+        };
+
+        // Resolve the start slot from the schema, never a hard-coded index.
+        int startSlot = -1;
+        {
+            SamplePool probePool;
+            StretchMachine probe(probePool);
+            for (int i = 0; i < probe.numParams(); ++i)
+                if (juce::String(probe.paramSpec(i).id) == "player_start") startSlot = i;
+        }
+        CHECK(startSlot >= 0, "onset-seed: resolved player_start slot");
+
+        // Assign `wavPath` to an empty Stretch track; return the seeded start.
+        auto seededStart = [&](const juce::String& wavPath) {
+            EngineHarness h;
+            auto& p = h.processor();
+            p.setTrackMachine(0, StretchMachine::kMachineId);
+            const int idx = p.samplePool().load(wavPath);
+            const int sslot = p.sampleSlotForTrack(0);
+            p.writeParam(0, sslot, static_cast<float>(idx));
+            return p.sequence().tracks[0].baseParams[static_cast<std::size_t>(startSlot)];
+        };
+
+        // (1) 50 ms of pre-roll on a 2 s loop: seeded, and it points at the attack.
+        {
+            juce::TemporaryFile tmp(".wav");
+            writeHitAt(tmp, 0.05, 2.0);
+            const float start = seededStart(tmp.getFile().getFullPathName());
+            CHECK(start > 0.01f && start < 0.05f,
+                  "onset-seed: pre-roll seeds player_start at the attack (got "
+                  + juce::String(start, 4) + ")");
+        }
+
+        // (2) A pad that swells for a full second is not pre-roll: hands off. The
+        //     onset is late in both senses — past the first beat and past a tenth
+        //     of the source — so nothing is trimmed.
+        {
+            juce::TemporaryFile tmp(".wav");
+            writeHitAt(tmp, 1.0, 2.0);
+            const float start = seededStart(tmp.getFile().getFullPathName());
+            CHECK(feq(start, 0.0f),
+                  "onset-seed: a late attack is musical, not pre-roll (got "
+                  + juce::String(start, 4) + ")");
+        }
+
+        // (3) Material starting on the 1 stays at zero.
+        {
+            juce::TemporaryFile tmp(".wav");
+            writeHitAt(tmp, 0.0, 2.0);
+            const float start = seededStart(tmp.getFile().getFullPathName());
+            CHECK(feq(start, 0.0f), "onset-seed: material on the 1 keeps start = 0");
+        }
+
+        // (4) A track the user already sequenced is never re-seeded.
+        {
+            juce::TemporaryFile tmp(".wav");
+            writeHitAt(tmp, 0.05, 2.0);
+            EngineHarness h;
+            auto& p = h.processor();
+            p.setTrackMachine(0, StretchMachine::kMachineId);
+            p.setTrackLength(0, 8);
+            p.sequence().tracks[0].steps[3].trig = true;
+            const int idx = p.samplePool().load(tmp.getFile().getFullPathName());
+            p.writeParam(0, p.sampleSlotForTrack(0), static_cast<float>(idx));
+            CHECK(feq(p.sequence().tracks[0].baseParams[static_cast<std::size_t>(startSlot)], 0.0f),
+                  "onset-seed: a sequenced track keeps its own start");
+        }
+    }
+
     // 9.26 A regression (interactive route). A live player_loop toggle must be
     // honoured mid-voice through the REAL UI write path -- writeParam (no step
     // held) -> SetBaseParam -> StateResolver -> processBlock -- not just when the
@@ -3600,6 +3700,7 @@ namespace lockstep
         testExternalSendRoutesToHostBus();
         testStreamViaPoolPlaysAndRoundTrips();
         testAutoFitLoopTrackOnAssign();
+        testOnsetSeedsLoopStart();
         testLoopReLatchInteractive();
         testOneShotDoesNotChokeHeldVoice();
         testRemovedTrigStillClosesHeldVoice();

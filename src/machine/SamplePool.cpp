@@ -105,6 +105,69 @@ namespace lockstep
         s.analysed        = true;
     }
 
+    // How far into a source we are willing to call an attack "the start". Past
+    // this the material has a musical intro (a swell, a pickup), not a trimming
+    // artefact, and moving the start point would eat performance.
+    static constexpr double kOnsetSearchSeconds = 2.0;
+
+    // findFirstOnsetSample reports an onset at its analysis block's *midpoint*, so
+    // material that starts on the 1 comes back a half-block late rather than at 0.
+    // Anything inside the first block is "starts on the 1" — the same rounding
+    // placeSyncSlices does with its minimum-slice guard.
+    static int zeroIfWithinFirstBlock(int onset, int blockSize)
+    {
+        return (blockSize > 0 && onset < blockSize) ? 0 : onset;
+    }
+
+    SamplePool::Onset SamplePool::firstOnset(int index)
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size()))
+            return {};
+        auto& s = *samples_[static_cast<std::size_t>(index)];
+        if (s.onsetComputed)
+            return { s.onsetNorm, s.onsetSeconds };
+
+        s.onsetComputed = true;  // one attempt per entry, success or not
+
+        // A volatile capture has no block analysis, so it reports {0,0} — which is
+        // also the right answer: the performer's punch defined where it starts.
+        if (s.pcm.getNumSamples() > 0 && s.sampleRate > 0.0)
+        {
+            const int total = s.pcm.getNumSamples();
+            const int limit = std::min(
+                total, static_cast<int>(kOnsetSearchSeconds * s.sampleRate));
+            const int onset = zeroIfWithinFirstBlock(
+                findFirstOnsetSample(s.analysis, limit), s.analysis.blockSize);
+            s.onsetNorm    = static_cast<double>(onset) / static_cast<double>(total);
+            s.onsetSeconds = static_cast<double>(onset) / s.sampleRate;
+        }
+        else if (!s.missing && !s.ref.path.empty())
+        {
+            // PCM-less Stream entry: decode only the head window we search.
+            juce::File file(juce::String(s.ref.path));
+            std::unique_ptr<juce::AudioFormatReader> reader(
+                formatManager_.createReaderFor(file));
+            if (reader != nullptr && reader->sampleRate > 0.0
+                && reader->lengthInSamples > 0)
+            {
+                const double sr = reader->sampleRate;
+                const auto total = reader->lengthInSamples;
+                const auto headLen = static_cast<int>(std::min(
+                    total, static_cast<juce::int64>(kOnsetSearchSeconds * sr)));
+                juce::AudioBuffer<float> head(
+                    static_cast<int>(reader->numChannels), headLen);
+                reader->read(&head, 0, headLen, 0, true, true);
+
+                const BlockAnalysis ba = analyseSample(head, sr);
+                const int onset = zeroIfWithinFirstBlock(
+                    findFirstOnsetSample(ba, headLen), ba.blockSize);
+                s.onsetNorm    = static_cast<double>(onset) / static_cast<double>(total);
+                s.onsetSeconds = static_cast<double>(onset) / sr;
+            }
+        }
+        return { s.onsetNorm, s.onsetSeconds };
+    }
+
     // Estimate the loop tempo from the cached RMS envelope, gated by length:
     // material longer than kMaxLoopSeconds is long-form (StreamMachine's domain)
     // and pays no analysis cost. 0 = unknown (short/non-rhythmic/too long).
@@ -311,6 +374,7 @@ namespace lockstep
             s.pcm.getReadPointer(0),
             static_cast<std::size_t>(numSamples) * sizeof(float));
         s.analysis = analyseSample(s.pcm, s.sampleRate);
+        s.onsetComputed = false;  // now measurable from PCM, not a disk head
         if (!s.analysed)
         {
             const SampleHints hints;  // no reader metadata retained here
@@ -573,6 +637,7 @@ namespace lockstep
             s->pcm.getReadPointer(0),
             static_cast<std::size_t>(numSamples) * sizeof(float));
         s->analysis = analyseSample(s->pcm, s->sampleRate);
+        s->onsetComputed = false;  // different bytes, different attack
         // A relink means the bytes changed by definition — always re-analyse.
         const SampleHints hints = mergeHints(
             parseMetadataHints(reader->metadataValues),

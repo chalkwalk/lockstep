@@ -3658,6 +3658,41 @@ namespace lockstep
         withQuiescedEngine([&] { sm->setFilePath(path); });
     }
 
+    // A1: rotate a freshly assigned loop onto its first transient, so a file
+    // exported with a sliver of silence in front of the downbeat still fires on
+    // the 1. The players read `start` as a normalised trim, and under Tempo the
+    // loop window stays the whole buffer — so a non-zero start *rotates* the loop
+    // (hit at t=0, period unchanged) rather than shortening it.
+    //
+    // Only a pre-roll-like onset qualifies: it must land inside the first beat AND
+    // the first tenth of the source. A pad that swells for a bar keeps its swell;
+    // a mid-file hit is never trimmed away.
+    void LockstepProcessor::seedStartFromOnset(int track, int poolIndex)
+    {
+        auto* m = machines_[static_cast<std::size_t>(track)].get();
+        const auto onset = samplePool_.firstOnset(poolIndex);
+        if (onset.seconds <= 0.0 || onset.norm <= 0.0)
+            return;
+
+        const double bpm = samplePool_.effectiveBpm(poolIndex);
+        const double beatSeconds = (bpm > 0.0) ? 60.0 / bpm : 0.5;
+        if (onset.seconds > beatSeconds || onset.norm > 0.10)
+            return;
+
+        auto& trk = sequence().tracks[static_cast<std::size_t>(track)];
+        for (int i = 0; i < m->numParams(); ++i)
+        {
+            const juce::String id(m->paramSpec(i).id);
+            if (id == "player_start" || id == "start")
+            {
+                if (static_cast<std::size_t>(i) < trk.baseParams.size())
+                    trk.baseParams[static_cast<std::size_t>(i)] =
+                        static_cast<float>(onset.norm);
+                return;
+            }
+        }
+    }
+
     void LockstepProcessor::autoFitLoopTrack(int track, int poolIndex)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
@@ -3677,6 +3712,8 @@ namespace lockstep
         for (int i = 0; i < trk.length; ++i)
             if (trk.steps[static_cast<std::size_t>(i)].trig)
                 return;
+
+        seedStartFromOnset(track, poolIndex);
 
         // A one-shot (drum hit, stab) is not a loop: seed a plain trig on step 1,
         // no loop, no bar-sizing. Uses the effective flag so a user correction (or

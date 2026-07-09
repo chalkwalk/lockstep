@@ -2645,12 +2645,17 @@ The play-test round that produced the deck-engine design (DESIGN §40, Phase 11)
 also produced two bugs and four independent features. They are unrelated to each
 other and to the deck; one commit each, each with tests. Docs for the deck landed
 first (DESIGN §40, PRINCIPLES §25.1, `docs/partner-app-concept.md`).
-- [ ] **A1 — Stretch/Stream start on the first transient.** Onset detection
-      exists (`findFirstOnsetSample`) but only the Slice SYNC grid calls it, so an
-      auto-fit loop with silent pre-roll starts before the 1. Stamp
-      `firstOnsetSample` on the pool entry at analysis; `autoFitLoopTrack` seeds the
-      `start` param from it, but **only when the onset is pre-roll-like** (early /
-      under a beat) so mid-file hits never trim material. All assignment paths.
+- [x] **A1 — Stretch/Stream start on the first transient.** Onset detection
+      existed (`findFirstOnsetSample`) but only the Slice SYNC grid called it, so an
+      auto-fit loop with silent pre-roll started before the 1. `SamplePool::firstOnset`
+      memoises the attack position per entry (PCM entries from the block analysis
+      load() already computes; PCM-less Stream entries from a decoded head window);
+      `seedStartFromOnset` seeds the player's `start` from it on assignment, but
+      **only when the onset is pre-roll-like** — inside the first beat *and* the
+      first tenth of the source — so a pad's swell is never trimmed. Under Tempo the
+      loop window stays the whole buffer, so a non-zero start rotates the loop
+      (hit at t=0, period unchanged) rather than shortening it. A volatile capture
+      reports zero by design: the punch defined its start.
 - [ ] **A2 — Trigless (lock-only) trigs are inert until the step is re-held.**
       Two gaps behind one symptom. (i) While stopped, the resolver runs with
       `resolveStep = -1` unless a step is physically held — resolve against the last
