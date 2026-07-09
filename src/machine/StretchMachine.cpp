@@ -131,6 +131,15 @@ namespace lockstep
         }
     }
 
+    void StretchMachine::killAllVoices()
+    {
+        // Hard CUT: drop out of both play and graceful-release so the down-ramp uses
+        // the fast gate (fadeInc_) and reaches 0 within ~5 ms, masked by the track-cut
+        // bus mute. Leaves nothing to bloom back when the transport resumes.
+        playing_ = false;
+        releasing_ = false;
+    }
+
     double StretchMachine::pitchRatioFor(int midiNote, const ParamFrame& params) const
     {
         const float pitchSemis = (params.size() > kSlotPitch) ? params[kSlotPitch] : 0.0f;

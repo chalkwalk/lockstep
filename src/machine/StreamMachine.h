@@ -57,6 +57,10 @@ namespace lockstep
         // adjustable `player_release` time so a single-tap graceful stop rings down.
         void releaseAllVoices() override;
 
+        // Track/master CUT (double/triple-tap Play): snap the stream out over the fast
+        // gate with no release, so a resumed transport starts clean.
+        void killAllVoices() override;
+
         [[nodiscard]] int numParams() const override { return kNumSlots; }
         [[nodiscard]] ParamSpec paramSpec(int index) const override;
 

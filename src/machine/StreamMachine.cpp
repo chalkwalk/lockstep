@@ -186,6 +186,14 @@ namespace lockstep
         }
     }
 
+    void StreamMachine::killAllVoices()
+    {
+        // Hard CUT: cancel any graceful release and drop out of play so the down-ramp
+        // uses the fast gate (~5 ms), leaving nothing to bloom back on resume.
+        playing_ = false;
+        releasing_ = false;
+    }
+
     void StreamMachine::applyLoop(bool loop)
     {
         // Loop window (9.23 S4): Tempo loops the full musical length (phase-locked

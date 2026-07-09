@@ -49,6 +49,11 @@ namespace lockstep
         // being cut. Called on the transport falling edge for every non-MIDI track.
         void releaseAllVoices() override;
 
+        // Track/master CUT (double/triple-tap Play): snap the voice out over the fast
+        // gate with no release, so a resumed transport starts clean. Cancels any
+        // in-flight graceful release so the slow ramp can't outlive the mute.
+        void killAllVoices() override;
+
         [[nodiscard]] int numParams() const override { return kNumSlots; }
         [[nodiscard]] ParamSpec paramSpec(int index) const override;
 

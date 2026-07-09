@@ -145,6 +145,15 @@ namespace lockstep
         // (open-ended / held voices the pending-note-off bookkeeping doesn't track).
         virtual void releaseAllVoices() {}
 
+        // Hard-kill every internal voice NOW, over the fast anti-click gate and with
+        // no musical release. Used by the layered stop's track/master CUT (double /
+        // triple-tap Play): a CUT must leave nothing sounding, so a resumed transport
+        // starts clean rather than un-muting a still-decaying tail. Distinct from the
+        // graceful releaseAllVoices() (single-tap stop, tails ring). Default: delegate
+        // to releaseAllVoices() — machines with a fast amp release are already close
+        // enough; sustained sample players (Stretch/Stream) override for a true snap.
+        virtual void killAllVoices() { releaseAllVoices(); }
+
         // The sequencer resolves Override-ELSE-Base into a single ParamFrame
         // per block and hands it across the boundary. The machine writes
         // additively into `buffer`. `events` carries note-on/off from the

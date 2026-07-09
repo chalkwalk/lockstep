@@ -1980,6 +1980,33 @@ namespace lockstep
             // silent while the send + master FX ring on. Reused by processTrackChain.
             {
                 const int cl = cutLevel_.load(std::memory_order_acquire);
+
+                // CUT rising edge (graceful stop -> track/master cut): hard-kill every
+                // voice NOW so the mute hides the kill and a resumed transport starts
+                // clean instead of un-muting a still-decaying tail. Distinct from the
+                // graceful falling-edge release (single-tap stop) that lets tails ring.
+                if (cl >= 2 && lastCutLevel_ < 2)
+                {
+                    for (std::size_t i = 0; i < kNumTracks; ++i)
+                    {
+                        if (machines_[i]->isMidiOut())
+                        {
+                            juce::MidiBuffer stopBuf;
+                            static_cast<MidiOutMachine*>(machines_[i].get())->allNotesOff(stopBuf);
+                            if (!isStandalone)
+                                midi.addEvents(stopBuf, 0, -1, 0);
+                        }
+                        else
+                        {
+                            machines_[i]->killAllVoices();
+                            auto& pnf = pendingNoteOffs_[i];
+                            if (pnf.samplesRemaining > 0 || pnf.openEnded)
+                                pnf.samplesRemaining = 0;
+                        }
+                    }
+                }
+                lastCutLevel_ = cl;
+
                 const float target = (cl >= 2) ? 0.0f : 1.0f;
                 const double sr = getSampleRate() > 0.0 ? getSampleRate() : 48000.0;
                 const float inc = static_cast<float>(1.0 / (0.008 * sr));

@@ -352,6 +352,48 @@ namespace lockstep
                   + juce::String(longRel, 2) + " vs short " + juce::String(shortRel, 4) + ")");
         }
 
+        // Hard CUT: killAllVoices() snaps the voice out over the fast ~5 ms gate even
+        // with a LONG player_release set — the layered stop's track/master cut must
+        // leave nothing decaying, so a resumed transport starts clean. With the SAME
+        // long release, releaseAllVoices() (graceful stop) keeps ringing ~50 ms; kill
+        // ignores the release param, so its post-stop energy is far lower.
+        {
+            // Both variants use release = 1.0 (~2 s graceful fade); `kill` selects the
+            // hard cut, so the only difference is which stop method fires.
+            auto runStop = [&](bool kill) {
+                StretchMachine p(pool);
+                p.prepare(kSr, 256);
+                TransportInfo tr;
+                tr.samplesPerBar = static_cast<double>(srcLen);
+                tr.running = true;
+                p.setTransport(tr);
+                ParamFrame fr{ static_cast<float>(idx), 0.0f, 1.0f, 0.0f,
+                               0.0f, 1.0f, 0.0f, 0.0f, 1.0f };
+                juce::AudioBuffer<float> blk(1, 256);
+                juce::MidiBuffer on;
+                on.addEvent(juce::MidiMessage::noteOn(1, 60, 1.0f), 0);
+                juce::MidiBuffer none;
+                p.process(on, fr, blk);
+                for (int b = 0; b < 6; ++b) { blk.clear(); p.process(none, fr, blk); }
+                if (kill) p.killAllVoices(); else p.releaseAllVoices();
+                double e = 0.0;  // energy over ~48 ms after the stop
+                for (int b = 0; b < 9; ++b)
+                {
+                    blk.clear();
+                    p.process(none, fr, blk);
+                    for (int i = 0; i < 256; ++i)
+                        e += static_cast<double>(blk.getSample(0, i)) * blk.getSample(0, i);
+                }
+                return e;
+            };
+            const double killE    = runStop(true);
+            const double gracefulE = runStop(false);
+            CHECK(gracefulE > killE * 20.0 + 1.0,
+                  "hard cut: killAllVoices() ignores a long player_release — its ~48 ms "
+                  "post-stop energy is far below the graceful release's (kill "
+                  + juce::String(killE, 4) + " vs graceful " + juce::String(gracefulE, 2) + ")");
+        }
+
         // Reverse: the amplitude envelope plays mirrored. Build a fade-in sine so
         // forward output rises in energy and reverse output falls.
         {

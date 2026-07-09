@@ -1129,6 +1129,7 @@ namespace lockstep
         float trackCutGain_ = 1.0f;   // audio-thread: pre-send track output cut ramp
         float masterCutGain_ = 1.0f;  // audio-thread: post-FX master output cut ramp
         bool  masterFxCleared_ = false;  // reset master/send FX once per master cut
+        int   lastCutLevel_ = 0;  // audio-thread: previous cutLevel_, for CUT rising edge
         std::vector<float> cutRampScratch_;  // per-block track-cut gain trajectory
 
         // Legacy: queued pattern switch. -1/-1 means no switch pending.
