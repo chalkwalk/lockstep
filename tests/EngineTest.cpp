@@ -27,6 +27,7 @@
 #include "../src/machine/LoopMachine.h"
 #include "../src/machine/StreamMachine.h"
 #include "../src/machine/StretchMachine.h"
+#include "../src/ui/ManipulationZone.h"   // lockMark (A2 chrome)
 #include "../src/machine/InputSource.h"
 #include "../src/core/OutputDest.h"
 #include "../src/core/Subdivision.h"
@@ -3332,6 +3333,84 @@ namespace lockstep
         }
     }
 
+    // A2: a trigless (lock-only) trig's P-Locks must keep riding a sustaining voice
+    // after the transport stops. The idle render path used to resolve against step
+    // -1 (base only) unless a step was physically held, so the *only* way to hear a
+    // lock-only trig while stopped was to hold its step again — exactly the
+    // "trigless trigs do nothing" report. idleResolveStep is now the single owner of
+    // that choice: held step wins, else the parked step (the last one crossed).
+    static void testIdleResolveStepParksOnLastFired()
+    {
+        // Fresh processor: nothing has played, so base params only.
+        {
+            EngineHarness h;
+            CHECK(h.processor().idleResolveStep(0) == -1,
+                  "idle-resolve: nothing played yet → base only");
+        }
+
+        // Play across a lock-only step, stop, and the parked step survives.
+        {
+            EngineHarness h;
+            auto& p = h.processor();
+            p.setTrackLength(0, 4);
+            auto& trk = p.sequence().tracks[0];
+            for (int i = 0; i < 4; ++i) trk.steps[static_cast<std::size_t>(i)].trig = false;
+            trk.steps[0].trig = true;                 // a note to sustain
+            trk.steps[1].lockOnly = true;            // the trigless trig
+
+            // One 1/16 step at 120 BPM is 0.125 PPQ; a block is 256/48000 s. Render
+            // enough blocks to cross steps 0 and 1, then stop.
+            h.renderBlocks(64);
+            CHECK(p.idleResolveStep(0) >= 0,
+                  "idle-resolve: playhead parked on a real step");
+            h.playHead().setPlaying(false);
+            h.renderBlocks(2);
+            CHECK(p.idleResolveStep(0) >= 0,
+                  "idle-resolve: the parked step survives the transport stop");
+        }
+
+        // A held step always wins over the parked step — you audition what you edit.
+        {
+            EngineHarness h;
+            auto& p = h.processor();
+            p.setTrackLength(0, 4);
+            p.sequence().tracks[0].steps[0].trig = true;
+            h.renderBlocks(32);
+            p.editContext().hold(0, 3);
+            CHECK(p.idleResolveStep(0) == 3, "idle-resolve: a held step wins");
+            CHECK(p.idleResolveStep(1) != 3,
+                  "idle-resolve: the hold does not leak to another track");
+            p.editContext().release(3);
+        }
+    }
+
+    // A2 (ii): a P-Lock on a note-on-latched slot cannot reach a sustaining voice,
+    // so on a lock-only step it is a lock that does nothing. The schema says which
+    // slots those are, and the MZ marker says so to the performer.
+    static void testNoteOnLatchedSlotsAreMarked()
+    {
+        SamplePool pool;
+        StretchMachine stretch(pool);
+        auto latched = [&](const char* id) {
+            for (int i = 0; i < stretch.numParams(); ++i)
+                if (juce::String(stretch.paramSpec(i).id) == id)
+                    return stretch.paramSpec(i).noteOnLatched;
+            return false;
+        };
+        CHECK(latched("player_start"), "latched: player_start is captured at note-on");
+        CHECK(latched("player_reverse"), "latched: player_reverse is captured at note-on");
+        CHECK(latched("player_timestretch"), "latched: tsMode is captured at note-on");
+        CHECK(latched("sample_id"), "latched: the source is bound at note-on");
+        CHECK(!latched("player_loop"),
+              "latched: player_loop rides a sustaining voice (9.26 A) — not latched");
+        CHECK(!latched("player_pitch"), "latched: pitch is read per block — not latched");
+        CHECK(!latched("player_tune"), "latched: tune is read per block — not latched");
+
+        CHECK(lockMark(false, false) == "", "lockMark: no lock, no marker");
+        CHECK(lockMark(true, false) == " *", "lockMark: a live lock reads '*'");
+        CHECK(lockMark(true, true) == " *!", "lockMark: a dead lock reads '*!'");
+    }
+
     // 9.26 A regression (interactive route). A live player_loop toggle must be
     // honoured mid-voice through the REAL UI write path -- writeParam (no step
     // held) -> SetBaseParam -> StateResolver -> processBlock -- not just when the
@@ -3701,6 +3780,8 @@ namespace lockstep
         testStreamViaPoolPlaysAndRoundTrips();
         testAutoFitLoopTrackOnAssign();
         testOnsetSeedsLoopStart();
+        testIdleResolveStepParksOnLastFired();
+        testNoteOnLatchedSlotsAreMarked();
         testLoopReLatchInteractive();
         testOneShotDoesNotChokeHeldVoice();
         testRemovedTrigStillClosesHeldVoice();

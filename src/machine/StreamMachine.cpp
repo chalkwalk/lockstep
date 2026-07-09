@@ -32,6 +32,7 @@ namespace lockstep
                 s.maxValue = 63.0f;
                 s.defaultValue = 0.0f;
                 s.isStepped = true;
+                s.noteOnLatched = true;   // the reader is bound at note-on
                 return s;
             case kSlotStart:
                 // Existing id — renaming would orphan saved projects.
@@ -41,6 +42,7 @@ namespace lockstep
                 s.maxValue = 1.0f;
                 s.defaultValue = 0.0f;
                 s.isStepped = false;
+                s.noteOnLatched = true;   // startFrame_ is captured at note-on
                 return s;
             case kSlotPitch:
                 s.id = "player_pitch";
@@ -70,6 +72,7 @@ namespace lockstep
                 s.defaultValue = 1.0f;  // Tempo (no effective BPM yet ⇒ ratio 1.0)
                 s.isStepped = true;
                 s.valueLabels = std::span<const char* const>(kTsLabels.data(), kTsLabels.size());
+                s.noteOnLatched = true;   // tsMode_ is captured at note-on
                 return s;
             case kSlotLoop:
                 s.id = "player_loop";

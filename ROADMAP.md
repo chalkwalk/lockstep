@@ -2656,13 +2656,20 @@ first (DESIGN §40, PRINCIPLES §25.1, `docs/partner-app-concept.md`).
       loop window stays the whole buffer, so a non-zero start rotates the loop
       (hit at t=0, period unchanged) rather than shortening it. A volatile capture
       reports zero by design: the punch defined its start.
-- [ ] **A2 — Trigless (lock-only) trigs are inert until the step is re-held.**
-      Two gaps behind one symptom. (i) While stopped, the resolver runs with
-      `resolveStep = -1` unless a step is physically held — resolve against the last
-      fired step instead, without disturbing held-step editing. (ii) Note-on-latched
-      slots (`startSample_`, `reverse_`, `tsMode_`) can't be moved by a lock-only
-      step at all; re-latch only the start-class ones on the playback ride, and give
-      the un-rideable slots distinct chrome on a lock-only step rather than lying.
+- [x] **A2 — Trigless (lock-only) trigs are inert until the step is re-held.**
+      Two gaps behind one symptom. (i) While stopped the idle render path resolved
+      with `resolveStep = -1` unless a step was physically held. `idleResolveStep()`
+      is now the single owner of that choice: held step, else the **parked** step.
+      Parking needed its own field — `firedStepIdx_` is live fire state that
+      `refloorAllCursors` clears on a locate/stop, so `parkedStepIdx_` rides beside
+      it and both are written only through `setFiredStep()`. A parked step past the
+      track's current length resolves to base. (ii) Note-on-latched slots
+      (`startSample_`, `reverse_`, `tsMode_`, the source) can never be moved by a
+      lock-only step, because it rides an already-sounding voice. Rather than
+      re-latch them mid-voice (a seek/reverse/mode flip cannot be done without a
+      crossfade — deferred), `ParamSpec::noteOnLatched` states the fact and the MZ
+      marks such a lock `*!` instead of `*`. Machines opt in as they are audited;
+      Stretch and Stream are done.
 - [ ] **A3 — Live P-lock (motion) recording.** Record-armed + playing + no step
       held: turning a knob opens a per-slot motion window that writes the live value
       as a P-lock into each step the playhead crosses, closing ~150 ms after the last

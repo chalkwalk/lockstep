@@ -13,6 +13,17 @@ namespace lockstep
     class LockstepProcessor;
     class KeyboardArea;
 
+    // The P-Lock marker a slot's value-text carries (A2). " *" = a live lock.
+    // " *!" = a lock on a note-on-latched slot (ParamSpec::noteOnLatched) of a
+    // trigless step: the value is stored, but a lock-only trig rides an already
+    // sounding voice, and a latched slot was read at note-on. It will never fire.
+    // Pure; unit-tested. Inline so the headless test target needs no UI object.
+    [[nodiscard]] inline juce::String lockMark(bool hasLock, bool deadLock)
+    {
+        if (!hasLock)  return {};
+        return deadLock ? " *!" : " *";
+    }
+
     // Shows kMZSlots (8) parameter slots in a 4×2 grid for the active track.
     // Reads from and writes to the correct layer — Step Override when a step
     // is held, Track Base otherwise — via LockstepProcessor::writeParam.

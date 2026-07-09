@@ -623,6 +623,10 @@ namespace lockstep
             const bool fillHeld = processor_.fillActive();
             const bool fillEdit = stepHeld && fillHeld && heldStep >= 0;
             bool hasLock = false;
+            // A2: a lock on a note-on-latched slot can never reach a sustaining
+            // voice, so on a trigless (lock-only) step it is a lock that does
+            // nothing. Say so rather than let it look armed.
+            bool deadLock = false;
 
             if (stepHeld && heldStep >= 0)
             {
@@ -640,6 +644,7 @@ namespace lockstep
                 {
                     hasLock = s.overrides.has(slot);
                 }
+                deadLock = hasLock && s.lockOnly && meta.noteOnLatched;
             }
 
             MetaRotary::View sv;
@@ -668,7 +673,8 @@ namespace lockstep
                 layoutSamplePickerButton();
                 samplePickerBtn_.setVisible(true);
                 const juce::String idxStr = juce::String(poolIdx) + ": ";
-                valueLabels_[si].setText(idxStr + shortName + (hasLock ? " *" : ""), juce::dontSendNotification);
+                valueLabels_[si].setText(idxStr + shortName + lockMark(hasLock, deadLock),
+                                         juce::dontSendNotification);
             }
             else
             {
@@ -686,8 +692,7 @@ namespace lockstep
                 {
                     valueText = formatParamValue(value, meta);
                 }
-                if (hasLock)
-                    valueText += " *";
+                valueText += lockMark(hasLock, deadLock);
                 valueLabels_[si].setText(valueText, juce::dontSendNotification);
             }
 

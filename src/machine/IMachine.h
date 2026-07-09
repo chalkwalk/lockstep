@@ -110,6 +110,18 @@ namespace lockstep
         // the extreme still read as the label.
         const char* minLabel = nullptr;
         const char* maxLabel = nullptr;
+
+        // True when the machine reads this slot only at note-on and latches it for
+        // the life of the voice (a playback start point, a reverse flag, a stretch
+        // mode). A trigless / lock-only trig (DESIGN §30) rides its P-Locks onto an
+        // *already sounding* voice, so a lock on a latched slot can never take
+        // effect there — it is a lock that does nothing.
+        //
+        // This is a statement of fact about the machine, and it exists so chrome can
+        // say so (PRINCIPLES §10) rather than let the performer write a dead lock and
+        // wonder. Machines that can honour a mid-voice change (Stretch's player_loop,
+        // per-block pitch, filter cutoff) leave it false.
+        bool noteOnLatched = false;
     };
 
     // Returned by LockstepProcessor::section() after augmenting the machine's

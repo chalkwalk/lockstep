@@ -147,6 +147,13 @@ namespace lockstep
             return clock_.bpm() * effectiveTempoRatio();
         }
 
+        // Which step this track's parameters resolve against while the sequencer is
+        // idle: the held step if it has one, else the last step the playhead crossed
+        // (the parked step), else -1 for base-only. Single owner of that choice — the
+        // idle render path calls it, and it is what keeps a trigless trig's P-Locks
+        // alive on a sustaining voice after the transport stops (A2).
+        [[nodiscard]] int idleResolveStep(int track) const;
+
         // ── Working buffer = arrangement_.working (the resolver reads this) ───
         Sequence& sequence() { return arrangement_.working; }
         const Sequence& sequence() const { return arrangement_.working; }
@@ -1308,6 +1315,12 @@ namespace lockstep
         // Last step index that actually fired per track; -1 until first fire.
         // Used for FLTR P-Lock resolution in the sequencer path.
         std::array<int, kNumTracks> firedStepIdx_{};
+        // The last step the playhead crossed, per track (A2). Unlike firedStepIdx_
+        // this is NOT cleared by refloorAllCursors: it is what the idle render path
+        // resolves against, so a trigless trig's P-Locks survive a transport stop.
+        // Written only through setFiredStep().
+        std::array<int, kNumTracks> parkedStepIdx_{};
+        void setFiredStep(std::size_t track, int stepIdx);
 
         // 5.6 one-shot spent state (RAM-only, DESIGN §30): true once a one-shot
         // step has fired, suppressing it until re-armed (transport start, scene

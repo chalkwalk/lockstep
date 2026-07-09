@@ -142,6 +142,7 @@ namespace lockstep
         nextTriggerPpq_.fill(0.0);
         trackAnchorPpq_.fill(0.0);
         firedStepIdx_.fill(-1);
+        parkedStepIdx_.fill(-1);
         lastRecordedStepNum_.fill(std::numeric_limits<int64_t>::min());
         for (auto& d : trackDensity_) d.store(1.0f, std::memory_order_relaxed);
         masterDensity_.store(0.0f, std::memory_order_relaxed);
@@ -480,6 +481,34 @@ namespace lockstep
         }
     }
 
+    // A2: single owner of "the playhead just crossed this step". firedStepIdx_ is
+    // live fire state — refloorAllCursors clears it on a locate/stop so playback
+    // re-anchors — while parkedStepIdx_ is a memory that must survive exactly that,
+    // because a trigless trig's P-Locks are meant to keep riding a sustaining voice
+    // after the transport stops. Two readers, one writer.
+    void LockstepProcessor::setFiredStep(std::size_t track, int stepIdx)
+    {
+        firedStepIdx_[track] = stepIdx;
+        parkedStepIdx_[track] = stepIdx;
+    }
+
+    // Which step a track's parameters resolve against while the sequencer is idle.
+    // A held step wins — you are auditioning the step you are editing. Otherwise the
+    // parked step. Without that fallback a trigless (lock-only) trig's P-Locks
+    // vanished the moment the transport stopped, and the only way to hear one was to
+    // hold its step again. -1 = base only (nothing has played, or the parked step no
+    // longer exists on this track after a length/phrase change).
+    int LockstepProcessor::idleResolveStep(int track) const
+    {
+        if (editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == track)
+            return editContext_.heldStepIndex();
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return -1;
+        const int parked = parkedStepIdx_[static_cast<std::size_t>(track)];
+        const int len = sequence().tracks[static_cast<std::size_t>(track)].length;
+        return (parked >= 0 && parked < len) ? parked : -1;
+    }
+
     void LockstepProcessor::refloorAllCursors(double blockStart)
     {
         for (std::size_t i = 0; i < kNumTracks; ++i)
@@ -668,6 +697,7 @@ namespace lockstep
             pnf.openEnded = false;
         }
         firedStepIdx_.fill(-1);
+        parkedStepIdx_.fill(-1);
         lastScheduledStepNum_.fill(-1);
         nextTriggerPpq_.fill(0.0);
         trackAnchorPpq_.fill(0.0);
@@ -2241,11 +2271,7 @@ namespace lockstep
                     muteGain_[i].skip(numBlockSamples);
                     continue;
                 }
-                // Resolve against the held step so P-Locks written by the note-on
-                // are included in the frame, falling back to -1 (base only).
-                int resolveStep = -1;
-                if (editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == static_cast<int>(i))
-                    resolveStep = editContext_.heldStepIndex();
+                const int resolveStep = idleResolveStep(static_cast<int>(i));
                 const bool fillNow = fillActiveForTrack(static_cast<int>(i));
                 const MorphContext mc0{ &section(), static_cast<int>(i), faderNow, machines_[i].get() };
                 auto frame = StateResolver::resolve(sequence().tracks[i], resolveStep, fillNow, &mc0);
@@ -2805,7 +2831,7 @@ namespace lockstep
                     const int fireAt = std::clamp(
                         static_cast<int>((ptFire - blockStart) * samplesPerPpq),
                         0, numBlockSamples - 1);
-                    firedStepIdx_[i] = ptStep;
+                    setFiredStep(i, ptStep);
                     lastScheduledStepNum_[i] = ptStNum;
                     lastStepFired_[i] = true;
                     pendingTrigs_[i].pending = false;
@@ -2977,7 +3003,7 @@ namespace lockstep
                                 }
                             }
 
-                            firedStepIdx_[i] = stepIdx;  // ME.4: for FLTR P-Locks
+                            setFiredStep(i, stepIdx);  // ME.4: for FLTR P-Locks
                             lastScheduledStepNum_[i] = stepNum;
                             lastStepFired_[i] = true;
 
@@ -3001,7 +3027,7 @@ namespace lockstep
                             // resolver at this step (firedStepIdx_ drives the machine
                             // frame + FLTR/CHANNEL/ENV/insert overrides), but emit no
                             // note and never close the open gate.
-                            firedStepIdx_[i] = stepIdx;
+                            setFiredStep(i, stepIdx);
                             lastScheduledStepNum_[i] = stepNum;
                             lastStepFired_[i] = false;
                         }
@@ -3174,7 +3200,7 @@ namespace lockstep
                                     const int fireAt = std::clamp(
                                         static_cast<int>((firePpq - blockStart) * samplesPerPpq),
                                         0, numBlockSamples - 1);
-                                    firedStepIdx_[i] = stepIdx;
+                                    setFiredStep(i, stepIdx);
                                     lastScheduledStepNum_[i] = stepNum;
                                     lastStepFired_[i] = true;
                                     emitTrig(stepIdx, fireAt);

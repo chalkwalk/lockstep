@@ -17,6 +17,7 @@ namespace lockstep
                 s.maxValue = 127.0f;  // clamped to pool size at write time
                 s.defaultValue = 0.0f;
                 s.isStepped = true;
+                s.noteOnLatched = true;   // the source is bound in startNote()
                 return s;
             case kSlotPitch:
                 s.id = "player_pitch";
@@ -35,6 +36,7 @@ namespace lockstep
                 s.defaultValue = 1.0f;  // Tempo — track the project tempo by default
                 s.isStepped = true;
                 s.valueLabels = std::span<const char* const>(kTsLabels.data(), kTsLabels.size());
+                s.noteOnLatched = true;   // tsMode_ is captured in startNote()
                 return s;
             case kSlotStart:
                 s.id = "player_start";
@@ -43,6 +45,7 @@ namespace lockstep
                 s.maxValue = 1.0f;
                 s.defaultValue = 0.0f;
                 s.isStepped = false;
+                s.noteOnLatched = true;   // startSample_ is captured in startNote()
                 return s;
             case kSlotTune:
                 s.id = "player_tune";
@@ -71,6 +74,7 @@ namespace lockstep
                 s.defaultValue = 0.0f;  // Fwd
                 s.isStepped = true;
                 s.valueLabels = std::span<const char* const>(kRevLabels.data(), kRevLabels.size());
+                s.noteOnLatched = true;   // reverse_ is captured in startNote()
                 return s;
             case kSlotTuneMode:
                 s.id = "player_tune_mode";
