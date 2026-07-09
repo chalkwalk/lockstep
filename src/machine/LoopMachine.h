@@ -183,7 +183,8 @@ namespace lockstep
         static constexpr int kSlotMonitor = 3;       // Auto | On | Off (live-thru, #1)
         static constexpr int kSlotDecay = 4;         // 0 = no decay … 1 = full (#4)
         static constexpr int kSlotDecayMode = 5;     // Overdub | Always (#4)
-        static constexpr int kNumSlots = 6;
+        static constexpr int kSlotFreewheel = 6;     // 0 = follow transport, 1 = freewheel
+        static constexpr int kNumSlots = 7;
         // loop_sync value: Sync = grid-locked to the track's own length × divider,
         // pushed via ILoopGridAware (S1). Any value >= this is grid-locked.
         static constexpr int kSyncGrid = 2;
@@ -338,6 +339,9 @@ namespace lockstep
         // (feedback knob); Always fades the whole loop once per iteration (tape echo).
         static constexpr std::array<const char* const, 2> kDecayModeLabels = {
             "Overdub", "Always"
+        };
+        static constexpr std::array<const char* const, 2> kFreewheelLabels = {
+            "Follow", "Free"
         };
     };
 }

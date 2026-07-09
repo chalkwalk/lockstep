@@ -199,6 +199,36 @@ namespace lockstep
                   "Sync: loop length follows the track grid (8 steps = 512)");
         }
 
+        // DESIGN (layered stop): a Sync (grid-locked) loop is subordinate to the
+        // main transport — its playback goes silent when the transport stops (holding
+        // position for an in-phase resume), and a per-track loop_freewheel opts out.
+        // (A Free loop plays transport-stopped — the S2 stopped-take block covers it.)
+        {
+            SamplePool p; p.addVolatile(); p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LoopMachine lp(p); lp.prepare(kSr, n);
+            lp.setLoopGrid(16, 0.25);
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0; tr.running = true;
+            lp.setTransport(tr);
+            ParamFrame sync{ 1.0f, 0.0f, 2.0f };  // input=Ext, target=0, loop_sync=Sync
+            runP(lp, 512, 0.5f, Cmd::RecordCycle, sync);
+            runP(lp, 512, 0.5f, Cmd::None, sync);  // → Playing, loop of 0.5
+
+            auto playing = runP(lp, 256, 0.0f, Cmd::None, sync);
+            CHECK(std::abs(playing.getSample(0, 10)) > 0.1f,
+                  "subordinate: Sync loop plays with the transport running");
+
+            tr.running = false; lp.setTransport(tr);
+            auto stopped = runP(lp, 256, 0.0f, Cmd::None, sync);
+            CHECK(std::abs(stopped.getSample(0, 10)) < 1.0e-4f,
+                  "subordinate: Sync loop is silent when the transport stops");
+
+            // Freewheel opt-out (loop_freewheel = 1): plays regardless of transport.
+            ParamFrame fw{ 1.0f, 0.0f, 2.0f, 0.0f, 0.0f, 0.0f, 1.0f };
+            auto freed = runP(lp, 256, 0.0f, Cmd::None, fw);
+            CHECK(std::abs(freed.getSample(0, 10)) > 0.1f,
+                  "freewheel: loop plays despite the stopped transport");
+        }
+
         // S2: loop-position chrome for the mini-seq. A playing loop publishes a phase
         // 0..1 (continuous playhead); idle/stopped publishes -1.
         {

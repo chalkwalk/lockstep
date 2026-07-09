@@ -83,6 +83,16 @@ namespace lockstep
                 s.valueLabels = std::span<const char* const>(kDecayModeLabels.data(),
                                                              kDecayModeLabels.size());
                 return s;
+            case kSlotFreewheel:
+                s.id = "loop_freewheel";
+                s.label = "Freewhl";
+                s.minValue = 0.0f;
+                s.maxValue = 1.0f;
+                s.defaultValue = 0.0f;  // follow the main transport (subordinate)
+                s.isStepped = true;
+                s.valueLabels = std::span<const char* const>(kFreewheelLabels.data(),
+                                                             kFreewheelLabels.size());
+                return s;
             default:
                 return {};
         }
@@ -581,6 +591,18 @@ namespace lockstep
         const int decayMode = (params.size() > kSlotDecayMode)
             ? static_cast<int>(std::lround(params[kSlotDecayMode])) : kDecayOverdub;
 
+        // Layered stop / DESIGN: a Sync (grid-locked) loop is subordinate to the
+        // main transport — its playback holds when the transport stops and re-derives
+        // its position from the transport phase on resume (automatic phase-correct).
+        // A Free/Free-Len loop is not transport-locked, so it freewheels by nature
+        // (plays transport-stopped — the pedal workflow); the explicit per-track
+        // `loop_freewheel` param lets a Sync loop opt out of the subordination too.
+        // Recording/monitoring are unaffected here.
+        const bool freewheel = (params.size() > kSlotFreewheel)
+            && std::lround(params[kSlotFreewheel]) >= 1;
+        const bool transportGates =
+            freewheel || (syncMode_ < kSyncGrid) || transport_.running;
+
         // Drain the command FIFO: apply every queued edge (discrete verbs + momentary
         // press/release) in order before the DSP runs this block.
         {
@@ -705,10 +727,10 @@ namespace lockstep
                             target_->setSample(ch, recPos_, in);  // record regardless of monitor
                         break;
                     case State::Playing:
-                        if (tch && loopLen_ > 0) loopOut = loopSample(ch, pos);
+                        if (tch && loopLen_ > 0 && transportGates) loopOut = loopSample(ch, pos);
                         break;
                     case State::Overdubbing:
-                        if (tch && loopLen_ > 0)
+                        if (tch && loopLen_ > 0 && transportGates)
                         {
                             // R4: monitor the committed loop A plus the in-progress
                             // overdub layer B, and scatter the input into B with a
@@ -747,7 +769,7 @@ namespace lockstep
             //     once-per-iteration scale since the overdub touches every slot once).
             //   • Committing B (add-only) folds the pass in AFTER A's decay, so k
             //     passes give A = Σ gᵏ⁻ʲ·Bⱼ (the classic feedback-looper sum).
-            if (loopLen_ > 0 && !brNow && !tapeNow
+            if (loopLen_ > 0 && !brNow && !tapeNow && transportGates
                 && (state_ == State::Playing || state_ == State::Overdubbing)
                 && pos < lastPos_)
             {
@@ -765,7 +787,8 @@ namespace lockstep
                     || (recLenTarget_ > 0 && recPos_ >= recLenTarget_))
                     closeRecording();
             }
-            else if ((state_ == State::Playing || state_ == State::Overdubbing) && loopLen_ > 0)
+            else if ((state_ == State::Playing || state_ == State::Overdubbing)
+                     && loopLen_ > 0 && transportGates)
             {
                 if (brNow)
                 {
