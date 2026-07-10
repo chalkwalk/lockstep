@@ -62,7 +62,7 @@ namespace lockstep
         target_ = pool_.mutableVolatilePcm(poolIdx);
         if (target_ == nullptr)
         {
-            capturing_ = false;
+            deck_.setState(dc::DeckState::Idle);
             samplesRemaining_ = 0;
             return;
         }
@@ -78,7 +78,7 @@ namespace lockstep
         target_ = pool_.beginVolatileCapture(poolIdx, recLen);
         if (target_ == nullptr)
         {
-            capturing_ = false;
+            deck_.setState(dc::DeckState::Idle);
             samplesRemaining_ = 0;
             return;
         }
@@ -91,13 +91,13 @@ namespace lockstep
 
         writePos_ = 0;
         samplesRemaining_ = recLen;
-        capturing_ = true;
+        deck_.setState(dc::DeckState::Recording);
     }
 
     void RecordMachine::writeInput(const juce::AudioBuffer<float>& input,
                                      int startSample, int numSamples)
     {
-        if (!capturing_ || target_ == nullptr || samplesRemaining_ <= 0 || numSamples <= 0)
+        if (! capturing() || target_ == nullptr || samplesRemaining_ <= 0 || numSamples <= 0)
             return;
 
         const int n = std::min(numSamples, samplesRemaining_);
@@ -108,7 +108,7 @@ namespace lockstep
         writePos_ += n;
         samplesRemaining_ -= n;
         if (samplesRemaining_ <= 0)
-            capturing_ = false;
+            deck_.setState(dc::DeckState::Idle);
     }
 
     void RecordMachine::process(const juce::MidiBuffer& events,

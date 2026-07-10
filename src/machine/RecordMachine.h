@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../deckcore/Deck.h"
 #include "IMachine.h"
 #include "ITempoAware.h"
 #include "InputSource.h"
@@ -42,7 +43,7 @@ namespace lockstep
         }
         void reset() override
         {
-            capturing_ = false;
+            deck_.setState(dc::DeckState::Idle);
             writePos_ = 0;
             samplesRemaining_ = 0;
             target_ = nullptr;
@@ -88,6 +89,13 @@ namespace lockstep
         static constexpr float kMaxRecSeconds = 12.0f;
         static constexpr float kDefaultRecSeconds = 2.0f;
 
+        // Recording iff the deck says so. The trig starts it; the take's own length
+        // ends it, which is what makes Record a one-shot rather than a gesture.
+        [[nodiscard]] bool capturing() const noexcept
+        {
+            return deck_.state() == dc::DeckState::Recording;
+        }
+
         void startCapture(int targetSlot, float recSeconds);
         void writeInput(const juce::AudioBuffer<float>& input, int startSample, int numSamples);
 
@@ -95,8 +103,11 @@ namespace lockstep
         double sampleRate_ = 44100.0;
         TransportInfo transport_{};  // last block transport (C2)
 
-        // Capture state (audio-thread only).
-        bool capturing_ = false;
+        // Capture state (audio-thread only). Record is the deck engine's linear,
+        // one-shot face (DESIGN §40.1): its verbs arrive as recorder trigs rather
+        // than console presses and its take closes itself, but "is this deck
+        // recording?" has one answer across Record, Loop and Tape.
+        dc::Deck deck_;
         int writePos_ = 0;
         int samplesRemaining_ = 0;
         juce::AudioBuffer<float>* target_ = nullptr;
