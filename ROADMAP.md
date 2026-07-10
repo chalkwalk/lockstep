@@ -2749,7 +2749,7 @@ commit each, each with tests.
       through the shared polyphase (a circular-wrap read variant), passing the
       **effective per-sample advance** (including the tape-FX multiplier, which
       the overdub scatter call should also honour).
-- [ ] **9.28.3 — `Resampler::readCircular` + rate-axis coverage.** The wrapping
+- [x] **9.28.3 — `Resampler::readCircular` + rate-axis coverage.** The wrapping
       twin of `read()` (the scatter path already wraps), plus tests pinning the
       previously untested corners: zero rate, negative rate, and seam
       continuity on a circular read.

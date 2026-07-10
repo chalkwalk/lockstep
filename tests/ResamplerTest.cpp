@@ -219,5 +219,55 @@ namespace lockstep
             CHECK(worst < 5.0e-3f,
                   "reverse scatter mirrors forward (worst " + juce::String(worst) + ")");
         }
+
+        // ── readCircular: seam continuity + rate-axis corners (9.28.3) ───────
+        // On a buffer holding exactly one period of a tone, a circular read is
+        // periodic across the seam (pos and pos+len agree), matches read() in the
+        // interior, holds a defined value at rate 0, and is direction-agnostic.
+        {
+            const int len = 512;
+            std::vector<float> s(static_cast<std::size_t>(len));
+            for (int i = 0; i < len; ++i)  // 8 cycles → exactly periodic over len
+                s[static_cast<std::size_t>(i)] = static_cast<float>(0.5 * std::sin(
+                    2.0 * juce::MathConstants<double>::pi * 8.0 * i / len));
+
+            float worstSeam = 0.0f, worstInner = 0.0f, worstDir = 0.0f;
+            for (double frac = 0.0; frac < 1.0; frac += 0.093)
+            {
+                // Periodicity: reads one whole loop apart agree, including reads
+                // whose window straddles the seam.
+                const double nearSeam = static_cast<double>(len) - 2.0 + frac;
+                worstSeam = std::max(worstSeam,
+                    std::abs(rs.readCircular(s.data(), len, nearSeam, 1.0)
+                           - rs.readCircular(s.data(), len, nearSeam - len, 1.0)));
+
+                // Interior agreement with the clamping read (window touches no edge).
+                const double inner = 100.0 + frac;
+                worstInner = std::max(worstInner,
+                    std::abs(rs.readCircular(s.data(), len, inner, 1.0)
+                           - rs.read(s.data(), len, inner, 1.0)));
+
+                // Direction-agnostic: the reconstructed waveform at a position does
+                // not depend on the travel direction (|rate| picks the kernel).
+                worstDir = std::max(worstDir,
+                    std::abs(rs.readCircular(s.data(), len, inner, 2.0)
+                           - rs.readCircular(s.data(), len, inner, -2.0)));
+            }
+            CHECK(worstSeam < 1.0e-4f,
+                  "circular read is periodic across the seam (worst "
+                  + juce::String(worstSeam) + ")");
+            CHECK(worstInner < 1.0e-4f,
+                  "circular read matches read() in the interior (worst "
+                  + juce::String(worstInner) + ")");
+            CHECK(worstDir < 1.0e-6f,
+                  "circular read is direction-agnostic (worst "
+                  + juce::String(worstDir) + ")");
+
+            // Rate 0 (a parked or turning head) holds a finite, sensible value.
+            const float held = rs.readCircular(s.data(), len, 100.25, 0.0);
+            CHECK(std::isfinite(held) && std::abs(held) <= 0.6f,
+                  "rate-0 circular read holds a bounded sample ("
+                  + juce::String(held) + ")");
+        }
     }
 }

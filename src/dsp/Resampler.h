@@ -57,6 +57,34 @@ namespace lockstep
             return acc;
         }
 
+        // read()'s circular twin (9.28.3): the window taps wrap mod `len` instead
+        // of clamping at the edges, so a read across the seam of a periodic loop
+        // buffer sees the loop's actual continuation — the read-side mirror of
+        // scatterAddCircular's wrap. Direction-agnostic; pass any signed rate.
+        [[nodiscard]] float readCircular(const float* src, int len, double pos,
+                                         double rate) const noexcept
+        {
+            if (len <= 0) return 0.0f;
+            const Bucket& b = bucketFor(rate);
+            double p = std::fmod(pos, static_cast<double>(len));
+            if (p < 0.0) p += static_cast<double>(len);
+            const double baseF = std::floor(p);
+            const int base = static_cast<int>(baseF);
+            int ph = static_cast<int>((p - baseF) * kPhases + 0.5);
+            if (ph < 0) ph = 0;
+            if (ph > kPhases) ph = kPhases;
+
+            const float* tab = b.table.data() + static_cast<std::size_t>(ph) * kTaps;
+            float acc = 0.0f;
+            for (int i = 0; i < kTaps; ++i)
+            {
+                int k = (base - (kHalf - 1) + i) % len;
+                if (k < 0) k += len;
+                acc += src[k] * tab[static_cast<std::size_t>(i)];
+            }
+            return acc;
+        }
+
         // Bandlimited scatter-ADD: the transpose of read(). Distribute `in` across
         // the same kernel taps into `dst` at fractional position `pos`, wrapping
         // CIRCULARLY over `len` (a periodic loop buffer). Used for varispeed overdub
