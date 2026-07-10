@@ -232,12 +232,15 @@ namespace lockstep
         // Snapshot the loop's first `loopLen_` samples for one-level overdub undo,
         // without resizing the pool buffer.
         void snapshotForUndo();
-        // Linear-interpolated read of the loop at a fractional position [0,loopLen_).
-        [[nodiscard]] float loopSample(int ch, double pos) const;
-        // Circular Hermite read of an arbitrary loop-length buffer (the overdub
-        // layer B) at a fractional position — no wrap crossfade (that is A's job).
+        // Bandlimited read of the loop at a fractional position [0,loopLen_).
+        // `readRate` = effective per-sample advance of the head: above unity the
+        // read routes through the shared polyphase (rate-aware cutoff, 9.28.2);
+        // at or below it a circular Hermite read suffices (anti-imaging only).
+        [[nodiscard]] float loopSample(int ch, double pos, double readRate) const;
+        // Same read law over an arbitrary loop-length buffer (the overdub layer
+        // B) at a fractional position — no wrap crossfade (that is A's job).
         [[nodiscard]] float readLayer(const juce::AudioBuffer<float>& buf, int ch,
-                                      double pos) const;
+                                      double pos, double readRate) const;
         // R4 overdub layering: commit the fresh overdub layer B into the committed
         // loop A (add-only) and clear B; or drop B unchanged. commit is a per-loop-
         // iteration fold at the wrap (and on exit from Overdubbing) so the
@@ -270,6 +273,11 @@ namespace lockstep
         // Fired by firePending() when the transport phase crosses a bar-grid boundary.
         int pendingAction_ = 0;
         double rate_ = 1.0;       // current (slewed) varispeed rate
+        // Effective per-sample head advance actually applied (rate_ times the
+        // tape-FX multiplier, or the resync catch-up sum) — the rate the head
+        // reads and writes at (9.28.2). Updated at each advance site; reads use
+        // the previous sample's value (slewed, so the one-sample lag is inert).
+        double effRate_ = 1.0;
         int xfadeLen_ = 0;        // loop-wrap crossfade length (samples), C5
         bool haveBackup_ = false;
         // S4: a HALF/DBL length edit detaches the loop from grid-lock — it then plays

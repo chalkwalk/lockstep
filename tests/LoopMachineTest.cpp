@@ -755,5 +755,70 @@ namespace lockstep
             CHECK(sync.id == juce::String("loop_sync"), "C5: slot 2 is loop_sync");
             CHECK(sync.defaultValue == 2.0f, "C5: loop_sync defaults to Sync (2)");
         }
+
+        // 9.28.2: loop reads above unity rate are bandlimited. A Free-Len loop of
+        // an 18 kHz tone played at rate 2 (tempo doubled after the take) images to
+        // 36 kHz; a Hermite read passes the 12 kHz fold-back at high level, the
+        // rate-aware polyphase attenuates the out-of-band source instead (the
+        // read-side twin of ResamplerTest's anti-aliasing case).
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LoopMachine lp(p); lp.prepare(kSr, n);
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.running = false;
+            lp.setTransport(tr);
+            ParamFrame fr{ 1.0f, 0.0f, 1.0f };  // Free Len
+
+            // Record exactly 1024 samples of 18 kHz (0.375 cyc/sample → 384 whole
+            // cycles per loop, so the seam is phase-continuous).
+            juce::MidiBuffer none;
+            int phase = 0;
+            auto toneBlock = [&](Cmd cmd) {
+                if (cmd != Cmd::None) lp.postCommand(cmd, /*immediate*/ true);
+                juce::AudioBuffer<float> b(2, n);
+                for (int i = 0; i < n; ++i)
+                {
+                    const float v = static_cast<float>(0.5 * std::sin(
+                        2.0 * juce::MathConstants<double>::pi * 18000.0
+                        * (phase + i) / kSr));
+                    b.setSample(0, i, v);
+                    b.setSample(1, i, v);
+                }
+                phase += n;
+                ParamFrame pp = fr;
+                lp.process(none, pp, b);
+                return b;
+            };
+            toneBlock(Cmd::RecordCycle);       // record 512
+            toneBlock(Cmd::None);              // record to 1024
+            toneBlock(Cmd::RecordCycle);       // close → Playing, loopLen 1024
+
+            // Double the tempo: Free-Len rate slews to loopLen/tOut = 2. Let the
+            // 20 ms slew settle (~10 blocks), then measure.
+            TransportInfo fast = tr; fast.samplesPerBar = 512.0;
+            lp.setTransport(fast);
+            auto silent = [&]() {
+                juce::AudioBuffer<float> b(2, n);
+                b.clear();
+                ParamFrame pp = fr;
+                lp.process(none, pp, b);
+                return b;
+            };
+            for (int i = 0; i < 10; ++i) silent();
+            double sumSq = 0.0; int count = 0;
+            for (int i = 0; i < 8; ++i)
+            {
+                auto out = silent();
+                for (int s = 0; s < n; ++s)
+                {
+                    const double x = out.getSample(0, s);
+                    sumSq += x * x; ++count;
+                }
+            }
+            const double rms = std::sqrt(sumSq / std::max(1, count));
+            CHECK(rms < 0.1,
+                  "9.28.2: rate-2 loop read attenuates out-of-band content (rms "
+                  + juce::String(rms) + ", Hermite fold-back was ~0.3)");
+        }
     }
 }

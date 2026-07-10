@@ -158,18 +158,23 @@ namespace lockstep
         haveBackup_ = true;
     }
 
-    float LoopMachine::loopSample(int ch, double pos) const
+    float LoopMachine::loopSample(int ch, double pos, double readRate) const
     {
         if (target_ == nullptr || loopLen_ <= 0) return 0.0f;
         double p = std::fmod(pos, static_cast<double>(loopLen_));
         if (p < 0.0) p += static_cast<double>(loopLen_);
 
-        // 4-point Hermite read (9.24). The loop material is periodic, so the
-        // outer neighbours wrap circularly (mod loopLen_) — well-defined across
-        // the loop seam, and a strict quality upgrade over the old 2-point linear
-        // read, which imaged badly whenever the tape/varispeed/beat-repeat path
-        // drove `pos` to a fractional value.
+        // Circular fractional read (9.24 Hermite, 9.28.2 rate-aware). The loop
+        // material is periodic, so the window wraps mod loopLen_ — well-defined
+        // across the loop seam. Above unity a Hermite read has no rate-aware
+        // cutoff and aliases (a take longer than its sync window plays at
+        // loopLen/tOut > 1; the post-tape-FX resync catch-up overshoots too), so
+        // |readRate| > 1 routes through the shared bandlimited circular read. At
+        // or below unity Hermite is clean (anti-imaging only) and cheaper.
         const auto interp = [&](double x) -> float {
+            if (std::abs(readRate) > 1.0)
+                return sharedLoopResampler().readCircular(
+                    target_->getReadPointer(ch), loopLen_, x, readRate);
             double q = std::fmod(x, static_cast<double>(loopLen_));
             if (q < 0.0) q += static_cast<double>(loopLen_);
             const int i0 = static_cast<int>(q);
@@ -199,11 +204,14 @@ namespace lockstep
     }
 
     float LoopMachine::readLayer(const juce::AudioBuffer<float>& buf, int ch,
-                                 double pos) const
+                                 double pos, double readRate) const
     {
         if (loopLen_ <= 0 || ch < 0 || ch >= buf.getNumChannels()) return 0.0f;
         double p = std::fmod(pos, static_cast<double>(loopLen_));
         if (p < 0.0) p += static_cast<double>(loopLen_);
+        if (std::abs(readRate) > 1.0)  // same read law as loopSample (9.28.2)
+            return sharedLoopResampler().readCircular(buf.getReadPointer(ch),
+                                                      loopLen_, p, readRate);
         const int i0 = static_cast<int>(p);
         const auto at = [&](int i) {
             int w = i % loopLen_;
@@ -718,6 +726,7 @@ namespace lockstep
                 frac -= std::floor(frac);
                 pos = frac * static_cast<double>(loopLen_);
                 playPos_ = pos;
+                effRate_ = rateTarget;  // phase-lock advance = loopLen/tOut exactly
             }
 
             for (int ch = 0; ch < chans; ++ch)
@@ -734,7 +743,8 @@ namespace lockstep
                             target_->setSample(ch, recPos_, in);  // record regardless of monitor
                         break;
                     case State::Playing:
-                        if (tch && loopLen_ > 0 && transportGates) loopOut = loopSample(ch, pos);
+                        if (tch && loopLen_ > 0 && transportGates)
+                            loopOut = loopSample(ch, pos, effRate_);
                         break;
                     case State::Overdubbing:
                         if (tch && loopLen_ > 0 && transportGates)
@@ -746,10 +756,11 @@ namespace lockstep
                             // and the fold of B into A happen once per iteration at
                             // the wrap (below), decoupled from this write, so the
                             // windowed spread never multi-decays overlapping slots.
-                            loopOut = loopSample(ch, pos) + readLayer(overdubLayer_, ch, pos);
+                            loopOut = loopSample(ch, pos, effRate_)
+                                    + readLayer(overdubLayer_, ch, pos, effRate_);
                             sharedLoopResampler().scatterAddCircular(
                                 overdubLayer_.getWritePointer(ch), loopLen_, pos,
-                                std::abs(rate_), in);
+                                std::abs(effRate_), in);
                             overdubPending_ = true;
                         }
                         break;
@@ -806,6 +817,7 @@ namespace lockstep
                     brShadow_ += rate_;
                     if (brShadow_ >= static_cast<double>(loopLen_))
                         brShadow_ -= static_cast<double>(loopLen_);
+                    effRate_ = rate_;
                     playPos_ += rate_;
                     const double cellEnd = brCellStart_ + brCellLen_;
                     if (!brCaptured_)
@@ -844,7 +856,8 @@ namespace lockstep
                             default: break;
                         }
                         tapeMult_ += (target - tapeMult_) * tSlew;
-                        playPos_ += rate_ * tapeMult_;
+                        effRate_ = rate_ * tapeMult_;
+                        playPos_ += effRate_;
                         if (playPos_ >= static_cast<double>(loopLen_)) playPos_ -= static_cast<double>(loopLen_);
                         else if (playPos_ < 0.0) playPos_ += static_cast<double>(loopLen_);
                         // Tape-stop braked to a standstill → graceful Stopped (pairs with
@@ -863,7 +876,8 @@ namespace lockstep
                         double gap = std::fmod(tapeGridPos_ - playPos_, static_cast<double>(loopLen_));
                         if (gap > static_cast<double>(loopLen_) * 0.5) gap -= static_cast<double>(loopLen_);
                         else if (gap < static_cast<double>(loopLen_) * -0.5) gap += static_cast<double>(loopLen_);
-                        playPos_ += rate_ + gap * resyncCoeff;
+                        effRate_ = rate_ + gap * resyncCoeff;  // catch-up can exceed 1
+                        playPos_ += effRate_;
                         if (playPos_ >= static_cast<double>(loopLen_)) playPos_ -= static_cast<double>(loopLen_);
                         else if (playPos_ < 0.0) playPos_ += static_cast<double>(loopLen_);
                         if (std::abs(gap) < 1.0 && std::abs(tapeMult_ - 1.0) < 0.01)
@@ -875,6 +889,7 @@ namespace lockstep
                 }
                 else if (!phaseLock)
                 {
+                    effRate_ = rate_;
                     playPos_ += rate_;
                     if (playPos_ >= static_cast<double>(loopLen_))
                         playPos_ -= static_cast<double>(loopLen_);

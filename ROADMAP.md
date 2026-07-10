@@ -2728,7 +2728,7 @@ first (DESIGN §40, PRINCIPLES §25.1, `docs/partner-app-concept.md`).
       `COUNT-IN — bar 1 of 2`. Serialization is additive (`metroLevel`,
       `preRollBars`), so no version bump.
 
-### 9.28 — Varispeed head-law correctness (deck pre-work)  *[active]*
+### 9.28 — Varispeed head-law correctness (deck pre-work)  *[shipped]*
 An audit of every read/write path against the head signal law (DESIGN §40.10 —
 one law across the whole signed rate axis) found the shipped code partially
 compliant: the sample players' reads are law-abiding, but the looper reads
@@ -2742,7 +2742,7 @@ commit each, each with tests.
       once and makes a write through zero fade at the turnaround for free.
       Tests: DC amplitude ≈ 1 on readback at rates 0.5 / 2.0; near-zero rate
       deposits near-zero; negative-rate write is the mirror of positive.
-- [ ] **9.28.2 — Looper bandlimited reads above unity.** `loopSample` /
+- [x] **9.28.2 — Looper bandlimited reads above unity.** `loopSample` /
       `readLayer` use Hermite unconditionally, and the looper's rate exceeds 1
       whenever a take is longer than its sync window (`loopLen/tOut > 1`) or
       the post-tape-FX resync overshoots — those reads alias. Route |rate| > 1
