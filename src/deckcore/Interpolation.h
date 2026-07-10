@@ -1,6 +1,6 @@
 #pragma once
 
-namespace lockstep
+namespace dc
 {
     // 4-point, 3rd-order Hermite (Catmull-Rom) interpolation of the continuous
     // waveform at fractional position `t` in [0,1) between y0 and y1; ym1/y2 are

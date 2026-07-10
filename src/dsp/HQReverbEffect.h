@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../machine/IEffect.h"
-#include "Interpolation.h"
+#include "../deckcore/Interpolation.h"
 #include <cmath>
 #include <array>
 #include <vector>
@@ -156,7 +156,7 @@ namespace lockstep
                         const int idx = ((i0 + k) % len + len) % len;
                         return line[static_cast<std::size_t>(idx)];
                     };
-                    lineVals[l] = hermite4(at(-1), at(0), at(1), at(2), fr);
+                    lineVals[l] = dc::hermite4(at(-1), at(0), at(1), at(2), fr);
                 }
 
                 // Hadamard mix (unnormalized, scaled by 1/sqrt(8) ≈ 0.354).

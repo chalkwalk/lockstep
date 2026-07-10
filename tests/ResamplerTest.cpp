@@ -9,8 +9,8 @@
 
 #include "TestHarness.h"
 #include "SpectralMeasure.h"
-#include "../src/dsp/Resampler.h"
-#include "../src/dsp/Interpolation.h"
+#include "../src/deckcore/Resampler.h"
+#include "../src/deckcore/Interpolation.h"
 
 #include <cmath>
 #include <vector>
@@ -30,13 +30,13 @@ namespace lockstep
                 return s[static_cast<std::size_t>(i)];
             };
             const auto fr = static_cast<float>(pos - std::floor(pos));
-            return hermite4(at(i0 - 1), at(i0), at(i0 + 1), at(i0 + 2), fr);
+            return dc::hermite4(at(i0 - 1), at(i0), at(i0 + 1), at(i0 + 2), fr);
         }
     }
 
     void runResamplerTests()
     {
-        const Resampler rs;
+        const dc::Resampler rs;
         constexpr double kSr = 48000.0;
 
         // ── Unity passthrough ────────────────────────────────────────────────

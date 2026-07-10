@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../machine/IEffect.h"
-#include "Interpolation.h"
+#include "../deckcore/Interpolation.h"
 #include <cmath>
 #include <vector>
 
@@ -115,7 +115,7 @@ namespace lockstep
                     const int idx = ((i0 + k) % bufLen + bufLen) % bufLen;
                     return b[static_cast<std::size_t>(idx)];
                 };
-                return hermite4(at(-1), at(0), at(1), at(2), fr);
+                return dc::hermite4(at(-1), at(0), at(1), at(2), fr);
             };
 
             for (int n = 0; n < numSamples; ++n)

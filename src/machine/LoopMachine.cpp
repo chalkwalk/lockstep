@@ -1,6 +1,6 @@
 #include "LoopMachine.h"
-#include "../dsp/Interpolation.h"
-#include "../dsp/Resampler.h"
+#include "../deckcore/Interpolation.h"
+#include "../deckcore/Resampler.h"
 #include <algorithm>
 #include <cmath>
 
@@ -10,9 +10,9 @@ namespace lockstep
     {
         // Shared bandlimited resampler for the R4 varispeed overdub scatter. const,
         // stateless, allocation-free; the kernel bank is built once at static init.
-        const Resampler& sharedLoopResampler()
+        const dc::Resampler& sharedLoopResampler()
         {
-            static const Resampler r;
+            static const dc::Resampler r;
             return r;
         }
     }
@@ -183,7 +183,7 @@ namespace lockstep
                 if (w < 0) w += loopLen_;
                 return target_->getSample(ch, w);
             };
-            return hermite4(at(i0 - 1), at(i0), at(i0 + 1), at(i0 + 2),
+            return dc::hermite4(at(i0 - 1), at(i0), at(i0 + 1), at(i0 + 2),
                             static_cast<float>(q - static_cast<double>(i0)));
         };
 
@@ -218,7 +218,7 @@ namespace lockstep
             if (w < 0) w += loopLen_;
             return buf.getSample(ch, w);
         };
-        return hermite4(at(i0 - 1), at(i0), at(i0 + 1), at(i0 + 2),
+        return dc::hermite4(at(i0 - 1), at(i0), at(i0 + 1), at(i0 + 2),
                         static_cast<float>(p - static_cast<double>(i0)));
     }
 

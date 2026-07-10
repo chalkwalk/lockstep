@@ -1,6 +1,6 @@
 #include "SamplePlayer.h"
-#include "../dsp/Interpolation.h"
-#include "../dsp/Resampler.h"
+#include "../deckcore/Interpolation.h"
+#include "../deckcore/Resampler.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -13,9 +13,9 @@ namespace lockstep
         // allocation-free, so one instance serves every voice; the kernel bank is
         // built once at static-init (off the audio thread). Used only for pitch-up
         // reads (rate > 1) where Hermite would alias; down-pitch stays on Hermite.
-        const Resampler& sharedResampler()
+        const dc::Resampler& sharedResampler()
         {
-            static const Resampler r;
+            static const dc::Resampler r;
             return r;
         }
     }
@@ -217,7 +217,7 @@ namespace lockstep
                 const float y1  = pcm.getSample(0, clamp(i0 + 1));
                 const float y2  = pcm.getSample(0, clamp(i0 + 2));
                 const float fr  = static_cast<float>(pos - static_cast<double>(i0));
-                return hermite4(ym1, y0, y1, y2, fr);
+                return dc::hermite4(ym1, y0, y1, y2, fr);
             };
 
             const int idx0 = static_cast<int>(position);

@@ -3,6 +3,9 @@ if(APPLE)
     list(APPEND plugin_formats AU)
 endif()
 
+# The JUCE-free deck engine sits BELOW lockstep_core and knows nothing of it.
+add_subdirectory(deckcore)
+
 # ---------------------------------------------------------------------------
 # Shared core static library: sequencer, machine, IO, state. Linked into
 # the plugin target so the same code drives every format.
@@ -71,6 +74,7 @@ set_target_properties(lockstep_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_link_libraries(lockstep_core
     PUBLIC
+        deck_core
         bungee_library
         juce::juce_audio_utils
         juce::juce_audio_processors

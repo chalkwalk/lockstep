@@ -2,11 +2,12 @@
 
 #include <signalsmith-dsp/windows.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <vector>
 
-namespace lockstep
+namespace dc
 {
     // Bandlimited fractional resampler (9.25 R1). A polyphase windowed-sinc
     // (Kaiser window from Signalsmith DSP) with a RATE-AWARE cutoff: reading a

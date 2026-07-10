@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../machine/IEffect.h"
-#include "Interpolation.h"
+#include "../deckcore/Interpolation.h"
 #include "OversamplingStages.h"
 #include <juce_dsp/juce_dsp.h>
 #include <algorithm>
@@ -220,7 +220,7 @@ namespace lockstep
                         const int idx = ((i0 + k) % bufLen + bufLen) % bufLen;
                         return b[static_cast<std::size_t>(idx)];
                     };
-                    wetSum += hermite4(at(-1), at(0), at(1), at(2), fr);
+                    wetSum += dc::hermite4(at(-1), at(0), at(1), at(2), fr);
                 }
                 const float wet = wetSum * (1.0f / static_cast<float>(kVoices));
 
