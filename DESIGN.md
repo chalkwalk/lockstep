@@ -6938,7 +6938,11 @@ tape you make decisions on. At 48 kHz:
 | 5 min | 115 MB | 461 MB | 230 MB |
 | 10 min | 230 MB | 922 MB | 461 MB |
 
-Default 5 minutes; a 16-bit medium option halves it. **Lazy commit**: the
+Default 5 minutes; a 16-bit medium option halves it, and both depths ship. The
+length and the depth are **per-deck params**, not a project-wide budget: a deck
+is the thing you fill, so the deck is where the limit is legible, and two decks
+that need different lengths should not have to negotiate. (A project budget can
+be added later over the top; it cannot be subtracted from.) **Lazy commit**: the
 buffer is allocated without zero-fill and never read past each sub-track's
 recorded high-water mark, so an unused sub-track and an unrecorded tail cost
 address space, not resident pages. (This is the same discipline A5 brings to
@@ -6946,6 +6950,15 @@ the volatile slots, and the two share the used-length rule.)
 
 Loop keeps the circular medium it has; Record keeps the volatile pool slot it
 writes. The engine differs in *addressing*, not in machinery.
+
+**Sub-tracks share the deck's window.** A four-track Loop is four sub-tracks of
+*one* loop length, and punch/overdub target the armed sub-tracks within it.
+Polymetric looping — sub-tracks of differing lengths inside one deck — is
+designed out rather than deferred: the tape-loop paradigm the face is named for
+is a single reel of a single circumference, and a performer who wants polymeter
+already has the honest expression of it, which is several loopers. That keeps
+one window, one phase, one seam per deck, and it keeps the single-sub-track face
+bit-for-bit what it is today.
 
 **Input is a tap-only pull matrix.** Each sub-track selects its own source from
 the existing `input_source` enum (§27): `None | External | Master | Track N`.
@@ -7139,6 +7152,25 @@ varispeed, tape-stop, and reverse are all just values of it.
   window running just ahead of the write deposit. (Integer-unity replace —
   today's initial record — is the trivial case: the window is one sample.)
 
+**Heads are free-standing, and a medium may carry many.** A head is an object
+*over* a medium, not a field *of* one: it owns a signed fractional position and
+a rate, nothing else. Any number of read heads may sit on one medium at once,
+and a read head may be **slaved to another head at a fixed offset** rather than
+run its own position. That is the whole of what a tape delay is: one write head,
+N read taps trailing it by N distances, each tap's output summed to the output
+and (optionally) back into the write head's input. Lockstep's decks use one read
+head and one write head, but the interface must not assume it, because the
+partner app's delay/echo idiom is exactly this and it is a *configuration* of
+these heads rather than a second engine.
+
+Consequently the heads expose a **per-sample step API** alongside the block API.
+A delay's regeneration path is a feedback loop through the caller — write, read
+the taps, mix, write again — and the loop closes at whatever granularity the
+caller steps at. Feedback is therefore **caller-side**, never a head property:
+the core owns the signal law, the host owns the topology. A block-API caller
+gets block-granular tap latency (fine for a deck, wrong for a short delay); a
+per-sample caller gets none.
+
 The audit of shipped code against this law (2026-07-09) found it partially
 kept: reads above unity are law-abiding in the sample players but the looper's
 Hermite reads alias whenever its rate exceeds 1 (sync-length mismatch, resync
@@ -7170,7 +7202,13 @@ the core needs nothing from JUCE anyway. Three layers:
   span/pointer views over caller-owned channels; transport arrives as a POD
   snapshot — the core is a *client* of the §25 authority, never an owner of
   position. No strings, no files, no threads, no allocation on the process
-  path (media allocate on construction/resize, message-thread side).
+  path (media allocate on construction/resize, message-thread side). The
+  medium is **non-owning** over caller storage: allocation policy (a pool slot,
+  a lazily committed reel) is a host concern, and keeping it there is what lets
+  Lockstep's volatile slots and the partner app's reels be the same medium.
+  The library's acceptance test for "did we get the head interface right" is
+  that a **working tape delay** — write head, offset taps, caller-side feedback
+  — can be built from `deck_core` alone, in a pure test, with no deck at all.
 - **`deck_juce`** — a thin adapter (AudioBuffer glue, snapshot packing) used by
   Lockstep's Record/Loop/Tape machines, and later by the partner app if it
   builds on JUCE.
@@ -7197,9 +7235,8 @@ boundary, and the deck is not a tenant of it.)
 
 - Scrub DSP quality (windowing, the granular-vs-varispeed choice at low rates).
 - Whether the metronome (A6) monitors *through* a recording deck or beside it.
-- The practical limit on simultaneous decks, and whether the medium length is
-  per-deck or a project budget.
-- Loop's 4-track face: whether sub-tracks may hold **different loop lengths**
-  within one deck (polymetric looping) or share the deck's window, and whether
-  punch is per-sub-track or deck-wide. The single-track face must not regress
-  either way.
+- The practical limit on simultaneous decks (the medium length question is
+  settled: per-deck param, §40.3).
+- Whether Lockstep ever surfaces the multi-tap read heads (§40.10) as a UX —
+  a tape-delay face of the deck. The *interface* supports it from day one; the
+  grammar for placing taps does not exist and is not needed for the deck arc.
