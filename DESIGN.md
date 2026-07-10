@@ -6951,6 +6951,39 @@ the volatile slots, and the two share the used-length rule.)
 Loop keeps the circular medium it has; Record keeps the volatile pool slot it
 writes. The engine differs in *addressing*, not in machinery.
 
+**A Loop's four sub-tracks live in one wide pool slot.** A single-sub-track Loop
+records into a 2-channel volatile slot, exactly as today. A four-sub-track Loop
+records into **one 8-channel slot** — sub-track *k* is channel-pair *k* — rather
+than four separate slots. This keeps a deck's sub-tracks together as one thing
+that arms, punches and promotes together (the §40.1 argument against loop groups,
+restated at the storage layer), and it matches the channel arithmetic of §40.7's
+stereo-sub-track medium literally. The cost is a **member sub-index**: a reference
+to "sub-track 2 of this slot" is `(pool entry, channel-pair)`, so `SampleId`, the
+pickers, and the read path each carry a channel-pair alongside the entry. That
+sub-index is a *volatile-slot* concern only — **promotion splits the slot into
+ordinary 2-channel files** (§40.7), after which every member is a plain pool
+citizen with no sub-index at all.
+
+**Loading a sample onto a sub-track copies it in.** A deck sub-track is audio you
+overdub, punch, erase and undo — it is tape, not a reference to a file. So loading
+a File (or another pool entry) onto a sub-track **decodes its PCM into the
+medium**; the disk file is untouched, and the deck can be performed on
+immediately. This is the same "the medium is content, not a pointer" line that
+makes promotion the only way audio leaves a deck (§40.8): a sub-track that merely
+*referenced* a file could not be overdubbed without either a hidden
+copy-on-write state on every write path or a lie about what a deck is. The copy is
+the honest cost of the tape paradigm, and it is bounded by the deck's own window.
+
+**Fitting to tempo is an explicit verb, not a load-time surprise.** A deck's
+medium is dumb audio played by a varispeed head — it does not tempo-track the way
+a Player does (§29). So when a loaded sample's musical length is known (carried as
+`sourceBars`, or detected), the deck does **not** silently resample it to the
+window. Loading is always native. A separate console **`FIT`** verb renders the
+sub-track to the deck's window through the Bungee stretch engine (§29's
+`IStretchEngine`), once, on the message thread — a destructive act you chose,
+like every other edit to a deck's content. Native-in, fit-on-request keeps the
+one surprising operation (a stretch that changes the audio) an explicit gesture.
+
 **Sub-tracks share the deck's window.** A four-track Loop is four sub-tracks of
 *one* loop length, and punch/overdub target the armed sub-tracks within it.
 Polymetric looping — sub-tracks of differing lengths inside one deck — is
@@ -7079,11 +7112,18 @@ PCM.
 
 Pickers then behave by capability (9.18 `sampleClass`):
 
-- **Deck-class pickers** load a take-group as **one entity** — pick the take,
-  get its sub-tracks back on the deck's sub-tracks.
-- **Sample-class pickers** see the **members**: the downmix plus each non-empty
-  sub-track. A 4-track take therefore reads as "up to 5 samples", every one of
-  which is an ordinary pool citizen you can slice, stretch, or stream.
+- **Deck-class pickers** (Loop, Tape — machines that support four sub-tracks) see
+  the group as **one entity plus its members**: the whole take, plus each
+  non-empty sub-track, plus the downmix — **up to six** for a full four-track
+  take. Picking the group loads all sub-tracks; picking a member loads that one.
+- **Sample-class pickers** (Sampler, Slicer, Player, Stream) see the **members
+  only**: each non-empty sub-track plus the downmix — **up to five**, no group
+  entry, because a non-deck machine has one place to put audio. Every member is an
+  ordinary pool citizen you can slice, stretch, or stream.
+
+This is the 6/5 rule: a deck offers the group and its parts; everything else
+offers just the parts. Both counts are ceilings — an empty sub-track contributes
+no member.
 
 **Channel policy** (stated once, here, because it has been implicit and
 accidental):
@@ -7096,7 +7136,11 @@ accidental):
   pool and on disk; the duplication happens at the engine boundary, not in RAM
   and not in `samples/`.
 - **The deck medium is therefore 4 stereo sub-tracks** (8 channels), with empty
-  sub-tracks effectively free under lazy commit.
+  sub-tracks effectively free under lazy commit. A live four-track Loop holds
+  these as one 8-channel volatile slot (§40.3); promotion is where the eight
+  channels become four ordinary 2-channel files. The wide slot is an
+  implementation of the stereo invariant, not an exception to it — each
+  channel-pair is a stereo sub-track, and nothing reads across the pair boundary.
 
 ### 40.8 Serialization
 
