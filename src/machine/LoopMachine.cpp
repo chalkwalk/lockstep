@@ -148,6 +148,8 @@ namespace lockstep
         tapeAction_ = Cmd::None;
         tapeResync_ = false;
         tapeMult_ = 1.0;
+        wowPhase_ = 0.0;
+        wowDepth_ = 0.0;
         dropOverdubLayer();
         stateMirror_.store(static_cast<int>(deck_.state()), std::memory_order_release);
     }
@@ -582,6 +584,7 @@ namespace lockstep
         if (tapeAction_ != fx) return;  // not the held effect (e.g. tape-stop already braked)
         tapeAction_ = Cmd::None;
         tapeResync_ = true;             // accelerate back + catch the grid on release
+        wowDepth_ = 0.0;                // S6: the wobble stops; tapeMult_ glides to 1
     }
 
     void LoopMachine::closeRecording()
@@ -882,9 +885,25 @@ namespace lockstep
                         switch (tapeAction_)
                         {
                             case Cmd::TapeStop:  target = 0.0;  tSlew = tapeStopSlew; break;
-                            case Cmd::Dip:       target = kDipRate;                   break;
                             case Cmd::HalfSpeed: target = 0.5;                        break;
                             case Cmd::Reverse:   target = -1.0;                       break;
+                            case Cmd::Dip:
+                            {
+                                // Wow: the head speed wobbles around unity for as long
+                                // as the cell is held. The depth eases in through the
+                                // ordinary glide, then the rate follows the wobble
+                                // exactly — slewing the wobble itself would just be a
+                                // lowpass on it, and at 5 Hz the 0.1 s glide would eat
+                                // most of the depth.
+                                wowDepth_ += (kWowDepth - wowDepth_) * tapeSlewFast;
+                                wowPhase_ += 2.0 * juce::MathConstants<double>::pi
+                                             * kWowRateHz / sampleRate_;
+                                if (wowPhase_ >= 2.0 * juce::MathConstants<double>::pi)
+                                    wowPhase_ -= 2.0 * juce::MathConstants<double>::pi;
+                                target = 1.0 + wowDepth_ * std::sin(wowPhase_);
+                                tSlew = 1.0;  // follow it; the depth envelope smooths entry
+                                break;
+                            }
                             default: break;
                         }
                         tapeMult_ += (target - tapeMult_) * tSlew;

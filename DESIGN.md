@@ -6977,6 +6977,25 @@ push model does, from the place that already knows how to express it.
 **Overdub and undo** are the looper's, unchanged: a take is a stack of layers;
 `UNDO` pops the last; a new layer begins at each record edge.
 
+**The seam is spliced, never crossfaded on playback.** A loop recorded from a
+performance is discontinuous where its end meets its start, and that jump is a
+click. It cannot be fixed at the read: the read is circular, so just after the
+wrap the kernel's taps reach backwards across the seam, and the discontinuity
+lands *inside* the read window no matter what gain the player applies on its way
+out of the loop's end. It is fixed in the **content**, once, at close — which is
+also why every other reader of that content (a Player on the same pool slot, a
+promoted WAV) gets a clean take rather than a private fix.
+
+The requirement is exactly one thing: *whatever preceded the take's first sample
+in the recording must also precede it in the loop*. So the deck keeps a rolling
+few-millisecond **pre-roll** of its input, freezes it when a take begins, and
+fades it into the loop's **end** at close (`dc::spliceLoopEnd`). Post-roll — the
+take's continuation, faded into the loop's *head* — buys the same continuity and
+costs the downbeat, which is the one sample a loop cannot spare; it also defers
+the close until the tail arrives. The pre-roll splice alters only the ring-out
+and lands atomically. This is what samplers do, and why they crossfade the loop
+end.
+
 **Punch** is a span-replace expressed as a layer: the punched span is recorded
 into a fresh layer whose contribution is zero outside the span. Edges are
 quantized by the §25 authority (double-tap = instant, the universal override).

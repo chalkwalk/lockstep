@@ -197,7 +197,13 @@ namespace lockstep
         static constexpr double kLoopMaxSeconds = 12.0;
         static constexpr int kDecayOverdub = 0;      // decay only where you overdub
         static constexpr int kDecayAlways  = 1;      // whole loop fades every iteration
-        static constexpr double kDipRate   = 0.5;    // tape DIP slows to half speed (S6)
+        // S6 DIP is tape WOW: a periodic pitch wobble around unity while held, not a
+        // plateau. (It used to target 0.5 with the same glide as HalfSpeed, i.e. it
+        // WAS HalfSpeed.) Wow is the slow flavour of tape speed error — the fast one
+        // is flutter — so the rate sits near the low end of the audible-as-pitch
+        // range and the depth is a performance depth, not a defect depth.
+        static constexpr double kWowRateHz = 5.0;    // wobble frequency
+        static constexpr double kWowDepth  = 0.08;   // +/- 8% rate (~ +/- 1.3 semitones)
 
         // S6 tape-FX glide time-constants, in SECONDS (one-pole; larger = slower
         // glide). W4: the engage/return glide was ~6 ms — near-instant, so half-speed
@@ -351,6 +357,10 @@ namespace lockstep
         Cmd tapeAction_ = Cmd::None;
         bool tapeResync_ = false;
         double tapeMult_ = 1.0;
+        // S6 wow: the wobble's phase, and its depth envelope (slewed, so engaging
+        // and releasing the effect eases the wobble in and out instead of jumping).
+        double wowPhase_ = 0.0;
+        double wowDepth_ = 0.0;
         double tapeGridPos_ = 0.0;
 
         std::atomic<int> stateMirror_{ 0 };

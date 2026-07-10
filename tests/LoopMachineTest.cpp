@@ -563,6 +563,63 @@ namespace lockstep
                   "S4: doubled loop duplicates content into the second half (0.5, no pitch)");
         }
 
+        // S6: DIP is tape WOW, and HALF is a plateau. They used to be the same
+        // effect — DIP targeted 0.5 with the same glide — which is exactly what a
+        // held-cell test would have caught. Record an impulse loop and count how far
+        // the playhead travels while each is held: wow averages unity (the loop
+        // wraps the same number of times as it would untouched), half-speed covers
+        // half the ground.
+        {
+            const auto wrapsWhileHeld = [&](Cmd fx) {
+                SamplePool p; p.addVolatile();
+                p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+                LoopMachine lp(p); lp.prepare(kSr, 512);
+                TransportInfo tr; tr.samplesPerBar = 512.0; tr.running = true;
+                lp.setTransport(tr);
+
+                // A 512-sample loop whose first 8 samples are a marker.
+                {
+                    juce::AudioBuffer<float> b(2, 512);
+                    for (int ch = 0; ch < 2; ++ch)
+                        for (int i = 0; i < 512; ++i)
+                            b.setSample(ch, i, i < 8 ? 1.0f : 0.0f);
+                    lp.postCommand(Cmd::RecordCycle);
+                    juce::MidiBuffer midi; ParamFrame pr{ 1.0f, 0.0f, 0.0f };
+                    lp.process(midi, pr, b);
+                }
+                runBlock(lp, 1, 0.0f, Cmd::RecordCycle);  // close -> Playing at ~0
+
+                lp.postPerf(fx, /*pressed*/ true, 0);
+                // Let the glide settle. kTapeGlideSec is a 0.1 s time constant, so a
+                // few hundred samples leaves half-speed still near unity — which is
+                // how a test can "pass" while proving nothing.
+                for (int blk = 0; blk < 48; ++blk) runBlock(lp, 512, 0.0f);
+                int hits = 0; bool inMarker = false;
+                for (int blk = 0; blk < 4; ++blk)
+                {
+                    auto out = runBlock(lp, 512, 0.0f);
+                    for (int i = 0; i < 512; ++i)
+                    {
+                        const bool hot = out.getSample(0, i) > 0.5f;
+                        if (hot && ! inMarker) ++hits;
+                        inMarker = hot;
+                    }
+                }
+                return hits;
+            };
+
+            const int wowHits = wrapsWhileHeld(Cmd::Dip);
+            const int halfHits = wrapsWhileHeld(Cmd::HalfSpeed);
+
+            // 4 loops at unity => ~4 passes over the marker; at half speed, ~2.
+            CHECK(wowHits >= 3 && wowHits <= 5,
+                  "S6: wow averages unity rate (marker passes=" + juce::String(wowHits) + ")");
+            CHECK(halfHits <= 2,
+                  "S6: half-speed covers half the ground (marker passes="
+                      + juce::String(halfHits) + ")");
+            CHECK(wowHits > halfHits, "S6: DIP is not HalfSpeed");
+        }
+
         // S5: beat-repeat captures the grid cell under the playhead and loops it while
         // held (no jump at press), then resyncs on release. Loop = 512 samples of two
         // 256 halves (0.8 | 0.2). Close on a 1-sample block so the playhead sits at ~0;
