@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../deckcore/Deck.h"
+#include "../deckcore/MarkerLane.h"
 #include "../deckcore/Medium.h"
 #include "IMachine.h"
 #include "ITempoAware.h"
@@ -67,10 +68,33 @@ namespace lockstep
         // punches in/out; PlayStop stops/resumes; Clear wipes the reel.
         void applyVerb(int verb);  // 1 RecordCycle, 2 PlayStop, 3 Clear
 
+        // Markers (§40.4) — dumb navigation points on the timeline. Dropped at the
+        // current transport position (manually, or auto on a Scene/Song switch while
+        // recording — the processor drives that). A cue returns a target position
+        // for the host to LOCATE to; the marker itself fires nothing (fence #1).
+        int dropMarkerHere(int labelId = 0);
+        // Drop at an explicit position — the processor's auto-drop passes the
+        // block's current position (the machine's own transport_ lags a block).
+        int dropMarkerAt(double posSamples, int labelId = 0);
+        void clearMarkers() noexcept { markers_.clear(); }
+        [[nodiscard]] int markerCount() const noexcept { return markers_.count(); }
+        [[nodiscard]] double markerPosition(int i) const noexcept
+        {
+            return (i >= 0 && i < markers_.count()) ? markers_.at(i).positionSamples : -1.0;
+        }
+        // Cue targets, in samples, from the current transport position; -1 if none.
+        [[nodiscard]] double cueNearest() const noexcept;
+        [[nodiscard]] double cueNext() const noexcept;
+        [[nodiscard]] double cuePrev() const noexcept;
+        [[nodiscard]] dc::MarkerLane& markerLane() noexcept { return markers_; }
+        [[nodiscard]] const dc::MarkerLane& markerLane() const noexcept { return markers_; }
+
         // Advisory (message thread / tests).
         [[nodiscard]] dc::DeckState state() const noexcept { return deck_.state(); }
+        [[nodiscard]] bool recording() const noexcept { return deck_.state() == dc::DeckState::Recording; }
         [[nodiscard]] double mediumSeconds() const noexcept { return mediumSeconds_; }
         [[nodiscard]] int recordedSamples() const noexcept { return medium_.used(0); }
+        [[nodiscard]] double positionSamples() const noexcept { return transport_.transportPhaseSamples; }
 
     private:
         static constexpr int kSlotInputSource = 0;
@@ -99,5 +123,9 @@ namespace lockstep
         // The deck state machine (§40.1): Idle/Playing/Recording/Stopped. Tape does
         // not overdub-at-wrap or close-at-length, so it uses a subset.
         dc::Deck deck_;
+
+        // The marker lane (§40.4). Serialized with the deck (§40.8); the audio has
+        // to be promoted, but the marks are metadata that always persist.
+        dc::MarkerLane markers_;
     };
 }

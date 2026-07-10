@@ -2240,6 +2240,16 @@ namespace lockstep
                     // arriving scene's accents fire (spent state is per stepIdx, DESIGN §30).
                     rearmOneShots(-1);
                 }
+
+                // §40.4: a Scene/Song switch WHILE a Tape records auto-drops a
+                // marker on that deck — so a take performed by launching scenes
+                // comes back with the launches marked. The marker is metadata and
+                // fires nothing (fence #1); the position is this block's start.
+                const double markPos = clock_.ppqAtBlockStart() * clock_.samplesPerPpq();
+                for (auto& mm : machines_)
+                    if (auto* tape = dynamic_cast<TapeMachine*>(mm.get()))
+                        if (tape->recording())
+                            tape->dropMarkerAt(markPos);
             }
 
             // 9.17: apply any per-track Phrase deviations that reached their
@@ -6875,6 +6885,29 @@ namespace lockstep
     void LockstepProcessor::looperToggleSubArmed(int track, int sub)
     {
         if (auto* lm = asLooper(machines_, track)) lm->toggleSubArmed(sub);
+    }
+
+    static TapeMachine* asTape(const std::array<std::unique_ptr<IMachine>, kNumTracks>& m,
+                               int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return nullptr;
+        return dynamic_cast<TapeMachine*>(m[static_cast<std::size_t>(track)].get());
+    }
+
+    void LockstepProcessor::tapeApplyVerb(int track, int verb)
+    {
+        if (auto* tm = asTape(machines_, track)) tm->applyVerb(verb);
+    }
+
+    void LockstepProcessor::dropTapeMarker(int track)
+    {
+        if (auto* tm = asTape(machines_, track)) tm->dropMarkerHere();
+    }
+
+    int LockstepProcessor::tapeMarkerCount(int track) const
+    {
+        auto* tm = asTape(machines_, track);
+        return tm ? tm->markerCount() : 0;
     }
 
     void LockstepProcessor::looperToggleSubMute(int track, int sub)

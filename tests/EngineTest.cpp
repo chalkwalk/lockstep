@@ -25,6 +25,7 @@
 #include "../src/machine/RouteMachine.h"
 #include "../src/machine/RecordMachine.h"
 #include "../src/machine/LoopMachine.h"
+#include "../src/machine/TapeMachine.h"
 #include "../src/machine/StreamMachine.h"
 #include "../src/machine/StretchMachine.h"
 #include "../src/ui/ManipulationZone.h"   // lockMark (A2 chrome)
@@ -434,6 +435,41 @@ namespace lockstep
                   "scene switch: working sequence step 0 trig not updated after switch "
                   "(before=" +
                       juce::String((int)trigScene0) + " after=" + juce::String((int)trigScene1) + ")");
+        }
+    }
+
+    // §40.4: a Scene switch WHILE a Tape records auto-drops a marker on that deck,
+    // so a take performed by launching scenes comes back with the launches marked.
+    // A non-recording Tape gets no marker (the switch is not, itself, a mark).
+    static void testTapeMarkerOnSceneSwitch()
+    {
+        // Queue scene 1 and render until it lands. The Tape must ALREADY be the
+        // track's machine (re-setting it would build a fresh one, wiping state).
+        const auto switchToOne = [](EngineHarness& h) {
+            auto& p = h.processor();
+            p.songAt(0).tracks[0].phrases[1].steps[0].trig = true;  // observable switch
+            p.queueScene(1, false);
+            for (int b = 0; b < 200 && p.activeSectionIdx() != 1; ++b) h.renderBlocks(1);
+            return p.activeSectionIdx() == 1;
+        };
+
+        // A Tape that is NOT recording gets no marker across a scene switch.
+        {
+            EngineHarness h;
+            h.processor().setTrackMachine(0, TapeMachine::kMachineId);
+            CHECK(switchToOne(h), "precondition: the scene switched");
+            CHECK(h.processor().tapeMarkerCount(0) == 0,
+                  "a non-recording Tape is not marked by a switch");
+        }
+
+        // A recording Tape auto-drops a marker at the scene switch.
+        {
+            EngineHarness h;
+            h.processor().setTrackMachine(0, TapeMachine::kMachineId);
+            h.processor().tapeApplyVerb(0, 1);  // RecordCycle → Recording
+            CHECK(switchToOne(h), "precondition: the scene switched while recording");
+            CHECK(h.processor().tapeMarkerCount(0) >= 1,
+                  "a recording Tape auto-drops a marker at the scene switch");
         }
     }
 
@@ -4130,6 +4166,7 @@ namespace lockstep
         testReleaseAllVoicesReleasesHeldSynth();
         testBlockSizeInvariance();
         testSceneSwitchAtBoundary();
+        testTapeMarkerOnSceneSwitch();
         testSceneLaunchGridRouting();
         testQueuedSongSwitchAtBoundary();
         testDoubleTapSongSwitchInstant();

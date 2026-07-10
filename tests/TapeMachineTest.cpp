@@ -110,5 +110,29 @@ namespace lockstep
         CHECK(tape.recordedSamples() == 0, "Clear resets the reel to blank");
         auto cleared = tapeBlock(tape, 0.0, n, 0.0f, kSr);
         CHECK(feq(cleared.getSample(0, 100), 0.0f), "and playback is silent after Clear");
+
+        // ── Markers (§40.4): drop at the position, cue back to it ────────────
+        {
+            TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(4.0);
+
+            // Drop a marker at 1 s and another at 3 s (set the position via a block).
+            tapeBlock(t, 48000.0, n, 0.0f, kSr);
+            t.dropMarkerHere();
+            tapeBlock(t, 144000.0, n, 0.0f, kSr);
+            t.dropMarkerHere();
+            CHECK(t.markerCount() == 2, "two markers dropped");
+
+            // From 2 s: nearest is the 1 s mark (48000, distance 48000) vs 3 s
+            // (144000, distance 48000) — a tie resolves to the first found (1 s).
+            tapeBlock(t, 96000.0, n, 0.0f, kSr);
+            CHECK(t.cuePrev() == 48000.0, "cuePrev from 2 s = the 1 s mark");
+            CHECK(t.cueNext() == 144000.0, "cueNext from 2 s = the 3 s mark");
+
+            // Clear the reel — markers survive audio operations (§40.4).
+            t.applyVerb(3);
+            CHECK(t.markerCount() == 2, "Clear wipes audio, not markers");
+            t.clearMarkers();
+            CHECK(t.markerCount() == 0, "clearMarkers is the explicit delete");
+        }
     }
 }

@@ -105,6 +105,34 @@ namespace lockstep
         }
     }
 
+    int TapeMachine::dropMarkerHere(int labelId)
+    {
+        return markers_.drop(transport_.transportPhaseSamples, labelId);
+    }
+
+    int TapeMachine::dropMarkerAt(double posSamples, int labelId)
+    {
+        return markers_.drop(posSamples, labelId);
+    }
+
+    double TapeMachine::cueNearest() const noexcept
+    {
+        const int i = markers_.nearest(transport_.transportPhaseSamples);
+        return i < 0 ? -1.0 : markers_.at(i).positionSamples;
+    }
+
+    double TapeMachine::cueNext() const noexcept
+    {
+        const int i = markers_.next(transport_.transportPhaseSamples);
+        return i < 0 ? -1.0 : markers_.at(i).positionSamples;
+    }
+
+    double TapeMachine::cuePrev() const noexcept
+    {
+        const int i = markers_.prev(transport_.transportPhaseSamples);
+        return i < 0 ? -1.0 : markers_.at(i).positionSamples;
+    }
+
     void TapeMachine::process(const juce::MidiBuffer& /*events*/,
                               const ParamFrame& params,
                               juce::AudioBuffer<float>& buffer)

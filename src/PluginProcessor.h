@@ -242,6 +242,11 @@ namespace lockstep
         [[nodiscard]] bool looperSubSoloed(int track, int sub) const;
         [[nodiscard]] juce::String looperSubSourceLabel(int track, int sub) const;
         void looperToggleSubArmed(int track, int sub);
+        // Tape face verbs (§40.5): 1 RecordCycle(punch), 2 PlayStop, 3 Clear;
+        // dropTapeMarker drops a manual marker at the current position.
+        void tapeApplyVerb(int track, int verb);
+        void dropTapeMarker(int track);
+        [[nodiscard]] int tapeMarkerCount(int track) const;
         void looperToggleSubMute(int track, int sub);
         void looperToggleSubSolo(int track, int sub);
         void looperCycleSubSource(int track, int sub);  // step through the safe sources
