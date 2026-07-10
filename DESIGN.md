@@ -7111,7 +7111,89 @@ Against the 9-rung gate (PRINCIPLES "How to use this document"):
      lives on the 16 cells.
    - **#10 (dual project)** — untouched: one timeline, one set.
 
-### 40.10 Deferred to the implementation arc
+### 40.10 The heads — one signal law at every rate
+
+The deck's audio machinery is three head types over a medium, and the design
+point is that each obeys **one law across the whole signed rate axis** — above
+and below native, through zero, and in reverse — instead of special-casing
+"normal speed". Rate here is medium samples advanced per engine sample; scrub,
+varispeed, tape-stop, and reverse are all just values of it.
+
+- **Read head** — bandlimited fractional read: the 9.25 polyphase
+  (windowed-sinc, rate-aware cutoff — reading faster than unity scales the
+  source spectrum up, so the cutoff drops to Nyquist/rate before anything
+  folds). Direction-agnostic by construction; rate 0 holds a sample. Circular
+  media wrap the kernel taps, linear media clamp them.
+- **Write head** — the transpose: a bandlimited **scatter-add** distributing
+  each input sample across the same kernel at the head position. The cutoff is
+  again rate-aware (above unity the deposit is sparse and the cutoff tracks it;
+  at or below unity the full-band kernel is already correct — the medium's own
+  sampling does the rest). The deposit is scaled by **|rate|**: kernel density
+  on the medium is 1/rate, so this one factor makes the write
+  amplitude-invariant (which is what tape does — flux does not depend on
+  transport speed), makes a stalled head write *nothing* rather than pile
+  unbounded energy onto one spot, and makes a scrub through zero behave — the
+  write fades through the turnaround for free.
+- **Erase head** — replace = erase + write, as on tape. Additive overdub needs
+  no erase; *replace at varispeed* attenuates the medium under a rate-aware
+  window running just ahead of the write deposit. (Integer-unity replace —
+  today's initial record — is the trivial case: the window is one sample.)
+
+The audit of shipped code against this law (2026-07-09) found it partially
+kept: reads above unity are law-abiding in the sample players but the looper's
+Hermite reads alias whenever its rate exceeds 1 (sync-length mismatch, resync
+catch-up); the scatter write's cutoff selection is correct in both directions
+but the |rate| gain factor is missing (a half-speed overdub lands +6 dB, a
+rate-2 overdub −6 dB, and a stalled write is unbounded); and the initial
+record write is integer-unity only. **ROADMAP 9.28** closes the read and gain
+gaps in place; the erase head is deck-arc work.
+
+**Medium rate is a medium property.** The medium carries its own sample rate,
+decoupled from the engine rate — the heads already read and write at arbitrary
+ratio, so an oversampled (2×) medium is *configuration, not a mode*: no second
+code path, no resampling stage bolted on. Lockstep instantiates media at 1× —
+heads that keep the law make oversampling unnecessary for clean capture and
+playback. The partner app opts into 2× where it actually pays: nonlinear tape
+colour (saturation, head bump) generates harmonics that need the headroom to
+avoid folding, and repeated read-modify-write generations accumulate less
+kernel loss.
+
+### 40.11 The deck core library
+
+The deck engine is built as a **JUCE-free library from day one** — not because
+Lockstep needs the separation, but because the partner app does, and because
+the core needs nothing from JUCE anyway. Three layers:
+
+- **`deck_core`** (JUCE-free: `std` + the vendored signalsmith headers only) —
+  the medium, the heads (§40.10), overdub layers + undo, punch, the marker
+  lane, and the take structure as pure state. Audio crosses the boundary as
+  span/pointer views over caller-owned channels; transport arrives as a POD
+  snapshot — the core is a *client* of the §25 authority, never an owner of
+  position. No strings, no files, no threads, no allocation on the process
+  path (media allocate on construction/resize, message-thread side).
+- **`deck_juce`** — a thin adapter (AudioBuffer glue, snapshot packing) used by
+  Lockstep's Record/Loop/Tape machines, and later by the partner app if it
+  builds on JUCE.
+- **The hosts** — Lockstep (console, pool, promote, serialization) and the
+  partner app (its own buffers, its own fully disjoint UI, its own
+  persistence). Pool, take-group *promotion*, WAV IO, and transport all stay
+  host-side; the take-group file convention (§40.7) is the exchange format.
+
+Why JUCE-free is worth the ceremony: the only JUCE facility the core would use
+is `AudioBuffer`, which is ~50 lines of `std::vector` + channel pointers to
+replace; in exchange the core is **licence-independent** (JUCE's dual
+AGPL/commercial terms never attach to our own DSP), the dependency policy
+**enforces the seam structurally** (a core that takes span views *cannot*
+reach for `juce::File` or the message manager — the same argument as §36's
+ABI header staying JUCE-free POD), and pure-core tests build and run without
+linking JUCE. The `Resampler` already qualifies today.
+
+What this is **not**: a separately versioned product. It is a CMake target in
+this repo with in-repo consumers; ABI/semver ceremony waits until a second
+shipping consumer exists. (The §36 machine ABI remains the only stable binary
+boundary, and the deck is not a tenant of it.)
+
+### 40.12 Deferred to the implementation arc
 
 - Scrub DSP quality (windowing, the granular-vs-varispeed choice at low rates).
 - Whether the metronome (A6) monitors *through* a recording deck or beside it.
