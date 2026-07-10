@@ -15,6 +15,7 @@
 #include "machine/RouteMachine.h"
 #include "machine/RecordMachine.h"
 #include "machine/LoopMachine.h"
+#include "machine/TapeMachine.h"
 #include "machine/StreamMachine.h"
 #include "machine/StretchMachine.h"
 #include "machine/MidiDevicePresets.h"
@@ -5665,6 +5666,8 @@ namespace lockstep
             return std::make_unique<RecordMachine>(pool);
         if (id == LoopMachine::kMachineId)
             return std::make_unique<LoopMachine>(pool);
+        if (id == TapeMachine::kMachineId)
+            return std::make_unique<TapeMachine>();
         if (id == StreamMachine::kMachineId)
             return std::make_unique<StreamMachine>();
         if (id == StretchMachine::kMachineId)
@@ -5688,6 +5691,7 @@ namespace lockstep
         { RouteMachine::kMachineId, "Route" },
         { RecordMachine::kMachineId, "Record" },
         { LoopMachine::kMachineId, "Loop" },
+        { TapeMachine::kMachineId, "Tape" },
         { StreamMachine::kMachineId, "Stream" },
         { StretchMachine::kMachineId, "Stretch" },
         { MidiOutMachine::kMachineId, "MIDI Out" },

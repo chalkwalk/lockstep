@@ -33,6 +33,7 @@ add_library(lockstep_core STATIC
     machine/SliceMachine.cpp
     machine/RecordMachine.cpp
     machine/LoopMachine.cpp
+    machine/TapeMachine.cpp
     machine/StreamMachine.cpp
     machine/StretchMachine.cpp
     dsp/BungeeStretchEngine.cpp

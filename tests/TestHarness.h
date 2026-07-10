@@ -48,6 +48,7 @@ namespace lockstep
     void runSamplePlayerTests();   // C1 loop-seam crossfade (borrow-tail / eat-in)
     void runRecordMachineTests();  // 6.2 RecordMachine capture (DESIGN §29.2/§30)
     void runLoopMachineTests();    // 6.3 LoopMachine state machine (DESIGN §29.2)
+    void runTapeMachineTests();    // 11.4 TapeMachine — position-slaved reel (§40.2)
     void runStreamMachineTests();    // 4.5 StreamMachine disk streaming (DESIGN §29.2)
     void runStateResolverTests();
     void runHierarchyNavTests();

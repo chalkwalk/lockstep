@@ -28,6 +28,7 @@ int main()
     lockstep::runSamplePlayerTests();
     lockstep::runRecordMachineTests();
     lockstep::runLoopMachineTests();
+    lockstep::runTapeMachineTests();
     lockstep::runStreamMachineTests();
     lockstep::runStateResolverTests();
     lockstep::runHierarchyNavTests();

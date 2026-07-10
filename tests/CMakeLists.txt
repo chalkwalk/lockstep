@@ -23,6 +23,7 @@ add_executable(lockstep_tests
     SamplePlayerTest.cpp
     RecordMachineTest.cpp
     LoopMachineTest.cpp
+    TapeMachineTest.cpp
     StreamMachineTest.cpp
     MetricGridTest.cpp
     SurfaceModelTest.cpp
