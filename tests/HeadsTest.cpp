@@ -21,6 +21,7 @@
 // nothing but this test defends the partner app's echo mode.
 
 #include "TestHarness.h"
+#include "../src/deckcore/EraseHead.h"
 #include "../src/deckcore/Heads.h"
 
 #include <algorithm>
@@ -30,6 +31,10 @@
 
 namespace lockstep
 {
+    // Defined below runHeadsTests, which calls it: the erase head is the third
+    // head of the same law and belongs in this file.
+    void runEraseHeadTests();
+
     namespace
     {
         constexpr double kPi = 3.14159265358979323846;
@@ -297,6 +302,140 @@ namespace lockstep
                 CHECK(std::abs(at1 - 2 * kD) <= 4, "at half speed the echo lands at 2D");
                 CHECK(p1 > 0.35f, "and it is audible");
             }
+        }
+
+        runEraseHeadTests();
+    }
+
+    // ── The erase head (DESIGN §40.10) ───────────────────────────────────────
+    // Replace = erase + write. The erase law is per MEDIUM sample, not per engine
+    // sample, which is the whole difficulty: a head at half speed lingers over
+    // each medium sample twice, and one at double speed skips every other. Erase
+    // once per engine sample and you wipe twice as hard at half speed and leave
+    // stripes of the old take at double.
+    void runEraseHeadTests()
+    {
+        // Prime a medium with DC 1.0 — the "old take" every replace must remove.
+        const auto primed = [](Reel& reel, int cap) {
+            reel.medium.ensureCommitted(0, cap);
+            for (int i = 0; i < cap; ++i) reel.medium.write(0, 0, i, 1.0f);
+        };
+
+        // Run a replace pass: erase head leading the write head, both at `rate`,
+        // writing `input` per sample. Returns the medium.
+        const auto replacePass =
+            [](Reel& reel, double rate, double startPos, int n, float erasure, float input) {
+                dc::WriteHead w;
+                w.setRate(rate);
+                w.setPosition(startPos);
+
+                dc::EraseHead e;
+                e.setErasure(erasure);
+                e.setRate(rate);
+                e.setPosition(dc::EraseHead::leadFor(w, dc::EraseHead::kMinGap));
+
+                for (int i = 0; i < n; ++i)
+                {
+                    e.sweep(reel.medium, 0);          // clear the tape ahead...
+                    w.writeFrame(reel.medium, 0, &input, 1);  // ...then lay the new take
+                    w.step(reel.medium);
+                }
+            };
+
+        // Peak magnitude over an inclusive index range of the medium.
+        const auto peakOver = [](const dc::Medium& m, int lo, int hi) {
+            float peak = 0.0f;
+            for (int i = lo; i <= hi; ++i) peak = std::max(peak, std::abs(m.read(0, 0, i)));
+            return peak;
+        };
+
+        // ── Full replace erases the old take at every rate ───────────────────
+        // Forward, half speed, double speed, reverse. The swept span comes back
+        // silent; nothing outside it is touched.
+        {
+            for (const double rate : { 0.5, 1.0, 2.0, -1.0 })
+            {
+                Reel reel{ dc::Topology::Circular, 4096 };
+                primed(reel, 4096);
+
+                const double start = (rate < 0.0) ? 3000.0 : 1000.0;
+                constexpr int n = 800;
+                replacePass(reel, rate, start, n, 1.0f, 0.0f);  // replace with silence
+
+                const auto end = static_cast<int>(start + rate * n);
+                const int lo = std::min(static_cast<int>(start), end) + 32;
+                const int hi = std::max(static_cast<int>(start), end) - 32;
+                CHECK(peakOver(reel.medium, lo, hi) < 1.0e-3f,
+                      "a full-erasure pass wipes the old take at any rate");
+                CHECK(peakOver(reel.medium, 3500, 3900) > 0.99f,
+                      "and leaves the tape it never passed over alone");
+            }
+        }
+
+        // ── A stalled head erases nothing ────────────────────────────────────
+        // The tape is not moving under the head. Wiping here would mean a paused
+        // replace slowly bores a hole in the take.
+        {
+            Reel reel{ dc::Topology::Circular, 512 };
+            primed(reel, 512);
+            replacePass(reel, 0.0, 100.0, 1000, 1.0f, 0.0f);
+            CHECK(peakOver(reel.medium, 90, 110) > 0.99f, "a stalled erase head wipes nothing");
+        }
+
+        // ── Erasure is per medium sample, not per engine sample ──────────────
+        // The rate-invariance that the sweep exists to provide: a half-erasure
+        // pass leaves half, whether the tape crawled or flew.
+        {
+            for (const double rate : { 0.5, 1.0, 2.0 })
+            {
+                Reel reel{ dc::Topology::Circular, 4096 };
+                primed(reel, 4096);
+                replacePass(reel, rate, 1000.0, 600, 0.5f, 0.0f);
+
+                const auto end = static_cast<int>(1000.0 + rate * 600);
+                const float p = peakOver(reel.medium, 1100, end - 64);
+                CHECK(std::abs(p - 0.5f) < 0.02f,
+                      "half erasure leaves half, at every rate — one pass, one attenuation");
+            }
+        }
+
+        // ── Replace preserves the NEW take's level ───────────────────────────
+        // Erase to nothing, write DC 1.0 at double speed: the |rate| write gain
+        // and the once-per-sample erase compose to unity. A replace that came
+        // back at 2.0 or 0.5 would mean the two heads disagree about what a
+        // medium sample is.
+        {
+            Reel reel{ dc::Topology::Circular, 4096 };
+            primed(reel, 4096);
+            replacePass(reel, 2.0, 1000.0, 600, 1.0f, 1.0f);
+            const float p = peakOver(reel.medium, 1100, 2100);
+            CHECK(std::abs(p - 1.0f) < 0.02f, "the replaced span holds the new take at unity");
+        }
+
+        // ── The gap protects the fresh deposit ───────────────────────────────
+        // The erase head leads the write head by a kernel half-width. Put it
+        // BEHIND instead and it eats what was just written — which is the bug the
+        // gap exists to prevent, and worth stating as a test so nobody "tidies"
+        // leadFor() into a no-op.
+        {
+            Reel reel{ dc::Topology::Circular, 4096 };
+            primed(reel, 4096);
+
+            dc::WriteHead w;
+            w.setPosition(1000.0);
+            dc::EraseHead e;
+            e.setErasure(1.0f);
+            e.setPosition(w.position() - dc::EraseHead::kMinGap);  // WRONG side
+
+            for (int i = 0; i < 600; ++i)
+            {
+                e.sweep(reel.medium, 0);
+                constexpr float one = 1.0f;
+                w.writeFrame(reel.medium, 0, &one, 1);
+                w.step(reel.medium);
+            }
+            CHECK(peakOver(reel.medium, 1100, 1500) < 0.5f,
+                  "an erase head trailing the write head eats the take (hence leadFor)");
         }
     }
 }
