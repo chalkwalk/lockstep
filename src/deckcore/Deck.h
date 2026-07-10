@@ -86,6 +86,7 @@ namespace dc
     {
         bool armed = true;   // punch and overdub target the armed sub-tracks
         bool muted = false;
+        bool soloed = false; // any solo mutes the un-soloed (a performance state)
         float level = 1.0f;
         float pan = 0.0f;
         int sourceTap = 0;   // index into the host's input_source enum (§27)

@@ -211,7 +211,7 @@ namespace lockstep
         // sub*3 + field (0=level, 1=pan, 2=mute). Appended, so a single-sub-track
         // Loop's default (level 1 / pan 0 / mute 0) leaves playback byte-identical.
         static constexpr int kSlotSubMixBase = 8;
-        static constexpr int kSubMixFields = 3;   // level, pan, mute
+        static constexpr int kSubMixFields = 4;   // level, pan, mute, solo
         static constexpr int kNumSlots = kSlotSubMixBase + kMaxInputSubTracks * kSubMixFields;
         // loop_sync value: Sync = grid-locked to the track's own length × divider,
         // pushed via ILoopGridAware (S1). Any value >= this is grid-locked.

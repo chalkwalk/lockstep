@@ -28,7 +28,7 @@ namespace lockstep
         {
             const int rel = index - kSlotSubMixBase;
             const int sub = rel / kSubMixFields;         // 0..3
-            const int field = rel % kSubMixFields;       // 0 level, 1 pan, 2 mute
+            const int field = rel % kSubMixFields;       // 0 level,1 pan,2 mute,3 solo
             const juce::String n{ sub + 1 };             // user-facing 1-based
             switch (field)
             {
@@ -42,9 +42,15 @@ namespace lockstep
                     s.label = "T" + n + " Pan";
                     s.minValue = -1.0f; s.maxValue = 1.0f; s.defaultValue = 0.0f;
                     return s;
-                default: // mute
+                case 2:  // mute
                     s.id = "sub" + n + "_mute";
                     s.label = "T" + n + " Mute";
+                    s.minValue = 0.0f; s.maxValue = 1.0f; s.defaultValue = 0.0f;
+                    s.isStepped = true;
+                    return s;
+                default: // solo
+                    s.id = "sub" + n + "_solo";
+                    s.label = "T" + n + " Solo";
                     s.minValue = 0.0f; s.maxValue = 1.0f; s.defaultValue = 0.0f;
                     s.isStepped = true;
                     return s;
@@ -276,11 +282,16 @@ namespace lockstep
                                     int subCount) const
     {
         if (target_ == nullptr || loopLen_ <= 0) return 0.0f;
+        // Solo is subtractive: if any sub-track is soloed, only soloed ones play.
+        bool anySolo = false;
+        for (int sub = 0; sub < subCount; ++sub)
+            if (deck_.subTrack(sub).soloed) { anySolo = true; break; }
+
         float acc = 0.0f;
         for (int sub = 0; sub < subCount; ++sub)
         {
             const auto& st = deck_.subTrack(sub);
-            if (st.muted) continue;
+            if (st.muted || (anySolo && !st.soloed)) continue;
             const int rdCh = 2 * sub + outCh;   // pair `sub`, L or R
             if (rdCh >= target_->getNumChannels()) continue;
             // Center-unity balance: pan 0 leaves both channels at level; panning
@@ -705,6 +716,8 @@ namespace lockstep
                 ? std::clamp(params[static_cast<std::size_t>(base + 1)], -1.0f, 1.0f) : 0.0f;
             st.muted = (params.size() > static_cast<std::size_t>(base + 2))
                 && params[static_cast<std::size_t>(base + 2)] >= 0.5f;
+            st.soloed = (params.size() > static_cast<std::size_t>(base + 3))
+                && params[static_cast<std::size_t>(base + 3)] >= 0.5f;
         }
         syncMode_ = (params.size() > kSlotLoopSync)
             ? static_cast<int>(std::lround(params[kSlotLoopSync])) : 0;

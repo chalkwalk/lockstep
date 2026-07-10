@@ -642,6 +642,17 @@ namespace lockstep
                       "sub-track level scales its contribution (0.2 + 0.9)");
                 pf[static_cast<std::size_t>(lp.slotForId("sub1_level"))] = 1.0f;
             }
+            // Solo sub-track 1 → only it plays (0.9), sub 0 is subtractively muted.
+            {
+                pf[static_cast<std::size_t>(lp.slotForId("sub2_solo"))] = 1.0f;
+                juce::AudioBuffer<float> out(2, 64); out.clear();
+                juce::MidiBuffer none; ParamFrame frame(pf.begin(), pf.end());
+                lp.process(none, frame, out);
+                CHECK(std::abs(out.getSample(0, 32) - 0.9f) < 0.05f,
+                      "any solo mutes the un-soloed (only sub 1 = 0.9)");
+                pf[static_cast<std::size_t>(lp.slotForId("sub2_solo"))] = 0.0f;
+            }
+
             // Pan sub-track 1 hard left → pair 1 leaves R, so R = pair0 only (0.4).
             {
                 pf[static_cast<std::size_t>(lp.slotForId("sub2_pan"))] = -1.0f;

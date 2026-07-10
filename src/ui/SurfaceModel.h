@@ -185,6 +185,16 @@ namespace lockstep
         // ---- quantized mute pending (9.17) — armed, not yet fired ------------
         MutePendingMute = 214,     // a track armed to mute at the launch boundary
         MutePendingUnmute = 215,   // a track armed to unmute at the launch boundary
+
+        // ---- deck TRACKS console page (11.8, §40.3/§40.5) — 4 sub-tracks × 4 ----
+        DeckTrkArm = 216,          // ARM cell, sub-track not armed
+        DeckTrkArmOn = 217,        // armed (punch/overdub target)
+        DeckTrkMute = 218,         // MUTE cell, sub-track audible
+        DeckTrkMuteOn = 219,       // muted
+        DeckTrkSolo = 220,         // SOLO cell, not soloed
+        DeckTrkSoloOn = 221,       // soloed
+        DeckTrkSrc = 222,          // SRC cell (opens the source picker), shows label
+        DeckTrkEmpty = 223,        // a row past the sub-track count (dim, inert)
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step
