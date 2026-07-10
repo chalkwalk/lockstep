@@ -158,5 +158,66 @@ namespace lockstep
                   "constant scattered over the loop reconstructs the constant (worst "
                   + juce::String(worst) + ")");
         }
+
+        // ── Scatter gain is amplitude-invariant across rates (9.28.1) ────────
+        // The head signal law (DESIGN §40.10): a write at any speed reads back at
+        // the input's amplitude. Kernel density is 1/rate, so without the |rate|
+        // deposit gain a rate-2 pass would land at 0.5x and a half-speed pass at
+        // 2x. Two full circular passes at each rate → expect exactly 2 * in.
+        {
+            for (const double rate : { 0.5, 2.0 })
+            {
+                const int len = 128;
+                std::vector<float> buf(static_cast<std::size_t>(len), 0.0f);
+                const int nIn = static_cast<int>(2.0 * len / rate);  // two passes
+                for (int i = 0; i < nIn; ++i)
+                    rs.scatterAddCircular(buf.data(), len,
+                                          static_cast<double>(i) * rate, rate, 0.75f);
+                float worst = 0.0f;
+                for (float v : buf) worst = std::max(worst, std::abs(v - 2.0f * 0.75f));
+                CHECK(worst < 2.0e-2f,
+                      "varispeed scatter is amplitude-invariant (rate "
+                      + juce::String(rate) + ", worst " + juce::String(worst) + ")");
+            }
+        }
+
+        // ── A stalled write head writes (almost) nothing (9.28.1) ────────────
+        // rate → 0 used to pile unbounded energy onto one spot; the |rate| gain
+        // makes the deposit vanish with the speed — a scrub through zero fades.
+        {
+            const int len = 64;
+            std::vector<float> buf(static_cast<std::size_t>(len), 0.0f);
+            double pos = 20.0;
+            for (int i = 0; i < 1000; ++i)
+            {
+                rs.scatterAddCircular(buf.data(), len, pos, 1.0e-4, 1.0f);
+                pos += 1.0e-4;
+            }
+            float peak = 0.0f;
+            for (float v : buf) peak = std::max(peak, std::abs(v));
+            CHECK(peak < 0.2f,
+                  "near-stall scatter deposits near-nothing (peak "
+                  + juce::String(peak) + ", was ~62 uncompensated)");
+        }
+
+        // ── Reverse write is the mirror of forward (9.28.1) ──────────────────
+        // A constant written while the head runs backwards reconstructs the same
+        // constant — the gain and cutoff depend on |rate| only.
+        {
+            const int len = 128;
+            std::vector<float> fwd(static_cast<std::size_t>(len), 0.0f);
+            std::vector<float> rev(static_cast<std::size_t>(len), 0.0f);
+            for (int i = 0; i < 2 * len; ++i)
+            {
+                rs.scatterAddCircular(fwd.data(), len,  static_cast<double>(i), 1.0, 0.5f);
+                rs.scatterAddCircular(rev.data(), len, -static_cast<double>(i), 1.0, 0.5f);
+            }
+            float worst = 0.0f;
+            for (int i = 0; i < len; ++i)
+                worst = std::max(worst, std::abs(rev[static_cast<std::size_t>(i)]
+                                                 - fwd[static_cast<std::size_t>(i)]));
+            CHECK(worst < 5.0e-3f,
+                  "reverse scatter mirrors forward (worst " + juce::String(worst) + ")");
+        }
     }
 }

@@ -65,11 +65,20 @@ namespace lockstep
         // quantising it to the nearest integer. Add-only — the caller owns any
         // decay/feedback, so overlapping windows never multiply existing content.
         // At rate 1 on integer positions the kernel is a delta ⇒ bit-exact `+= in`.
+        //
+        // 9.28.1 — the deposit is scaled by |rate| (the head signal law, DESIGN
+        // §40.10): kernel density on the medium is 1/rate, so an uncompensated
+        // write reads back at 1/rate gain (-6 dB at rate 2, +6 dB at half speed)
+        // and a stalled head (rate → 0) piles unbounded energy onto one spot.
+        // One factor fixes the level, makes the stall write nothing, and lets a
+        // scrub through zero fade at the turnaround. Clamped at the bucket
+        // ceiling — beyond it the kernel cannot bridge the deposit gaps anyway.
         void scatterAddCircular(float* dst, int len, double pos, double rate,
                                 float in) const noexcept
         {
             if (len <= 0) return;
             const Bucket& b = bucketFor(rate);
+            in *= static_cast<float>(std::min(std::abs(rate), b.maxRate));
             double p = std::fmod(pos, static_cast<double>(len));
             if (p < 0.0) p += static_cast<double>(len);
             const double baseF = std::floor(p);

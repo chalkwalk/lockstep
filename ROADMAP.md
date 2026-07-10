@@ -2735,7 +2735,7 @@ compliant: the sample players' reads are law-abiding, but the looper reads
 alias above unity rate and the scatter write has the right cutoff with the
 wrong gain. Small, in-place fixes that de-risk the Phase 11 head design; one
 commit each, each with tests.
-- [ ] **9.28.1 — Scatter-write |rate| gain.** `Resampler::scatterAddCircular`
+- [x] **9.28.1 — Scatter-write |rate| gain.** `Resampler::scatterAddCircular`
       deposits at kernel density 1/rate, so a rate-2 overdub lands −6 dB, a
       half-speed overdub +6 dB, and a stalled head (rate→0) piles unbounded
       energy onto one spot. Scaling the deposit by |rate| fixes all three at
