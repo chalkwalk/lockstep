@@ -1,5 +1,4 @@
 #include "LoopMachine.h"
-#include "../deckcore/Interpolation.h"
 #include "../deckcore/Resampler.h"
 #include "DeckAdapter.h"
 #include <algorithm>
@@ -165,27 +164,19 @@ namespace lockstep
         double p = std::fmod(pos, static_cast<double>(loopLen_));
         if (p < 0.0) p += static_cast<double>(loopLen_);
 
-        // Circular fractional read (9.24 Hermite, 9.28.2 rate-aware). The loop
-        // material is periodic, so the window wraps mod loopLen_ — well-defined
-        // across the loop seam. Above unity a Hermite read has no rate-aware
-        // cutoff and aliases (a take longer than its sync window plays at
-        // loopLen/tOut > 1; the post-tape-FX resync catch-up overshoots too), so
-        // |readRate| > 1 routes through the shared bandlimited circular read. At
-        // or below unity Hermite is clean (anti-imaging only) and cheaper.
+        // The read head's law, at every rate (DESIGN §40.10): one bandlimited
+        // circular read with a rate-aware cutoff, direction-agnostic, holding a
+        // sample at rate 0. The loop material is periodic, so the kernel wraps mod
+        // loopLen_ and the window is well-defined across the seam.
+        //
+        // This used to branch — Hermite at or below unity, polyphase above, where
+        // the aliasing was audible. The branch was an optimisation posing as a
+        // law. Below unity the full-band kernel is a delta at integer positions
+        // (rate 1 stays bit-exact) and strictly better at fractional ones, and one
+        // path is one thing to reason about when varispeed sweeps through it.
         const auto interp = [&](double x) -> float {
-            if (std::abs(readRate) > 1.0)
-                return sharedLoopResampler().readCircular(
-                    target_->getReadPointer(ch), loopLen_, x, readRate);
-            double q = std::fmod(x, static_cast<double>(loopLen_));
-            if (q < 0.0) q += static_cast<double>(loopLen_);
-            const int i0 = static_cast<int>(q);
-            const auto at = [&](int i) {
-                int w = i % loopLen_;
-                if (w < 0) w += loopLen_;
-                return target_->getSample(ch, w);
-            };
-            return dc::hermite4(at(i0 - 1), at(i0), at(i0 + 1), at(i0 + 2),
-                            static_cast<float>(q - static_cast<double>(i0)));
+            return sharedLoopResampler().readCircular(
+                target_->getReadPointer(ch), loopLen_, x, readRate);
         };
 
         const float base = interp(p);
@@ -210,17 +201,10 @@ namespace lockstep
         if (loopLen_ <= 0 || ch < 0 || ch >= buf.getNumChannels()) return 0.0f;
         double p = std::fmod(pos, static_cast<double>(loopLen_));
         if (p < 0.0) p += static_cast<double>(loopLen_);
-        if (std::abs(readRate) > 1.0)  // same read law as loopSample (9.28.2)
-            return sharedLoopResampler().readCircular(buf.getReadPointer(ch),
-                                                      loopLen_, p, readRate);
-        const int i0 = static_cast<int>(p);
-        const auto at = [&](int i) {
-            int w = i % loopLen_;
-            if (w < 0) w += loopLen_;
-            return buf.getSample(ch, w);
-        };
-        return dc::hermite4(at(i0 - 1), at(i0), at(i0 + 1), at(i0 + 2),
-                        static_cast<float>(p - static_cast<double>(i0)));
+        // The same read law as loopSample, and for the same reason: layer B is read
+        // by the same head that reads A, at the same rate.
+        return sharedLoopResampler().readCircular(buf.getReadPointer(ch),
+                                                  loopLen_, p, readRate);
     }
 
     void LoopMachine::commitOverdubLayer()
