@@ -1296,6 +1296,14 @@ namespace lockstep
         // input_source before process(). No-op (leaves the cleared buffer) for
         // None and, until A2, Track-N. Called from both transport paths.
         void fillTrackInput(int track, const ParamFrame& frame, int numSamples);
+        // Resolve one input-source selection into a cleared buffer — the shared core
+        // of the track input and a deck's extra sub-tracks (§40.3).
+        void fillSourceInto(int track, InputSourceSel sel,
+                            juce::AudioBuffer<float>& dst, int numSamples);
+        // Fill a deck's extra input sub-tracks (1..N-1) from input_source_2..4 into
+        // the machine's own buffers (IMultiInput). No-op for a machine that does not
+        // implement IMultiInput or wants only one sub-track.
+        void fillDeckSubTrackInputs(int track, const ParamFrame& frame, int numSamples);
         // A2: the per-track audio chain (machine → FILTER → CHANNEL → ENV →
         // level/pan → inserts → sends → peak), rendered into trackBuffers_[i].
         // Shared by both transport paths and driven in routing order so a bus

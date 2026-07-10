@@ -581,11 +581,15 @@ namespace lockstep
             const int slot = p.nthVolatileIndex(0);
             CHECK(p.get(slot)->pcm.getNumChannels() == 2, "the slot is stereo before recording");
 
-            // Record a short take, then close.
+            // Record a short take, then close. Sub-track 0's input arrives as the
+            // `buffer` arg; sub-track 1's arrives in the machine-owned buffer the
+            // processor would fill (here we fill it directly — §40.3).
             {
                 lp.postCommand(Cmd::RecordCycle);
                 juce::AudioBuffer<float> b(2, 256); b.clear();
                 for (int i = 0; i < 256; ++i) { b.setSample(0, i, 0.4f); b.setSample(1, i, 0.4f); }
+                auto& sub1 = lp.inputSubTrackBuffer(1);
+                for (int i = 0; i < 256; ++i) { sub1.setSample(0, i, 0.9f); sub1.setSample(1, i, 0.9f); }
                 juce::MidiBuffer none; ParamFrame frame(pf.begin(), pf.end());
                 lp.process(none, frame, b);
             }
@@ -598,10 +602,14 @@ namespace lockstep
             CHECK(lp.state() == State::Playing, "the 4-track take closes to Playing");
             CHECK(p.get(slot)->pcm.getNumChannels() == 8,
                   "a 4-sub-track take captured eight channels in one slot");
-            // Sub-track 0 (pair 0) holds the recorded input; higher pairs are silent
-            // (no per-sub-track input fill yet — that is the next commit).
-            CHECK(std::abs(p.get(slot)->pcm.getSample(0, 10)) > 0.3f, "pair 0 recorded the input");
-            CHECK(feq(p.get(slot)->pcm.getSample(6, 10), 0.0f), "pair 3 is silent for now");
+            // Each sub-track landed in its own channel-pair.
+            CHECK(feq(p.get(slot)->pcm.getSample(0, 10), 0.4f), "pair 0 = sub-track 0's input");
+            CHECK(feq(p.get(slot)->pcm.getSample(1, 10), 0.4f), "  (both channels of pair 0)");
+            CHECK(feq(p.get(slot)->pcm.getSample(2, 10), 0.9f), "pair 1 = sub-track 1's input");
+            CHECK(feq(p.get(slot)->pcm.getSample(3, 10), 0.9f), "  (both channels of pair 1)");
+            // Sub-tracks 2 and 3 had no input filled, so their pairs are silent.
+            CHECK(feq(p.get(slot)->pcm.getSample(4, 10), 0.0f), "pair 2 unfilled → silent");
+            CHECK(feq(p.get(slot)->pcm.getSample(6, 10), 0.0f), "pair 3 unfilled → silent");
         }
 
         // S6: DIP is tape WOW, and HALF is a plateau. They used to be the same

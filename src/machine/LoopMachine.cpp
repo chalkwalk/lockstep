@@ -121,7 +121,7 @@ namespace lockstep
         return "--";
     }
 
-    void LoopMachine::prepare(double sampleRate, int /*maxBlockSize*/)
+    void LoopMachine::prepare(double sampleRate, int maxBlockSize)
     {
         sampleRate_ = sampleRate > 0.0 ? sampleRate : 44100.0;
         const int cap = static_cast<int>(sampleRate_ * kLoopMaxSeconds);
@@ -135,6 +135,8 @@ namespace lockstep
         preRing_.clear();
         preSnap_.setSize(2, preLen_, false, true, false);
         preSnap_.clear();
+        const int maxBlock = std::max(1, maxBlockSize);
+        for (auto& b : subInput_) { b.setSize(2, maxBlock, false, true, false); b.clear(); }
         reset();
     }
 
@@ -792,8 +794,21 @@ namespace lockstep
                 switch (deck_.state())
                 {
                     case State::Recording:
-                        if (tch && recPos_ < capacity_)
-                            target_->setSample(ch, recPos_, in);  // record regardless of monitor
+                        if (recPos_ < capacity_)
+                        {
+                            if (tch)
+                                target_->setSample(ch, recPos_, in);  // sub 0 → pair 0
+                            // §40.3: each extra sub-track records its own input into
+                            // its channel-pair. ch (0/1) selects the pair's L/R, so
+                            // sub k's L → target channel 2k, its R → 2k+1.
+                            for (int sub = 1; sub < subCount; ++sub)
+                            {
+                                const int tgtCh = 2 * sub + ch;
+                                const auto& si = subInput_[static_cast<std::size_t>(sub)];
+                                if (tgtCh < target_->getNumChannels() && ch < si.getNumChannels())
+                                    target_->setSample(tgtCh, recPos_, si.getSample(ch, i));
+                            }
+                        }
                         break;
                     case State::Playing:
                         if (tch && loopLen_ > 0 && transportGates)

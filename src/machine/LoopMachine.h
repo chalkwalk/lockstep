@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../deckcore/Deck.h"
+#include "IMultiInput.h"
 #include "IMachine.h"
 #include "ITempoAware.h"
 #include "ILoopGridAware.h"
@@ -30,7 +31,8 @@ namespace lockstep
     // looper self-plays it too. Loop length is free-running here (the span recorded
     // before the first close); transport-quantize + varispeed sync land in C4. The
     // one-level undo backup stays machine-internal (not a playable slot).
-    class LoopMachine : public IMachine, public ITempoAware, public ILoopGridAware
+    class LoopMachine : public IMachine, public ITempoAware, public ILoopGridAware,
+                        public IMultiInput
     {
     public:
         explicit LoopMachine(SamplePool& pool) : pool_(pool) {}
@@ -182,6 +184,18 @@ namespace lockstep
             return dc::Deck::resolveMonitor(mode, sourceIsInsert, state);
         }
 
+        // IMultiInput (§40.3): sub-track 0 is the ordinary track input (the `buffer`
+        // arg to process); sub-tracks 1..N-1 pull their own input_source_k into
+        // these machine-owned buffers, filled by the processor before process().
+        [[nodiscard]] int numInputSubTracks() const noexcept override
+        {
+            return deck_.subTrackCount();
+        }
+        [[nodiscard]] juce::AudioBuffer<float>& inputSubTrackBuffer(int sub) noexcept override
+        {
+            return subInput_[static_cast<std::size_t>(std::clamp(sub, 1, kMaxInputSubTracks - 1))];
+        }
+
     private:
         static constexpr int kSlotInputSource = 0;
         static constexpr int kSlotTargetBuffer = 1;  // volatile REC slot the loop lives in
@@ -331,6 +345,9 @@ namespace lockstep
         juce::AudioBuffer<float> inScratch_;
         juce::AudioBuffer<float> preRing_;   // C6: rolling pre-roll (circular)
         juce::AudioBuffer<float> preSnap_;   // C6: this take's pre-roll, in order
+        // §40.3: extra sub-track input buffers (index 1..3; [0] unused — sub 0 is
+        // the track buffer). Sized in prepare(); the processor fills them per block.
+        std::array<juce::AudioBuffer<float>, kMaxInputSubTracks> subInput_;
         // R4: the fresh overdub layer B (bandlimited fractional writes accumulate
         // here add-only; folded into the committed loop A once per iteration).
         juce::AudioBuffer<float> overdubLayer_;

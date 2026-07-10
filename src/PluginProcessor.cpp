@@ -10,6 +10,7 @@
 #include "core/OutputDest.h"
 #include "core/RoutingGraph.h"
 #include "dsp/SoftClip.h"
+#include "machine/IMultiInput.h"
 #include "machine/InputSource.h"
 #include "machine/RouteMachine.h"
 #include "machine/RecordMachine.h"
@@ -829,19 +830,13 @@ namespace lockstep
     // 6.1: fill a track's scratch buffer from its machine's resolved input_source
     // before process() (DESIGN §27). trackBuffers_[track] is already cleared at
     // block start, so None — and, until A2, Track-N — simply leave it silent.
-    void LockstepProcessor::fillTrackInput(int track, const ParamFrame& frame,
-                                           int numSamples)
+    // Resolve one input-source selection into `dst` (cleared beforehand by the
+    // caller). Shared by a track's main input (sub-track 0) and a deck's extra
+    // sub-tracks (§40.3), so tap-fork, the Master feedback guard, and self/MIDI-out
+    // silencing behave identically wherever a source is chosen.
+    void LockstepProcessor::fillSourceInto(int track, InputSourceSel sel,
+                                           juce::AudioBuffer<float>& dst, int numSamples)
     {
-        const auto t = static_cast<std::size_t>(track);
-        auto* m = machines_[t].get();
-        if (m == nullptr || m->isMidiOut()) return;  // MIDI-out has no audio input
-
-        const int slot = m->slotForId(kInputSourceSlotId);
-        if (slot < 0 || slot >= static_cast<int>(frame.size())) return;
-
-        const InputSourceSel sel = decodeInputSource(frame[static_cast<std::size_t>(slot)]);
-        auto& dst = trackBuffers_[t];
-
         const auto copyInto = [&](const juce::AudioBuffer<float>& src) {
             const int chans = std::min(dst.getNumChannels(), src.getNumChannels());
             const int n = std::min(numSamples, src.getNumSamples());
@@ -879,16 +874,58 @@ namespace lockstep
                 break;
             }
         }
+    }
+
+    void LockstepProcessor::fillTrackInput(int track, const ParamFrame& frame,
+                                           int numSamples)
+    {
+        const auto t = static_cast<std::size_t>(track);
+        auto* m = machines_[t].get();
+        if (m == nullptr || m->isMidiOut()) return;  // MIDI-out has no audio input
+
+        const int slot = m->slotForId(kInputSourceSlotId);
+        if (slot < 0 || slot >= static_cast<int>(frame.size())) return;
+
+        auto& dst = trackBuffers_[t];
+        fillSourceInto(track, decodeInputSource(frame[static_cast<std::size_t>(slot)]),
+                       dst, numSamples);
 
         // A2: mix in any tracks routed to this one as a bus (DESIGN §27). Topo
         // order guarantees those feeders have already deposited here. Silent for
         // a track that is no one's destination, so the all-Master case is a no-op.
+        // The bus targets the track's main input only — a deck's extra sub-tracks
+        // are pull-only taps, never a push destination (§40.3).
         {
             const auto& bus = busInputBufs_[t];
             const int chans = std::min(dst.getNumChannels(), bus.getNumChannels());
             const int n = std::min(numSamples, bus.getNumSamples());
             for (int ch = 0; ch < chans; ++ch)
                 dst.addFrom(ch, 0, bus, ch, 0, n);
+        }
+    }
+
+    // Fill a deck's extra input sub-tracks (1..N-1) from their own `input_source_k`
+    // selections into machine-owned buffers (§40.3), reusing the tap machinery
+    // 11.3a already made per-sub-track. Sub-track 0 is the ordinary track buffer,
+    // filled by fillTrackInput; this covers only the deck's opt-in extras.
+    void LockstepProcessor::fillDeckSubTrackInputs(int track, const ParamFrame& frame,
+                                                   int numSamples)
+    {
+        const auto t = static_cast<std::size_t>(track);
+        auto* mio = dynamic_cast<IMultiInput*>(machines_[t].get());
+        if (mio == nullptr) return;
+
+        const int subs = std::min(mio->numInputSubTracks(), kMaxInputSubTracks);
+        for (int sub = 1; sub < subs; ++sub)
+        {
+            auto& dst = mio->inputSubTrackBuffer(sub);
+            if (dst.getNumSamples() < numSamples || dst.getNumChannels() < 1) continue;
+            dst.clear();
+
+            const int slot = machines_[t]->slotForId(inputSourceSlotId(sub));
+            if (slot < 0 || slot >= static_cast<int>(frame.size())) continue;
+            fillSourceInto(track, decodeInputSource(frame[static_cast<std::size_t>(slot)]),
+                           dst, numSamples);
         }
     }
 
@@ -905,6 +942,7 @@ namespace lockstep
         auto* mi = machines_[i].get();
 
         fillTrackInput(static_cast<int>(i), frame, numBlockSamples);
+        fillDeckSubTrackInputs(static_cast<int>(i), frame, numBlockSamples);
         // C2: deliver the block transport to tempo-aware machines before process().
         if (auto* ta = dynamic_cast<ITempoAware*>(mi))
         {
