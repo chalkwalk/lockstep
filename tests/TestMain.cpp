@@ -18,6 +18,7 @@ int main()
     lockstep::runStretchEngineTests();
     lockstep::runStretchMachineTests();
     lockstep::runMediumTests();
+    lockstep::runHeadsTests();
     lockstep::runResamplerTests();
     lockstep::runSamplePlayerTests();
     lockstep::runRecordMachineTests();

@@ -38,6 +38,7 @@ namespace lockstep
     void runStretchEngineTests(); // 9.23 Bungee IStretchEngine seam (pull model)
     void runStretchMachineTests(); // C3 Flex-analog Player (independent pitch+tempo)
     void runMediumTests();         // 11.7a dc::Medium — topology, depth, high-water
+    void runHeadsTests();          // 11.7a dc::ReadHead/WriteHead + the tape-delay proof
     void runResamplerTests();      // 9.25 R1 shared bandlimited resampler
     void runSamplePlayerTests();   // C1 loop-seam crossfade (borrow-tail / eat-in)
     void runRecordMachineTests();  // 6.2 RecordMachine capture (DESIGN §29.2/§30)

@@ -32,6 +32,33 @@ namespace dc
 
         Resampler() { buildBank(); }
 
+        // The kernel itself, for callers whose samples are not a flat `const
+        // float*` — a Medium is depth-erased and its indices wrap, so the heads
+        // (§40.10) run the tap loop themselves rather than handing over a
+        // pointer. `taps` is kTaps coefficients for the phase nearest `frac`
+        // (which must lie in [0,1]); tap i sits at source index
+        // `floor(pos) - (kHalf - 1) + i`.
+        //
+        // `writeGain` is the scatter-write's |rate| factor (see
+        // scatterAddCircular), clamped at the bucket ceiling. Read paths ignore
+        // it; write paths multiply the deposit by it. Both share the bucket, so
+        // read and write cannot drift apart in their band-limiting.
+        struct Kernel
+        {
+            const float* taps = nullptr;
+            float writeGain = 1.0f;
+        };
+
+        [[nodiscard]] Kernel kernelFor(double rate, double frac) const noexcept
+        {
+            const Bucket& b = bucketFor(rate);
+            int ph = static_cast<int>(frac * kPhases + 0.5);
+            if (ph < 0) ph = 0;
+            if (ph > kPhases) ph = kPhases;
+            return { b.table.data() + static_cast<std::size_t>(ph) * kTaps,
+                     static_cast<float>(std::min(std::abs(rate), b.maxRate)) };
+        }
+
         // Interpolate mono `src` (length `srcLen`) at continuous position `pos`,
         // band-limited for a read `rate` (source samples advanced per output
         // sample; pass the magnitude for reverse). Window indices are clamped at
