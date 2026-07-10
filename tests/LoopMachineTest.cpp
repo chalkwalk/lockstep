@@ -569,11 +569,13 @@ namespace lockstep
         {
             SamplePool p; p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
-            LoopMachine lp(p); lp.prepare(kSr, 512);
+            LoopMachine lp(p); lp.prepare(kSr, 4096);  // block covers the whole take
 
-            // A full param frame with subtrack_count = 4 and Free sync. Resolve
-            // slots by id (they are private) so the test does not hardcode indices.
+            // A full param frame seeded from the machine's own defaults (as APVTS
+            // does live — a zeroed frame would set every sub-track level to 0).
             std::vector<float> pf(static_cast<std::size_t>(lp.numParams()), 0.0f);
+            for (int i = 0; i < lp.numParams(); ++i)
+                pf[static_cast<std::size_t>(i)] = lp.paramSpec(i).defaultValue;
             pf[static_cast<std::size_t>(lp.slotForId("input_source"))]   = 1.0f;  // External
             pf[static_cast<std::size_t>(lp.slotForId("loop_sync"))]      = 0.0f;  // Free
             pf[static_cast<std::size_t>(lp.slotForId("subtrack_count"))] = 4.0f;
@@ -586,10 +588,10 @@ namespace lockstep
             // processor would fill (here we fill it directly — §40.3).
             {
                 lp.postCommand(Cmd::RecordCycle);
-                juce::AudioBuffer<float> b(2, 256); b.clear();
-                for (int i = 0; i < 256; ++i) { b.setSample(0, i, 0.4f); b.setSample(1, i, 0.4f); }
+                juce::AudioBuffer<float> b(2, 4096); b.clear();
+                for (int i = 0; i < 4096; ++i) { b.setSample(0, i, 0.4f); b.setSample(1, i, 0.4f); }
                 auto& sub1 = lp.inputSubTrackBuffer(1);
-                for (int i = 0; i < 256; ++i) { sub1.setSample(0, i, 0.9f); sub1.setSample(1, i, 0.9f); }
+                for (int i = 0; i < 4096; ++i) { sub1.setSample(0, i, 0.9f); sub1.setSample(1, i, 0.9f); }
                 juce::MidiBuffer none; ParamFrame frame(pf.begin(), pf.end());
                 lp.process(none, frame, b);
             }
@@ -610,6 +612,46 @@ namespace lockstep
             // Sub-tracks 2 and 3 had no input filled, so their pairs are silent.
             CHECK(feq(p.get(slot)->pcm.getSample(4, 10), 0.0f), "pair 2 unfilled → silent");
             CHECK(feq(p.get(slot)->pcm.getSample(6, 10), 0.0f), "pair 3 unfilled → silent");
+
+            // Playback sums the sub-tracks. Free mode → native rate 1, so a block of
+            // output equals pair0 + pair1 = 0.4 + 0.9 = 1.3 (both centered, unity).
+            {
+                juce::AudioBuffer<float> out(2, 64); out.clear();
+                juce::MidiBuffer none; ParamFrame frame(pf.begin(), pf.end());
+                lp.process(none, frame, out);
+                CHECK(std::abs(out.getSample(0, 32) - 1.3f) < 0.05f,
+                      "playback sums enabled sub-tracks (0.4 + 0.9)");
+            }
+            // Mute sub-track 1 → only pair 0 (0.4) remains.
+            {
+                pf[static_cast<std::size_t>(lp.slotForId("sub2_mute"))] = 1.0f;
+                juce::AudioBuffer<float> out(2, 64); out.clear();
+                juce::MidiBuffer none; ParamFrame frame(pf.begin(), pf.end());
+                lp.process(none, frame, out);
+                CHECK(std::abs(out.getSample(0, 32) - 0.4f) < 0.05f,
+                      "muting sub-track 1 drops it from the sum");
+                pf[static_cast<std::size_t>(lp.slotForId("sub2_mute"))] = 0.0f;
+            }
+            // Half-level sub-track 0 → 0.2 + 0.9 = 1.1.
+            {
+                pf[static_cast<std::size_t>(lp.slotForId("sub1_level"))] = 0.5f;
+                juce::AudioBuffer<float> out(2, 64); out.clear();
+                juce::MidiBuffer none; ParamFrame frame(pf.begin(), pf.end());
+                lp.process(none, frame, out);
+                CHECK(std::abs(out.getSample(0, 32) - 1.1f) < 0.05f,
+                      "sub-track level scales its contribution (0.2 + 0.9)");
+                pf[static_cast<std::size_t>(lp.slotForId("sub1_level"))] = 1.0f;
+            }
+            // Pan sub-track 1 hard left → pair 1 leaves R, so R = pair0 only (0.4).
+            {
+                pf[static_cast<std::size_t>(lp.slotForId("sub2_pan"))] = -1.0f;
+                juce::AudioBuffer<float> out(2, 64); out.clear();
+                juce::MidiBuffer none; ParamFrame frame(pf.begin(), pf.end());
+                lp.process(none, frame, out);
+                CHECK(std::abs(out.getSample(0, 32) - 1.3f) < 0.05f, "hard-left keeps L full (0.4+0.9)");
+                CHECK(std::abs(out.getSample(1, 32) - 0.4f) < 0.05f, "and drops it from R (0.4)");
+                pf[static_cast<std::size_t>(lp.slotForId("sub2_pan"))] = 0.0f;
+            }
         }
 
         // S6: DIP is tape WOW, and HALF is a plateau. They used to be the same

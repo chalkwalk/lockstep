@@ -22,6 +22,35 @@ namespace lockstep
     {
         ParamSpec s;
         s.sectionIndex = kSrcSecIdx;
+
+        // The 12 per-sub-track mix params, generated rather than switched (§40.3).
+        if (index >= kSlotSubMixBase && index < kNumSlots)
+        {
+            const int rel = index - kSlotSubMixBase;
+            const int sub = rel / kSubMixFields;         // 0..3
+            const int field = rel % kSubMixFields;       // 0 level, 1 pan, 2 mute
+            const juce::String n{ sub + 1 };             // user-facing 1-based
+            switch (field)
+            {
+                case 0:  // level
+                    s.id = "sub" + n + "_level";
+                    s.label = "T" + n + " Lvl";
+                    s.minValue = 0.0f; s.maxValue = 1.0f; s.defaultValue = 1.0f;
+                    return s;
+                case 1:  // pan (balance law: 0 = both channels unity)
+                    s.id = "sub" + n + "_pan";
+                    s.label = "T" + n + " Pan";
+                    s.minValue = -1.0f; s.maxValue = 1.0f; s.defaultValue = 0.0f;
+                    return s;
+                default: // mute
+                    s.id = "sub" + n + "_mute";
+                    s.label = "T" + n + " Mute";
+                    s.minValue = 0.0f; s.maxValue = 1.0f; s.defaultValue = 0.0f;
+                    s.isStepped = true;
+                    return s;
+            }
+        }
+
         switch (index)
         {
             case kSlotInputSource:
@@ -241,6 +270,28 @@ namespace lockstep
         // crossfade faded the head in early, played it again after the wrap, and
         // left the ringing step untouched — it was the click, not the cure.
         return interp(p);
+    }
+
+    float LoopMachine::mixSubTracks(int outCh, double pos, double readRate,
+                                    int subCount) const
+    {
+        if (target_ == nullptr || loopLen_ <= 0) return 0.0f;
+        float acc = 0.0f;
+        for (int sub = 0; sub < subCount; ++sub)
+        {
+            const auto& st = deck_.subTrack(sub);
+            if (st.muted) continue;
+            const int rdCh = 2 * sub + outCh;   // pair `sub`, L or R
+            if (rdCh >= target_->getNumChannels()) continue;
+            // Center-unity balance: pan 0 leaves both channels at level; panning
+            // toward one side attenuates the opposite channel (so a lone centered
+            // sub-track reads exactly as loopSample).
+            const float panGain = (outCh == 0)
+                ? (st.pan <= 0.0f ? 1.0f : 1.0f - st.pan)
+                : (st.pan >= 0.0f ? 1.0f : 1.0f + st.pan);
+            acc += loopSample(rdCh, pos, readRate) * st.level * panGain;
+        }
+        return acc;
     }
 
     float LoopMachine::readLayer(const juce::AudioBuffer<float>& buf, int ch,
@@ -640,6 +691,21 @@ namespace lockstep
         const int subCount = (params.size() > kSlotSubTrackCount)
             ? static_cast<int>(std::lround(params[kSlotSubTrackCount])) : 1;
         deck_.setSubTrackCount(subCount);
+
+        // Pull the per-sub-track mix into the deck's sub-track table (§40.3), so
+        // playback summing reads one model. Defaults (level 1 / pan 0 / mute 0)
+        // make a single sub-track transparent.
+        for (int sub = 0; sub < kMaxInputSubTracks; ++sub)
+        {
+            const int base = kSlotSubMixBase + sub * kSubMixFields;
+            auto& st = deck_.subTrack(sub);
+            st.level = (params.size() > static_cast<std::size_t>(base))
+                ? std::clamp(params[static_cast<std::size_t>(base)], 0.0f, 1.0f) : 1.0f;
+            st.pan = (params.size() > static_cast<std::size_t>(base + 1))
+                ? std::clamp(params[static_cast<std::size_t>(base + 1)], -1.0f, 1.0f) : 0.0f;
+            st.muted = (params.size() > static_cast<std::size_t>(base + 2))
+                && params[static_cast<std::size_t>(base + 2)] >= 0.5f;
+        }
         syncMode_ = (params.size() > kSlotLoopSync)
             ? static_cast<int>(std::lround(params[kSlotLoopSync])) : 0;
 
@@ -812,7 +878,7 @@ namespace lockstep
                         break;
                     case State::Playing:
                         if (tch && loopLen_ > 0 && transportGates)
-                            loopOut = loopSample(ch, pos, effRate_);
+                            loopOut = mixSubTracks(ch, pos, effRate_, subCount);
                         break;
                     case State::Overdubbing:
                         if (tch && loopLen_ > 0 && transportGates)

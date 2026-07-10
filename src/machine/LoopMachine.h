@@ -205,7 +205,14 @@ namespace lockstep
         static constexpr int kSlotDecayMode = 5;     // Overdub | Always (#4)
         static constexpr int kSlotFreewheel = 6;     // 0 = follow transport, 1 = freewheel
         static constexpr int kSlotSubTrackCount = 7; // 1..4 deck sub-tracks (§40.3)
-        static constexpr int kNumSlots = 8;
+        // Per-sub-track mix params (§40.3): level/pan/mute for each of the four
+        // sub-tracks, so they are OEB-resolved, P-lockable, scene-able and Morphable
+        // like every other param. Laid out sub-major: slot = kSlotSubMixBase +
+        // sub*3 + field (0=level, 1=pan, 2=mute). Appended, so a single-sub-track
+        // Loop's default (level 1 / pan 0 / mute 0) leaves playback byte-identical.
+        static constexpr int kSlotSubMixBase = 8;
+        static constexpr int kSubMixFields = 3;   // level, pan, mute
+        static constexpr int kNumSlots = kSlotSubMixBase + kMaxInputSubTracks * kSubMixFields;
         // loop_sync value: Sync = grid-locked to the track's own length × divider,
         // pushed via ILoopGridAware (S1). Any value >= this is grid-locked.
         static constexpr int kSyncGrid = 2;
@@ -285,6 +292,12 @@ namespace lockstep
         // read routes through the shared polyphase (rate-aware cutoff, 9.28.2);
         // at or below it a circular Hermite read suffices (anti-imaging only).
         [[nodiscard]] float loopSample(int ch, double pos, double readRate) const;
+        // §40.3 playback: sum every enabled sub-track's channel-pair into output
+        // channel `outCh` (0=L,1=R), applying per-sub-track level and a center-unity
+        // balance pan. For a single sub-track (level 1 / pan 0 / unmuted) this is
+        // exactly loopSample(outCh, ...), so a one-track loop is unchanged.
+        [[nodiscard]] float mixSubTracks(int outCh, double pos, double readRate,
+                                         int subCount) const;
         // Same read law over an arbitrary loop-length buffer (the overdub layer
         // B) at a fractional position — no wrap crossfade (that is A's job).
         [[nodiscard]] float readLayer(const juce::AudioBuffer<float>& buf, int ch,
