@@ -94,6 +94,14 @@ namespace lockstep
                 s.valueLabels = std::span<const char* const>(kFreewheelLabels.data(),
                                                              kFreewheelLabels.size());
                 return s;
+            case kSlotSubTrackCount:
+                s.id = "subtrack_count";
+                s.label = "Tracks";
+                s.minValue = 1.0f;
+                s.maxValue = static_cast<float>(kMaxInputSubTracks);  // 1..4 (§40.3)
+                s.defaultValue = 1.0f;   // a single stereo sub-track — today's Loop
+                s.isStepped = true;
+                return s;
             default:
                 return {};
         }
@@ -623,6 +631,13 @@ namespace lockstep
         targetSlot_ = pool_.nthVolatileIndex(targetSlot);
         target_ = pool_.mutableVolatilePcm(targetSlot_);
         capacity_ = pool_.volatileCapacity(targetSlot_);
+
+        // The deck's sub-track count (§40.3). Default 1 = a single stereo sub-track,
+        // byte-identical to today. dc::Deck clamps to [1, 4]; a change mid-take does
+        // not resize the buffer already recording (the width was fixed at capture).
+        const int subCount = (params.size() > kSlotSubTrackCount)
+            ? static_cast<int>(std::lround(params[kSlotSubTrackCount])) : 1;
+        deck_.setSubTrackCount(subCount);
         syncMode_ = (params.size() > kSlotLoopSync)
             ? static_cast<int>(std::lround(params[kSlotLoopSync])) : 0;
 

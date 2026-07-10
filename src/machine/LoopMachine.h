@@ -190,7 +190,8 @@ namespace lockstep
         static constexpr int kSlotDecay = 4;         // 0 = no decay … 1 = full (#4)
         static constexpr int kSlotDecayMode = 5;     // Overdub | Always (#4)
         static constexpr int kSlotFreewheel = 6;     // 0 = follow transport, 1 = freewheel
-        static constexpr int kNumSlots = 7;
+        static constexpr int kSlotSubTrackCount = 7; // 1..4 deck sub-tracks (§40.3)
+        static constexpr int kNumSlots = 8;
         // loop_sync value: Sync = grid-locked to the track's own length × divider,
         // pushed via ILoopGridAware (S1). Any value >= this is grid-locked.
         static constexpr int kSyncGrid = 2;

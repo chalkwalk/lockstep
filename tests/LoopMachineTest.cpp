@@ -563,6 +563,47 @@ namespace lockstep
                   "S4: doubled loop duplicates content into the second half (0.5, no pitch)");
         }
 
+        // §40.3: a 4-sub-track Loop records into ONE 8-channel slot (sub-track k =
+        // channel-pair k). subtrack_count drives the capture width; default 1 keeps
+        // the slot stereo, so a single-track loop is byte-identical to before.
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LoopMachine lp(p); lp.prepare(kSr, 512);
+
+            // A full param frame with subtrack_count = 4 and Free sync. Resolve
+            // slots by id (they are private) so the test does not hardcode indices.
+            std::vector<float> pf(static_cast<std::size_t>(lp.numParams()), 0.0f);
+            pf[static_cast<std::size_t>(lp.slotForId("input_source"))]   = 1.0f;  // External
+            pf[static_cast<std::size_t>(lp.slotForId("loop_sync"))]      = 0.0f;  // Free
+            pf[static_cast<std::size_t>(lp.slotForId("subtrack_count"))] = 4.0f;
+
+            const int slot = p.nthVolatileIndex(0);
+            CHECK(p.get(slot)->pcm.getNumChannels() == 2, "the slot is stereo before recording");
+
+            // Record a short take, then close.
+            {
+                lp.postCommand(Cmd::RecordCycle);
+                juce::AudioBuffer<float> b(2, 256); b.clear();
+                for (int i = 0; i < 256; ++i) { b.setSample(0, i, 0.4f); b.setSample(1, i, 0.4f); }
+                juce::MidiBuffer none; ParamFrame frame(pf.begin(), pf.end());
+                lp.process(none, frame, b);
+            }
+            {
+                lp.postCommand(Cmd::RecordCycle);  // close -> Playing
+                juce::AudioBuffer<float> b(2, 1); b.clear();
+                juce::MidiBuffer none; ParamFrame frame(pf.begin(), pf.end());
+                lp.process(none, frame, b);
+            }
+            CHECK(lp.state() == State::Playing, "the 4-track take closes to Playing");
+            CHECK(p.get(slot)->pcm.getNumChannels() == 8,
+                  "a 4-sub-track take captured eight channels in one slot");
+            // Sub-track 0 (pair 0) holds the recorded input; higher pairs are silent
+            // (no per-sub-track input fill yet — that is the next commit).
+            CHECK(std::abs(p.get(slot)->pcm.getSample(0, 10)) > 0.3f, "pair 0 recorded the input");
+            CHECK(feq(p.get(slot)->pcm.getSample(6, 10), 0.0f), "pair 3 is silent for now");
+        }
+
         // S6: DIP is tape WOW, and HALF is a plateau. They used to be the same
         // effect — DIP targeted 0.5 with the same glide — which is exactly what a
         // held-cell test would have caught. Record an impulse loop and count how far
