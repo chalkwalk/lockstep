@@ -92,6 +92,16 @@ namespace dc
             std::fill_n(i16_ + begin, count, quantise(v));
         }
 
+        // The sub-store [begin, begin + n). A flat block of storage slices into
+        // one plane per (sub-track, channel); a host whose channels are already
+        // separate allocations — a juce::AudioBuffer, a pool slot — hands each
+        // plane over directly instead.
+        [[nodiscard]] Store slice(std::size_t begin, std::size_t n) const noexcept
+        {
+            if (f32_ != nullptr) return Store{ f32_ + begin, n };
+            return Store{ i16_ + begin, n };
+        }
+
     private:
         static std::int16_t quantise(float v) noexcept
         {
@@ -124,20 +134,31 @@ namespace dc
 
         Medium() = default;
 
-        // Bind caller-owned storage. `store.size()` must be >= storageSamples(c);
-        // a short or absent store leaves the medium unbound (every read silent,
-        // every write dropped) rather than reaching past its end.
+        // Bind caller-owned storage, as one flat block sliced into planes. Its
+        // size must be >= storageSamples(c); a short or absent store leaves the
+        // medium unbound (every read silent, every write dropped) rather than
+        // reaching past its end.
         void bind(const Config& c, Store store) noexcept;
+
+        // Bind planes the caller already holds separately — one per
+        // (sub-track, channel), in that order, each at least `capacitySamples`
+        // long. This is how a juce::AudioBuffer or a pool slot becomes a medium:
+        // its channels are distinct allocations and nothing may copy them.
+        void bindPlanes(const Config& c, const Store* planes, int count) noexcept;
+
         void unbind() noexcept;
 
-        [[nodiscard]] bool bound() const noexcept { return store_.valid(); }
+        [[nodiscard]] bool bound() const noexcept { return ! planes_.empty(); }
         [[nodiscard]] const Config& config() const noexcept { return cfg_; }
         [[nodiscard]] Topology topology() const noexcept { return cfg_.topology; }
         [[nodiscard]] double mediumRate() const noexcept { return cfg_.mediumRate; }
         [[nodiscard]] int capacity() const noexcept { return cfg_.capacitySamples; }
         [[nodiscard]] int numSubTracks() const noexcept { return cfg_.numSubTracks; }
         [[nodiscard]] int channels() const noexcept { return cfg_.channelsPerSubTrack; }
-        [[nodiscard]] Depth depth() const noexcept { return store_.depth(); }
+        [[nodiscard]] Depth depth() const noexcept
+        {
+            return planes_.empty() ? Depth::F32 : planes_.front().depth();
+        }
 
         // How far this sub-track has been written (its high-water mark). Reads
         // past it are silence; nothing below it is ever uninitialised.
@@ -153,6 +174,15 @@ namespace dc
         // deposit into virgin tape adds to zero rather than to whatever the
         // allocator left. Never lowers the mark — that is `resetUsed`.
         void ensureCommitted(int sub, int upTo) noexcept;
+
+        // Raise the mark WITHOUT zeroing: the storage below `upTo` already holds
+        // audio the caller vouches for — a loop loaded from the pool, a take
+        // restored from undo, a buffer the host filled before binding. The two
+        // verbs are the difference between virgin tape and a tape with a
+        // recording on it, and calling the wrong one either wipes the take or
+        // plays back uninitialised memory.
+        void adoptUsed(int sub, int upTo) noexcept;
+
         void resetUsed(int sub) noexcept;
         void resetAllUsed() noexcept;
 
@@ -180,30 +210,30 @@ namespace dc
         [[nodiscard]] float read(int sub, int ch, std::int64_t i) const noexcept
         {
             int k = 0;
-            if (! store_.valid() || ! resolve(i, k)) return 0.0f;
+            if (! bound() || ! resolve(i, k)) return 0.0f;
             if (k >= used(sub)) return 0.0f;
-            return store_.get(offset(sub, ch, k));
+            return plane(sub, ch).get(static_cast<std::size_t>(k));
         }
 
         void add(int sub, int ch, std::int64_t i, float v) noexcept
         {
             int k = 0;
-            if (! store_.valid() || ! resolve(i, k)) return;
-            store_.add(offset(sub, ch, k), v);
+            if (! bound() || ! resolve(i, k)) return;
+            plane(sub, ch).add(static_cast<std::size_t>(k), v);
         }
 
         void write(int sub, int ch, std::int64_t i, float v) noexcept
         {
             int k = 0;
-            if (! store_.valid() || ! resolve(i, k)) return;
-            store_.set(offset(sub, ch, k), v);
+            if (! bound() || ! resolve(i, k)) return;
+            plane(sub, ch).set(static_cast<std::size_t>(k), v);
         }
 
         void scale(int sub, int ch, std::int64_t i, float g) noexcept
         {
             int k = 0;
-            if (! store_.valid() || ! resolve(i, k)) return;
-            store_.scale(offset(sub, ch, k), g);
+            if (! bound() || ! resolve(i, k)) return;
+            plane(sub, ch).scale(static_cast<std::size_t>(k), g);
         }
 
         // Erase a sub-track's content without dropping its high-water mark
@@ -211,16 +241,20 @@ namespace dc
         void clearSubTrack(int sub) noexcept;
 
     private:
-        [[nodiscard]] std::size_t offset(int sub, int ch, int i) const noexcept
+        // One store per (sub-track, channel), sub-track-major. Whether they came
+        // from one flat block or from a host's separate channel allocations stops
+        // mattering here — which is the point.
+        [[nodiscard]] Store& plane(int sub, int ch) noexcept
         {
-            const std::size_t plane =
-                static_cast<std::size_t>(sub * cfg_.channelsPerSubTrack + ch);
-            return plane * static_cast<std::size_t>(cfg_.capacitySamples)
-                 + static_cast<std::size_t>(i);
+            return planes_[static_cast<std::size_t>(sub * cfg_.channelsPerSubTrack + ch)];
+        }
+        [[nodiscard]] const Store& plane(int sub, int ch) const noexcept
+        {
+            return planes_[static_cast<std::size_t>(sub * cfg_.channelsPerSubTrack + ch)];
         }
 
         Config cfg_{};
-        Store store_{};
+        std::vector<Store> planes_;
         std::vector<int> used_;  // per sub-track high-water, in samples
     };
 }

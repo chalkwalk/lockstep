@@ -17,6 +17,7 @@
 #include "TestHarness.h"
 #include "../src/deckcore/Medium.h"
 
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -109,6 +110,65 @@ namespace lockstep
                   "clearSubTrack erases audio but keeps the mark");
             m.resetUsed(0);
             CHECK(m.used(0) == 0, "resetUsed drops the mark");
+        }
+
+        // ── Planes: channels that were never one flat block ──────────────────
+        // A juce::AudioBuffer's channels are separate allocations, and a pool slot
+        // is not ours to copy. Binding planes is how those become a medium; above
+        // this call nothing knows which kind of storage it is reading.
+        {
+            dc::Medium::Config cfg;
+            cfg.numSubTracks = 2;
+            cfg.channelsPerSubTrack = 1;
+            cfg.capacitySamples = 8;
+
+            std::vector<float> left(8, 0.0f), right(8, 0.0f);
+            const std::array<dc::Store, 2> planes{ dc::Store{ left.data(), left.size() },
+                                                   dc::Store{ right.data(), right.size() } };
+
+            dc::Medium m;
+            m.bindPlanes(cfg, planes.data(), 2);
+            CHECK(m.bound(), "separate planes bind");
+
+            m.adoptUsed(0, 8);
+            m.adoptUsed(1, 8);
+            m.write(0, 0, 2, 0.5f);
+            m.write(1, 0, 2, -0.5f);
+            CHECK(feq(left[2], 0.5f) && feq(right[2], -0.5f),
+                  "writes land in the caller's own arrays");
+
+            // A plane shorter than the capacity is a buffer overrun waiting to
+            // happen, so it does not bind at all.
+            std::vector<float> stunted(4, 0.0f);
+            const std::array<dc::Store, 2> bad{ dc::Store{ left.data(), left.size() },
+                                                dc::Store{ stunted.data(), stunted.size() } };
+            m.bindPlanes(cfg, bad.data(), 2);
+            CHECK(! m.bound(), "a plane shorter than the capacity refuses to bind");
+        }
+
+        // ── adoptUsed vouches; ensureCommitted wipes ─────────────────────────
+        // The two verbs are the difference between a tape with a recording on it
+        // and virgin tape. Calling the wrong one either wipes a take or plays back
+        // uninitialised memory.
+        {
+            dc::Medium::Config cfg;
+            cfg.numSubTracks = 1;
+            cfg.channelsPerSubTrack = 1;
+            cfg.capacitySamples = 8;
+
+            std::vector<float> store(8, 1.0f);
+            dc::Medium m;
+            m.bindPlanes(cfg, std::array<dc::Store, 1>{
+                                  dc::Store{ store.data(), store.size() } }.data(), 1);
+
+            m.adoptUsed(0, 8);
+            CHECK(m.used(0) == 8 && feq(m.read(0, 0, 3), 1.0f),
+                  "adoptUsed raises the mark over content that is already there");
+
+            m.resetUsed(0);
+            m.ensureCommitted(0, 8);
+            CHECK(m.used(0) == 8 && feq(m.read(0, 0, 3), 0.0f),
+                  "ensureCommitted zeroes the span it claims");
         }
 
         // ── Circular topology: indices wrap, in both directions ──────────────

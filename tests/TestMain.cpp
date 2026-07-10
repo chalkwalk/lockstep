@@ -22,6 +22,7 @@ int main()
     lockstep::runHeadsTests();
     lockstep::runLayerStackTests();
     lockstep::runDeckTests();
+    lockstep::runDeckAdapterTests();
     lockstep::runResamplerTests();
     lockstep::runSamplePlayerTests();
     lockstep::runRecordMachineTests();
