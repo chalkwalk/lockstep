@@ -17,6 +17,7 @@ int main()
     lockstep::runSyncSliceTests();
     lockstep::runStretchEngineTests();
     lockstep::runStretchMachineTests();
+    lockstep::runClockLocateTests();
     lockstep::runMediumTests();
     lockstep::runHeadsTests();
     lockstep::runLayerStackTests();

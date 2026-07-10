@@ -31,6 +31,21 @@ namespace lockstep
         const auto info = playHead ? playHead->getPosition()
                                    : juce::Optional<juce::AudioPlayHead::PositionInfo>{};
 
+        // Apply any latched locate before the position is read. A host that is
+        // playing owns position outright, so the request is dropped there rather
+        // than fighting the playhead: winding the tape is dragging the playhead.
+        const bool hostOwnsPosition = info.hasValue() && info->getIsPlaying();
+        if (locatePending_.exchange(false, std::memory_order_acq_rel) && ! hostOwnsPosition)
+        {
+            const std::uint64_t bits = locateTargetBits_.load(std::memory_order_relaxed);
+            double target = 0.0;
+            std::memcpy(&target, &bits, sizeof(target));
+            localPpq_ = target;
+            ppqBlockStart_ = target;
+            ppqBlockEnd_ = target;
+            ppqJumped_ = true;  // the processor re-derives every track's phase
+        }
+
         if (info.hasValue() && info->getIsPlaying())
         {
             hostPlaying_ = true;
@@ -92,6 +107,15 @@ namespace lockstep
         bpm_ = localBpm_;
     }
 
+    void Clock::locate(double ppq)
+    {
+        const double target = std::max(0.0, ppq);
+        std::uint64_t bits = 0;
+        std::memcpy(&bits, &target, sizeof(bits));
+        locateTargetBits_.store(bits, std::memory_order_relaxed);
+        locatePending_.store(true, std::memory_order_release);
+    }
+
     void Clock::resetPhase()
     {
         localPpq_ = 0.0;
@@ -99,6 +123,7 @@ namespace lockstep
         ppqBlockEnd_ = 0.0;
         ppqJumped_ = true;
         ppqUi_.store(0, std::memory_order_relaxed);
+        locatePending_.store(false, std::memory_order_release);  // a reset outranks a stale locate
     }
 
     double Clock::samplesPerPpq() const

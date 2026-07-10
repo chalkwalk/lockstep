@@ -14,7 +14,13 @@ namespace lockstep
         double sampleRate = 44100.0;
         double samplesPerBar = 0.0;          // 0 = unknown (no tempo context)
         double barPpq = 4.0;                 // quarter notes per bar (time-sig; S1 loop length)
-        double transportPhaseSamples = 0.0;  // song position in samples at block start
+        // THE absolute position (PRINCIPLES §25.1, DESIGN §40.2): how far into the
+        // performance we are, in samples from a zero, at this block's start.
+        // Hosted, it is the host's play head — the host timeline IS the tape
+        // timeline — and standalone it is Lockstep's own clock. It is one more
+        // field on the one transport authority, not a rival to it. A locate moves
+        // it; nothing else does, and no state travels with it (fence #1).
+        double transportPhaseSamples = 0.0;
         bool running = false;                // transport advancing this block
         // 9.17: the looper's edge timing (record/play/overdub) resolves against
         // the one shared launch-quantize grid, not a private looper grid. The

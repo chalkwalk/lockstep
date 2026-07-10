@@ -12,6 +12,7 @@ add_executable(lockstep_tests
     SyncSliceTest.cpp
     StretchEngineTest.cpp
     StretchMachineTest.cpp
+    ClockLocateTest.cpp
     MediumTest.cpp
     HeadsTest.cpp
     LayerStackTest.cpp

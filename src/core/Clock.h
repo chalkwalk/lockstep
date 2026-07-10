@@ -96,6 +96,24 @@ namespace lockstep
         double localBpm() const { return localBpm_; }
         void resetPhase();
 
+        // Locate: the transport moves to an absolute position (PRINCIPLES §25.1).
+        //
+        // Position is the second fact the transport authority carries, beside rate
+        // and grid — it is not a rival authority, and it is not pattern state. The
+        // request is latched here and applied at the top of the next update(), which
+        // raises ppqJumped() so the processor re-derives every track's phase as
+        // `position mod length`. Nothing is "recalled": scenes, mutes and kits are
+        // state, and state does not travel with position. That is the fence-#1 line.
+        //
+        // Hosted and playing, the host owns position (PRINCIPLES §3) and a request
+        // here is dropped — winding the tape is dragging the host's playhead.
+        // Callable from any thread.
+        void locate(double ppq);
+        [[nodiscard]] bool locatePending() const
+        {
+            return locatePending_.load(std::memory_order_acquire);
+        }
+
         // ---- UI-safe PPQ read (atomic, UI thread) --------------------------
         // Returns the PPQ at the start of the last processed audio block.
         // Zero when stopped, monotonically increasing when playing.
@@ -124,5 +142,10 @@ namespace lockstep
         std::atomic<bool> overdubArmed_{ false };
         std::atomic<bool> metronomeEnabled_{ false };
         std::atomic<std::uint64_t> ppqUi_{ 0 };  // double bits of ppqBlockStart_
+
+        // A latched locate request: bits of the target ppq, plus the flag that
+        // makes it visible. Written by any thread, consumed once by update().
+        std::atomic<std::uint64_t> locateTargetBits_{ 0 };
+        std::atomic<bool> locatePending_{ false };
     };
 }

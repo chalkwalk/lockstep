@@ -37,6 +37,7 @@ namespace lockstep
     void runSyncSliceTests();     // 4.9 beat-grid slicing (placeSyncSlices)
     void runStretchEngineTests(); // 9.23 Bungee IStretchEngine seam (pull model)
     void runStretchMachineTests(); // C3 Flex-analog Player (independent pitch+tempo)
+    void runClockLocateTests();    // 11.1 transport absolute position + locate
     void runMediumTests();         // 11.7a dc::Medium — topology, depth, high-water
     void runHeadsTests();          // 11.7a dc::ReadHead/WriteHead + the tape-delay proof
     void runLayerStackTests();     // 11.7b dc::LayerStack — overdub, undo, decay, punch
