@@ -358,9 +358,17 @@ namespace lockstep
                   "Free Len: halving tempo ~halves the wrap rate (ratio=" + juce::String(ratio) + ")");
         }
 
-        // C5: loop-wrap crossfade removes the click at a sharp head/tail seam.
-        // Record a 0→1 ramp loop (head≈0, tail≈1: a ~1.0 discontinuity at the wrap);
-        // with the crossfade the largest sample-to-sample jump stays small.
+        // C6: the seam SPLICE removes the click at a sharp head/tail seam.
+        // Record a 0→1 ramp loop (head≈0, tail≈1: a ~1.0 discontinuity at the wrap).
+        // The pre-roll here is silence (nothing preceded the take), so the splice
+        // fades the loop's end down to it — and silence is exactly what precedes
+        // loop[0]=0. The wrap becomes continuous.
+        //
+        // This test used to pass at 0.24 with a playback crossfade, and called that
+        // an "overlap-crossfade floor". It was not a floor: a circular read's kernel
+        // wraps back across the seam, so the step survived into [0, kernel) where no
+        // output gain could touch it. Splicing the content gets 0.0065 — near the
+        // ramp's own per-sample slope of 1/1024.
         {
             SamplePool p;
             const int L = 1024;
@@ -402,11 +410,11 @@ namespace lockstep
                     prev = x; first = false;
                 }
             }
-            // The raw head/tail discontinuity here is ~1.0; the crossfade cuts it to
-            // ~0.24 (≈12 dB) — the overlap-crossfade floor for this worst-case ramp
-            // (typical correlated loop content smooths far better).
-            CHECK(maxJump < 0.3f,
-                  "C5: loop-wrap crossfade keeps the seam jump small (got " + juce::String(maxJump) + ")");
+            // The raw head/tail discontinuity is ~1.0. The splice leaves ~0.0065,
+            // which is the ramp's own slope plus the fade's curvature — 31 dB below
+            // what the playback crossfade managed.
+            CHECK(maxJump < 0.02f,
+                  "C6: the seam splice keeps the wrap continuous (got " + juce::String(maxJump) + ")");
         }
 
         // #4 monitor: live-thru is governed by the monitor mode. Record a 0.5 loop,

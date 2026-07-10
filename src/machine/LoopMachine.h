@@ -207,6 +207,13 @@ namespace lockstep
         static constexpr double kTapeStopSec   = 0.14;  // tape-stop brake to standstill
         static constexpr double kTapeResyncSec = 0.06;  // post-release catch-up to the grid
 
+        // C6: the seam splice. `kSeamSpliceSec` of the input immediately BEFORE the
+        // take is faded into the loop's end, so the wrap is continuous (DESIGN
+        // §40.3 / deckcore/Seam.h). Long enough to hide a seam, short enough that
+        // the ring-out it replaces is not missed. The loop's head — the downbeat —
+        // is never touched.
+        static constexpr double kSeamSpliceSec = 0.005;
+
         void applyCommand(Cmd c, bool immediate);
         // Audio thread: dispatch one drained FIFO edge — discrete verbs to
         // applyCommand (press only), momentary actions to the effect state.
@@ -246,6 +253,12 @@ namespace lockstep
         // Snapshot the loop's first `loopLen_` samples for one-level overdub undo,
         // without resizing the pool buffer.
         void snapshotForUndo();
+        // C6: fade the captured pre-roll into the loop's end so the wrap is
+        // continuous. Called once, at closeRecording, before the slot is shrunk.
+        void spliceSeam();
+        // C6: push one input frame into the rolling pre-roll ring (always running,
+        // in every state — a take can begin on any sample).
+        void pushPreRoll(const juce::AudioBuffer<float>& in, int sample, int chans);
         // Bandlimited read of the loop at a fractional position [0,loopLen_).
         // `readRate` = effective per-sample advance of the head: above unity the
         // read routes through the shared polyphase (rate-aware cutoff, 9.28.2);
@@ -290,7 +303,14 @@ namespace lockstep
         // reads and writes at (9.28.2). Updated at each advance site; reads use
         // the previous sample's value (slewed, so the one-sample lag is inert).
         double effRate_ = 1.0;
-        int xfadeLen_ = 0;        // loop-wrap crossfade length (samples), C5
+        // C6: the pre-roll. `preRing_` always holds the last `preLen_` input frames;
+        // `preSnap_` is the copy taken when a take begins, chronologically ordered,
+        // and is what the loop's end is spliced against at close. A playback
+        // crossfade cannot fix a discontinuous seam (the circular read's kernel
+        // wraps across it), so the fix lands in the content, once.
+        int preLen_ = 0;          // pre-roll length (samples)
+        int preWrite_ = 0;        // ring write cursor
+        bool preSnapped_ = false; // preSnap_ holds this take's pre-roll
         bool haveBackup_ = false;
         // S4: a HALF/DBL length edit detaches the loop from grid-lock — it then plays
         // native (rate 1, no phase-lock, no varispeed) so the cut/double has no pitch
@@ -302,6 +322,8 @@ namespace lockstep
         // we overwrite the track buffer with loop playback.
         juce::AudioBuffer<float> backup_;
         juce::AudioBuffer<float> inScratch_;
+        juce::AudioBuffer<float> preRing_;   // C6: rolling pre-roll (circular)
+        juce::AudioBuffer<float> preSnap_;   // C6: this take's pre-roll, in order
         // R4: the fresh overdub layer B (bandlimited fractional writes accumulate
         // here add-only; folded into the committed loop A once per iteration).
         juce::AudioBuffer<float> overdubLayer_;

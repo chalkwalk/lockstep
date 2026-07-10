@@ -1,5 +1,6 @@
 #include "LoopMachine.h"
 #include "../deckcore/Resampler.h"
+#include "../deckcore/Seam.h"
 #include "DeckAdapter.h"
 #include <algorithm>
 #include <cmath>
@@ -120,6 +121,12 @@ namespace lockstep
         backup_.clear();
         overdubLayer_.setSize(2, cap, false, true, false);  // R4 overdub layer B
         overdubLayer_.clear();
+        // C6: the seam splice's pre-roll. Small (a few ms) and always running.
+        preLen_ = std::max(1, static_cast<int>(kSeamSpliceSec * sampleRate_));
+        preRing_.setSize(2, preLen_, false, true, false);
+        preRing_.clear();
+        preSnap_.setSize(2, preLen_, false, true, false);
+        preSnap_.clear();
         reset();
     }
 
@@ -135,6 +142,7 @@ namespace lockstep
         rate_ = 1.0;
         haveBackup_ = false;
         manualLen_ = false;
+        preSnapped_ = false;
         brActive_ = false;
         brCaptured_ = false;
         tapeAction_ = Cmd::None;
@@ -158,6 +166,40 @@ namespace lockstep
         haveBackup_ = true;
     }
 
+    void LoopMachine::pushPreRoll(const juce::AudioBuffer<float>& in, int sample, int chans)
+    {
+        if (preLen_ <= 0) return;
+        for (int ch = 0; ch < std::min(chans, preRing_.getNumChannels()); ++ch)
+            preRing_.setSample(ch, preWrite_, in.getSample(ch, sample));
+        if (++preWrite_ >= preLen_) preWrite_ = 0;
+    }
+
+    void LoopMachine::spliceSeam()
+    {
+        if (! preSnapped_ || target_ == nullptr || loopLen_ <= 0) return;
+
+        // Never take more than a quarter of the loop, and never more pre-roll than
+        // we captured. A loop shorter than the splice keeps its seam, honestly.
+        const int len = std::min(preLen_, loopLen_ / 4);
+        if (len <= 0) return;
+
+        // Through deck_core: the pool slot and the pre-roll snapshot each become a
+        // medium by lending their channels, and the same splice the Tape face will
+        // use runs over them. Splicing the CONTENT (not the playback) is what makes
+        // every other reader of this slot — a Player, a promoted WAV — get a clean
+        // take too.
+        dc::Medium loopMed;
+        dc::Medium leadMed;
+        bindBuffer(loopMed, *target_, loopLen_, dc::Topology::Circular, sampleRate_);
+        bindBuffer(leadMed, preSnap_, preLen_, dc::Topology::Linear, sampleRate_);
+        loopMed.adoptUsed(0, loopLen_);   // both buffers hold real audio
+        leadMed.adoptUsed(0, preLen_);
+
+        // The pre-roll's LAST `len` samples are the ones that immediately precede
+        // the take's first sample.
+        dc::spliceLoopEnd(loopMed, 0, loopLen_, leadMed, 0, preLen_ - len, len);
+    }
+
     float LoopMachine::loopSample(int ch, double pos, double readRate) const
     {
         if (target_ == nullptr || loopLen_ <= 0) return 0.0f;
@@ -179,20 +221,14 @@ namespace lockstep
                 target_->getReadPointer(ch), loopLen_, x, readRate);
         };
 
-        const float base = interp(p);
-
-        // C5: equal-power crossfade across the loop wrap. In the last xfadeLen_
-        // samples, fade the tail out and the head (position `into`) in, so loop end
-        // meets loop start without a click.
-        if (xfadeLen_ > 0 && p >= static_cast<double>(loopLen_ - xfadeLen_))
-        {
-            const double into = p - static_cast<double>(loopLen_ - xfadeLen_);
-            const float t = static_cast<float>(into / static_cast<double>(xfadeLen_));
-            const float gOut = std::cos(t * juce::MathConstants<float>::halfPi);
-            const float gIn = std::sin(t * juce::MathConstants<float>::halfPi);
-            return base * gOut + interp(into) * gIn;
-        }
-        return base;
+        // C6: no crossfade here. The seam is spliced into the CONTENT at close, and
+        // that is the only place it can be fixed: this read is circular, so just
+        // after the wrap the kernel's taps reach backwards across the seam into the
+        // tail, and no gain applied on the way out of [L-X, L) can undo a
+        // discontinuity that lands inside the read window at [0, X). The old wrap
+        // crossfade faded the head in early, played it again after the wrap, and
+        // left the ringing step untouched — it was the click, not the cure.
+        return interp(p);
     }
 
     float LoopMachine::readLayer(const juce::AudioBuffer<float>& buf, int ch,
@@ -288,6 +324,14 @@ namespace lockstep
         recPos_ = 0;
         haveBackup_ = false;
         manualLen_ = false;   // a fresh take re-attaches to grid-lock (S4)
+
+        // C6: freeze the pre-roll — the input immediately before this take's first
+        // sample. It is what must precede loop[0] when the loop wraps, and at close
+        // it is spliced into the loop's end.
+        for (int ch = 0; ch < preSnap_.getNumChannels(); ++ch)
+            for (int i = 0; i < preLen_; ++i)
+                preSnap_.setSample(ch, i, preRing_.getSample(ch, (preWrite_ + i) % preLen_));
+        preSnapped_ = true;
         // Grid-locked modes (N Bar / Steps) auto-close after the synced length (at
         // the record tempo); Free/Free-Len close on the gesture.
         recLenTarget_ = 0;
@@ -547,6 +591,7 @@ namespace lockstep
         lastPos_ = 0.0;
         if (loopLen_ > 0 && target_ != nullptr)
         {
+            spliceSeam();  // C6: make the wrap continuous, in the content, once
             target_->setSize(target_->getNumChannels(), loopLen_, true, false, true);
             const double spb = transport_.samplesPerBar;
             pool_.setSourceBars(targetSlot_,
@@ -659,10 +704,6 @@ namespace lockstep
             ? static_cast<double>(loopLen_) / tOut : 1.0;
         const double slew = 1.0 - std::exp(-1.0 / (0.02 * sampleRate_));
 
-        // C5: loop-wrap crossfade length (≤ a quarter of the loop).
-        xfadeLen_ = (loopLen_ > 0)
-            ? std::min(static_cast<int>(0.005 * sampleRate_), loopLen_ / 4) : 0;
-
         // Sync mode phase-locks the read position to the transport grid.
         const bool phaseLock = (syncMode_ >= kSyncGrid) && transport_.running && tOut > 0.0;
 
@@ -715,6 +756,10 @@ namespace lockstep
                 playPos_ = pos;
                 effRate_ = rateTarget;  // phase-lock advance = loopLen/tOut exactly
             }
+
+            // C6: the pre-roll ring runs in every state — a take can begin on any
+            // sample, and when it does, this is what preceded it.
+            pushPreRoll(inScratch_, i, chans);
 
             for (int ch = 0; ch < chans; ++ch)
             {
