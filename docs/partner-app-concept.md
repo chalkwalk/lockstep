@@ -31,9 +31,20 @@ their set does not want to leave the instrument to do it.
 
 ## What it would be
 
-- **Modes:** reel (linear, position-addressed) and tape-loop (circular, the
-  Echoplex/Frippertronics idiom) — the same two topologies the deck already has,
-  presented as the two things a tape *is*.
+- **Modes:** reel (linear, position-addressed), tape-loop (circular, the
+  Echoplex/Frippertronics idiom), and **echo** — the same two topologies the deck
+  already has, presented as the three things a tape *is*.
+- **Echo is not a third engine.** A Space Echo is a circular medium with one
+  write head and several read heads at fixed distances behind it, their outputs
+  summed to the output and partly back into the write. That is a *configuration*
+  of `deck_core`'s heads, not new machinery: heads are free-standing, a read head
+  can follow the write head at an offset, and the per-sample step API lets the
+  app close the feedback loop itself (DESIGN §40.10 — feedback is caller-side).
+  Head spacing, feedback, and the medium's colour are then the whole instrument:
+  the wow and saturation the app exists for are what make an echo a *tape* echo,
+  and they land on the repeats for free because they are medium properties.
+  Varispeed sweeps the head spacing, which is the sound everybody wants and no
+  digital delay has.
 - **Colour:** a tape model on the medium — wow/flutter (rate + depth),
   saturation, head bump, hiss, and the transport artefacts (spin-up, brake).
   These are medium properties, not an insert effect; they apply on write and on
@@ -71,7 +82,10 @@ the exchange format. Concretely:
 
 1. **`deck_core`** is the shared sound. JUCE-free (`std` + signalsmith), audio
    as span views, transport as a POD snapshot. Both products wrap it; neither
-   can drift from the other's tape behaviour, because there is one.
+   can drift from the other's tape behaviour, because there is one. Its heads
+   carry the echo mode's requirement (N taps, per-sample stepping) from day one,
+   proven by a pure test that builds a tape delay out of the library alone —
+   Lockstep never exercises that path, so only a test defends it.
 2. **Transport is reimplemented, law-kept.** The app builds its own transport
    authority satisfying PRINCIPLES §25/§25.1 (one authority: rate, grid,
    position); the core consumes a snapshot from whichever host owns it. No
