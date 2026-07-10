@@ -16,7 +16,8 @@
 # ---------------------------------------------------------------------------
 add_library(deck_core STATIC
     Medium.cpp
-    LayerStack.cpp)
+    LayerStack.cpp
+    Deck.cpp)
 
 target_include_directories(deck_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 

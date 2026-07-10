@@ -15,6 +15,7 @@ add_executable(lockstep_tests
     MediumTest.cpp
     HeadsTest.cpp
     LayerStackTest.cpp
+    DeckTest.cpp
     ResamplerTest.cpp
     SamplePlayerTest.cpp
     RecordMachineTest.cpp

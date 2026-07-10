@@ -20,6 +20,7 @@ int main()
     lockstep::runMediumTests();
     lockstep::runHeadsTests();
     lockstep::runLayerStackTests();
+    lockstep::runDeckTests();
     lockstep::runResamplerTests();
     lockstep::runSamplePlayerTests();
     lockstep::runRecordMachineTests();
