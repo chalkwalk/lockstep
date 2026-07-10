@@ -188,6 +188,110 @@ namespace lockstep
         CHECK(hasCycle(destNone, tapLoop), "0 taps 2 closes the tap chain");
     }
 
+    namespace
+    {
+        // A deck sub-track's tap is an ordinary tap-fork edge; a four-sub-track deck
+        // simply has four of them (DESIGN §40.3). No new edge class, no push side.
+        constexpr std::size_t kSubs = 4;
+
+        template <std::size_t N>
+        routing::TapEdges<N, kSubs> noTaps()
+        {
+            routing::TapEdges<N, kSubs> t{};
+            for (auto& row : t) row.fill(-1);
+            return t;
+        }
+    }
+
+    // A deck that taps two different tracks runs after BOTH of them, in the same
+    // block. That is the whole point of the pull matrix: two sources, one consumer,
+    // zero latency.
+    void testDeckTapsSeveralSourcesInOneBlock()
+    {
+        constexpr std::size_t N = 6;
+        std::array<int, N> dest{};
+        dest.fill(-1);
+
+        auto tap = noTaps<N>();
+        tap[1][0] = 4;   // deck on track 1, sub-track 0 taps track 4
+        tap[1][1] = 5;   // sub-track 1 taps track 5
+
+        const auto order = routing::computeOrder(dest, tap);
+        CHECK(posOf(order, 4) < posOf(order, 1), "a tapped source runs before the deck");
+        CHECK(posOf(order, 5) < posOf(order, 1), "and so does the deck's other source");
+    }
+
+    // Two sub-tracks reading the SAME track is one constraint, not two. Counting it
+    // twice would leave the in-degree stuck above zero and drop the consumer into
+    // the cycle fallback — it would still emit, but after everything else.
+    void testDuplicateSubTrackTapsCountOnce()
+    {
+        constexpr std::size_t N = 4;
+        std::array<int, N> dest{};
+        dest.fill(-1);
+
+        auto tap = noTaps<N>();
+        tap[3][0] = 2;
+        tap[3][1] = 2;
+        tap[3][2] = 2;
+
+        const auto order = routing::computeOrder(dest, tap);
+        CHECK(posOf(order, 2) < posOf(order, 3), "the shared source still runs first");
+        CHECK(! routing::hasCycle(dest, tap), "and reading it three times is not a cycle");
+        // Track 3 has no other constraint, so it lands immediately after 2 — proof
+        // the in-degree drained rather than falling through the cycle path.
+        CHECK(posOf(order, 3) == posOf(order, 2) + 1, "it drains cleanly, not via the cycle path");
+    }
+
+    // A cycle closed through the SECOND sub-track is still a cycle. The refusal
+    // must look at the column being edited, not just the first.
+    void testCycleThroughASubTrackIsRefused()
+    {
+        constexpr std::size_t N = 3;
+        std::array<int, N> dest{};
+        dest.fill(-1);
+
+        auto tap = noTaps<N>();
+        tap[0][2] = 1;   // deck 0's third sub-track taps track 1
+        tap[1][0] = 0;   // track 1 taps track 0
+        CHECK(routing::hasCycle(dest, tap), "a tap cycle through a sub-track is a cycle");
+
+        tap[1][0] = -1;
+        CHECK(! routing::hasCycle(dest, tap), "and breaking it clears");
+    }
+
+    // A sub-track tap composes with the mix edges exactly as the single tap did.
+    void testSubTrackTapCrossesEdgeClasses()
+    {
+        constexpr std::size_t N = 3;
+        std::array<int, N> dest{};
+        dest.fill(-1);
+        dest[0] = 1;     // track 0 mixes into track 1
+
+        auto tap = noTaps<N>();
+        tap[0][1] = 1;   // ...and deck 0's second sub-track taps track 1: a cycle
+        CHECK(routing::hasCycle(dest, tap), "mix + sub-track tap close a cycle across classes");
+    }
+
+    // The one-tap-per-track callers still get their old answer.
+    void testSingleTapWrapperAgrees()
+    {
+        constexpr std::size_t N = 4;
+        std::array<int, N> dest{};
+        dest.fill(-1);
+        std::array<int, N> narrow{};
+        narrow.fill(-1);
+        narrow[3] = 1;
+
+        auto wide = noTaps<N>();
+        wide[3][0] = 1;
+
+        CHECK(routing::computeOrder(dest, narrow) == routing::computeOrder(dest, wide),
+              "the narrow overload is the wide one with K=1");
+        CHECK(routing::hasCycle(dest, narrow) == routing::hasCycle(dest, wide),
+              "and so is its cycle check");
+    }
+
     void runRoutingGraphTests()
     {
         testOrderNoEdgesIsIdentity();
@@ -204,8 +308,16 @@ namespace lockstep
         testTapSourceBeforeTapper();
         testMixAndTapCombined();
         testCombinedOrderIsPermutation();
+
         testHasCycleAcyclic();
         testHasCycleCrossClass();
         testHasCycleTapChain();
+
+        // 11.3: the tap side is a table now — a deck reads up to four sources.
+        testDeckTapsSeveralSourcesInOneBlock();
+        testDuplicateSubTrackTapsCountOnce();
+        testCycleThroughASubTrackIsRefused();
+        testSubTrackTapCrossesEdgeClasses();
+        testSingleTapWrapperAgrees();
     }
 }

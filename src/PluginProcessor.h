@@ -28,6 +28,7 @@
 #include "machine/IEffect.h"
 #include "machine/EffectFactory.h"
 #include "machine/IMachine.h"
+#include "core/RoutingGraph.h"     // routing::TapEdges (the tap edge table)
 #include "machine/InputSource.h"   // kVolatileBufferLabels (sizes the REC bank)
 #include "machine/ITempoAware.h"
 #include "machine/SamplePool.h"
@@ -641,7 +642,10 @@ namespace lockstep
         // source that feeds back (Master while the track's own output reaches
         // Master; a track that closes a loop). The current stored value is
         // appended if it is no longer safe, so the control can still show it.
-        [[nodiscard]] std::vector<float> validInputSources(int track) const;
+        // The safe source candidates for `track`'s sub-track `sub` — the rotary's
+        // and the picker's list. Excludes self, MIDI-out sources, and anything that
+        // would close a cycle across the mix+tap union.
+        [[nodiscard]] std::vector<float> validInputSources(int track, int sub = 0) const;
         // True if track `from`'s output reaches the Master sum by following
         // CHANNEL-Out (mix) edges — i.e. tapping Master would feed back.
         [[nodiscard]] bool outputReachesMaster(int from) const;
@@ -1315,11 +1319,20 @@ namespace lockstep
         // The track that track `t` taps as its input_source (a read-only post-chain
         // copy), or -1 if it taps None/External/Master / is MIDI-out / self. Read
         // from the machine's base input_source slot.
-        int tapSourceForTrack(int track) const;
-        // Build the tapSrc[] edge array (tapped track index or -1) for the block —
-        // the second edge class fed into routing::computeOrder so a tapped source
-        // is processed before the track that taps it (same-block, zero latency).
-        std::array<int, kNumTracks> tapEdges() const;
+        // Which deck sub-track this param slot selects the source for, or -1 when
+        // the slot is not an input source at all. The single owner of the
+        // slot-id -> sub-track mapping; nothing else compares against the ids.
+        int inputSubTrackForSlot(int track, int slot) const;
+        // The track tapped by `track`'s sub-track `sub` (its `input_source[_N]`
+        // selection), or -1. A single-sub-track machine only declares sub 0.
+        int tapSourceForTrack(int track, int sub = 0) const;
+        // Build the tap edge table for the block — the second edge class fed into
+        // routing::computeOrder so every tapped source is processed before the track
+        // that taps it (same-block, zero latency). One row per track, one column per
+        // deck sub-track (DESIGN §40.3): a four-sub-track deck reads up to four
+        // sources at once, and each is an ordinary tap-fork edge, already
+        // cycle-checked. No new edge class.
+        routing::TapEdges<kNumTracks, kMaxInputSubTracks> tapEdges() const;
         // A2: after a track's chain, deposit its output into its bus (if routed
         // to one). Topo order guarantees the bus has not run yet.
         void depositToBus(std::size_t track, int numBlockSamples);

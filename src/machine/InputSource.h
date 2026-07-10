@@ -25,6 +25,27 @@ namespace lockstep
     // refused at assignment time (A2).
     inline constexpr const char* kInputSourceSlotId = "input_source";
 
+    // A deck has up to four sub-tracks, and each selects its own source (DESIGN
+    // §40.3): sub-tracks down, sources across, which is the Route machine's grid
+    // reused. Sub-track 0 keeps the canonical `input_source` id — it is the only
+    // one a single-sub-track machine declares, so nothing about today's Record,
+    // Loop or Route changes, on disk or in the graph.
+    //
+    // There is deliberately no push side. Every routing the push model expresses,
+    // the pull model expresses from the place that already knows how: a track
+    // reads a source. The CHANNEL "Out" enum stays {Master | Track N | Off}.
+    inline constexpr int kMaxInputSubTracks = 4;
+    inline constexpr std::array<const char* const, kMaxInputSubTracks> kInputSourceSlotIds = {
+        "input_source", "input_source_2", "input_source_3", "input_source_4"
+    };
+
+    [[nodiscard]] inline constexpr const char* inputSourceSlotId(int sub) noexcept
+    {
+        return (sub >= 0 && sub < kMaxInputSubTracks)
+                   ? kInputSourceSlotIds[static_cast<std::size_t>(sub)]
+                   : kInputSourceSlotIds[0];
+    }
+
     enum class InputSourceKind : std::uint8_t
     {
         None = 0,

@@ -1202,7 +1202,7 @@ namespace lockstep
         return false;  // cycle without reaching Master — treat as not-Master
     }
 
-    std::vector<float> LockstepProcessor::validInputSources(int track) const
+    std::vector<float> LockstepProcessor::validInputSources(int track, int sub) const
     {
         std::vector<float> out;
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return out;
@@ -1220,13 +1220,13 @@ namespace lockstep
             if (k == track) continue;
             if (machines_[static_cast<std::size_t>(k)]->isMidiOut()) continue;
             auto tap = tapEdges();
-            tap[static_cast<std::size_t>(track)] = k;
+            tap[static_cast<std::size_t>(track)][static_cast<std::size_t>(sub)] = k;
             if (routing::hasCycle(routingEdges(), tap)) continue;
             out.push_back(encodeInputSource(InputSourceKind::Track, k));
         }
         // Keep the current stored selection representable even if now unsafe
         // (e.g. loaded from disk, or made stale by a later routing change).
-        const int slot = slotForId(track, kInputSourceSlotId);
+        const int slot = slotForId(track, inputSourceSlotId(sub));
         if (slot >= 0)
         {
             const auto& bp = kit(track).baseParams;
@@ -1251,13 +1251,22 @@ namespace lockstep
         return dest;
     }
 
-    int LockstepProcessor::tapSourceForTrack(int track) const
+    int LockstepProcessor::inputSubTrackForSlot(int track, int slot) const
+    {
+        const juce::String id = idForSlot(track, slot);
+        if (id.isEmpty()) return -1;
+        for (int sub = 0; sub < kMaxInputSubTracks; ++sub)
+            if (id == inputSourceSlotId(sub)) return sub;
+        return -1;
+    }
+
+    int LockstepProcessor::tapSourceForTrack(int track, int sub) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
         const auto* m = machines_[static_cast<std::size_t>(track)].get();
         if (m == nullptr || m->isMidiOut()) return -1;
-        const int slot = m->slotForId(kInputSourceSlotId);
-        if (slot < 0) return -1;
+        const int slot = m->slotForId(inputSourceSlotId(sub));
+        if (slot < 0) return -1;  // this machine has no such sub-track
         const auto& bp = sequence().tracks[static_cast<std::size_t>(track)].baseParams;
         if (slot >= static_cast<int>(bp.size())) return -1;
         const InputSourceSel sel = decodeInputSource(bp[static_cast<std::size_t>(slot)]);
@@ -1267,11 +1276,13 @@ namespace lockstep
         return sel.track;
     }
 
-    std::array<int, kNumTracks> LockstepProcessor::tapEdges() const
+    routing::TapEdges<kNumTracks, kMaxInputSubTracks> LockstepProcessor::tapEdges() const
     {
-        std::array<int, kNumTracks> tapSrc{};
+        routing::TapEdges<kNumTracks, kMaxInputSubTracks> tapSrc{};
         for (std::size_t i = 0; i < kNumTracks; ++i)
-            tapSrc[i] = tapSourceForTrack(static_cast<int>(i));
+            for (int sub = 0; sub < kMaxInputSubTracks; ++sub)
+                tapSrc[i][static_cast<std::size_t>(sub)] =
+                    tapSourceForTrack(static_cast<int>(i), sub);
         return tapSrc;
     }
 
@@ -3690,7 +3701,8 @@ namespace lockstep
         // that would close a routing cycle across the mix+tap edge union (or tap
         // itself) is rejected — keep the current stored value. The topo-sort
         // tolerates a cycle defensively, but a clean graph keeps every tap same-block.
-        if (idForSlot(track, slot) == kInputSourceSlotId)
+        const int inputSub = inputSubTrackForSlot(track, slot);
+        if (inputSub >= 0)
         {
             const auto sel = decodeInputSource(value);
             if (sel.kind == InputSourceKind::Track)
@@ -3700,7 +3712,10 @@ namespace lockstep
                 if (!bad)
                 {
                     auto tap = tapEdges();
-                    tap[static_cast<std::size_t>(track)] = to;  // tentative edge
+                    // Tentative edge on this sub-track's column: a deck's sub-tracks
+                    // are cycle-checked independently, so sub 2 tapping track 5 says
+                    // nothing about what sub 3 may tap.
+                    tap[static_cast<std::size_t>(track)][static_cast<std::size_t>(inputSub)] = to;
                     bad = routing::hasCycle(routingEdges(), tap);
                 }
                 if (bad)
