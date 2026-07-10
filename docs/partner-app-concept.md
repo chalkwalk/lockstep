@@ -37,7 +37,10 @@ their set does not want to leave the instrument to do it.
 - **Colour:** a tape model on the medium — wow/flutter (rate + depth),
   saturation, head bump, hiss, and the transport artefacts (spin-up, brake).
   These are medium properties, not an insert effect; they apply on write and on
-  read, and they are why the app exists.
+  read, and they are why the app exists. Because medium rate is a medium
+  property (DESIGN §40.10), the app runs its media **oversampled (2×)** — the
+  nonlinear colour generates harmonics that need the headroom — at zero
+  architectural cost: the heads already read and write at arbitrary ratio.
 - **Takes:** the same take-group format Lockstep promotes to (§40.7), so a take
   recorded in one opens in the other. This is the integration; there is no
   session sync, no link protocol, no shared transport.
@@ -58,20 +61,26 @@ their set does not want to leave the instrument to do it.
 ## Prerequisite: factoring the core
 
 The app is downstream of one piece of engineering, and that piece is worth doing
-on its own merits:
+on its own merits: the **deck core library** (DESIGN §40.11).
 
-`lockstep_core` already serves three plugin formats from one library. The partner
-app asks it to serve a **second product**, which means the deck engine, the
-sample pool, the transport, and the surface model must be reachable without the
-sequencer — the same way they must already be reachable without JUCE's plugin
-wrappers. Concretely:
+The app does **not** consume `lockstep_core`. It is deliberately lighter than
+that: the app makes its own buffers and a completely disjoint UI, and shares
+only the JUCE-free `deck_core` — the medium, the heads (§40.10), layers, punch,
+markers, and take structure — plus the take-group *file convention* (§40.7) as
+the exchange format. Concretely:
 
-1. The deck engine (§40.3) lands in Lockstep as a machine, with its medium,
-   layers, punch, and jog behind a plain interface.
-2. Pool + take-groups (§40.7) are already product-neutral.
-3. Transport-with-position (PRINCIPLES §25) is already a single authority; a
-   second product consumes it rather than reimplementing it.
-4. `SurfaceModel` / `CellState` (§35.8) gives the app a console for free.
+1. **`deck_core`** is the shared sound. JUCE-free (`std` + signalsmith), audio
+   as span views, transport as a POD snapshot. Both products wrap it; neither
+   can drift from the other's tape behaviour, because there is one.
+2. **Transport is reimplemented, law-kept.** The app builds its own transport
+   authority satisfying PRINCIPLES §25/§25.1 (one authority: rate, grid,
+   position); the core consumes a snapshot from whichever host owns it. No
+   shared transport code, one shared contract.
+3. **Pool, promotion, persistence, and UI are per-host.** Lockstep keeps its
+   pool and console; the app keeps its own file story and surface. Takes cross
+   over as take-group files on disk, not as shared state.
+4. The `deck_juce` adapter is available if the app is built on JUCE (likely),
+   but the core does not require it — that is the point of §40.11.
 
 Nothing above is speculative work done *for* the app. It is the deck arc, done
 cleanly. The app becomes possible as a consequence — which is the only honest
