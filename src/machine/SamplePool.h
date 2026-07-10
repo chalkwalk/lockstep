@@ -217,7 +217,13 @@ namespace lockstep
         // This is the ONLY way a volatile buffer becomes readable. A prepared slot
         // reports length 0 and its pages are uncommitted; the recorder declares how
         // much of it it is about to fill, and nothing may read past that.
-        juce::AudioBuffer<float>* beginVolatileCapture(int index, int lengthSamples);
+        // `numChannels` is the capture's actual width: 2 for a stereo loop/record,
+        // 8 for a four-sub-track deck (§40.3). 0 (the default) inherits the width
+        // prepareVolatile was prepared with, so existing captures are unchanged.
+        // Only these channels are cleared and reported; prepareVolatile allocated
+        // the deck maximum, so this never reallocates on the audio thread.
+        juce::AudioBuffer<float>* beginVolatileCapture(int index, int lengthSamples,
+                                                       int numChannels = 0);
 
         // A5: how much of a volatile slot has actually been recorded, in samples.
         // 0 = nothing yet. This is the hard read limit — a volatile buffer is
@@ -358,6 +364,10 @@ namespace lockstep
 
         juce::AudioFormatManager formatManager_;
         std::vector<std::unique_ptr<Sample>> samples_;
+        // The natural capture width prepareVolatile was prepared with (the default
+        // a capture inherits). Slots are allocated wider — kMaxDeckChannels — for a
+        // four-sub-track deck, but a stereo-prepared bank captures stereo (§40.3).
+        int volatilePrepChannels_ = 2;
         // Monotonic source for volatile session-local ids (9.18). Starts at 1 so
         // 0 stays reserved as "unset" on non-volatile entries.
         std::uint32_t nextVolatileId_ = 1;

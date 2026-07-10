@@ -35,6 +35,11 @@ namespace lockstep
     // the pull model expresses from the place that already knows how: a track
     // reads a source. The CHANNEL "Out" enum stays {Master | Track N | Off}.
     inline constexpr int kMaxInputSubTracks = 4;
+    // The channel width of a full four-sub-track deck (§40.7): each sub-track is a
+    // stereo pair, so four sub-tracks are eight channels held in one wide volatile
+    // slot (§40.3). This is what a volatile slot must be *allocated* to cover; a
+    // one-sub-track loop still captures only two.
+    inline constexpr int kMaxDeckChannels = 2 * kMaxInputSubTracks;
     inline constexpr std::array<const char* const, kMaxInputSubTracks> kInputSourceSlotIds = {
         "input_source", "input_source_2", "input_source_3", "input_source_4"
     };

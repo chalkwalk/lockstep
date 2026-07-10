@@ -1,4 +1,5 @@
 #include "SamplePool.h"
+#include "InputSource.h"      // kMaxDeckChannels (widest deck = 8ch)
 #include "dsp/TempoEstimate.h"
 #include "dsp/KeyEstimate.h"
 #include "dsp/SampleHints.h"
@@ -397,7 +398,14 @@ namespace lockstep
 
     void SamplePool::prepareVolatile(double sampleRate, int numChannels, int maxSamples)
     {
-        const int chans = std::max(1, numChannels);
+        // Allocate wide enough for the widest deck (§40.3: a four-sub-track Loop
+        // records into one 8-channel slot) — address space only, no zero-fill, so
+        // a slot nobody records eight channels into costs nothing resident. But
+        // REPORT the requested natural width, which is the default a capture
+        // inherits: a machine prepared for stereo captures stereo unless it asks
+        // for more, so nothing but a wide deck sees eight channels.
+        volatilePrepChannels_ = std::max(1, numChannels);
+        const int allocChans = std::max(volatilePrepChannels_, kMaxDeckChannels);
         const int cap = std::max(0, maxSamples);
         for (auto& s : samples_)
         {
@@ -414,22 +422,33 @@ namespace lockstep
             // past it the memory is uninitialised rather than silent. A recorder
             // grows it back to what it captured (LoopMachine / RecordMachine both
             // clear the region they are about to write).
-            s->pcm.setSize(chans, cap, false, false, false);
-            s->pcm.setSize(chans, 0, false, false, /*avoidReallocating*/ true);
+            s->pcm.setSize(allocChans, cap, false, false, false);
+            // Drop to the reported natural width, keeping the wide allocation
+            // (avoidReallocating), so a later 8-channel capture never reallocates.
+            s->pcm.setSize(volatilePrepChannels_, 0, false, false, /*avoidReallocating*/ true);
             s->volatileCapacity = cap;
         }
     }
 
-    juce::AudioBuffer<float>* SamplePool::beginVolatileCapture(int index, int lengthSamples)
+    juce::AudioBuffer<float>* SamplePool::beginVolatileCapture(int index, int lengthSamples,
+                                                               int numChannels)
     {
         auto* buf = mutableVolatilePcm(index);
         if (buf == nullptr || lengthSamples <= 0) return nullptr;
         if (lengthSamples > volatileCapacity(index)) return nullptr;
 
-        // avoidReallocating: prepareVolatile reserved the capacity, so growing back
-        // up to it only moves the reported length. The clear commits (and defines)
-        // exactly the region about to be written.
-        buf->setSize(buf->getNumChannels(), lengthSamples, false, false, true);
+        // The capture declares its channel width: a stereo loop takes two, a
+        // four-sub-track Loop eight (§40.3). prepareVolatile allocated the maximum,
+        // so setting a narrower reported width — or growing back to the full
+        // eight — never reallocates (avoidReallocating). Only the declared channels
+        // are cleared, so an unfilled channel of a wide slot costs no resident page.
+        // 0 = inherit the prepared natural width; otherwise the caller's declared
+        // width (a four-sub-track Loop passes eight). Either way within the wide
+        // allocation, so avoidReallocating never triggers a realloc on the audio
+        // thread.
+        const int chans = std::clamp(numChannels > 0 ? numChannels : volatilePrepChannels_,
+                                     1, kMaxDeckChannels);
+        buf->setSize(chans, lengthSamples, false, false, /*avoidReallocating*/ true);
         buf->clear();
         return buf;
     }

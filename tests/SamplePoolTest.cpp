@@ -9,6 +9,7 @@
 
 #include "TestHarness.h"
 #include "../src/machine/SamplePool.h"
+#include "../src/machine/InputSource.h"  // kMaxDeckChannels
 #include <cmath>
 #include <memory>
 #include <random>
@@ -99,6 +100,10 @@ namespace lockstep
             pool.prepareVolatile(48000.0, 2, cap);
 
             const Sample* s = pool.get(v);
+            // Prepared for stereo → reports two channels, exactly as before. (The
+            // allocation is wider — kMaxDeckChannels — so a 4-sub-track deck can
+            // later capture eight without reallocating; that width is invisible
+            // until a capture asks for it, verified in the wide-capture case below.)
             CHECK(s != nullptr && s->pcm.getNumChannels() == 2, "prepared to 2 ch");
             CHECK(s != nullptr && s->sampleRate == 48000.0, "prepared sample rate set");
             // A5: capacity is reserved, but nothing is *used* until a capture claims
@@ -113,8 +118,9 @@ namespace lockstep
 
             // Claiming a capture length grows the reported size back, without
             // reallocating (the capacity is still there), and zeroes that region.
-            auto* cap1 = pool.beginVolatileCapture(v, 1000);
+            auto* cap1 = pool.beginVolatileCapture(v, 1000);  // default: 2 channels
             CHECK(cap1 == buf, "beginVolatileCapture returns the same buffer");
+            CHECK(buf->getNumChannels() == 2, "a stereo capture reports two channels");
             CHECK(buf->getNumSamples() == 1000, "used length = the claimed capture");
             CHECK(pool.volatileUsedLength(v) == 1000, "used length is reported");
             CHECK(feq(buf->getSample(0, 999), 0.0f), "the claimed region is cleared");
@@ -129,6 +135,35 @@ namespace lockstep
             CHECK(pool.beginVolatileCapture(v, cap + 1) == nullptr,
                   "a capture past the capacity is refused");
             CHECK(pool.beginVolatileCapture(v, 0) == nullptr, "a zero-length capture is refused");
+        }
+
+        // Wide capture: a four-sub-track deck records eight channels into one slot
+        // (§40.3), and the wide allocation means it never reallocates on the audio
+        // thread — even though the bank was prepared for stereo.
+        {
+            SamplePool pool;
+            const int v = pool.addVolatile();
+            const int cap = 4096;
+            pool.prepareVolatile(48000.0, 2, cap);  // prepared stereo...
+
+            auto* wide = pool.beginVolatileCapture(v, 1000, kMaxDeckChannels);  // ...capture 8
+            CHECK(wide != nullptr && wide->getNumChannels() == kMaxDeckChannels,
+                  "an 8-channel capture reports eight channels from a stereo-prepared slot");
+
+            // Every channel is writable and independent — sub-track k = pair k.
+            for (int ch = 0; ch < kMaxDeckChannels; ++ch)
+                wide->setSample(ch, 10, 0.1f * static_cast<float>(ch + 1));
+            CHECK(feq(wide->getSample(6, 10), 0.7f), "channel-pair 3 (sub-track 3) is its own audio");
+
+            // Real-time safety: neither the wide capture nor a re-narrow changed the
+            // reserved capacity, so no reallocation was needed on the audio thread.
+            // (JUCE may repack channel pointers within the same allocation, so the
+            // guarantee is the capacity, not a channel-pointer address.)
+            CHECK(pool.volatileCapacity(v) == cap, "the wide capture kept the reserved capacity");
+            auto* narrow = pool.beginVolatileCapture(v, 1000, 2);  // back to stereo
+            CHECK(narrow != nullptr && narrow->getNumChannels() == 2,
+                  "narrowing back to stereo reports two channels");
+            CHECK(pool.volatileCapacity(v) == cap, "and still the same capacity");
         }
 
         // nthVolatileIndex addresses REC slots by ordinal, robust to shifts ---

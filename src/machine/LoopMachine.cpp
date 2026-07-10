@@ -316,7 +316,10 @@ namespace lockstep
         // A5: claim the whole capacity as the used length and clear it — a looper
         // does not know how long its take will be until the gesture closes, and it
         // shrinks to loopLen_ then.
-        target_ = pool_.beginVolatileCapture(targetSlot_, capacity_);
+        // Width = two channels per sub-track (§40.3). A single-sub-track loop takes
+        // two, exactly as before; a four-sub-track deck takes eight, in one slot.
+        target_ = pool_.beginVolatileCapture(targetSlot_, capacity_,
+                                             2 * deck_.subTrackCount());
         if (target_ == nullptr)
         {
             deck_.setState(State::Idle);
