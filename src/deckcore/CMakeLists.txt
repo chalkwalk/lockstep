@@ -13,16 +13,25 @@
 # app (docs/partner-app-concept.md) that consumes the tape without consuming
 # the sequencer.
 #
-# Header-only for now, hence INTERFACE; it becomes a STATIC target the moment
-# the first translation unit lands.
 # ---------------------------------------------------------------------------
-add_library(deck_core INTERFACE)
+add_library(deck_core STATIC
+    Medium.cpp)
 
-target_include_directories(deck_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_include_directories(deck_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
 # signalsmith-dsp (MIT, header-only). SYSTEM so its warnings never trip the
 # consumers' -Werror. Rooted at modules/ so headers namespace as
 # <signalsmith-dsp/...>.
-target_include_directories(deck_core SYSTEM INTERFACE ${CMAKE_SOURCE_DIR}/modules)
+target_include_directories(deck_core SYSTEM PUBLIC ${CMAKE_SOURCE_DIR}/modules)
 
-target_compile_features(deck_core INTERFACE cxx_std_20)
+target_compile_features(deck_core PUBLIC cxx_std_20)
+set_target_properties(deck_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(deck_core PRIVATE
+        -Wall -Wextra -Wpedantic
+        -Wsign-conversion -Wfloat-conversion -Wshadow -Wimplicit-fallthrough
+        -Werror
+        ${LOCKSTEP_SANITIZE_FLAGS})
+    target_link_options(deck_core PUBLIC ${LOCKSTEP_SANITIZE_FLAGS})
+endif()
