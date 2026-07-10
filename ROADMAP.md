@@ -2728,6 +2728,32 @@ first (DESIGN §40, PRINCIPLES §25.1, `docs/partner-app-concept.md`).
       `COUNT-IN — bar 1 of 2`. Serialization is additive (`metroLevel`,
       `preRollBars`), so no version bump.
 
+### 9.28 — Varispeed head-law correctness (deck pre-work)  *[active]*
+An audit of every read/write path against the head signal law (DESIGN §40.10 —
+one law across the whole signed rate axis) found the shipped code partially
+compliant: the sample players' reads are law-abiding, but the looper reads
+alias above unity rate and the scatter write has the right cutoff with the
+wrong gain. Small, in-place fixes that de-risk the Phase 11 head design; one
+commit each, each with tests.
+- [ ] **9.28.1 — Scatter-write |rate| gain.** `Resampler::scatterAddCircular`
+      deposits at kernel density 1/rate, so a rate-2 overdub lands −6 dB, a
+      half-speed overdub +6 dB, and a stalled head (rate→0) piles unbounded
+      energy onto one spot. Scaling the deposit by |rate| fixes all three at
+      once and makes a write through zero fade at the turnaround for free.
+      Tests: DC amplitude ≈ 1 on readback at rates 0.5 / 2.0; near-zero rate
+      deposits near-zero; negative-rate write is the mirror of positive.
+- [ ] **9.28.2 — Looper bandlimited reads above unity.** `loopSample` /
+      `readLayer` use Hermite unconditionally, and the looper's rate exceeds 1
+      whenever a take is longer than its sync window (`loopLen/tOut > 1`) or
+      the post-tape-FX resync overshoots — those reads alias. Route |rate| > 1
+      through the shared polyphase (a circular-wrap read variant), passing the
+      **effective per-sample advance** (including the tape-FX multiplier, which
+      the overdub scatter call should also honour).
+- [ ] **9.28.3 — `Resampler::readCircular` + rate-axis coverage.** The wrapping
+      twin of `read()` (the scatter path already wraps), plus tests pinning the
+      previously untested corners: zero rate, negative rate, and seam
+      continuity on a circular read.
+
 ---
 
 ## Phase 10 — Melodic & Harmonic Authoring  *[active]*
@@ -2845,8 +2871,11 @@ deck engine that **defaults to a single stereo sub-track** — so today's Record
 and Loop behave identically on day one and the depth is opt-in. Full design in
 **DESIGN §40**; the transport amendment it rests on is **PRINCIPLES §25.1**
 (absolute position joins the one authority: hosted, the DAW timeline *is* the
-tape timeline). The standalone distillation is a concept brief only
-(`docs/partner-app-concept.md`), not a milestone.
+tape timeline). The engine is built as a **JUCE-free `deck_core` library**
+behind a thin `deck_juce` adapter (§40.11) — the partner app consumes the core
+with its own buffers and a disjoint UI, not `lockstep_core`. The standalone
+distillation is a concept brief only (`docs/partner-app-concept.md`), not a
+milestone.
 
 Rejected en route, recorded so they are not re-proposed: scene-scoped audio
 clips (session-view drift), a forward-only reel, a master-bus tape fixture,
@@ -2860,8 +2889,11 @@ tape-as-an-effect, and **loop groups** — cross-machine coordination lost to th
       position. No state travels with position (PRINCIPLES §25.1, Non-Goals #1).
 - [ ] **11.2 — Deck engine core.** Four sub-tracks (default 1 stereo), layers +
       undo, span-replace punch as a layer, varispeed, jog/scrub as a decoupled
-      audition committing at the next quantum. Record and Loop re-seat onto it with
-      **zero behaviour change** — that is the acceptance test.
+      audition committing at the next quantum. Built on the **head signal law**
+      (§40.10): read/write/erase heads correct across the whole signed rate axis
+      (9.28 lands the read/write fixes in the shipped looper first; the **erase
+      head** — varispeed replace — is new work here). Record and Loop re-seat onto
+      it with **zero behaviour change** — that is the acceptance test.
 - [ ] **11.3 — Tap-only input matrix.** Per-sub-track `input_source` selection on
       the console's Route-style grid, reusing the §27 tap-fork edge class. No
       push-side `Out` entries; no new edge class in the topological sort.
@@ -2880,6 +2912,14 @@ tape-as-an-effect, and **loop groups** — cross-machine coordination lost to th
       entity; sample-class pickers see the members ("up to 5 samples"). Codify the
       **stereo-engine / native-storage** channel policy, retiring the scattered
       `min(2, …)` clamps as policy rather than accident.
+- [ ] **11.7 — Deck core factoring (§40.11).** `deck_core` as a JUCE-free CMake
+      target (`std` + signalsmith; medium, heads, layers, punch, markers, takes;
+      audio as span views; transport as a POD snapshot) plus the `deck_juce`
+      adapter. **Medium rate is a medium property** (1× in Lockstep; an
+      oversampled medium is configuration, not a mode). Not separately versioned —
+      an in-repo target until a second shipping consumer exists. Ordering note:
+      this is 11.2's skeleton, not a follow-up — build the engine inside the
+      library boundary from the start rather than extracting it later.
 
 ---
 
