@@ -223,6 +223,12 @@ namespace lockstep
         // Nav Left/Right while a picker layer is active; reset to 0 on picker open
         // and in exitFuncReskin. Ephemeral — never serialised.
         int fxPickerPage = 0;
+        // 11.8 (§40.5): which page a focused deck console shows — 0 = DECK (the
+        // transport/perf layout), 1 = TRACKS (per-sub-track ARM/MUTE/SOLO/SRC).
+        // A looper does not sequence, so Nav left/right — otherwise idle on a
+        // looper — pages the console. Clamped to the available pages (TRACKS only
+        // exists when subtrack_count > 1).
+        int deckConsolePage = 0;
 
         // 7b: an OnDemand machine console is open (opened/closed by long-pressing
         // the focused machine's consoleSectionIndex() key). Drives

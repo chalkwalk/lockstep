@@ -330,6 +330,11 @@ namespace lockstep
         // 9.24 S12: page the open FX picker by ±1 (clamped). Returns true iff a
         // picker was open, so Nav is consumed as paging rather than its normal role.
         bool pageFxPicker(int delta);
+        // 11.8 (§40.5): page a focused deck console (DECK ↔ TRACKS) with Nav, which
+        // is otherwise idle on a looper (it does not sequence). No-op unless the
+        // active track is a looper with more than one sub-track. Returns true when
+        // it consumed the key.
+        bool pageDeckConsole(int delta);
         // 9.24 S16: Confirm-on-a-convolution-slot opens the pool browser in pick-IR
         // mode for that slot. Returns true iff it opened (Confirm consumed).
         bool tryOpenIrPicker();

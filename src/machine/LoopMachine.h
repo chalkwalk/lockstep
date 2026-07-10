@@ -196,6 +196,19 @@ namespace lockstep
             return subInput_[static_cast<std::size_t>(std::clamp(sub, 1, kMaxInputSubTracks - 1))];
         }
 
+        // Deck TRACKS-page state (§40.5). Advisory (last processed block); the mute
+        // and solo flags mirror their params, armed is ephemeral deck state.
+        [[nodiscard]] int subTrackCount() const noexcept { return deck_.subTrackCount(); }
+        [[nodiscard]] bool subArmed(int sub) const noexcept { return deck_.subTrack(clampSub(sub)).armed; }
+        [[nodiscard]] bool subMuted(int sub) const noexcept { return deck_.subTrack(clampSub(sub)).muted; }
+        [[nodiscard]] bool subSoloed(int sub) const noexcept { return deck_.subTrack(clampSub(sub)).soloed; }
+        // ARM is a performance state, not a param — toggled directly (message thread;
+        // the audio thread will read it once overdub-targeting lands).
+        void toggleSubArmed(int sub) noexcept
+        {
+            auto& st = deck_.subTrack(clampSub(sub)); st.armed = ! st.armed;
+        }
+
     private:
         static constexpr int kSlotInputSource = 0;
         static constexpr int kSlotTargetBuffer = 1;  // volatile REC slot the loop lives in
@@ -241,6 +254,11 @@ namespace lockstep
         // the ring-out it replaces is not missed. The loop's head — the downbeat —
         // is never touched.
         static constexpr double kSeamSpliceSec = 0.005;
+
+        static int clampSub(int sub) noexcept
+        {
+            return std::clamp(sub, 0, kMaxInputSubTracks - 1);
+        }
 
         void applyCommand(Cmd c, bool immediate);
         // Audio thread: dispatch one drained FIFO edge — discrete verbs to

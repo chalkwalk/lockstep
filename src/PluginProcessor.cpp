@@ -6817,6 +6817,105 @@ namespace lockstep
         return -1;
     }
 
+    static LoopMachine* asLooper(const std::array<std::unique_ptr<IMachine>, kNumTracks>& m,
+                                 int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return nullptr;
+        return dynamic_cast<LoopMachine*>(m[static_cast<std::size_t>(track)].get());
+    }
+
+    int LockstepProcessor::looperSubTrackCount(int track) const
+    {
+        auto* lm = asLooper(machines_, track);
+        return lm ? lm->subTrackCount() : 1;
+    }
+
+    bool LockstepProcessor::looperSubArmed(int track, int sub) const
+    {
+        auto* lm = asLooper(machines_, track);
+        return lm && lm->subArmed(sub);
+    }
+
+    bool LockstepProcessor::looperSubMuted(int track, int sub) const
+    {
+        auto* lm = asLooper(machines_, track);
+        return lm && lm->subMuted(sub);
+    }
+
+    bool LockstepProcessor::looperSubSoloed(int track, int sub) const
+    {
+        auto* lm = asLooper(machines_, track);
+        return lm && lm->subSoloed(sub);
+    }
+
+    juce::String LockstepProcessor::looperSubSourceLabel(int track, int sub) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return {};
+        auto* lm = asLooper(machines_, track);
+        if (lm == nullptr) return {};
+        const int slot = lm->slotForId(inputSourceSlotId(sub));
+        if (slot < 0) return {};
+        const auto& bp = sequence().tracks[static_cast<std::size_t>(track)].baseParams;
+        if (slot >= static_cast<int>(bp.size())) return {};
+        const InputSourceSel sel = decodeInputSource(bp[static_cast<std::size_t>(slot)]);
+        switch (sel.kind)
+        {
+            case InputSourceKind::None:     return "--";
+            case InputSourceKind::External: return "Ext";
+            case InputSourceKind::Master:   return "Mst";
+            case InputSourceKind::Track:    return "T" + juce::String(sel.track + 1);
+        }
+        return {};
+    }
+
+    void LockstepProcessor::looperToggleSubArmed(int track, int sub)
+    {
+        if (auto* lm = asLooper(machines_, track)) lm->toggleSubArmed(sub);
+    }
+
+    void LockstepProcessor::looperToggleSubMute(int track, int sub)
+    {
+        auto* lm = asLooper(machines_, track);
+        if (lm == nullptr) return;
+        const int slot = lm->slotForId("sub" + juce::String(sub + 1) + "_mute");
+        if (slot < 0) return;
+        const auto& bp = sequence().tracks[static_cast<std::size_t>(track)].baseParams;
+        const float cur = (slot < static_cast<int>(bp.size()))
+            ? bp[static_cast<std::size_t>(slot)] : 0.0f;
+        writeParam(track, slot, cur >= 0.5f ? 0.0f : 1.0f);
+    }
+
+    void LockstepProcessor::looperToggleSubSolo(int track, int sub)
+    {
+        auto* lm = asLooper(machines_, track);
+        if (lm == nullptr) return;
+        const int slot = lm->slotForId("sub" + juce::String(sub + 1) + "_solo");
+        if (slot < 0) return;
+        const auto& bp = sequence().tracks[static_cast<std::size_t>(track)].baseParams;
+        const float cur = (slot < static_cast<int>(bp.size()))
+            ? bp[static_cast<std::size_t>(slot)] : 0.0f;
+        writeParam(track, slot, cur >= 0.5f ? 0.0f : 1.0f);
+    }
+
+    void LockstepProcessor::looperCycleSubSource(int track, int sub)
+    {
+        auto* lm = asLooper(machines_, track);
+        if (lm == nullptr) return;
+        const int slot = lm->slotForId(inputSourceSlotId(sub));
+        if (slot < 0) return;
+        // Step through the same safe-source list the rotary/picker uses (§40.3), so
+        // a cycle can never land on a self-tap or a cycle-closing edge.
+        const auto cands = validInputSources(track, sub);
+        if (cands.empty()) return;
+        const auto& bp = sequence().tracks[static_cast<std::size_t>(track)].baseParams;
+        const float cur = (slot < static_cast<int>(bp.size()))
+            ? bp[static_cast<std::size_t>(slot)] : 0.0f;
+        std::size_t idx = 0;
+        for (std::size_t k = 0; k < cands.size(); ++k)
+            if (std::abs(cands[k] - cur) < 0.5f) { idx = k; break; }
+        writeParam(track, slot, cands[(idx + 1) % cands.size()]);
+    }
+
     float LockstepProcessor::looperPhase(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1.0f;

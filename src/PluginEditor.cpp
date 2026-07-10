@@ -2686,6 +2686,23 @@ namespace lockstep
         return true;
     }
 
+    bool LockstepEditor::pageDeckConsole(int delta)
+    {
+        const int t = keyboardArea_.getActiveTrack();
+        if (t < 0 || t >= static_cast<int>(kNumTracks)) return false;
+        if (! processor_.isLooperTrack(t)) return false;
+        // Only a modifier-free Nav pages; Func/Track/held-step keep their roles.
+        if (uiState_.funcHeld || uiState_.trackHeld) return false;
+        // Pages available: DECK always, TRACKS when the deck has > 1 sub-track.
+        // (MARKS for the Tape face will append here.)
+        const int pages = 1 + (processor_.looperSubTrackCount(t) > 1 ? 1 : 0);
+        if (pages <= 1) return false;  // nothing to page — let Nav do its usual thing
+        uiState_.deckConsolePage =
+            ((uiState_.deckConsolePage + delta) % pages + pages) % pages;
+        refreshSurface();
+        return true;
+    }
+
     bool LockstepEditor::activeTrackContentLocked() const
     {
         const int t = keyboardArea_.getActiveTrack();
@@ -4113,6 +4130,26 @@ namespace lockstep
                     if (layer == SurfaceLayer::LooperConsole)
                     {
                         const int trk = processor_.focusTrack();
+                        // 11.8 (§40.5): the TRACKS page — ARM/MUTE/SOLO/SRC per
+                        // sub-track. Rows past the count are inert.
+                        if (uiState_.deckConsolePage == 1
+                            && processor_.looperSubTrackCount(trk) > 1)
+                        {
+                            const int row = ev.index / 4;   // sub-track
+                            const int col = ev.index % 4;
+                            if (row < processor_.looperSubTrackCount(trk))
+                            {
+                                switch (col)
+                                {
+                                    case 0: processor_.looperToggleSubArmed(trk, row); break;
+                                    case 1: processor_.looperToggleSubMute(trk, row);  break;
+                                    case 2: processor_.looperToggleSubSolo(trk, row);  break;
+                                    default: processor_.looperCycleSubSource(trk, row); break;
+                                }
+                            }
+                            refreshSurface();
+                            return true;
+                        }
                         const int st = processor_.looperState(trk);  // 0 Idle..5 Armed
                         const double nowMs = juce::Time::getMillisecondCounterHiRes();
                         switch (ev.index)
@@ -4961,6 +4998,7 @@ namespace lockstep
                 if (pageFxPicker(-1)) return true;
                 if (consumeDensityStickyKey(CB::NavLeft)) return true;
                 if (consumeVelStickyKey(CB::NavLeft)) return true;
+                if (pageDeckConsole(-1)) return true;  // 11.8: looper Nav pages the console
                 // Note-edit mode and CHROMATIC mode both use NavLeft/Right for octave shift.
                 const int tl = keyboardArea_.getActiveTrack();
                 const bool chromL = tl >= 0 && tl < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(tl)] == TrackInputMode::Chromatic;

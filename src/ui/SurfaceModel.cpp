@@ -105,6 +105,15 @@ namespace lockstep
             case CellState::RouteConMaster:     return 0xFF2E6A6Au;  // teal — routed to Master
             case CellState::RouteConBus:        return 0xFF2E5E46u;  // green — routed into a bus
             case CellState::RouteConChanged:    return 0xFFE0A030u;  // amber — staged, uncommitted
+            // 11.8 deck TRACKS page (§40.5).
+            case CellState::DeckTrkArm:         return 0xFF33261Cu;  // dim amber — not armed
+            case CellState::DeckTrkArmOn:       return 0xFFE07A20u;  // amber — armed (punch target)
+            case CellState::DeckTrkMute:        return 0xFF203040u;  // dim blue — audible
+            case CellState::DeckTrkMuteOn:      return 0xFF802020u;  // red — muted
+            case CellState::DeckTrkSolo:        return 0xFF203828u;  // dim green — not soloed
+            case CellState::DeckTrkSoloOn:      return 0xFF30C060u;  // green — soloed
+            case CellState::DeckTrkSrc:         return 0xFF2E4A5Au;  // steel — source picker
+            case CellState::DeckTrkEmpty:       return 0xFF16181Cu;  // near-off — past the count
             case CellState::ChromaticWhite:     return kScopeTrack;
             case CellState::ChromaticBlack:     return kScopeTrack;
             case CellState::LevelsCell:         return 0xFF204060u;
@@ -1162,6 +1171,58 @@ namespace lockstep
                         c.base = CellState::StepEmpty;
                         c.baseColour = kStepOutRange;
                     }
+                }
+            }
+            else if (activeLayer == SurfaceLayer::LooperConsole
+                     && ui.deckConsolePage == 1
+                     && proc.looperSubTrackCount(activeTrack) > 1)
+            {
+                // 11.8 (§40.5): the TRACKS page of a multi-sub-track deck. Four rows
+                // (sub-tracks) × four columns (ARM · MUTE · SOLO · SRC). A looper
+                // does not sequence, so Nav pages here from the DECK layout; a
+                // single-sub-track deck never reaches this page (guarded above).
+                const int subCount = proc.looperSubTrackCount(activeTrack);
+                static constexpr const char* kColWord[4] = { "ARM", "MUTE", "SOLO", "SRC" };
+                for (int i = 0; i < 16; ++i)
+                {
+                    const int row = i / 4;   // sub-track 0..3
+                    const int col = i % 4;   // ARM/MUTE/SOLO/SRC
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button = ControllerButton::Step;
+                    c.index = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    CellState tok = CellState::DeckTrkEmpty;
+                    juce::String label = "--";
+                    if (row < subCount)
+                    {
+                        switch (col)
+                        {
+                            case 0:
+                                tok = proc.looperSubArmed(activeTrack, row)
+                                          ? CellState::DeckTrkArmOn : CellState::DeckTrkArm;
+                                label = "T" + juce::String(row + 1) + " " + kColWord[0];
+                                break;
+                            case 1:
+                                tok = proc.looperSubMuted(activeTrack, row)
+                                          ? CellState::DeckTrkMuteOn : CellState::DeckTrkMute;
+                                label = kColWord[1];
+                                break;
+                            case 2:
+                                tok = proc.looperSubSoloed(activeTrack, row)
+                                          ? CellState::DeckTrkSoloOn : CellState::DeckTrkSolo;
+                                label = kColWord[2];
+                                break;
+                            default:
+                                tok = CellState::DeckTrkSrc;
+                                label = proc.looperSubSourceLabel(activeTrack, row);
+                                break;
+                        }
+                    }
+                    c.base = c.pressed ? CellState::Pressed : tok;
+                    c.baseColour = compatColour(tok);
+                    c.primary = label;
                 }
             }
             else if (activeLayer == SurfaceLayer::LooperConsole)

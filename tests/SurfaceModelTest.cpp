@@ -533,6 +533,42 @@ namespace lockstep
             CHECK(m.step[0].primary != "REC",
                   "S3: non-looper track does not show the console");
         }
+
+        // 11.8 (§40.5): the TRACKS page. A single-sub-track deck has no TRACKS page,
+        // so paging is a no-op; a 4-sub-track deck pages to the ARM/MUTE/SOLO/SRC
+        // grid.
+        {
+            proc.setFocusTrack(1);
+            // Single sub-track (default): page 1 falls back to the DECK layout.
+            UiState ui; ui.deckConsolePage = 1;
+            auto m = buildSurfaceModel(ui, ec, nullptr, proc, 1, 0,
+                                       GridDisplayMode::Ortholinear);
+            CHECK(m.step[0].primary == "REC",
+                  "a single-sub-track deck has no TRACKS page (stays DECK)");
+
+            // Grow to four sub-tracks, let the machine adopt it, then page.
+            proc.writeParam(1, proc.slotForId(1, "subtrack_count"), 4.0f);
+            h.renderBlocks(1);  // writeParam is queued; process propagates to the deck
+            CHECK(proc.looperSubTrackCount(1) == 4, "the deck adopted four sub-tracks");
+
+            m = buildSurfaceModel(ui, ec, nullptr, proc, 1, 0,
+                                  GridDisplayMode::Ortholinear);
+            // Row 0 = ARM/MUTE/SOLO/SRC of sub-track 0.
+            CHECK(m.step[0].base == CellState::DeckTrkArmOn,
+                  "TRACKS row 0 col 0 = ARM (armed by default)");
+            CHECK(m.step[1].base == CellState::DeckTrkMute, "col 1 = MUTE (audible)");
+            CHECK(m.step[2].base == CellState::DeckTrkSolo, "col 2 = SOLO (not soloed)");
+            CHECK(m.step[3].base == CellState::DeckTrkSrc,  "col 3 = SRC");
+            CHECK(m.step[3].primary == "Ext", "SRC shows the source label (default External)");
+            // Rows 0-3 all present (count == 4), none empty.
+            CHECK(m.step[12].base == CellState::DeckTrkArmOn, "row 3 present at count 4");
+
+            // Back to the DECK page.
+            ui.deckConsolePage = 0;
+            m = buildSurfaceModel(ui, ec, nullptr, proc, 1, 0,
+                                  GridDisplayMode::Ortholinear);
+            CHECK(m.step[0].primary == "REC", "page 0 is the DECK layout");
+        }
     }
 
     // -------------------------------------------------------------------------
