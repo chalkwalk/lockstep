@@ -42,6 +42,7 @@ namespace lockstep
     void runHeadsTests();          // 11.7a dc::ReadHead/WriteHead + the tape-delay proof
     void runLayerStackTests();     // 11.7b dc::LayerStack — overdub, undo, decay, punch
     void runSeamTests();           // C6 dc::spliceLoopEnd — the loop splice
+    void runMarkerLaneTests();     // 11.4 dc::MarkerLane — navigation markers
     void runDeckTests();           // 11.7b dc::Deck — state machine + quantized edges
     void runDeckAdapterTests();    // 11.2 deck_juce — buffer/transport glue
     void runResamplerTests();      // 9.25 R1 shared bandlimited resampler

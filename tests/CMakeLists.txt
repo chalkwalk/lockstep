@@ -17,6 +17,7 @@ add_executable(lockstep_tests
     HeadsTest.cpp
     LayerStackTest.cpp
     SeamTest.cpp
+    MarkerLaneTest.cpp
     DeckTest.cpp
     DeckAdapterTest.cpp
     ResamplerTest.cpp
