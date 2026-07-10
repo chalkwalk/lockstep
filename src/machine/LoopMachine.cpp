@@ -1,6 +1,7 @@
 #include "LoopMachine.h"
 #include "../deckcore/Interpolation.h"
 #include "../deckcore/Resampler.h"
+#include "DeckAdapter.h"
 #include <algorithm>
 #include <cmath>
 
@@ -125,13 +126,13 @@ namespace lockstep
 
     void LoopMachine::reset()
     {
-        state_ = State::Idle;
+        deck_.setState(State::Idle);
         loopLen_ = 0;
         playPos_ = 0.0;
         lastPos_ = 0.0;
         recPos_ = 0;
         recLenTarget_ = 0;
-        pendingAction_ = 0;
+        deck_.cancelPending();
         rate_ = 1.0;
         haveBackup_ = false;
         manualLen_ = false;
@@ -141,7 +142,7 @@ namespace lockstep
         tapeResync_ = false;
         tapeMult_ = 1.0;
         dropOverdubLayer();
-        stateMirror_.store(static_cast<int>(state_), std::memory_order_release);
+        stateMirror_.store(static_cast<int>(deck_.state()), std::memory_order_release);
     }
 
     void LoopMachine::snapshotForUndo()
@@ -287,7 +288,7 @@ namespace lockstep
     {
         if (target_ == nullptr || capacity_ <= 0)
         {
-            state_ = State::Idle;
+            deck_.setState(State::Idle);
             return;
         }
         // A5: claim the whole capacity as the used length and clear it — a looper
@@ -296,7 +297,7 @@ namespace lockstep
         target_ = pool_.beginVolatileCapture(targetSlot_, capacity_);
         if (target_ == nullptr)
         {
-            state_ = State::Idle;
+            deck_.setState(State::Idle);
             return;
         }
         loopLen_ = 0;
@@ -311,158 +312,160 @@ namespace lockstep
             const double len = syncedLengthSamples();
             if (len > 0.0) recLenTarget_ = static_cast<int>(std::lround(len));
         }
-        state_ = State::Recording;
+        deck_.setState(State::Recording);
     }
 
     void LoopMachine::firePending()
     {
-        switch (pendingAction_)
+        applyEdge(deck_.firePending());
+    }
+
+    // One place turns a deck decision into looper work. dc::Deck owns the state
+    // machine and the quantized edge; the medium, the pool slot and the overdub
+    // layer are ours, so the doing stays here (DESIGN §40.11).
+    void LoopMachine::applyEdge(const dc::DeckEdge& e)
+    {
+        if (e.startRecording) startRecording();      // may fall back to Idle
+        if (e.closeRecording) closeRecording();      // may fall back to Idle
+        if (e.beginOverdub)
         {
-            case 1: startRecording(); break;                              // Armed → Recording
-            case 2: state_ = State::Stopped; break;                       // quantized stop
-            case 3: playPos_ = 0.0; lastPos_ = 0.0; state_ = State::Playing; break;  // quantized re-play
-            case 4: closeRecording(); break;                              // S7 quantized punch-out → Playing
-            default: break;
+            snapshotForUndo();
+            dropOverdubLayer();  // R4: start a fresh overdub layer B
         }
-        pendingAction_ = 0;
+        // endOverdub needs no work: layer B is folded by the block-start commit.
+        if (e.restartPlayback)
+        {
+            playPos_ = 0.0;
+            lastPos_ = 0.0;
+        }
+        if (e.clear) doClear();
+        if (e.undo) doUndo();
+        if (e.halve) doHalve();
+        if (e.doubleLen) doDouble();
+    }
+
+    void LoopMachine::doClear()
+    {
+        if (target_ != nullptr)
+        {
+            target_->setSize(target_->getNumChannels(), 0, false, false, true);
+            pool_.setSourceBars(targetSlot_, 0.0);
+            pool_.setVolatileOrigin(targetSlot_, SampleOrigin::Empty);  // W3a
+        }
+        reset();
+    }
+
+    void LoopMachine::doUndo()
+    {
+        dropOverdubLayer();  // R4: discard the in-progress overdub layer
+        const int chans = std::min(target_->getNumChannels(), backup_.getNumChannels());
+        const int n = std::min(loopLen_, backup_.getNumSamples());
+        for (int ch = 0; ch < chans; ++ch)
+            target_->copyFrom(ch, 0, backup_, ch, 0, n);
+        haveBackup_ = false;
+    }
+
+    void LoopMachine::doHalve()
+    {
+        // S4: play only the first half of the loop window — a clean cut, no
+        // resample. The buffer keeps its full content (a later Double recovers
+        // it). Detach from grid-lock so it plays native (no pitch change).
+        commitOverdubLayer();  // R4: fold B at the current length first
+        loopLen_ /= 2;
+        if (playPos_ >= static_cast<double>(loopLen_))
+            playPos_ = std::fmod(playPos_, static_cast<double>(loopLen_));
+        lastPos_ = playPos_;
+        manualLen_ = true;
+        haveBackup_ = false;
+        pool_.setSourceBars(targetSlot_, 0.0);
+    }
+
+    void LoopMachine::doDouble()
+    {
+        // S4: double the loop window — duplicate the content into the second half
+        // (no resample, no pitch change). Capped at the slot capacity.
+        commitOverdubLayer();  // R4: fold B before duplicating content
+        const int newLen = loopLen_ * 2;
+        target_->setSize(target_->getNumChannels(), newLen, true, false, true);
+        const int tch = std::min(2, target_->getNumChannels());
+        for (int ch = 0; ch < tch; ++ch)
+            target_->copyFrom(ch, loopLen_, *target_, ch, 0, loopLen_);
+        loopLen_ = newLen;
+        manualLen_ = true;
+        haveBackup_ = false;
+        pool_.setSourceBars(targetSlot_, 0.0);
     }
 
     void LoopMachine::applyCommand(Cmd c, bool immediate)
     {
-        // 9.17: edge timing follows the one shared launch-quantize grid delivered
-        // by the processor (loop_sync now selects loop *length* only). Free/Instant
-        // grid → period 0 → fire now. A double-tap (immediate) forces the edge now,
-        // overriding quantize and cancelling any pending action.
-        const double period = transport_.launchQuantPeriodSamples;
-        const bool quantStart = !immediate && period > 0.0;                  // can arm even when stopped (fires on transport roll/boundary)
-        const bool quantPlay  = !immediate && period > 0.0 && transport_.running;
+        // 11.2: the discrete verbs ARE the deck's (dc::DeckCmd). Edge timing,
+        // arming, punch-out and the double-tap instant override live in dc::Deck,
+        // resolved against the one shared launch grid delivered by the processor
+        // (9.17; loop_sync now selects loop *length* only). The momentary
+        // performance actions below are the looper's own and stay here.
+        //
+        // `haveTake` answers "is there something to act on", and each verb asks a
+        // different question of the buffer — which is why it is computed per verb
+        // rather than once. dc::Deck does not know what a pool slot is.
+        const auto snapshot = toSnapshot(transport_);
+
+        const auto deckCmd = [c]() -> dc::DeckCmd {
+            switch (c)
+            {
+                case Cmd::RecordCycle: return dc::DeckCmd::RecordCycle;
+                case Cmd::PlayStop:    return dc::DeckCmd::PlayStop;
+                case Cmd::Clear:       return dc::DeckCmd::Clear;
+                case Cmd::Undo:        return dc::DeckCmd::Undo;
+                case Cmd::Halve:       return dc::DeckCmd::Halve;
+                case Cmd::Double:      return dc::DeckCmd::Double;
+                case Cmd::None:
+                case Cmd::BeatRepeat:
+                case Cmd::TapeStop:
+                case Cmd::Dip:
+                case Cmd::HalfSpeed:
+                case Cmd::Reverse:     break;
+            }
+            return dc::DeckCmd::None;
+        }();
+
+        if (deckCmd != dc::DeckCmd::None)
+        {
+            bool haveTake = loopLen_ > 0;
+            switch (c)
+            {
+                case Cmd::Undo:
+                    haveTake = haveBackup_ && loopLen_ > 0 && target_ != nullptr;
+                    break;
+                case Cmd::Halve:
+                    haveTake = loopLen_ >= 2;
+                    break;
+                case Cmd::Double:
+                    haveTake = loopLen_ > 0 && target_ != nullptr && loopLen_ * 2 <= capacity_;
+                    break;
+                case Cmd::Clear:
+                    haveTake = true;  // clearing an empty deck is a no-op, not a refusal
+                    break;
+                default:
+                    break;
+            }
+
+            applyEdge(deck_.applyCommand(deckCmd, immediate, snapshot, haveTake));
+            return;
+        }
 
         switch (c)
         {
+            // Returned above, via the deck. Named here so -Wswitch keeps guarding
+            // the enum: a new verb must be routed somewhere on purpose.
             case Cmd::None:
-                break;
             case Cmd::RecordCycle:
-                switch (state_)
-                {
-                    case State::Idle:
-                    case State::Stopped:
-                        if (quantStart) { state_ = State::Armed; pendingAction_ = 1; }
-                        else startRecording();
-                        break;
-                    case State::Armed:
-                        if (immediate) startRecording();                     // double-tap: start now
-                        else { state_ = (loopLen_ > 0) ? State::Stopped : State::Idle;
-                               pendingAction_ = 0; }                          // single tap: cancel arm
-                        break;
-                    case State::Recording:
-                        // S7: quantized punch-out — arm the close for the next bar
-                        // boundary (→ Playing) instead of cutting instantly. A
-                        // double-tap (immediate) or Free mode closes now.
-                        if (quantPlay) pendingAction_ = 4;
-                        else closeRecording();
-                        break;
-                    case State::Playing:
-                        if (loopLen_ > 0)
-                        {
-                            snapshotForUndo();
-                            dropOverdubLayer();  // R4: start a fresh overdub layer B
-                            state_ = State::Overdubbing;
-                        }
-                        break;
-                    case State::Overdubbing:
-                        state_ = State::Playing;  // R4: B folded by the block-start commit
-                        break;
-                }
-                break;
             case Cmd::PlayStop:
-                switch (state_)
-                {
-                    case State::Recording:
-                        if (quantPlay) pendingAction_ = 4;  // S7: quantized punch-out
-                        else closeRecording();
-                        break;
-                    case State::Playing:
-                    case State::Overdubbing:
-                        if (quantPlay) pendingAction_ = 2;                    // quantized stop on the bar
-                        else state_ = State::Stopped;
-                        break;
-                    case State::Stopped:
-                        if (loopLen_ > 0)
-                        {
-                            if (quantPlay) pendingAction_ = 3;               // quantized re-play on the bar
-                            else { playPos_ = 0.0; lastPos_ = 0.0; state_ = State::Playing; }
-                        }
-                        break;
-                    case State::Armed:
-                        state_ = (loopLen_ > 0) ? State::Stopped : State::Idle;
-                        pendingAction_ = 0;                                   // cancel arm
-                        break;
-                    case State::Idle:
-                        break;
-                }
-                break;
             case Cmd::Clear:
-                if (target_ != nullptr)
-                {
-                    target_->setSize(target_->getNumChannels(), 0, false, false, true);
-                    pool_.setSourceBars(targetSlot_, 0.0);
-                    pool_.setVolatileOrigin(targetSlot_, SampleOrigin::Empty);  // W3a
-                }
-                reset();
-                break;
             case Cmd::Undo:
-                if (haveBackup_ && loopLen_ > 0 && target_ != nullptr)
-                {
-                    dropOverdubLayer();  // R4: discard the in-progress overdub layer
-                    const int chans = std::min(target_->getNumChannels(),
-                                               backup_.getNumChannels());
-                    const int n = std::min(loopLen_, backup_.getNumSamples());
-                    for (int ch = 0; ch < chans; ++ch)
-                        target_->copyFrom(ch, 0, backup_, ch, 0, n);
-                    haveBackup_ = false;
-                    state_ = State::Playing;
-                }
-                break;
             case Cmd::Halve:
-                // S4: play only the first half of the loop window — a clean cut, no
-                // resample. The buffer keeps its full content (a later Double recovers
-                // it). Detach from grid-lock so it plays native (no pitch change).
-                if (loopLen_ >= 2 && (state_ == State::Playing
-                                      || state_ == State::Overdubbing
-                                      || state_ == State::Stopped))
-                {
-                    commitOverdubLayer();  // R4: fold B at the current length first
-                    loopLen_ /= 2;
-                    if (playPos_ >= static_cast<double>(loopLen_))
-                        playPos_ = std::fmod(playPos_, static_cast<double>(loopLen_));
-                    lastPos_ = playPos_;
-                    manualLen_ = true;
-                    haveBackup_ = false;
-                    pool_.setSourceBars(targetSlot_, 0.0);
-                }
-                break;
             case Cmd::Double:
-                // S4: double the loop window — duplicate the content into the second
-                // half (no resample, no pitch change). Capped at the slot capacity.
-                if (loopLen_ > 0 && target_ != nullptr
-                    && (state_ == State::Playing || state_ == State::Overdubbing
-                        || state_ == State::Stopped))
-                {
-                    const int newLen = loopLen_ * 2;
-                    if (newLen <= capacity_)
-                    {
-                        commitOverdubLayer();  // R4: fold B before duplicating content
-                        target_->setSize(target_->getNumChannels(), newLen, true, false, true);
-                        const int tch = std::min(2, target_->getNumChannels());
-                        for (int ch = 0; ch < tch; ++ch)
-                            target_->copyFrom(ch, loopLen_, *target_, ch, 0, loopLen_);
-                        loopLen_ = newLen;
-                        manualLen_ = true;
-                        haveBackup_ = false;
-                        pool_.setSourceBars(targetSlot_, 0.0);
-                    }
-                }
                 break;
+
             case Cmd::BeatRepeat:
             case Cmd::TapeStop:
             case Cmd::Dip:
@@ -565,11 +568,11 @@ namespace lockstep
             pool_.setSourceBars(targetSlot_,
                                 spb > 0.0 ? static_cast<double>(loopLen_) / spb : 0.0);
             pool_.setVolatileOrigin(targetSlot_, SampleOrigin::Loop);  // W3a: tag origin
-            state_ = State::Playing;
+            deck_.setState(State::Playing);
         }
         else
         {
-            state_ = State::Idle;
+            deck_.setState(State::Idle);
         }
     }
 
@@ -634,7 +637,7 @@ namespace lockstep
         // stop, etc.) with an uncommitted overdub layer — fold it into the loop now
         // so a partial final pass isn't lost or read while stale (Undo/Clear drop it
         // instead, clearing overdubPending_ first).
-        if (state_ != State::Overdubbing && overdubPending_)
+        if (deck_.state() != State::Overdubbing && overdubPending_)
             commitOverdubLayer();
 
         // W1: keep the grid-locked record length in step with the LIVE tempo/grid.
@@ -644,7 +647,7 @@ namespace lockstep
         // (targetOutputSamples() is recomputed live every block), yielding a take
         // that's short (or long) relative to the musical loop. Re-derive it here so
         // record length and playback length stay the same musical duration.
-        if (state_ == State::Recording && syncMode_ >= kSyncGrid)
+        if (deck_.state() == State::Recording && syncMode_ >= kSyncGrid)
         {
             const double len = syncedLengthSamples();
             if (len > 0.0)
@@ -683,14 +686,14 @@ namespace lockstep
         // (the playhead loops the captured cell instead). Constant for the block — the
         // FIFO that toggles brActive_ is drained above, before the sample loop.
         const bool brNow = brActive_ && loopLen_ > 0 && brCellLen_ > 0.0
-                           && (state_ == State::Playing || state_ == State::Overdubbing);
+                           && (deck_.state() == State::Playing || deck_.state() == State::Overdubbing);
 
         // S6: tape FX drive the playback rate through a slewed envelope (and, after
         // release, a one-pole catch-up to the grid). Like beat-repeat they override
         // phase-lock/free-run while engaged. Slew times: fast for the FX engage/catch,
         // slower for the tape-stop deceleration ramp.
         const bool tapeNow = (tapeAction_ != Cmd::None || tapeResync_) && loopLen_ > 0
-                             && (state_ == State::Playing || state_ == State::Overdubbing);
+                             && (deck_.state() == State::Playing || deck_.state() == State::Overdubbing);
         // W4: tape-like glide — see kTape*Sec in the header. The engage/return glide
         // (tapeSlewFast) was ~6 ms and snapped; it now sweeps audibly on half/reverse.
         const double tapeSlewFast = 1.0 - std::exp(-1.0 / (kTapeGlideSec  * sampleRate_));
@@ -710,7 +713,7 @@ namespace lockstep
             // #2: a pending quantized edge fires when the transport phase crosses a
             // bar-grid boundary within this block (sample-accurate). N-Bar modes use
             // an N-bar period so multiple loopers land on the same grid line.
-            if (pendingAction_ != 0 && transport_.running && quantPeriod > 0.0)
+            if (deck_.pendingEdge() && transport_.running && quantPeriod > 0.0)
             {
                 const double phaseI = transport_.transportPhaseSamples
                                       + static_cast<double>(i) - quantPhaseOffset;
@@ -720,7 +723,7 @@ namespace lockstep
 
             double pos = playPos_;
             if (phaseLock && !brNow && !tapeNow && loopLen_ > 0
-                && (state_ == State::Playing || state_ == State::Overdubbing))
+                && (deck_.state() == State::Playing || deck_.state() == State::Overdubbing))
             {
                 double frac = (transport_.transportPhaseSamples + static_cast<double>(i)) / tOut;
                 frac -= std::floor(frac);
@@ -736,7 +739,7 @@ namespace lockstep
                 // Loop contribution to the output (separate from the live-thru so
                 // monitor can gate the live signal without touching recording).
                 float loopOut = 0.0f;
-                switch (state_)
+                switch (deck_.state())
                 {
                     case State::Recording:
                         if (tch && recPos_ < capacity_)
@@ -774,7 +777,7 @@ namespace lockstep
                 // looper monitors while Idle/Armed/Recording/Overdubbing/Stopped and
                 // drops to loop-only once the take is Playing back. A parallel tap
                 // stays loop-only. On/Off are absolute.
-                const float live = resolveMonitor(monMode, srcKind, state_) ? in : 0.0f;
+                const float live = resolveMonitor(monMode, srcKind, deck_.state()) ? in : 0.0f;
                 buffer.setSample(ch, i, loopOut + live);
             }
 
@@ -788,24 +791,24 @@ namespace lockstep
             //   • Committing B (add-only) folds the pass in AFTER A's decay, so k
             //     passes give A = Σ gᵏ⁻ʲ·Bⱼ (the classic feedback-looper sum).
             if (loopLen_ > 0 && !brNow && !tapeNow && transportGates
-                && (state_ == State::Playing || state_ == State::Overdubbing)
+                && (deck_.state() == State::Playing || deck_.state() == State::Overdubbing)
                 && pos < lastPos_)
             {
                 const bool decayNow = decayAmt > 0.0f
                     && (decayMode == kDecayAlways
-                        || (decayMode == kDecayOverdub && state_ == State::Overdubbing));
+                        || (decayMode == kDecayOverdub && deck_.state() == State::Overdubbing));
                 if (decayNow) scaleLoop(decayGain);
-                if (state_ == State::Overdubbing) commitOverdubLayer();
+                if (deck_.state() == State::Overdubbing) commitOverdubLayer();
             }
             lastPos_ = pos;
 
-            if (state_ == State::Recording)
+            if (deck_.state() == State::Recording)
             {
                 if (++recPos_ >= capacity_
                     || (recLenTarget_ > 0 && recPos_ >= recLenTarget_))
                     closeRecording();
             }
-            else if ((state_ == State::Playing || state_ == State::Overdubbing)
+            else if ((deck_.state() == State::Playing || deck_.state() == State::Overdubbing)
                      && loopLen_ > 0 && transportGates)
             {
                 if (brNow)
@@ -864,7 +867,7 @@ namespace lockstep
                         // the instant STOP button). Reset the envelope for the next play.
                         if (tapeAction_ == Cmd::TapeStop && tapeMult_ < 0.01)
                         {
-                            state_ = State::Stopped;
+                            deck_.setState(State::Stopped);
                             tapeAction_ = Cmd::None;
                             tapeResync_ = false;
                             tapeMult_ = 1.0;
@@ -901,7 +904,7 @@ namespace lockstep
         for (int ch = chans; ch < buffer.getNumChannels(); ++ch)
             buffer.clear(ch, 0, numSamples);
 
-        stateMirror_.store(static_cast<int>(state_), std::memory_order_release);
+        stateMirror_.store(static_cast<int>(deck_.state()), std::memory_order_release);
         loopLenMirror_.store(loopLen_, std::memory_order_release);  // S4 chrome/tests
         brRateMirror_.store(brNow ? brRateIdx_ : -1, std::memory_order_release);  // S5
         // S6: light the held tape-fx cell (TapeStop=0, Dip=1, HalfSpeed=2, Reverse=3);
@@ -920,13 +923,13 @@ namespace lockstep
         // S2: publish loop-position chrome for the mini-seq. Phase 0..1 while playing
         // (-1 otherwise) drives the continuous playhead; pendingEdge drives the
         // landing pip at the loop-start anchor (Armed or a scheduled stop/re-play).
-        const bool playing = (state_ == State::Playing || state_ == State::Overdubbing)
+        const bool playing = (deck_.state() == State::Playing || deck_.state() == State::Overdubbing)
                              && loopLen_ > 0;
         phaseMirror_.store(playing
                                ? static_cast<float>(playPos_ / static_cast<double>(loopLen_))
                                : -1.0f,
                            std::memory_order_release);
-        pendingMirror_.store(state_ == State::Armed || pendingAction_ != 0,
+        pendingMirror_.store(deck_.pendingEdge(),
                              std::memory_order_release);
     }
 }

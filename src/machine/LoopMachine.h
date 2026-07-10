@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../deckcore/Deck.h"
 #include "IMachine.h"
 #include "ITempoAware.h"
 #include "ILoopGridAware.h"
@@ -51,10 +52,15 @@ namespace lockstep
             bool pressed = true;      // momentary on/off; discrete verbs are pressed=true
             bool immediate = false;   // double-tap: bypass quantize (discrete only)
         };
-        // Armed (appended) — a quantized Record press waits here for the next bar
-        // boundary (#2). It is a monitoring state (live-thru passes per the monitor
-        // mode) with no loop output yet.
-        enum class State : int { Idle = 0, Recording, Playing, Overdubbing, Stopped, Armed };
+        // The looper's state IS the deck's state (11.2, DESIGN §40.1): Record, Loop
+        // and Tape are three faces of one engine, and the state machine lives in
+        // dc::Deck. The enumerators and their order are unchanged, so stateMirror_'s
+        // int cast still means what the editor thinks it means.
+        //
+        // Armed — a quantized Record press waits here for the next bar boundary
+        // (#2). It is a monitoring state (live-thru passes per the monitor mode)
+        // with no loop output yet.
+        using State = dc::DeckState;
 
         static constexpr const char* kMachineId = "lockstep.loop.v1";
 
@@ -165,15 +171,15 @@ namespace lockstep
         [[nodiscard]] static bool resolveMonitor(int monMode, InputSourceKind src,
                                                  State state = State::Idle) noexcept
         {
-            switch (monMode)
-            {
-                case 1: return true;   // On  — always pass live input through
-                case 2: return false;  // Off — loop-only output (never monitor)
-                default:               // Auto
-                    if (src != InputSourceKind::None && src != InputSourceKind::External)
-                        return false;  // tap source is already audible → loop-only
-                    return state != State::Playing;  // insert: drop live-thru once the loop plays
-            }
+            // An insert source (None/External) is not audible except through us;
+            // a Track/Master tap already is. That is the only thing dc::Deck needs
+            // to know about Lockstep's routing.
+            const bool sourceIsInsert =
+                (src == InputSourceKind::None || src == InputSourceKind::External);
+            const auto mode = (monMode == 1) ? dc::Deck::Monitor::On
+                            : (monMode == 2) ? dc::Deck::Monitor::Off
+                                             : dc::Deck::Monitor::Auto;
+            return dc::Deck::resolveMonitor(mode, sourceIsInsert, state);
         }
 
     private:
@@ -226,6 +232,14 @@ namespace lockstep
         void scaleLoop(float g);
         // Apply the scheduled quantized edge (record-start / stop / re-play) and clear it.
         void firePending();
+        // Turn one dc::DeckEdge — the deck's work order — into looper work. The
+        // state machine decides; the medium, the pool slot and the overdub layer
+        // are ours, so the doing lives here.
+        void applyEdge(const dc::DeckEdge& e);
+        void doClear();
+        void doUndo();
+        void doHalve();
+        void doDouble();
         // Finalise an in-progress recording: set loopLen_, shrink the pool slot to
         // the loop, stamp sourceBars, and enter Playing (or Idle if empty).
         void closeRecording();
@@ -260,7 +274,8 @@ namespace lockstep
         int targetSlot_ = -1;     // resolved volatile pool index for the loop
         juce::AudioBuffer<float>* target_ = nullptr;  // pool pcm for targetSlot_ (this block)
 
-        State state_ = State::Idle;
+        // The state machine, the pending quantized edge, and the sub-track table.
+        dc::Deck deck_;
         int loopLen_ = 0;
         double playPos_ = 0.0;    // fractional read position (varispeed, C4)
         double lastPos_ = 0.0;    // previous read position, for Always-decay wrap detect (#4)
@@ -269,9 +284,6 @@ namespace lockstep
         int syncMode_ = 0;        // resolved loop_sync this block
         int loopGridSteps_ = 16;  // track length (steps), pushed via ILoopGridAware (S1)
         double loopStepPpq_ = 0.25;  // quarter-note PPQ per step, pushed via ILoopGridAware (S1)
-        // Pending quantized edge (#2): 0 none / 1 start-record / 2 stop / 3 re-play.
-        // Fired by firePending() when the transport phase crosses a bar-grid boundary.
-        int pendingAction_ = 0;
         double rate_ = 1.0;       // current (slewed) varispeed rate
         // Effective per-sample head advance actually applied (rate_ times the
         // tape-FX multiplier, or the resync catch-up sum) — the rate the head
