@@ -2882,25 +2882,60 @@ clips (session-view drift), a forward-only reel, a master-bus tape fixture,
 tape-as-an-effect, and **loop groups** — cross-machine coordination lost to the
 4-track deck, which keeps the coordination local to one machine.
 
+Items are listed in **build order**, which is not id order: the library boundary
+(11.7) is 11.2's skeleton rather than a follow-up, and the whole arc pivots on
+one risk gate — re-seating today's Loop and Record on the new engine with the
+existing test suite passing **unchanged**.
+
+- [x] **11.0 — Docs.** DESIGN §40.10/§40.11 gain the free-standing multi-head /
+      tap model (a tape delay is a configuration of these heads, not a second
+      engine; feedback is caller-side); §40.3 settles per-deck medium length and
+      the one-window rule for Loop's sub-tracks; the partner-app brief gains its
+      echo mode.
+- [ ] **11.7 — Deck core factoring (§40.11).** `deck_core` as a JUCE-free CMake
+      target (`std` + signalsmith; medium, heads, layers, punch, markers, takes;
+      audio as span views; transport as a POD snapshot) plus the `deck_juce`
+      adapter. **Medium rate is a medium property** (1× in Lockstep; an
+      oversampled medium is configuration, not a mode). **The medium is non-owning**
+      over caller storage — allocation policy stays host-side. Not separately
+      versioned — an in-repo target until a second shipping consumer exists.
+      - [ ] **a.** Target + `Resampler.h`/`Interpolation.h` move + `dc::Medium`
+            (linear/circular, own sample rate, f32 **or i16** store, per-sub-track
+            high-water) + `dc::ReadHead`/`dc::WriteHead` with follow-offset taps and
+            a per-sample step API. Acceptance: a pure test builds a **working tape
+            delay** from the library alone (§40.10). Lockstep never walks that path,
+            so only the test defends it.
+      - [ ] **b.** `dc::EraseHead` (the new DSP: rate-aware attenuation window
+            ahead of the write, so replace-at-varispeed is amplitude-honest),
+            `dc::LayerStack` (fold / one-level undo / decay / punch-as-span-gated-
+            layer), `dc::Deck` + `dc::TransportSnapshot`.
 - [ ] **11.1 — Transport gains position.** Absolute position as a first-class,
       single-sourced field on the transport authority: host-rooted when hosted,
       internal clock when standalone. Locate = a transport act; tracks re-derive
       phase as `position mod length`; pending launch edges re-derive against the new
       position. No state travels with position (PRINCIPLES §25.1, Non-Goals #1).
+      Mostly formalisation: `TransportInfo.transportPhaseSamples` already carries
+      it. The new work is the standalone **locate act** and a UI-safe read.
 - [ ] **11.2 — Deck engine core.** Four sub-tracks (default 1 stereo), layers +
       undo, span-replace punch as a layer, varispeed, jog/scrub as a decoupled
       audition committing at the next quantum. Built on the **head signal law**
       (§40.10): read/write/erase heads correct across the whole signed rate axis
-      (9.28 lands the read/write fixes in the shipped looper first; the **erase
-      head** — varispeed replace — is new work here). Record and Loop re-seat onto
-      it with **zero behaviour change** — that is the acceptance test.
+      (9.28 landed the read/write fixes in the shipped looper first). **Record and
+      Loop re-seat onto it with zero behaviour change — that is the acceptance
+      test**, and the existing suite is what states it.
 - [ ] **11.3 — Tap-only input matrix.** Per-sub-track `input_source` selection on
       the console's Route-style grid, reusing the §27 tap-fork edge class. No
       push-side `Out` entries; no new edge class in the topological sort.
+- [ ] **11.8 — Loop's 4-track face.** `subtrack_count` (1–4, default 1); sub-tracks
+      share the deck's window (§40.3 — polymeter is designed out, not deferred);
+      overdub and punch target the armed sub-tracks; per-sub-track level/pan/mute
+      are ordinary machine params. The single-sub-track console must not change by
+      one cell.
 - [ ] **11.4 — Tape face + markers.** Linear, position-addressed medium
-      (fixed-length RAM, settable, lazily committed). Markers are **dumb**:
-      auto-dropped at Scene/Song switches while recording, manually droppable, cued
-      by console cells — and they never fire a launch. The fence-#1 line lives here.
+      (fixed-length RAM, per-deck length + bit depth, lazily committed). Markers are
+      **dumb**: auto-dropped at Scene/Song switches while recording, manually
+      droppable, cued by console cells — and they never fire a launch. The fence-#1
+      line lives here. Serializer v32 → v33 (marker lane + deck config).
 - [ ] **11.5 — Console pages + timeline strip.** `DECK` / `TRACKS` / `MARKS`
       console pages (nav-paged; a single-sub-track deck simply has fewer). A second
       inspector-class, **display-only** always-on strip (the 9.11 precedent) from a
@@ -2912,14 +2947,6 @@ tape-as-an-effect, and **loop groups** — cross-machine coordination lost to th
       entity; sample-class pickers see the members ("up to 5 samples"). Codify the
       **stereo-engine / native-storage** channel policy, retiring the scattered
       `min(2, …)` clamps as policy rather than accident.
-- [ ] **11.7 — Deck core factoring (§40.11).** `deck_core` as a JUCE-free CMake
-      target (`std` + signalsmith; medium, heads, layers, punch, markers, takes;
-      audio as span views; transport as a POD snapshot) plus the `deck_juce`
-      adapter. **Medium rate is a medium property** (1× in Lockstep; an
-      oversampled medium is configuration, not a mode). Not separately versioned —
-      an in-repo target until a second shipping consumer exists. Ordering note:
-      this is 11.2's skeleton, not a follow-up — build the engine inside the
-      library boundary from the start rather than extracting it later.
 
 ---
 
