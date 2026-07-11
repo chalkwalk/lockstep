@@ -473,6 +473,35 @@ namespace lockstep
         }
     }
 
+    // §40.3: the medium_length param sizes the Tape's reel. Writing it resizes the
+    // reel; a scene switch (which reinstalls machines) must NOT resize a reel whose
+    // length did not change — an unconditional resize would wipe the tape.
+    static void testTapeMediumLengthParam()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        proc.setTrackMachine(0, TapeMachine::kMachineId);
+
+        const int slot = proc.slotForId(0, "medium_length");
+        CHECK(slot >= 0, "the Tape has a medium_length param");
+
+        // Resize the reel to 3 s and confirm the machine adopted it.
+        proc.writeParam(0, slot, 3.0f);
+        const auto* m = dynamic_cast<const TapeMachine*>(proc.machineForTrack(0));
+        CHECK(m != nullptr && std::abs(m->mediumSeconds() - 3.0) < 0.01,
+              "writing medium_length resizes the reel");
+
+        // Record something, then trigger a reinstall (scene switch): the reel keeps
+        // its length AND its content, because the length did not change.
+        proc.tapeApplyVerb(0, 1);  // Recording
+        proc.songAt(0).tracks[0].phrases[1].steps[0].trig = true;
+        proc.queueScene(1, false);
+        for (int b = 0; b < 200 && proc.activeSectionIdx() != 1; ++b) h.renderBlocks(1);
+        const auto* m2 = dynamic_cast<const TapeMachine*>(proc.machineForTrack(0));
+        CHECK(m2 != nullptr && std::abs(m2->mediumSeconds() - 3.0) < 0.01,
+              "a scene switch does not resize an unchanged reel");
+    }
+
     // 9.17: the scene launch resolves against the shared LaunchQuant grid
     // (DESIGN §4.8). A Beat grid lands the scene sooner (mid-bar) than the
     // default Bar grid — proving the grid value actually routes the timing —
@@ -4167,6 +4196,7 @@ namespace lockstep
         testBlockSizeInvariance();
         testSceneSwitchAtBoundary();
         testTapeMarkerOnSceneSwitch();
+        testTapeMediumLengthParam();
         testSceneLaunchGridRouting();
         testQueuedSongSwitchAtBoundary();
         testDoubleTapSongSwitchInstant();

@@ -3867,6 +3867,15 @@ namespace lockstep
                 // seed a single trig so it loops cleanly (no per-step restarts).
                 autoFitLoopTrack(track, poolIdx);
             }
+            // §40.3: resizing a Tape's reel reallocates its medium — do it under a
+            // quiesced engine (like a StreamMachine's setFilePath), because the
+            // audio thread reads the reel. The recorded audio is discarded, exactly
+            // as a volatile-slot resize discards it (a reel is volatile-until-promote).
+            else if (pickedId == "medium_length")
+            {
+                if (auto* tm = dynamic_cast<TapeMachine*>(wm))
+                    withQuiescedEngine([&] { tm->setMediumSeconds(static_cast<double>(value)); });
+            }
         }
     }
 
@@ -6467,6 +6476,24 @@ namespace lockstep
                                     sequence().tracks[t].baseParams);
         }
         syncTrackParamsFromActiveKit();
+
+        // §40.3: size each Tape's reel to its stored medium_length now that
+        // baseParams are applied. Only when the length actually differs — a reel
+        // realloc discards the recorded tape, and reinstall runs on every scene
+        // switch, so an unconditional resize would wipe the tape on each switch.
+        withQuiescedEngine([&] {
+            for (std::size_t t = 0; t < kNumTracks; ++t)
+            {
+                auto* tm = dynamic_cast<TapeMachine*>(machines_[t].get());
+                if (tm == nullptr) continue;
+                const int slot = slotForId(static_cast<int>(t), "medium_length");
+                const auto& bp = sequence().tracks[t].baseParams;
+                if (slot < 0 || slot >= static_cast<int>(bp.size())) continue;
+                const double want = static_cast<double>(bp[static_cast<std::size_t>(slot)]);
+                if (std::abs(want - tm->mediumSeconds()) > 0.001)
+                    tm->setMediumSeconds(want);
+            }
+        });
     }
 
     // The switching + write-back logic lives in Arrangement (tested in isolation);
