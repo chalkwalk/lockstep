@@ -161,9 +161,14 @@ namespace lockstep
     {
         sampleRate_ = sampleRate > 0.0 ? sampleRate : 44100.0;
         const int cap = static_cast<int>(sampleRate_ * kLoopMaxSeconds);
-        backup_.setSize(2, cap, false, true, false);
+        // §40.3: the undo backup and the overdub layer are deck-medium-wide, not
+        // pair-0 — a 4-sub-track overdub folds into all armed channel-pairs, and
+        // whole-deck undo restores all of them. Sized to the widest possible deck
+        // (2 × kMaxSubTracks); a single-track loop only ever touches pair 0.
+        static constexpr int kDeckChans = 2 * dc::kMaxSubTracks;
+        backup_.setSize(kDeckChans, cap, false, true, false);
         backup_.clear();
-        overdubLayer_.setSize(2, cap, false, true, false);  // R4 overdub layer B
+        overdubLayer_.setSize(kDeckChans, cap, false, true, false);  // R4 overdub layer B
         overdubLayer_.clear();
         // C6: the seam splice's pre-roll. Small (a few ms) and always running.
         preLen_ = std::max(1, static_cast<int>(kSeamSpliceSec * sampleRate_));
@@ -326,9 +331,11 @@ namespace lockstep
         if (!overdubPending_) return;
         if (target_ != nullptr && loopLen_ > 0)
         {
-            // The overdub layer is stereo (overdub targets pair 0 today), so the
-            // fold is a stereo-boundary operation, not a deck-medium-wide one.
-            const int tch = std::min(engineChannels(target_->getNumChannels()),
+            // §40.3 (ChannelPolicy.h): folding the overdub layer into the take is a
+            // deck-medium-WIDE operation — every armed sub-track's channel-pair, not
+            // just pair 0. Unarmed pairs of the layer are zero (nothing scattered
+            // into them), so folding the full width is exact and needs no arm test.
+            const int tch = std::min(target_->getNumChannels(),
                                      overdubLayer_.getNumChannels());
             const int n = std::min(loopLen_, overdubLayer_.getNumSamples());
             for (int ch = 0; ch < tch; ++ch)
@@ -952,18 +959,30 @@ namespace lockstep
                     case State::Overdubbing:
                         if (tch && loopLen_ > 0 && transportGates)
                         {
-                            // R4: monitor the committed loop A plus the in-progress
-                            // overdub layer B, and scatter the input into B with a
-                            // bandlimited (add-only) fractional write — no integer
-                            // quantisation on a varispeed write. A's decay/feedback
-                            // and the fold of B into A happen once per iteration at
-                            // the wrap (below), decoupled from this write, so the
-                            // windowed spread never multi-decays overlapping slots.
-                            loopOut = loopSample(ch, pos, effRate_)
-                                    + readLayer(overdubLayer_, ch, pos, effRate_);
-                            sharedLoopResampler().scatterAddCircular(
-                                overdubLayer_.getWritePointer(ch), loopLen_, pos,
-                                std::abs(effRate_), in);
+                            // R4 + §40.3: monitor the committed loop A (all sub-tracks
+                            // mixed) plus the in-progress overdub layer B on each ARMED
+                            // sub-track, and scatter each armed sub's input into its own
+                            // channel-pair of B with a bandlimited (add-only) fractional
+                            // write. Sub 0's input is the primary (inScratch_); sub k>0
+                            // taps subInput_[k]. Unarmed subs receive nothing. A's
+                            // decay/feedback and the fold happen once per iteration at
+                            // the wrap (below), decoupled from this write.
+                            loopOut = mixSubTracks(ch, pos, effRate_, subCount);
+                            const int layerChans = overdubLayer_.getNumChannels();
+                            for (int sub = 0; sub < subCount; ++sub)
+                            {
+                                if (! deck_.subTrack(sub).armed) continue;
+                                const int lch = 2 * sub + ch;
+                                if (lch >= layerChans) continue;
+                                const float sin = (sub == 0) ? in
+                                    : (ch < subInput_[static_cast<std::size_t>(sub)].getNumChannels()
+                                           ? subInput_[static_cast<std::size_t>(sub)].getSample(ch, i)
+                                           : 0.0f);
+                                loopOut += readLayer(overdubLayer_, lch, pos, effRate_);
+                                sharedLoopResampler().scatterAddCircular(
+                                    overdubLayer_.getWritePointer(lch), loopLen_, pos,
+                                    std::abs(effRate_), sin);
+                            }
                             overdubPending_ = true;
                         }
                         break;

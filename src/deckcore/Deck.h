@@ -84,7 +84,11 @@ namespace dc
     // medium's lazy commit.
     struct SubTrack
     {
-        bool armed = true;   // punch and overdub target the armed sub-tracks
+        // Overdub/punch target the ARMED sub-tracks. Sub 0 is armed by default
+        // (the Deck ctor), the rest disarmed — so a single-track looper never
+        // thinks about arming and behaves exactly as before; the TRACKS console
+        // arms the others (§40.3).
+        bool armed = false;
         bool muted = false;
         bool soloed = false; // any solo mutes the un-soloed (a performance state)
         float level = 1.0f;
@@ -97,6 +101,8 @@ namespace dc
     class Deck
     {
     public:
+        Deck() noexcept { subs_[0].armed = true; }  // sub 0 armed by default (§40.3)
+
         [[nodiscard]] DeckState state() const noexcept { return state_; }
         void setState(DeckState s) noexcept { state_ = s; }
 

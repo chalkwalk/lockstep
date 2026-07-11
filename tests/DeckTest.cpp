@@ -215,6 +215,10 @@ namespace lockstep
             dc::Deck d;
             CHECK(d.subTrackCount() == 1, "a deck defaults to one sub-track");
             CHECK(d.subTrack(0).armed, "which is armed");
+            // §40.3: only sub 0 is armed by default — the rest are disarmed so a
+            // multi-sub overdub targets sub 0 alone until the console arms others.
+            CHECK(! d.subTrack(1).armed && ! d.subTrack(2).armed && ! d.subTrack(3).armed,
+                  "sub-tracks 1-3 are disarmed by default");
             d.setSubTrackCount(9);
             CHECK(d.subTrackCount() == dc::kMaxSubTracks, "and never exceeds four");
             d.setSubTrackCount(0);

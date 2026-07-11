@@ -987,5 +987,87 @@ namespace lockstep
                   "9.28.2: rate-2 loop read attenuates out-of-band content (rms "
                   + juce::String(rms) + ", Hermite fold-back was ~0.3)");
         }
+
+        // ── Multi-sub-track overdub (§40.3): overdub targets the ARMED subs ──────
+        // A 4-sub-track take, then overdub with subs 0+2 armed: pairs 0 and 2 gain
+        // the new material, pairs 1 and 3 stay bit-identical. Whole-deck undo
+        // restores all four. And with nothing explicitly armed, only sub 0 (the
+        // default-armed one) takes the overdub — today's single-track behaviour.
+        {
+            constexpr int kSub = 7;   // kSlotSubTrackCount
+            constexpr int kMixBase = 8, kMixFields = 4;
+
+            // Run a block with subtrack_count=4, per-sub inputs, hold decay.
+            auto run4 = [&](LoopMachine& m, float in0, float in1, float in2, float in3,
+                            Cmd cmd) {
+                if (cmd != Cmd::None) m.postCommand(cmd);
+                const float sv[4] = { in0, in1, in2, in3 };
+                for (int sub = 1; sub <= 3; ++sub)
+                {
+                    auto& b = m.inputSubTrackBuffer(sub);
+                    for (int ch = 0; ch < b.getNumChannels(); ++ch)
+                        for (int i = 0; i < n; ++i) b.setSample(ch, i, sv[sub]);
+                }
+                juce::AudioBuffer<float> buf(2, n);
+                for (int ch = 0; ch < 2; ++ch)
+                    for (int i = 0; i < n; ++i) buf.setSample(ch, i, in0);
+                juce::MidiBuffer midi;
+                ParamFrame params(static_cast<std::size_t>(24), 0.0f);
+                params[0] = 1.0f;        // input_source = External
+                params[3] = 2.0f;        // Overdub mode
+                params[4] = 0.0f;        // decay = hold (bit-exact fold)
+                params[kSub] = 4.0f;     // four sub-tracks
+                for (int s = 0; s < 4; ++s)
+                    params[static_cast<std::size_t>(kMixBase + s * kMixFields)] = 1.0f;  // level
+                m.process(midi, params, buf);
+                return buf;
+            };
+
+            auto layTake = [&](LoopMachine& m) {
+                run4(m, 0.5f, 0.5f, 0.5f, 0.5f, Cmd::RecordCycle);  // Idle → Recording
+                run4(m, 0.0f, 0.0f, 0.0f, 0.0f, Cmd::RecordCycle);  // Recording → Playing
+            };
+
+            // ---- subs 0+2 armed ----
+            {
+                SamplePool p; p.addVolatile();
+                p.prepareVolatile(kSr, 8, static_cast<int>(kSr));   // 8ch = 4 sub-tracks
+                LoopMachine lp(p); lp.prepare(kSr, n);
+                layTake(lp);
+                CHECK(lp.subArmed(0) && !lp.subArmed(1) && !lp.subArmed(2) && !lp.subArmed(3),
+                      "fresh deck: only sub 0 armed");
+                lp.toggleSubArmed(2);   // arm sub 2 as well
+
+                run4(lp, 0.25f, 0.25f, 0.25f, 0.25f, Cmd::RecordCycle);  // → Overdubbing
+                run4(lp, 0.25f, 0.25f, 0.25f, 0.25f, Cmd::RecordCycle);  // → Playing (fold)
+
+                auto* pcm = p.mutableVolatilePcm(0);
+                CHECK(pcm != nullptr && pcm->getNumChannels() >= 8, "the take is 8-channel");
+                CHECK(feq(pcm->getSample(0, 100), 0.75f, 1e-3f), "pair 0 (armed) gained the overdub");
+                CHECK(feq(pcm->getSample(2, 100), 0.5f,  1e-3f), "pair 1 (unarmed) is untouched");
+                CHECK(feq(pcm->getSample(4, 100), 0.75f, 1e-3f), "pair 2 (armed) gained the overdub");
+                CHECK(feq(pcm->getSample(6, 100), 0.5f,  1e-3f), "pair 3 (unarmed) is untouched");
+
+                // Whole-deck undo restores every sub-track to the pre-overdub take.
+                run4(lp, 0.0f, 0.0f, 0.0f, 0.0f, Cmd::Undo);
+                CHECK(feq(pcm->getSample(0, 100), 0.5f, 1e-3f), "undo restored pair 0");
+                CHECK(feq(pcm->getSample(4, 100), 0.5f, 1e-3f), "undo restored pair 2 (whole-deck)");
+            }
+
+            // ---- nothing explicitly armed → only sub 0 (default) ----
+            {
+                SamplePool p; p.addVolatile();
+                p.prepareVolatile(kSr, 8, static_cast<int>(kSr));
+                LoopMachine lp(p); lp.prepare(kSr, n);
+                layTake(lp);
+                run4(lp, 0.25f, 0.25f, 0.25f, 0.25f, Cmd::RecordCycle);  // → Overdubbing
+                run4(lp, 0.25f, 0.25f, 0.25f, 0.25f, Cmd::RecordCycle);  // → Playing (fold)
+
+                auto* pcm = p.mutableVolatilePcm(0);
+                CHECK(feq(pcm->getSample(0, 100), 0.75f, 1e-3f), "default arm: sub 0 overdubbed");
+                CHECK(feq(pcm->getSample(2, 100), 0.5f, 1e-3f), "default arm: sub 1 untouched");
+                CHECK(feq(pcm->getSample(4, 100), 0.5f, 1e-3f), "default arm: sub 2 untouched");
+            }
+        }
     }
 }
