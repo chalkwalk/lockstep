@@ -52,12 +52,22 @@ namespace lockstep
 
         const int n = proc.tapeMarkerCount(track);
         m.markers.reserve(static_cast<std::size_t>(n));
+        double nextMarker = -1.0;  // nearest marker strictly ahead of the playhead
         for (int i = 0; i < n; ++i)
         {
             const double mp = proc.tapeMarkerPosition(track, i);
             if (mp >= 0.0)
+            {
                 m.markers.push_back({ clamp01(mp / capD), i });
+                if (mp > pos && (nextMarker < 0.0 || mp < nextMarker)) nextMarker = mp;
+            }
         }
+
+        // §19: brighten as the playhead approaches the next marker, over a one-bar
+        // window in reel samples (a musical bar is ratio × samplesPerBar under
+        // chase-lock, §40.2). Display-only; the strip and a controller render it.
+        const double windowSamples = ratio * samplesPerBar;
+        m.markerApproach = markerApproach01(pos, nextMarker, windowSamples);
         return m;
     }
 }

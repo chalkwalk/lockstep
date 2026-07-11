@@ -26,6 +26,19 @@ namespace lockstep
         int ordinal = 0;
     };
 
+    // §19 hardware proxy: how close the playhead is to the NEXT marker ahead, as a
+    // 0→1 ramp over `windowSamples` before it (0 far, 1 at the marker). 0 when there
+    // is no marker ahead or the playhead has passed it. Pure so it can be unit-tested
+    // and rendered identically on an external controller (dual-target, PRINCIPLES §19).
+    [[nodiscard]] inline float markerApproach01(double pos, double nextMarkerPos,
+                                                double windowSamples) noexcept
+    {
+        if (nextMarkerPos < 0.0 || windowSamples <= 0.0) return 0.0f;
+        const double d = nextMarkerPos - pos;          // distance ahead
+        if (d < 0.0 || d > windowSamples) return 0.0f;  // passed it, or still too far
+        return static_cast<float>(1.0 - d / windowSamples);
+    }
+
     struct TimelineModel
     {
         bool active = false;          // a tape exists → show the strip
@@ -36,6 +49,7 @@ namespace lockstep
         float recordedExtent01 = 0.0f;// how much of the reel holds a take [0,1]
         float mediumFull01 = 0.0f;    // used / capacity, for the near-full warning
         float chaseRatio = 1.0f;      // §40.2: reel/engine rate; !=1 = varispeed
+        float markerApproach = 0.0f;  // §19: 0→1 as the playhead nears the next marker
 
         std::vector<TimelineMarker> markers;
     };

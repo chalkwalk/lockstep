@@ -1,5 +1,7 @@
 #include "TimelineStrip.h"
 
+#include <cmath>
+
 namespace lockstep
 {
     void TimelineStrip::paint(juce::Graphics& g)
@@ -36,17 +38,29 @@ namespace lockstep
             g.fillRoundedRectangle(filled.toFloat(), 3.0f);
         }
 
-        // Markers — thin ticks across the full height.
-        g.setColour(juce::Colour(0xFF4A78C0u));
+        // Markers — thin ticks across the full height. The next one ahead brightens
+        // and widens as the playhead approaches it (§19 hardware proxy).
+        const int cx = atX(model_.cursor01);
         for (const auto& m : model_.markers)
         {
             const int mx = atX(m.pos01);
-            g.fillRect(mx, reel.getY(), 1, reel.getHeight());
+            const bool isNext = mx > cx;  // the approach glow targets the one ahead
+            const float glow = isNext ? model_.markerApproach : 0.0f;
+            g.setColour(juce::Colour(0xFF4A78C0u).brighter(glow * 0.8f));
+            g.fillRect(mx, reel.getY(), glow > 0.5f ? 2 : 1, reel.getHeight());
         }
 
-        // Playhead cursor — bright, hot while recording.
-        const int cx = atX(model_.cursor01);
-        g.setColour(juce::Colour(model_.recording ? 0xFFFF5050u : 0xFFE8E8E8u));
+        // Playhead cursor — bright, hot while recording. While recording it pulses
+        // (a wall-clock sine; the strip repaints each tick as the cursor advances)
+        // so the punch-armed state reads at a glance without an animated CellState.
+        float pulse = 1.0f;
+        if (model_.recording)
+        {
+            const double t = static_cast<double>(juce::Time::getMillisecondCounter()) * 0.006;
+            pulse = 0.6f + 0.4f * static_cast<float>(0.5 * (1.0 + std::sin(t)));
+        }
+        auto cursorCol = juce::Colour(model_.recording ? 0xFFFF5050u : 0xFFE8E8E8u);
+        g.setColour(cursorCol.withMultipliedBrightness(pulse));
         g.fillRect(cx - 1, reel.getY() - 1, 2, reel.getHeight() + 2);
     }
 }

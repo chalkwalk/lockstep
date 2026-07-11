@@ -67,5 +67,16 @@ namespace lockstep
             CHECK(later.cursor01 >= early.cursor01, "the cursor advances with the transport");
             CHECK(later.recording, "while punched in, the cursor is hot (recording)");
         }
+
+        // ── markerApproach01 (§19): the pure proximity ramp ──────────────────
+        {
+            const double win = 1000.0;
+            CHECK(feq(markerApproach01(0.0, -1.0, win), 0.0f), "no marker ahead → 0");
+            CHECK(feq(markerApproach01(500.0, 400.0, win), 0.0f), "playhead past the marker → 0");
+            CHECK(feq(markerApproach01(0.0, 2000.0, win), 0.0f), "still outside the window → 0");
+            CHECK(feq(markerApproach01(500.0, 500.0, win), 1.0f), "at the marker → 1");
+            CHECK(feq(markerApproach01(0.0, 500.0, win), 0.5f), "half a window away → 0.5");
+            CHECK(feq(markerApproach01(0.0, 500.0, 0.0), 0.0f), "a zero window never glows");
+        }
     }
 }
