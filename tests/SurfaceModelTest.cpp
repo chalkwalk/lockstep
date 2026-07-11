@@ -561,7 +561,7 @@ namespace lockstep
             CHECK(m.step[1].base == CellState::DeckTrkMute, "col 1 = MUTE (audible)");
             CHECK(m.step[2].base == CellState::DeckTrkSolo, "col 2 = SOLO (not soloed)");
             CHECK(m.step[3].base == CellState::DeckTrkSrc,  "col 3 = SRC");
-            CHECK(m.step[3].primary == "Ext", "SRC shows the source label (default External)");
+            CHECK(m.step[3].primary == "Ext1", "SRC shows the source label (default Ext1)");
             // Rows 0-3 all present (count == 4), none empty. Sub 3 is DISARMED by
             // default (§40.3: only sub 0 is armed — the TRACKS console arms the rest).
             CHECK(m.step[12].base == CellState::DeckTrkArm, "row 3 present, disarmed by default");

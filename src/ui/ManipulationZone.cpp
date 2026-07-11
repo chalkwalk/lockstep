@@ -43,7 +43,7 @@ namespace lockstep
         switch (sel.kind)
         {
             case InputSourceKind::None:     return "None";
-            case InputSourceKind::External: return "Ext";
+            case InputSourceKind::External: return "Ext" + juce::String(sel.ext + 1);
             case InputSourceKind::Master:   return "Master";
             case InputSourceKind::Track:    return "T" + juce::String(sel.track + 1);
         }

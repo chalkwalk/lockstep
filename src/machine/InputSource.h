@@ -35,6 +35,10 @@ namespace lockstep
     // the pull model expresses from the place that already knows how: a track
     // reads a source. The CHANNEL "Out" enum stays {Master | Track N | Off}.
     inline constexpr int kMaxInputSubTracks = 4;
+    // S3: the plugin declares this many stereo external input buses (In, In 2..4);
+    // the input_source enum exposes them as Ext1..Ext4. Only the first is enabled
+    // by default. Captured into inputCapture_ channel-pairs [2*ext, 2*ext+1].
+    inline constexpr int kNumExtInputs = 4;
     // The channel width of a full four-sub-track deck (§40.7): each sub-track is a
     // stereo pair, so four sub-tracks are eight channels held in one wide volatile
     // slot (§40.3). This is what a volatile slot must be *allocated* to cover; a
@@ -63,6 +67,7 @@ namespace lockstep
     {
         InputSourceKind kind = InputSourceKind::None;
         int track = -1;  // 0-based track index when kind == Track; else -1.
+        int ext = 0;     // 0-based external bus (0..kNumExtInputs-1) when kind == External.
     };
 
     // Full label set for a tap-fork-capable input_source: None, Ext, Master,
@@ -71,11 +76,17 @@ namespace lockstep
     // these labels and maxValue = kInputSourceMaxValue, so the stepped param
     // surface renders the track picker directly. Cyclic / self selections are
     // refused at write time (LockstepProcessor::writeParam), not here.
+    // Encoding is append-only (S3): 0 None, 1 Ext1, 2 Master, 3..18 T1..T16,
+    // 19..21 Ext2..Ext4. The extra externals sit past the Track range so every
+    // stored value keeps its meaning across the one-to-four-bus upgrade (legacy
+    // "Ext" = 1 reads as Ext1). The odd ordering after T16 is the cost of that.
     static_assert(kNumTracks == 16, "kInputSourceLabels must match kNumTracks");
-    inline constexpr std::array<const char* const, 3 + kNumTracks> kInputSourceLabels = {
-        "None", "Ext", "Master",
+    inline constexpr std::array<const char* const, 3 + kNumTracks + (kNumExtInputs - 1)>
+        kInputSourceLabels = {
+        "None", "Ext1", "Master",
         "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8",
-        "T9", "T10", "T11", "T12", "T13", "T14", "T15", "T16"
+        "T9", "T10", "T11", "T12", "T13", "T14", "T15", "T16",
+        "Ext2", "Ext3", "Ext4"
     };
     inline constexpr float kInputSourceMaxValue =
         static_cast<float>(kInputSourceLabels.size() - 1);
@@ -96,25 +107,32 @@ namespace lockstep
     // 0=None, 1=External, 2=Master, 3+N = Track N. Used to build the filtered
     // input rotary (LockstepProcessor::validInputSources), mirroring
     // encodeOutputDest on the routing side.
-    [[nodiscard]] inline float encodeInputSource(InputSourceKind kind, int track = 0) noexcept
+    [[nodiscard]] inline float encodeInputSource(InputSourceKind kind, int track = 0,
+                                                 int ext = 0) noexcept
     {
         switch (kind)
         {
-            case InputSourceKind::None:     return 0.0f;
-            case InputSourceKind::External: return 1.0f;
-            case InputSourceKind::Master:   return 2.0f;
-            case InputSourceKind::Track:    return static_cast<float>(3 + (track < 0 ? 0 : track));
+            case InputSourceKind::None:   return 0.0f;
+            case InputSourceKind::External:
+                // Ext1 = 1 (legacy); Ext2..Ext4 appended at 19..21 (ext = 1..3).
+                return ext <= 0 ? 1.0f : static_cast<float>(18 + ext);
+            case InputSourceKind::Master: return 2.0f;
+            case InputSourceKind::Track:  return static_cast<float>(3 + (track < 0 ? 0 : track));
         }
         return 0.0f;
     }
 
-    // Slot encoding (stepped float): 0=None, 1=External, 2=Master, 3+N = Track N.
+    // Slot encoding (stepped float, append-only): 0 None, 1 Ext1, 2 Master,
+    // 3..18 T1..T16, 19..21 Ext2..Ext4.
     [[nodiscard]] inline InputSourceSel decodeInputSource(float value) noexcept
     {
         const int iv = static_cast<int>(std::lround(value));
-        if (iv <= 0) return { InputSourceKind::None, -1 };
-        if (iv == 1) return { InputSourceKind::External, -1 };
-        if (iv == 2) return { InputSourceKind::Master, -1 };
-        return { InputSourceKind::Track, iv - 3 };
+        if (iv <= 0)  return { InputSourceKind::None, -1, 0 };
+        if (iv == 1)  return { InputSourceKind::External, -1, 0 };       // Ext1
+        if (iv == 2)  return { InputSourceKind::Master, -1, 0 };
+        if (iv <= 18) return { InputSourceKind::Track, iv - 3, 0 };      // T1..T16
+        if (iv <= 18 + (kNumExtInputs - 1))
+            return { InputSourceKind::External, -1, iv - 18 };           // Ext2..Ext4
+        return { InputSourceKind::None, -1, 0 };
     }
 }

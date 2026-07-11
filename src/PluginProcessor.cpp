@@ -52,7 +52,15 @@ namespace lockstep
                 // opts in. The port list is fixed at build time — JUCE builds the
                 // CLAP/VST3 ports from these, and dynamic rescan is a host lottery.
                 auto props = BusesProperties()
-                    .withInput("In", juce::AudioChannelSet::stereo(), true)
+                    .withInput("In", juce::AudioChannelSet::stereo(), true);
+                // S3: three more stereo external inputs (Ext2..Ext4). Disabled by
+                // default so a host opts in, matching the output complement below;
+                // standalone maps device channels across ENABLED input buses in
+                // order, so Ext1 alone fills unless the user enables more.
+                for (int e = 1; e < kNumExtInputs; ++e)
+                    props = props.withInput("In " + juce::String(e + 1),
+                                            juce::AudioChannelSet::stereo(), false);
+                props = props
                     .withOutput("Master", juce::AudioChannelSet::stereo(), true)
                     .withOutput("Cue", juce::AudioChannelSet::stereo(), false);
                 for (int a = 0; a < kNumAuxBuses; ++a)
@@ -767,7 +775,11 @@ namespace lockstep
             for (auto& sb : sendBusBufs_)
                 sb.setSize(numOut, samplesPerBlock, false, true, false);
             // 6.1: input capture + prior-block master tap (DESIGN §27).
-            inputCapture_.setSize(numOut, samplesPerBlock, false, true, false);
+            // S3: sized to hold four stereo external buses (Ext1..Ext4) in
+            // channel-pairs, independent of how few output channels the host
+            // enabled — a Master-only layout still captures all four inputs.
+            inputCapture_.setSize(std::max(numOut, 2 * kNumExtInputs),
+                                  samplesPerBlock, false, true, false);
             inputCapture_.clear();
             prevMasterBuf_.setSize(numOut, samplesPerBlock, false, true, false);
             prevMasterBuf_.clear();
@@ -861,8 +873,20 @@ namespace lockstep
             case InputSourceKind::None:
                 break;  // leave the cleared buffer
             case InputSourceKind::External:
-                copyInto(inputCapture_);
+            {
+                // S3: Ext1..Ext4 live in inputCapture_ channel-pairs
+                // [2*ext, 2*ext+1]; ext 0 = the legacy single External bus.
+                const int base = 2 * juce::jlimit(0, kNumExtInputs - 1, sel.ext);
+                const int chans = std::min(dst.getNumChannels(), 2);
+                const int n = std::min(numSamples, inputCapture_.getNumSamples());
+                for (int ch = 0; ch < chans; ++ch)
+                {
+                    const int srcCh = base + ch;
+                    if (srcCh < inputCapture_.getNumChannels())
+                        dst.copyFrom(ch, 0, inputCapture_, srcCh, 0, n);
+                }
                 break;
+            }
             case InputSourceKind::Master:
                 // #3 run-time feedback guard (second layer, mirroring routeForTrack's
                 // dormancy): even though validInputSources() omits Master from the
@@ -1264,9 +1288,12 @@ namespace lockstep
     {
         std::vector<float> out;
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return out;
-        // None and External never feed back (External is outside audio).
+        // None and External never feed back (External is outside audio). S3:
+        // offer all four external buses (Ext1..Ext4); a disabled bus simply
+        // reads as silence, so it is always safe to select.
         out.push_back(encodeInputSource(InputSourceKind::None));
-        out.push_back(encodeInputSource(InputSourceKind::External));
+        for (int e = 0; e < kNumExtInputs; ++e)
+            out.push_back(encodeInputSource(InputSourceKind::External, 0, e));
         // Master tap is safe only if this track's own output does NOT reach
         // Master — otherwise output → Master → tap → output is a feedback loop.
         if (!outputReachesMaster(track))
@@ -1438,9 +1465,16 @@ namespace lockstep
         if (mainOut != juce::AudioChannelSet::stereo() && mainOut != juce::AudioChannelSet::mono())
             return false;
         // 6.1: the main input may be stereo, mono, or disabled (no input host).
-        const auto& mainIn = layouts.getMainInputChannelSet();
-        return mainIn == juce::AudioChannelSet::stereo() || mainIn == juce::AudioChannelSet::mono()
-               || mainIn == juce::AudioChannelSet::disabled();
+        // S3: the three extra external inputs (Ext2..Ext4) accept the same set —
+        // each is stereo/mono/disabled independently.
+        for (int b = 0; b < layouts.inputBuses.size(); ++b)
+        {
+            const auto& in = layouts.getChannelSet(true, b);
+            if (in != juce::AudioChannelSet::stereo() && in != juce::AudioChannelSet::mono()
+                && in != juce::AudioChannelSet::disabled())
+                return false;
+        }
+        return true;
     }
 
     void LockstepProcessor::processBlock(juce::AudioBuffer<float>& buffer,
@@ -1452,14 +1486,28 @@ namespace lockstep
         const auto totalOut = getTotalNumOutputChannels();
 
         // 6.1: snapshot the plugin audio input before we overwrite the shared
-        // in/out buffer, so tracks with input_source = External can read it
-        // (DESIGN §27). Buses with no input leave inputCapture_ silent.
+        // in/out buffer, so tracks with input_source = ExtN can read it
+        // (DESIGN §27). S3: each external input bus is captured into its own
+        // channel-pair [2*bus, 2*bus+1]; a mono bus is duplicated to both. A
+        // disabled bus contributes nothing (left silent by the clear).
         {
             const int numSamples = buffer.getNumSamples();
-            const int capCh = std::min(inputCapture_.getNumChannels(), totalIn);
             inputCapture_.clear();
-            for (int ch = 0; ch < capCh; ++ch)
-                inputCapture_.copyFrom(ch, 0, buffer, ch, 0, numSamples);
+            const int numInBuses = std::min(getBusCount(true), kNumExtInputs);
+            for (int b = 0; b < numInBuses; ++b)
+            {
+                if (! getBus(true, b)->isEnabled()) continue;
+                const auto src = getBusBuffer(buffer, true, b);
+                const int srcCh = src.getNumChannels();
+                if (srcCh <= 0) continue;
+                for (int ch = 0; ch < 2; ++ch)
+                {
+                    const int dstCh = 2 * b + ch;
+                    if (dstCh >= inputCapture_.getNumChannels()) break;
+                    // Mono source → both destination channels read channel 0.
+                    inputCapture_.copyFrom(dstCh, 0, src, std::min(ch, srcCh - 1), 0, numSamples);
+                }
+            }
         }
 
         for (int ch = totalIn; ch < totalOut; ++ch)
@@ -7191,7 +7239,7 @@ namespace lockstep
         switch (sel.kind)
         {
             case InputSourceKind::None:     return "--";
-            case InputSourceKind::External: return "Ext";
+            case InputSourceKind::External: return "Ext" + juce::String(sel.ext + 1);
             case InputSourceKind::Master:   return "Mst";
             case InputSourceKind::Track:    return "T" + juce::String(sel.track + 1);
         }

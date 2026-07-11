@@ -3006,8 +3006,9 @@ Docs land first per item; commit + tests per work item.
       `LoopMachine` never declared `input_source_2/3/4`. Appended the three slots
       (`kSlotSubSrcBase`, default None); the fill/console/picker paths already resolve
       by id, so declaring the slots is the whole fix. → DESIGN §40.3.
-- [ ] **S3 — Four stereo external inputs.** Ext1–4 buses (In 2–4 disabled by default);
+- [x] **S3 — Four stereo external inputs.** Ext1–4 buses (In 2–4 disabled by default);
       `input_source` encoding append-only (19–21 = Ext2–4, legacy `Ext`=1 → Ext1).
+      Per-bus capture into `inputCapture_` channel-pairs; per-sub selectable.
 - [ ] **S4 — Loop record model.** ARM gates every write (Rec and Dub alike); SRC-assign
       auto-arms / None disarms; contextual REC/DUB label; hold REC/DUB = punch-replace.
 - [ ] **S5 — Retroactive double-tap.** Durable-span edges retro-stamp to tap 1; ephemeral

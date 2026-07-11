@@ -493,7 +493,7 @@ namespace lockstep
         p.writeParam(0, s3, 2.0f);
         h.renderBlocks(2);  // settle the queued base-param write
         CHECK(p.looperSubSourceLabel(0, 2) == "Mst", "S2: sub 2 source set to Master");
-        CHECK(p.looperSubSourceLabel(0, 0) == "Ext", "S2: sub 0 source independent (still External)");
+        CHECK(p.looperSubSourceLabel(0, 0) == "Ext1", "S2: sub 0 source independent (still Ext1)");
 
         juce::MemoryBlock st;
         p.getStateInformation(st);
@@ -502,7 +502,7 @@ namespace lockstep
 
         CHECK(p.looperSubSourceLabel(0, 2) == "Mst",
               "S2: sub 2 source (Master) survives save/load");
-        CHECK(p.looperSubSourceLabel(0, 0) == "Ext",
+        CHECK(p.looperSubSourceLabel(0, 0) == "Ext1",
               "S2: sub 0 source unchanged after round-trip");
     }
 
