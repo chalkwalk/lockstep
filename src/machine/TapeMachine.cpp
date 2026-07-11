@@ -1,5 +1,7 @@
 #include "TapeMachine.h"
 
+#include "ChannelPolicy.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -163,7 +165,7 @@ namespace lockstep
                               juce::AudioBuffer<float>& buffer)
     {
         const int numSamples = buffer.getNumSamples();
-        const int outChans = std::min(2, buffer.getNumChannels());
+        const int outChans = engineChannels(buffer.getNumChannels());
         if (! medium_.bound() || outChans <= 0) { buffer.clear(); return; }
 
         const int monMode = (params.size() > kSlotMonitor)

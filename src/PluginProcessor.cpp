@@ -11,6 +11,7 @@
 #include "core/RoutingGraph.h"
 #include "dsp/SoftClip.h"
 #include "machine/IMultiInput.h"
+#include "machine/ChannelPolicy.h"
 #include "machine/InputSource.h"
 #include "machine/RouteMachine.h"
 #include "machine/RecordMachine.h"
@@ -5604,7 +5605,7 @@ namespace lockstep
                                            int firstChan, int numChan, int len,
                                            double sr, const juce::File& dest)
     {
-        const int chans = std::min(2, numChan);
+        const int chans = engineChannels(numChan);
         if (chans <= 0 || len <= 0 || sr <= 0.0) return -1;
 
         juce::File out = dest.withFileExtension("wav");
@@ -5650,7 +5651,7 @@ namespace lockstep
                 return n;
             }
             [[nodiscard]] juce::int64 length() const override { return buf.getNumSamples(); }
-            [[nodiscard]] int numChannels() const override { return std::min(2, buf.getNumChannels()); }
+            [[nodiscard]] int numChannels() const override { return engineChannels(buf.getNumChannels()); }
             [[nodiscard]] double sampleRate() const override { return rate; }
         };
 
@@ -5816,7 +5817,7 @@ namespace lockstep
         if (sr <= 0.0) return -1;
 
         const juce::AudioBuffer<float>& reel = tm->reelView();
-        const int chans = std::min(2, reel.getNumChannels());
+        const int chans = engineChannels(reel.getNumChannels());
         const int len = std::min(n, reel.getNumSamples());
         if (chans <= 0 || len <= 0) return -1;
 

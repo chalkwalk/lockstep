@@ -476,6 +476,46 @@ namespace lockstep
         tmp.withFileExtension("wav").deleteFile();
     }
 
+    // §40.7 channel policy: a deck-medium-wide op (Double) touches EVERY sub-track,
+    // not just pair 0. Before the policy fix, Double clamped to min(2,...) and left
+    // sub-tracks 1..3 un-duplicated in the new half.
+    static void testDeckWideDouble()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+
+        const auto makeFile = [&](int vslot, float v, const char* stem) {
+            if (auto* pcm = p.samplePool().beginVolatileCapture(vslot, 1000, 2))
+                for (int ch = 0; ch < 2; ++ch)
+                    for (int i = 0; i < 1000; ++i) pcm->setSample(ch, i, v);
+            auto f = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile(stem);
+            return std::pair<int, juce::File>{ p.promoteVolatileToFile(vslot, f), f };
+        };
+        auto [aIdx, aF] = makeFile(p.volatilePoolIndex(5), 0.5f, "lockstep_dw_a");
+        auto [bIdx, bF] = makeFile(p.volatilePoolIndex(6), 0.3f, "lockstep_dw_b");
+
+        p.setTrackMachine(0, LoopMachine::kMachineId);
+        CHECK(p.loadSampleToDeckSubTrack(0, 0, aIdx), "sub 0 loaded (window 1000)");
+        CHECK(p.loadSampleToDeckSubTrack(0, 1, bIdx), "sub 1 loaded");
+
+        // Double the loop window. Render a block so the command drains + fires.
+        p.sendLooperCommand(0, static_cast<int>(LoopMachine::Cmd::Double), true);
+        h.renderBlocks(1);
+
+        const int slot = p.volatilePoolIndex(0);
+        const auto* s = p.samplePool().get(slot);
+        CHECK(s != nullptr && s->pcm.getNumSamples() >= 2000, "the loop doubled to 2000");
+        if (s != nullptr && s->pcm.getNumSamples() >= 2000 && s->pcm.getNumChannels() >= 4)
+        {
+            // The second half [1000,2000): pair 0 (ch0) AND pair 1 (ch2) duplicated.
+            CHECK(feq(s->pcm.getSample(0, 1500), 0.5f), "sub 0 duplicated into the new half");
+            CHECK(feq(s->pcm.getSample(2, 1500), 0.3f),
+                  "sub 1 ALSO duplicated (deck-wide, not just pair 0)");
+        }
+        aF.withFileExtension("wav").deleteFile();
+        bF.withFileExtension("wav").deleteFile();
+    }
+
     // §40.3: FIT stretches a sub-track's loaded source to the deck's window. A
     // native load into a longer window leaves silence past the source; FIT fills it.
     static void testFitDeckSubTrack()
@@ -4400,6 +4440,7 @@ namespace lockstep
         testLoadOntoSubTrack();
         testLoadTakeGroupToDeck();
         testFitDeckSubTrack();
+        testDeckWideDouble();
         testSceneLaunchGridRouting();
         testQueuedSongSwitchAtBoundary();
         testDoubleTapSongSwitchInstant();

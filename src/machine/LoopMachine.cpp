@@ -1,6 +1,7 @@
 #include "LoopMachine.h"
 #include "../deckcore/Resampler.h"
 #include "../deckcore/Seam.h"
+#include "ChannelPolicy.h"
 #include "DeckAdapter.h"
 #include <algorithm>
 #include <cmath>
@@ -325,7 +326,9 @@ namespace lockstep
         if (!overdubPending_) return;
         if (target_ != nullptr && loopLen_ > 0)
         {
-            const int tch = std::min(std::min(2, target_->getNumChannels()),
+            // The overdub layer is stereo (overdub targets pair 0 today), so the
+            // fold is a stereo-boundary operation, not a deck-medium-wide one.
+            const int tch = std::min(engineChannels(target_->getNumChannels()),
                                      overdubLayer_.getNumChannels());
             const int n = std::min(loopLen_, overdubLayer_.getNumSamples());
             for (int ch = 0; ch < tch; ++ch)
@@ -373,7 +376,9 @@ namespace lockstep
     void LoopMachine::scaleLoop(float g)
     {
         if (target_ == nullptr || loopLen_ <= 0) return;
-        const int tch = std::min(2, target_->getNumChannels());
+        // Deck-medium-wide (§40.7): decay every recorded channel, so a four-track
+        // loop fades all its sub-tracks — not just pair 0.
+        const int tch = target_->getNumChannels();
         for (int ch = 0; ch < tch; ++ch)
             juce::FloatVectorOperations::multiply(target_->getWritePointer(ch), g, loopLen_);
     }
@@ -492,7 +497,8 @@ namespace lockstep
         commitOverdubLayer();  // R4: fold B before duplicating content
         const int newLen = loopLen_ * 2;
         target_->setSize(target_->getNumChannels(), newLen, true, false, true);
-        const int tch = std::min(2, target_->getNumChannels());
+        // Deck-medium-wide (§40.7): duplicate every sub-track, not just pair 0.
+        const int tch = target_->getNumChannels();
         for (int ch = 0; ch < tch; ++ch)
             target_->copyFrom(ch, loopLen_, *target_, ch, 0, loopLen_);
         loopLen_ = newLen;
@@ -692,7 +698,7 @@ namespace lockstep
         const int firstCh = 2 * sub;
         if (firstCh + 1 >= buf->getNumChannels()) return false;
         const int copyN = std::min(srcLen, L);
-        const int srcChans = std::max(1, std::min(2, src.getNumChannels()));
+        const int srcChans = std::max(1, engineChannels(src.getNumChannels()));
         for (int c = 0; c < 2; ++c)
         {
             buf->clear(firstCh + c, 0, L);                  // replace the sub-track
@@ -738,7 +744,7 @@ namespace lockstep
                                 juce::AudioBuffer<float>& buffer)
     {
         const int numSamples = buffer.getNumSamples();
-        const int chans = std::min(2, buffer.getNumChannels());
+        const int chans = engineChannels(buffer.getNumChannels());
 
         const int targetSlot = (params.size() > kSlotTargetBuffer)
             ? static_cast<int>(std::lround(params[kSlotTargetBuffer])) : 0;
