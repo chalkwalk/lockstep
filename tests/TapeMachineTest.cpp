@@ -111,6 +111,42 @@ namespace lockstep
         auto cleared = tapeBlock(tape, 0.0, n, 0.0f, kSr);
         CHECK(feq(cleared.getSample(0, 100), 0.0f), "and playback is silent after Clear");
 
+        // ── Punch is non-destructive; Undo restores the original (fence #8) ──
+        {
+            TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(4.0);
+
+            // Lay an original take of 0.5 across [0, 512).
+            t.applyVerb(1);
+            tapeBlock(t, 0.0, n, 0.5f, kSr);
+            t.applyVerb(1);
+            CHECK(feq(tapeBlock(t, 0.0, n, 0.0f, kSr).getSample(0, 100), 0.5f), "original take laid");
+
+            // Punch over the middle of it with -0.4 at [100, 300).
+            t.applyVerb(1);  // punch in
+            {
+                TransportInfo tr; tr.sampleRate = kSr; tr.running = true;
+                tr.transportPhaseSamples = 100.0; t.setTransport(tr);
+                juce::AudioBuffer<float> b(2, 200);
+                for (int ch = 0; ch < 2; ++ch) for (int i = 0; i < 200; ++i) b.setSample(ch, i, -0.4f);
+                juce::MidiBuffer none; ParamFrame pf{ 1.0f, 0.0f, 0.0f }; t.process(none, pf, b);
+            }
+            t.applyVerb(1);  // punch out
+            CHECK(t.canUndo(), "a punch is undoable");
+
+            auto punched = tapeBlock(t, 0.0, n, 0.0f, kSr);
+            CHECK(feq(punched.getSample(0, 50), 0.5f), "before the punch, the original survives");
+            CHECK(feq(punched.getSample(0, 150), -0.4f), "inside the punch, the new take");
+            CHECK(feq(punched.getSample(0, 400), 0.5f), "after the punch, the original survives");
+
+            // Undo restores the punched span to its pre-punch content.
+            t.applyVerb(4);  // Undo
+            CHECK(! t.canUndo(), "undo is one level — nothing left to undo");
+            auto restored = tapeBlock(t, 0.0, n, 0.0f, kSr);
+            CHECK(feq(restored.getSample(0, 150), 0.5f), "undo restored the original over the punched span");
+            CHECK(feq(restored.getSample(0, 50), 0.5f) && feq(restored.getSample(0, 400), 0.5f),
+                  "and left the untouched regions alone");
+        }
+
         // ── Markers (§40.4): drop at the position, cue back to it ────────────
         {
             TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(4.0);

@@ -66,7 +66,8 @@ namespace lockstep
 
         // Console verbs (§40.5), routed like the looper's. For now: RecordCycle
         // punches in/out; PlayStop stops/resumes; Clear wipes the reel.
-        void applyVerb(int verb);  // 1 RecordCycle, 2 PlayStop, 3 Clear
+        void applyVerb(int verb);  // 1 RecordCycle, 2 PlayStop, 3 Clear, 4 Undo
+        [[nodiscard]] bool canUndo() const noexcept { return haveUndo_; }
 
         // Markers (§40.4) — dumb navigation points on the timeline. Dropped at the
         // current transport position (manually, or auto on a Scene/Song switch while
@@ -116,6 +117,16 @@ namespace lockstep
         // The reel: host-allocated, stereo, bound as a LINEAR dc::Medium. A
         // pending length change is applied on the next message-thread setMediumSeconds.
         juce::AudioBuffer<float> reel_;
+
+        // §40.3 / fence #8: a punch is non-destructive. As recording overwrites the
+        // reel, the ORIGINAL sample at each first-touched position is saved into
+        // undoReel_ (span-scoped: only the punched region), so Undo restores what
+        // was there. One level deep, like the looper's. undoReel_ is reel-sized but
+        // lazily committed — only the punched span is resident.
+        juce::AudioBuffer<float> undoReel_;
+        int undoLo_ = -1;      // lowest position saved this punch (-1 = none)
+        int undoHi_ = -1;      // highest position saved this punch
+        bool haveUndo_ = false;
         double mediumSeconds_ = kDefaultMediumSeconds;
         std::array<dc::Store, 2> planes_{};
         dc::Medium medium_;

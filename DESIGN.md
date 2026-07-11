@@ -7148,8 +7148,12 @@ accidental):
   promoted (files + hash refs) or it is lost with the session, exactly like
   today's volatile buffers. This is the fence-#8 answer restated: the medium is
   a reference-holder, not a bag of bytes.
-- **The marker lane** serialises as a small list of `{position, ordinal, label}`
-  on the deck, independent of the audio.
+- **The marker lane is NOT serialised** (implementation decision, 2026-07). An
+  earlier draft persisted the markers independently of the audio, but a marker is a
+  navigation point *into a take*, and the take's audio does not survive a session
+  unless it is promoted (above). Markers pointing into a reel that reloaded blank
+  are noise, so the lane lives and dies with the session's audio. If a promoted
+  take ever carries its own timeline, markers can ride with it then — additively.
 - **Deck config** — sub-track count, per-sub-track tap + level/pan/mute, medium
   length and bit depth — is ordinary machine param + kit state.
 - **Take-groups** serialise as the group id on each member entry; missing files

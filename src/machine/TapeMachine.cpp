@@ -64,6 +64,9 @@ namespace lockstep
         // Allocate without zero-fill (§40.3 lazy commit): the reel costs address
         // space, and only recorded samples become resident.
         reel_.setSize(2, cap, false, false, false);
+        undoReel_.setSize(2, cap, false, false, false);  // fence #8 punch undo (lazy)
+        haveUndo_ = false;
+        undoLo_ = undoHi_ = -1;
         bindReel();
     }
 
@@ -89,8 +92,19 @@ namespace lockstep
         switch (verb)
         {
             case 1:  // RecordCycle — punch in / punch out
-                deck_.setState(deck_.state() == dc::DeckState::Recording
-                                   ? dc::DeckState::Playing : dc::DeckState::Recording);
+                if (deck_.state() == dc::DeckState::Recording)
+                {
+                    // Punch out: the take is committed, the punched span is undoable.
+                    deck_.setState(dc::DeckState::Playing);
+                    haveUndo_ = (undoLo_ >= 0 && undoHi_ >= undoLo_);
+                }
+                else
+                {
+                    // Punch in: begin a fresh undo span (save-before-write fills it).
+                    deck_.setState(dc::DeckState::Recording);
+                    undoLo_ = undoHi_ = -1;
+                    haveUndo_ = false;
+                }
                 break;
             case 2:  // PlayStop
                 deck_.setState(deck_.state() == dc::DeckState::Stopped
@@ -98,7 +112,18 @@ namespace lockstep
                 break;
             case 3:  // Clear — wipe the reel
                 medium_.resetAllUsed();
+                haveUndo_ = false;
+                undoLo_ = undoHi_ = -1;
                 deck_.setState(dc::DeckState::Playing);
+                break;
+            case 4:  // Undo — restore the last punch's original content
+                if (haveUndo_)
+                {
+                    for (int p = undoLo_; p <= undoHi_; ++p)
+                        for (int ch = 0; ch < 2; ++ch)
+                            medium_.write(0, ch, p, undoReel_.getSample(ch, p));
+                    haveUndo_ = false;
+                }
                 break;
             default:
                 break;
@@ -165,10 +190,26 @@ namespace lockstep
 
                 if (recording && ! stopped)
                 {
-                    // Punch: replace what is on the reel at this position with the
-                    // input. Committing first turns virgin tape into silence so a
-                    // write into an unrecorded region is exact, not additive.
-                    medium_.ensureCommitted(0, static_cast<int>(pos) + 1);
+                    // Fence #8: save the ORIGINAL before overwriting, once per
+                    // position per punch (only when the span extends — a
+                    // re-touch inside the span keeps the pre-punch value). Channel 0
+                    // drives the span bookkeeping so both channels save together.
+                    const int ip = static_cast<int>(pos);
+                    if (ip >= 0 && ip < undoReel_.getNumSamples())
+                    {
+                        const bool firstTouch = (undoLo_ < 0) || ip < undoLo_ || ip > undoHi_;
+                        if (firstTouch)
+                        {
+                            for (int c = 0; c < outChans; ++c)
+                                undoReel_.setSample(c, ip, medium_.read(0, c, pos));
+                            undoLo_ = (undoLo_ < 0) ? ip : std::min(undoLo_, ip);
+                            undoHi_ = (undoHi_ < 0) ? ip : std::max(undoHi_, ip);
+                        }
+                    }
+                    // Replace what is on the reel at this position with the input.
+                    // Committing first turns virgin tape into silence so a write into
+                    // an unrecorded region is exact, not additive.
+                    medium_.ensureCommitted(0, ip + 1);
                     medium_.write(0, ch, pos, in);
                     out = in;  // monitor what we are laying down
                 }
