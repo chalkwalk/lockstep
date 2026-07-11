@@ -4299,6 +4299,26 @@ namespace lockstep
                     // cycles that track's staged output destination.
                     if (layer == SurfaceLayer::MachineConsole)
                     {
+                        // 11.4 (§40.5): the Tape console dispatches its own cells;
+                        // otherwise this is the Route routing matrix.
+                        const int mct = processor_.focusTrack();
+                        if (processor_.isTapeTrack(mct))
+                        {
+                            switch (ev.index)
+                            {
+                                case 0: processor_.tapeApplyVerb(mct, 1); break;  // REC/punch
+                                case 1: case 2: processor_.tapeApplyVerb(mct, 2); break;  // PLAY/STOP
+                                case 3: processor_.tapeApplyVerb(mct, 3); break;  // CLEAR
+                                case 4: processor_.tapeApplyVerb(mct, 4); break;  // UNDO
+                                case 8: processor_.dropTapeMarker(mct); break;    // DROP
+                                case 9: processor_.tapeCue(mct, -1); break;       // |<
+                                case 10: processor_.tapeCue(mct, 0); break;       // CUE nearest
+                                case 11: processor_.tapeCue(mct, +1); break;      // >|
+                                default: break;
+                            }
+                            refreshSurface();
+                            return true;
+                        }
                         cycleRouteConsoleCell(ev.index);
                         return true;
                     }

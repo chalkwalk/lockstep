@@ -195,6 +195,17 @@ namespace lockstep
         DeckTrkSoloOn = 221,       // soloed
         DeckTrkSrc = 222,          // SRC cell (opens the source picker), shows label
         DeckTrkEmpty = 223,        // a row past the sub-track count (dim, inert)
+
+        // ---- Tape console (11.4, §40.5) — transport + markers -----------------
+        TapeConRec = 224,          // REC / punch, ready
+        TapeConRecActive = 225,    // punched in (recording)
+        TapeConPlay = 226,         // PLAY (lit while playing)
+        TapeConStop = 227,         // STOP (lit while stopped)
+        TapeConClear = 228,        // CLEAR the reel
+        TapeConUndo = 229,         // UNDO the last punch
+        TapeConDrop = 230,         // drop a marker here
+        TapeConCue = 231,          // cue (locate) to a marker
+        TapeConIdle = 232,         // an inert console cell
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step

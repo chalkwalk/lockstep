@@ -3,6 +3,7 @@
 #include "../deckcore/Deck.h"
 #include "../deckcore/MarkerLane.h"
 #include "../deckcore/Medium.h"
+#include "ConsoleMode.h"
 #include "IMachine.h"
 #include "ITempoAware.h"
 #include "InputSource.h"
@@ -40,6 +41,9 @@ namespace lockstep
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
         [[nodiscard]] const char* badge() const noexcept override { return "TAPE"; }
+        // A tape is a console machine (§40.5): the step grid is its transport +
+        // marker surface, always on when the track is focused.
+        [[nodiscard]] ConsoleMode consoleMode() const override { return ConsoleMode::AlwaysOn; }
 
         void prepare(double sampleRate, int maxBlockSize) override;
         void reset() override;

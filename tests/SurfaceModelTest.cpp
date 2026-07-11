@@ -14,6 +14,7 @@
 #include "../src/ui/GridDisplayMode.h"
 #include "../src/machine/IMachine.h"
 #include "../src/machine/LoopMachine.h"
+#include "../src/machine/TapeMachine.h"
 #include "../src/machine/AnalogMachine.h"
 #include "../src/command/KeyBindings.h"
 
@@ -569,6 +570,36 @@ namespace lockstep
                                   GridDisplayMode::Ortholinear);
             CHECK(m.step[0].primary == "REC", "page 0 is the DECK layout");
         }
+    }
+
+    // 11.4 (§40.5): a focused Tape shows the always-on console — transport on the
+    // top row, markers on the bottom — via the MachineConsole layer dispatched on
+    // machine type (not the Route matrix).
+    static void testTapeConsole()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ec;
+        proc.setTrackMachine(0, TapeMachine::kMachineId);
+        proc.setFocusTrack(0);
+
+        UiState ui;  // nothing held
+        const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                         GridDisplayMode::Ortholinear);
+        CHECK(m.step[0].primary == "REC",   "tape console cell 0 = REC");
+        CHECK(m.step[1].primary == "PLAY",  "cell 1 = PLAY");
+        CHECK(m.step[2].primary == "STOP",  "cell 2 = STOP");
+        CHECK(m.step[3].primary == "CLEAR", "cell 3 = CLEAR");
+        CHECK(m.step[8].primary == "DROP",  "cell 8 = DROP marker");
+        CHECK(m.step[10].primary == "CUE",  "cell 10 = CUE");
+        // Idle Tape → REC cell carries the resting token, not the active one.
+        CHECK(m.step[0].base == CellState::TapeConRec, "idle tape REC = resting token");
+
+        // Punch in → the REC cell lights active.
+        proc.tapeApplyVerb(0, 1);
+        const auto m2 = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                          GridDisplayMode::Ortholinear);
+        CHECK(m2.step[0].base == CellState::TapeConRecActive, "recording tape REC = active token");
     }
 
     // -------------------------------------------------------------------------
@@ -1218,6 +1249,7 @@ namespace lockstep
         testDensityStickyFuncInvariant();
         testHomeKeyAnchors();
         testLooperConsole();
+        testTapeConsole();
         testGeneratorHubPrimary();
         testMachinePickerPrimary();
         testDeriveSlotEqualsGrammar();

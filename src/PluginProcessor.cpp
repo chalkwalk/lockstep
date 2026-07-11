@@ -6937,6 +6937,39 @@ namespace lockstep
         return tm ? tm->markerCount() : 0;
     }
 
+    bool LockstepProcessor::isTapeTrack(int track) const
+    {
+        return asTape(const_cast<std::array<std::unique_ptr<IMachine>, kNumTracks>&>(machines_),
+                      track) != nullptr;
+    }
+
+    int LockstepProcessor::tapeState(int track) const
+    {
+        auto* tm = asTape(const_cast<std::array<std::unique_ptr<IMachine>, kNumTracks>&>(machines_),
+                          track);
+        return tm ? static_cast<int>(tm->state()) : -1;
+    }
+
+    bool LockstepProcessor::tapeCanUndo(int track) const
+    {
+        auto* tm = asTape(const_cast<std::array<std::unique_ptr<IMachine>, kNumTracks>&>(machines_),
+                          track);
+        return tm && tm->canUndo();
+    }
+
+    void LockstepProcessor::tapeCue(int track, int dir)
+    {
+        auto* tm = asTape(machines_, track);
+        if (tm == nullptr) return;
+        const double targetSamples = dir < 0 ? tm->cuePrev()
+                                   : dir > 0 ? tm->cueNext()
+                                             : tm->cueNearest();
+        if (targetSamples < 0.0) return;  // no marker in that direction
+        const double spp = clock_.samplesPerPpq();
+        if (spp <= 0.0) return;
+        clock_.locate(targetSamples / spp);  // a cue is a locate, not a launch (§40.4)
+    }
+
     void LockstepProcessor::looperToggleSubMute(int track, int sub)
     {
         auto* lm = asLooper(machines_, track);

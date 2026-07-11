@@ -247,6 +247,12 @@ namespace lockstep
         void tapeApplyVerb(int track, int verb);
         void dropTapeMarker(int track);
         [[nodiscard]] int tapeMarkerCount(int track) const;
+        [[nodiscard]] bool isTapeTrack(int track) const;
+        [[nodiscard]] int tapeState(int track) const;      // dc::DeckState as int, -1 if not a tape
+        [[nodiscard]] bool tapeCanUndo(int track) const;
+        // Cue: locate the transport to a marker (nearest / prev / next). A cue is a
+        // LOCATE, never a launch (§40.4). No-op if there is no such marker.
+        void tapeCue(int track, int dir);   // -1 prev, 0 nearest, +1 next
         void looperToggleSubMute(int track, int sub);
         void looperToggleSubSolo(int track, int sub);
         void looperCycleSubSource(int track, int sub);  // step through the safe sources

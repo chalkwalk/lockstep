@@ -114,6 +114,16 @@ namespace lockstep
             case CellState::DeckTrkSoloOn:      return 0xFF30C060u;  // green — soloed
             case CellState::DeckTrkSrc:         return 0xFF2E4A5Au;  // steel — source picker
             case CellState::DeckTrkEmpty:       return 0xFF16181Cu;  // near-off — past the count
+            // 11.4 Tape console (§40.5).
+            case CellState::TapeConRec:         return 0xFF5A2424u;  // dim red — ready to punch
+            case CellState::TapeConRecActive:   return 0xFFE03030u;  // bright red — recording
+            case CellState::TapeConPlay:        return 0xFF2E6A3Au;  // green — play
+            case CellState::TapeConStop:        return 0xFF6A5A2Eu;  // amber — stopped
+            case CellState::TapeConClear:       return 0xFF503050u;  // plum — clear
+            case CellState::TapeConUndo:        return 0xFF2E5A6Au;  // steel — undo available
+            case CellState::TapeConDrop:        return 0xFF3A5A7Au;  // blue — drop marker
+            case CellState::TapeConCue:         return 0xFF2E4A5Au;  // dim steel — cue
+            case CellState::TapeConIdle:        return 0xFF1C1E22u;  // inert console cell
             case CellState::ChromaticWhite:     return kScopeTrack;
             case CellState::ChromaticBlack:     return kScopeTrack;
             case CellState::LevelsCell:         return 0xFF204060u;
@@ -1273,6 +1283,40 @@ namespace lockstep
                     c.base = c.pressed ? CellState::Pressed : tok[static_cast<std::size_t>(i)];
                     c.baseColour = compatColour(tok[static_cast<std::size_t>(i)]);
                     c.primary = juce::String(kConLabels[i]);
+                }
+            }
+            else if (activeLayer == SurfaceLayer::MachineConsole
+                     && proc.isTapeTrack(activeTrack))
+            {
+                // 11.4 (§40.5): the Tape console — transport on the top row, markers
+                // on the bottom. State-lit off tapeState (dc::DeckState int:
+                // 0 Idle, 1 Recording, 2 Playing, 4 Stopped).
+                const int st = proc.tapeState(activeTrack);
+                const bool rec = (st == 1), stop = (st == 4);
+                static constexpr const char* kLabel[16] = {
+                    "REC", "PLAY", "STOP", "CLEAR", "UNDO", "", "", "",
+                    "DROP", "|<", "CUE", ">|", "", "", "", ""
+                };
+                std::array<CellState, 16> tok;
+                tok.fill(CellState::TapeConIdle);
+                tok[0] = rec ? CellState::TapeConRecActive : CellState::TapeConRec;
+                tok[1] = CellState::TapeConPlay;
+                tok[2] = stop ? CellState::TapeConStop : CellState::TapeConIdle;
+                tok[3] = CellState::TapeConClear;
+                tok[4] = proc.tapeCanUndo(activeTrack) ? CellState::TapeConUndo : CellState::TapeConIdle;
+                tok[8] = CellState::TapeConDrop;
+                tok[9] = tok[10] = tok[11] = CellState::TapeConCue;
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button = ControllerButton::Step;
+                    c.index = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+                    c.base = c.pressed ? CellState::Pressed : tok[static_cast<std::size_t>(i)];
+                    c.baseColour = compatColour(tok[static_cast<std::size_t>(i)]);
+                    c.primary = juce::String(kLabel[i]);
                 }
             }
             else if (activeLayer == SurfaceLayer::MachineConsole)
