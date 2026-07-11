@@ -275,9 +275,13 @@ namespace lockstep
         // glide). W4: the engage/return glide was ~6 ms — near-instant, so half-speed
         // and reverse snapped instead of sweeping. These are deliberately tape-like so
         // the pitch slur is audible; tune here to taste.
-        static constexpr double kTapeGlideSec  = 0.10;  // half/reverse/dip engage + return-to-1
+        // Stage 3: the post-release catch-up was too fast — releasing ½-speed/reverse
+        // "pinged" and snapped back rather than gliding. The phase resync in
+        // particular jumped the playhead; both the rate return and the resync now
+        // sweep over a longer window so the return reads as a tape settling, not a cut.
+        static constexpr double kTapeGlideSec  = 0.15;  // half/reverse/dip engage + return-to-1
         static constexpr double kTapeStopSec   = 0.14;  // tape-stop brake to standstill
-        static constexpr double kTapeResyncSec = 0.06;  // post-release catch-up to the grid
+        static constexpr double kTapeResyncSec = 0.18;  // post-release catch-up to the grid
 
         // C6: the seam splice. `kSeamSpliceSec` of the input immediately BEFORE the
         // take is faded into the loop's end, so the wrap is continuous (DESIGN
