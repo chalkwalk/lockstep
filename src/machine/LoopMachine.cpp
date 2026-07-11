@@ -24,8 +24,8 @@ namespace lockstep
         ParamSpec s;
         s.sectionIndex = kSrcSecIdx;
 
-        // The 12 per-sub-track mix params, generated rather than switched (§40.3).
-        if (index >= kSlotSubMixBase && index < kNumSlots)
+        // The per-sub-track mix params, generated rather than switched (§40.3).
+        if (index >= kSlotSubMixBase && index < kSlotSubSrcBase)
         {
             const int rel = index - kSlotSubMixBase;
             const int sub = rel / kSubMixFields;         // 0..3
@@ -56,6 +56,24 @@ namespace lockstep
                     s.isStepped = true;
                     return s;
             }
+        }
+
+        // Per-sub input source for subs 1..3 (S2, §40.3). Sub 0 uses
+        // kSlotInputSource (id "input_source"); these carry input_source_2/3/4.
+        // Default None so an extra sub is unassigned (and, under the S4 arming
+        // law, disarmed) until the user picks a source for it.
+        if (index >= kSlotSubSrcBase && index < kNumSlots)
+        {
+            const int sub = index - kSlotSubSrcBase + 1;  // 1..3
+            s.id = inputSourceSlotId(sub);                 // input_source_2/3/4
+            s.label = "T" + juce::String(sub + 1) + " Src";
+            s.minValue = 0.0f;
+            s.maxValue = kInputSourceMaxValue;
+            s.defaultValue = 0.0f;  // None
+            s.isStepped = true;
+            s.valueLabels = std::span<const char* const>(kInputSourceLabels.data(),
+                                                         kInputSourceLabels.size());
+            return s;
         }
 
         switch (index)

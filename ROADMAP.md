@@ -2992,6 +2992,34 @@ mid-record head-jump and every later item builds on the position law.
       `backup_` widen to the take's channel count; whole-deck one-level undo.
       Acceptance gate: the entire existing suite passes unchanged.
 
+### Phase 11 play-test round — inputs, record model, console/timeline polish  *[in progress]*
+
+Play-testing the shipped deck surfaced two bugs, four requests, and a doc update.
+Docs land first per item; commit + tests per work item.
+
+- [x] **S0 — Partner-app doc: echo as an insert effect.** The echo head-configuration
+      is also deliverable as a VST3/CLAP insert tape delay (no sequencer surface).
+- [x] **S1 — Tape console text.** `KeyboardArea::paintStepRows` had a label branch only
+      for `LooperConsole`; the Tape (`MachineConsole`) cells carried `c.primary` but
+      never drew it. Added a tape-guarded branch (Route matrix untouched).
+- [x] **S2 — Per-sub input SRC slots.** BUG: only sub-track 0's SRC cell did anything —
+      `LoopMachine` never declared `input_source_2/3/4`. Appended the three slots
+      (`kSlotSubSrcBase`, default None); the fill/console/picker paths already resolve
+      by id, so declaring the slots is the whole fix. → DESIGN §40.3.
+- [ ] **S3 — Four stereo external inputs.** Ext1–4 buses (In 2–4 disabled by default);
+      `input_source` encoding append-only (19–21 = Ext2–4, legacy `Ext`=1 → Ext1).
+- [ ] **S4 — Loop record model.** ARM gates every write (Rec and Dub alike); SRC-assign
+      auto-arms / None disarms; contextual REC/DUB label; hold REC/DUB = punch-replace.
+- [ ] **S5 — Retroactive double-tap.** Durable-span edges retro-stamp to tap 1; ephemeral
+      verbs act at tap 2. Loop and Tape.
+- [ ] **S6 — Stretch research spike.** Cheap PV vs Bungee vs varispeed baseline for
+      extend-only loop-fit ratios; decision memo. (WSOLA was deleted with the Bungee
+      transition — not a candidate.)
+- [ ] **S7 — FreeLen pitch-preserved fit.** Tempo-corrected, extend-only to the next
+      launch-quant multiple; architecture shaped by S6.
+- [ ] **S8 — Permanent timeline strip.** Always visible (bar domain = max(32 bars,
+      longest tape), bar ticks + wall-clock ruler); window grows permanently.
+
 ---
 
 ## Appendix — Legacy code → new id

@@ -7043,6 +7043,16 @@ The deck's console shows this as a Route-style grid — sub-tracks down, sources
 across — and it reuses the tap-fork edge class wholesale: read-only, same-block,
 already in the topological sort, already cycle-checked at assignment.
 
+Concretely, this is one param slot per sub-track. Sub-track 0 keeps the
+canonical `input_source` slot (id `input_source`); sub-tracks 1–3 carry appended
+slots `input_source_2/3/4` (`inputSourceSlotId(sub)`), default `None`. The
+append is deliberate: nothing renumbers, params serialize by string id, and a
+single-sub-track Loop declares only slot 0 — so today's Record, Loop and Route
+are byte-identical on disk and in the graph. Before these slots existed, only
+sub-track 0's SRC cell did anything (the per-sub selector was declared with no
+backing slot); declaring the slots is the whole fix — the fill path
+(`fillDeckSubTrackInputs`) and the console already resolve each sub by id.
+
 There is deliberately **no push side**. A `Trk6-1`-style output destination
 (source track pushes into deck sub-track 1) was considered and rejected: the
 CHANNEL "Out" enum would grow from `{Master | Track N | Off}` to

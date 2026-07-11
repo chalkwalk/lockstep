@@ -476,6 +476,36 @@ namespace lockstep
         tmp.withFileExtension("wav").deleteFile();
     }
 
+    // S2 (§40.3): a non-default per-sub input source survives save/load. The bug
+    // was that subs 1..3 had no source slot at all; with the appended
+    // input_source_2/3/4 slots, each sub selects independently and the choice
+    // round-trips (params serialize by string id, so the append is disk-safe).
+    static void testPerSubSourceRoundTrip()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+
+        p.setTrackMachine(0, LoopMachine::kMachineId);
+        const int s3 = p.slotForId(0, "input_source_3");  // sub 2's source
+        CHECK(s3 >= 0, "S2: input_source_3 slot exists on the Loop");
+
+        // Point sub 2 at Master (2.0); leave sub 0 at its External default.
+        p.writeParam(0, s3, 2.0f);
+        h.renderBlocks(2);  // settle the queued base-param write
+        CHECK(p.looperSubSourceLabel(0, 2) == "Mst", "S2: sub 2 source set to Master");
+        CHECK(p.looperSubSourceLabel(0, 0) == "Ext", "S2: sub 0 source independent (still External)");
+
+        juce::MemoryBlock st;
+        p.getStateInformation(st);
+        p.setStateInformation(st.getData(), static_cast<int>(st.getSize()));
+        h.renderBlocks(1);
+
+        CHECK(p.looperSubSourceLabel(0, 2) == "Mst",
+              "S2: sub 2 source (Master) survives save/load");
+        CHECK(p.looperSubSourceLabel(0, 0) == "Ext",
+              "S2: sub 0 source unchanged after round-trip");
+    }
+
     // §40.7 channel policy: a deck-medium-wide op (Double) touches EVERY sub-track,
     // not just pair 0. Before the policy fix, Double clamped to min(2,...) and left
     // sub-tracks 1..3 un-duplicated in the new half.
@@ -4496,6 +4526,7 @@ namespace lockstep
         testTapeScrubWind();
         testDeckTakeGroupPromote();
         testLoadOntoSubTrack();
+        testPerSubSourceRoundTrip();
         testLoadTakeGroupToDeck();
         testFitDeckSubTrack();
         testDeckWideDouble();

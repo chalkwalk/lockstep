@@ -665,6 +665,35 @@ namespace lockstep
             }
         }
 
+        // S2 (§40.3): each deck sub-track selects its own input. Sub 0 keeps the
+        // canonical `input_source` (machine slot 0); subs 1..3 get appended
+        // input_source_2/3/4 slots, default None. The processor's
+        // fillDeckSubTrackInputs resolves them by id (inputSourceSlotId), so the
+        // whole per-sub SRC surface self-heals the moment these slots exist.
+        {
+            SamplePool p; p.addVolatile();
+            LoopMachine lp(p);
+
+            // Sub 0 unchanged: canonical id, External default (record live input).
+            const int s0 = lp.slotForId("input_source");
+            CHECK(s0 == 0, "sub 0 keeps machine slot 0 for input_source");
+            CHECK(feq(lp.paramSpec(s0).defaultValue, 1.0f), "sub 0 source default = External");
+
+            for (int sub = 1; sub < kMaxInputSubTracks; ++sub)
+            {
+                const int slot = lp.slotForId(inputSourceSlotId(sub));
+                CHECK(slot >= 0, "per-sub source slot exists (input_source_2/3/4)");
+                const auto sp = lp.paramSpec(slot);
+                CHECK(sp.isStepped, "per-sub source slot is stepped");
+                CHECK(feq(sp.maxValue, kInputSourceMaxValue), "per-sub source range = source labels");
+                CHECK(feq(sp.defaultValue, 0.0f), "per-sub source default = None (unassigned)");
+                CHECK(!sp.valueLabels.empty(), "per-sub source carries the source picker labels");
+            }
+            // numParams grew by exactly the three extra subs; nothing renumbered.
+            CHECK(lp.slotForId("sub4_solo") >= 0 && lp.slotForId("sub4_solo") < s0 + lp.numParams(),
+                  "mix slots still present after the appended source slots");
+        }
+
         // S6: DIP is tape WOW, and HALF is a plateau. They used to be the same
         // effect — DIP targeted 0.5 with the same glide — which is exactly what a
         // held-cell test would have caught. Record an impulse loop and count how far

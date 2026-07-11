@@ -242,7 +242,14 @@ namespace lockstep
         // Loop's default (level 1 / pan 0 / mute 0) leaves playback byte-identical.
         static constexpr int kSlotSubMixBase = 8;
         static constexpr int kSubMixFields = 4;   // level, pan, mute, solo
-        static constexpr int kNumSlots = kSlotSubMixBase + kMaxInputSubTracks * kSubMixFields;
+        // Per-sub input source (S2, §40.3): sub 0 uses machine slot 0
+        // (kSlotInputSource, id "input_source"); subs 1..3 get their own appended
+        // source slots (input_source_2/3/4) so each deck sub-track captures a
+        // distinct input. Appended after the mix block, default None, so a
+        // single-sub-track Loop is byte-identical on disk and in the graph.
+        static constexpr int kSlotSubSrcBase = kSlotSubMixBase + kMaxInputSubTracks * kSubMixFields;
+        static constexpr int kNumSubSrcSlots = kMaxInputSubTracks - 1;  // subs 1..3
+        static constexpr int kNumSlots = kSlotSubSrcBase + kNumSubSrcSlots;
         // loop_sync value: Sync = grid-locked to the track's own length × divider,
         // pushed via ILoopGridAware (S1). Any value >= this is grid-locked.
         static constexpr int kSyncGrid = 2;
