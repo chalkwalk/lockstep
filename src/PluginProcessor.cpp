@@ -555,6 +555,15 @@ namespace lockstep
         return !standalone && m == SyncMode::Locked;
     }
 
+    // §40.2: transport winding (scrub / FF-RW) exists only when Lockstep OWNS the
+    // transport — standalone, or hosted but not Locked to the host's playhead. A
+    // plugin cannot move the DAW's playhead, so hosted-Locked simply does not offer
+    // the jog or wind cells (suppress, don't half-work). Single owner of the rule.
+    bool LockstepProcessor::transportWindable() const
+    {
+        return !hostedLocked();
+    }
+
     void LockstepProcessor::transportPlay()
     {
         // Any Play toggle clears a pending stop cut (resume unmutes / a graceful
@@ -982,6 +991,14 @@ namespace lockstep
             lg->setLoopGrid(lenSteps, subdivisionPpqFromIndex(subdivIdx));
         }
         mi->process(trackMidiI, frame, trackBuffers_[i]);
+
+        // §40.2 reel-is-truth: a scrubbing/winding Tape drags the transport with it,
+        // so play/punch resume where the ear found the point. Standalone only
+        // (transportWindable), and only while the transport is parked — a running
+        // sequencer is not yanked. The locate is latched and consumed next block.
+        if (auto* tmScrub = dynamic_cast<TapeMachine*>(mi))
+            if (tmScrub->scrubActive() && ! blockTransport_.running && transportWindable())
+                clock_.locate(tmScrub->scrubHeadPpq());
 
         const int mnp = mi->numParams();
         const int fltrOff = mnp;
@@ -7279,6 +7296,20 @@ namespace lockstep
         // to ppq through the reel's OWN calibration, not the current tempo.
         const double targetPpq = tm->reelToPpq(targetSamples);
         clock_.locate(targetPpq);  // a cue is a locate, not a launch (§40.4)
+    }
+
+    void LockstepProcessor::tapeSetScrubRate(int track, double reelRate)
+    {
+        if (! transportWindable()) return;   // §40.2 suppressed when hosted-locked
+        if (auto* tm = asTape(machines_, track))
+            tm->setScrubTargetRate(reelRate);
+    }
+
+    void LockstepProcessor::tapeJog(int track, double reelImpulse)
+    {
+        if (! transportWindable()) return;
+        if (auto* tm = asTape(machines_, track))
+            tm->nudgeScrub(reelImpulse);
     }
 
     void LockstepProcessor::looperToggleSubMute(int track, int sub)

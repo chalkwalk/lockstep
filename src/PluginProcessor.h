@@ -278,6 +278,10 @@ namespace lockstep
         [[nodiscard]] int tapeReelCapacity(int track) const;      // reel length, samples
         [[nodiscard]] double tapePosition(int track) const;       // playhead, samples
         [[nodiscard]] double tapeChaseRatio(int track) const;     // §40.2 reel/engine rate
+        // §40.2 scrub / wind (standalone only — see transportWindable()).
+        [[nodiscard]] bool transportWindable() const;
+        void tapeSetScrubRate(int track, double reelRate);  // wind cells (steady)
+        void tapeJog(int track, double reelImpulse);        // MZ jog (encoder rock)
         [[nodiscard]] int tapeRecordedSamples(int track) const;   // used high-water
         [[nodiscard]] double tapeMarkerPosition(int track, int i) const;
         // The focused track if it is a tape, else the first tape track, else -1.

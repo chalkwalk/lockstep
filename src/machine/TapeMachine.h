@@ -13,6 +13,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <memory>
 
@@ -81,6 +82,33 @@ namespace lockstep
         // punches in/out; PlayStop stops/resumes; Clear wipes the reel.
         void applyVerb(int verb);  // 1 RecordCycle, 2 PlayStop, 3 Clear, 4 Undo
         [[nodiscard]] bool canUndo() const noexcept { return haveUndo_; }
+
+        // §40.2 scrub / wind (standalone only — the processor gates on
+        // transportWindable()). While the tape is Stopped, a non-zero scrub rate
+        // auditions the reel under a moving head (bandlimited, so a wind is audible
+        // both directions and stops at the leader). Rate is signed reel samples per
+        // engine sample; the audio slews toward it so it winds rather than jumps.
+        // Reel-is-truth: the processor commits the transport to the head each block,
+        // so play/punch resume where the ear found the point. Message thread.
+        void setScrubTargetRate(double reelRate) noexcept
+        {
+            scrubTarget_.store(reelRate, std::memory_order_relaxed);
+        }
+        // A jog nudge (encoder rock): a one-shot velocity impulse the audio decays.
+        void nudgeScrub(double reelImpulse) noexcept
+        {
+            scrubTarget_.store(scrubTarget_.load(std::memory_order_relaxed) + reelImpulse,
+                               std::memory_order_relaxed);
+        }
+        [[nodiscard]] bool scrubActive() const noexcept
+        {
+            return std::abs(scrubTarget_.load(std::memory_order_relaxed)) > 1e-6 || scrubbing_;
+        }
+        [[nodiscard]] double scrubHeadReelPos() const noexcept
+        {
+            return scrubHeadReel_.load(std::memory_order_relaxed);
+        }
+        [[nodiscard]] double scrubHeadPpq() const noexcept { return reelToPpq(scrubHeadReelPos()); }
 
         // Markers (§40.4) — dumb navigation points on the timeline. Dropped at the
         // current transport position (manually, or auto on a Scene/Song switch while
@@ -207,6 +235,17 @@ namespace lockstep
         // exactly as a 1× timeline). Session-local runtime state, like the reel
         // audio: promote-or-lose, never serialized; a fresh machine loses both.
         double calSamplesPerPpq_ = 0.0;
+
+        // §40.2 scrub / wind. scrubTarget_ is the commanded rate (wind cells set a
+        // steady value; a jog adds an impulse). The audio owns headPos_ + the slewed
+        // scrubSmoothed_ and publishes the head to scrubHeadReel_ for the processor's
+        // reel-is-truth locate.
+        std::atomic<double> scrubTarget_{ 0.0 };     // reel samples / engine sample
+        std::atomic<double> scrubHeadReel_{ 0.0 };   // published head (reel samples)
+        double scrubSmoothed_ = 0.0;                 // slewed rate (audio thread)
+        double scrubHeadPos_ = 0.0;                  // fractional reel head (audio)
+        bool scrubbing_ = false;                     // rendering a wind this block
+        static constexpr double kScrubEase = 0.0008; // one-pole slew per sample
 
         std::array<dc::Store, 2> planes_{};
         dc::Medium medium_;

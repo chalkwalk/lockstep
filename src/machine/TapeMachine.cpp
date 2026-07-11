@@ -250,11 +250,40 @@ namespace lockstep
         const bool recording = deck_.state() == dc::DeckState::Recording;
         const bool stopped = deck_.state() == dc::DeckState::Stopped;
 
-        // Stopped detaches from position and plays nothing (§40.2).
+        // Stopped detaches from the transport (§40.2). It either scrubs — auditioning
+        // the reel under a moving head, no writes — or plays nothing.
         if (stopped)
         {
-            for (int ch = 0; ch < outChans; ++ch)
-                for (int i = 0; i < numSamples; ++i) buffer.setSample(ch, i, 0.0f);
+            const double target = scrubTarget_.load(std::memory_order_relaxed);
+            const bool wasScrub = scrubbing_;
+            scrubbing_ = std::abs(target) > 1e-6 || std::abs(scrubSmoothed_) > 1e-4;
+
+            if (! scrubbing_)
+            {
+                for (int ch = 0; ch < outChans; ++ch)
+                    for (int i = 0; i < numSamples; ++i) buffer.setSample(ch, i, 0.0f);
+                scrubHeadReel_.store(reelPosAtBlockStart(), std::memory_order_relaxed);
+                return;
+            }
+
+            if (! wasScrub)  // scrub just began → seed the head from the transport
+                scrubHeadPos_ = reelPosAtBlockStart();
+
+            const double cap = static_cast<double>(reelCap_);
+            dc::ReadHead rh;
+            float sframe[2] = { 0.0f, 0.0f };  // NOLINT(*-avoid-c-arrays)
+            for (int i = 0; i < numSamples; ++i)
+            {
+                scrubSmoothed_ += (target - scrubSmoothed_) * kScrubEase;  // slewed wind
+                rh.setRate(scrubSmoothed_);
+                rh.setPosition(scrubHeadPos_);
+                rh.readFrame(medium_, 0, sframe, outChans);
+                for (int ch = 0; ch < outChans; ++ch) buffer.setSample(ch, i, sframe[ch]);
+                scrubHeadPos_ += scrubSmoothed_;
+                if (scrubHeadPos_ <= 0.0) { scrubHeadPos_ = 0.0; scrubSmoothed_ = 0.0; }
+                if (scrubHeadPos_ >= cap) { scrubHeadPos_ = cap; scrubSmoothed_ = 0.0; }
+            }
+            scrubHeadReel_.store(scrubHeadPos_, std::memory_order_relaxed);
             return;
         }
 

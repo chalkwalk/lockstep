@@ -740,6 +740,63 @@ namespace lockstep
         tmp.withFileExtension("wav").deleteFile();
     }
 
+    // §40.2 scrub / wind: transportWindable() gates it (standalone / not
+    // host-locked), and a scrub command reaches the head only when windable
+    // (suppressed — not half-working — when the host owns the playhead). The head
+    // motion + reel-is-truth locate wiring is covered directly in TapeMachineTest;
+    // here we pin the gate through the processor's public seam.
+    static void testTapeScrubWind()
+    {
+        const auto setSync = [](LockstepProcessor& proc, float v) {
+            if (auto* sm = proc.apvts().getParameter(ParamIDs::syncMode))
+                sm->setValueNotifyingHost(v);
+        };
+        const auto stopTape = [](EngineHarness& h) {
+            auto& proc = h.processor();
+            proc.setTrackMachine(0, TapeMachine::kMachineId);
+            proc.writeParam(0, proc.slotForId(0, "medium_length"), 5.0f);
+            h.renderBlocks(1);
+            proc.tapeApplyVerb(0, 1);                 // Recording
+            for (int b = 0; b < 20; ++b) h.renderBlocks(1);
+            proc.tapeApplyVerb(0, 1);                 // punch out → Playing
+            proc.tapeApplyVerb(0, 2);                 // PlayStop → Stopped
+            proc.clock().setInPluginPlaying(false);   // park the transport
+            h.renderBlocks(2);
+        };
+
+        // ── Auto (Lockstep owns the transport): winding is offered and takes ──
+        {
+            EngineHarness h;
+            auto& proc = h.processor();
+            setSync(proc, 1.0f);   // Auto
+            CHECK(proc.transportWindable(), "Auto sync → the transport is windable");
+            stopTape(h);
+
+            proc.tapeSetScrubRate(0, 5.0);            // wind forward
+            h.renderBlocks(2);
+            const auto* tm = dynamic_cast<const TapeMachine*>(proc.machineForTrack(0));
+            CHECK(tm != nullptr && tm->scrubActive(),
+                  "a windable scrub command activates the head");
+            CHECK(tm != nullptr && tm->scrubHeadReelPos() > 0.0,
+                  "and the head is advancing along the reel");
+        }
+
+        // ── Hosted-locked: winding is suppressed (cannot move the host playhead) ──
+        {
+            EngineHarness h;
+            auto& proc = h.processor();
+            setSync(proc, 0.0f);   // Locked
+            CHECK(! proc.transportWindable(), "hosted-locked → winding is suppressed");
+            stopTape(h);
+
+            proc.tapeSetScrubRate(0, 5.0);            // gated out → no-op
+            h.renderBlocks(2);
+            const auto* tm = dynamic_cast<const TapeMachine*>(proc.machineForTrack(0));
+            CHECK(tm != nullptr && ! tm->scrubActive(),
+                  "a hosted-locked scrub command never reaches the head");
+        }
+    }
+
     // 9.17: the scene launch resolves against the shared LaunchQuant grid
     // (DESIGN §4.8). A Beat grid lands the scene sooner (mid-bar) than the
     // default Bar grid — proving the grid value actually routes the timing —
@@ -4436,6 +4493,7 @@ namespace lockstep
         testTapeMarkerOnSceneSwitch();
         testTapeMediumLengthParam();
         testTapePromote();
+        testTapeScrubWind();
         testDeckTakeGroupPromote();
         testLoadOntoSubTrack();
         testLoadTakeGroupToDeck();

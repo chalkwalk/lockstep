@@ -361,5 +361,43 @@ namespace lockstep
             t.setMediumDepth(1);  // already i16 → no-op
             CHECK(t.recordedSamples() >= n, "re-selecting the current depth keeps the take");
         }
+
+        // ── Scrub (§40.2): a stopped tape auditions the reel under a moving head ─
+        {
+            TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(2.0);
+            // Lay 0.6 across a wide region [0, 2048) so the head has content to read.
+            t.applyVerb(1);
+            for (int blk = 0; blk < 4; ++blk) tapeBlock(t, blk * n, n, 0.6f, kSr);
+            t.applyVerb(1);            // punch out → Playing
+            t.applyVerb(2);            // PlayStop → Stopped (scrub-able)
+
+            CHECK(! t.scrubActive(), "a stopped tape is not scrubbing until commanded");
+
+            // Wind forward from inside the take. The first wind block's head is still
+            // inside the content, so the wind is audible (not silent); over more
+            // blocks the head keeps advancing.
+            t.setScrubTargetRate(6.0);
+            auto wind0 = tapeBlock(t, 1000, n, 0.0f, kSr);   // head ~1000 → still in take
+            CHECK(t.scrubActive(), "a non-zero scrub rate is active");
+            CHECK(std::abs(wind0.getSample(0, 400)) > 0.1f, "the wind auditions the reel (audible)");
+            for (int blk = 0; blk < 8; ++blk) tapeBlock(t, 1000, n, 0.0f, kSr);
+            CHECK(t.scrubHeadReelPos() > 1000.0, "winding forward advanced the head");
+
+            // Reverse from a fresh stopped tape at 1500 → the head retreats.
+            TapeMachine r; r.prepare(kSr, n); r.setMediumSeconds(2.0);
+            r.applyVerb(1);
+            for (int blk = 0; blk < 4; ++blk) tapeBlock(r, blk * n, n, 0.6f, kSr);
+            r.applyVerb(1); r.applyVerb(2);
+            r.setScrubTargetRate(-6.0);
+            for (int blk = 0; blk < 8; ++blk) tapeBlock(r, 1500, n, 0.0f, kSr);
+            CHECK(r.scrubHeadReelPos() < 1500.0, "winding backward retreated the head");
+
+            // Clamp at the leader: reverse from near 0 stops at 0, never negative.
+            TapeMachine c; c.prepare(kSr, n); c.setMediumSeconds(2.0);
+            c.applyVerb(1); tapeBlock(c, 0.0, n, 0.6f, kSr); c.applyVerb(1); c.applyVerb(2);
+            c.setScrubTargetRate(-6.0);
+            for (int blk = 0; blk < 20; ++blk) tapeBlock(c, 50, n, 0.0f, kSr);
+            CHECK(c.scrubHeadReelPos() >= 0.0, "winding backward clamps at the leader (>= 0)");
+        }
     }
 }
