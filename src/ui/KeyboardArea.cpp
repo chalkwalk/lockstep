@@ -1288,6 +1288,35 @@ namespace lockstep
             return;
         }
 
+        // S1: Tape console text. The MachineConsole layer is shared by the Tape
+        // console (per-track tape transport) and the Route matrix; only the Tape
+        // variant is rendered here — the labels (REC/PLAY/STOP/... , |< CUE >| ,
+        // << >>) are model-driven (SurfaceModel MachineConsole/tape branch,
+        // c.primary), mirroring the LooperConsole path above. The Route variant
+        // (non-tape track) is intentionally left to fall through unchanged.
+        if (model.activeLayer == SurfaceLayer::MachineConsole
+            && processor_.isTapeTrack(uiState_.activeTrack))
+        {
+            for (int row = 0; row < kRows; ++row)
+            {
+                for (int col2 = 0; col2 < kCols; ++col2)
+                {
+                    const int idx = row * kCols + col2;
+                    const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
+                    const int x = colX(row, col2 + 2);
+                    const int y = rowY(row);
+                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+
+                    paintGridCellFill(g, cell, sc);
+                    paintGridCellText(g, cell, sc, 0.90f);
+                    if (showKeyLetters)
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)], 0.55f);
+                }
+            }
+            // Tape has the always-on timeline strip; no nav-row timeline here.
+            return;
+        }
+
         // NoteEdit mode: 1-octave chromatic keyboard overlay.
         // Cells 0-11 = C through B; cells 12-15 = unused.
         // Fill + press feedback from model; outlines, note names, cross-octave badges inline.
