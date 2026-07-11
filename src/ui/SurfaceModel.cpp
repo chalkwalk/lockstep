@@ -124,6 +124,8 @@ namespace lockstep
             case CellState::TapeConDrop:        return 0xFF3A5A7Au;  // blue — drop marker
             case CellState::TapeConCue:         return 0xFF2E4A5Au;  // dim steel — cue
             case CellState::TapeConIdle:        return 0xFF1C1E22u;  // inert console cell
+            case CellState::TapeConRew:         return 0xFF3A4A5Au;  // slate — wind rewind
+            case CellState::TapeConFwd:         return 0xFF3A4A5Au;  // slate — wind fast-fwd
             case CellState::ChromaticWhite:     return kScopeTrack;
             case CellState::ChromaticBlack:     return kScopeTrack;
             case CellState::LevelsCell:         return 0xFF204060u;
@@ -1293,7 +1295,11 @@ namespace lockstep
                 // 0 Idle, 1 Recording, 2 Playing, 4 Stopped).
                 const int st = proc.tapeState(activeTrack);
                 const bool rec = (st == 1), stop = (st == 4);
-                static constexpr const char* kLabel[16] = {
+                // §40.2: the hold-to-wind cells exist only when the transport is
+                // windable (standalone / not host-locked) — suppressed, not
+                // half-working, when the host owns the playhead.
+                const bool windable = proc.transportWindable();
+                const char* kLabel[16] = {  // NOLINT(*-avoid-c-arrays) — mutable, int-indexed
                     "REC", "PLAY", "STOP", "CLEAR", "UNDO", "", "", "",
                     "DROP", "|<", "CUE", ">|", "", "", "", ""
                 };
@@ -1306,6 +1312,11 @@ namespace lockstep
                 tok[4] = proc.tapeCanUndo(activeTrack) ? CellState::TapeConUndo : CellState::TapeConIdle;
                 tok[8] = CellState::TapeConDrop;
                 tok[9] = tok[10] = tok[11] = CellState::TapeConCue;
+                if (windable)
+                {
+                    tok[12] = CellState::TapeConRew;  kLabel[12] = "<<";
+                    tok[13] = CellState::TapeConFwd;  kLabel[13] = ">>";
+                }
 
                 for (int i = 0; i < 16; ++i)
                 {

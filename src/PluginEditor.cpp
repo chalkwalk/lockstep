@@ -33,6 +33,10 @@
 
 namespace lockstep
 {
+    // §40.2 hold-to-wind speed: reel samples advanced per engine sample while a
+    // FF/RW console cell is held (~8×, slewed by the machine so it winds not jumps).
+    static constexpr double kTapeWindRate = 8.0;
+
     // -------------------------------------------------------------------------
     // Command core seam (Phase 8.4)
     // Defined here (before constructor) so the nested struct is complete when
@@ -4337,6 +4341,10 @@ namespace lockstep
                                 case 9: processor_.tapeCue(mct, -1); break;       // |<
                                 case 10: processor_.tapeCue(mct, 0); break;       // CUE nearest
                                 case 11: processor_.tapeCue(mct, +1); break;      // >|
+                                // §40.2 hold-to-wind: press starts the wind, the
+                                // step-release (below) stops it (slews to rest, locates).
+                                case 12: processor_.tapeSetScrubRate(mct, -kTapeWindRate); break;  // <<
+                                case 13: processor_.tapeSetScrubRate(mct, +kTapeWindRate); break;  // >>
                                 default: break;
                             }
                             refreshSurface();
@@ -5946,6 +5954,11 @@ namespace lockstep
                         else
                             processor_.sendLooperPerf(trk, 8 + (ev.index - 12), false);
                     }
+                    // §40.2 hold-to-wind: releasing a Tape FF/RW cell ends the wind
+                    // (the machine slews to rest, then the transport settles). Always
+                    // fires on release so a wind can never stick.
+                    else if (processor_.isTapeTrack(trk) && (ev.index == 12 || ev.index == 13))
+                        processor_.tapeSetScrubRate(trk, 0.0);
                 }
 
                 // CHROMATIC gate: a pad-release always ends the note it sounded —

@@ -13,6 +13,7 @@
 #include "../src/ui/SectionResolve.h"
 #include "../src/ui/GridDisplayMode.h"
 #include "../src/machine/IMachine.h"
+#include "../src/ParameterIDs.h"
 #include "../src/machine/LoopMachine.h"
 #include "../src/machine/TapeMachine.h"
 #include "../src/machine/AnalogMachine.h"
@@ -600,6 +601,24 @@ namespace lockstep
         const auto m2 = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
                                           GridDisplayMode::Ortholinear);
         CHECK(m2.step[0].base == CellState::TapeConRecActive, "recording tape REC = active token");
+
+        // §40.2 hold-to-wind cells (<< / >>) exist only when the transport is
+        // windable. The harness reports as a plugin with the default Locked sync
+        // (host owns the playhead), so they are suppressed.
+        CHECK(! proc.transportWindable(), "harness default (hosted-locked) is not windable");
+        CHECK(m.step[12].base == CellState::TapeConIdle, "no wind cell when suppressed");
+        CHECK(m.step[13].base == CellState::TapeConIdle, "no wind cell when suppressed");
+
+        // Switch to Auto (Lockstep owns the transport) → the wind cells appear.
+        if (auto* sm = proc.apvts().getParameter(ParamIDs::syncMode))
+            sm->setValueNotifyingHost(1.0f);
+        CHECK(proc.transportWindable(), "Auto sync → windable");
+        const auto m3 = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                          GridDisplayMode::Ortholinear);
+        CHECK(m3.step[12].primary == "<<" && m3.step[12].base == CellState::TapeConRew,
+              "windable → cell 12 = << rewind");
+        CHECK(m3.step[13].primary == ">>" && m3.step[13].base == CellState::TapeConFwd,
+              "windable → cell 13 = >> fast-forward");
     }
 
     // -------------------------------------------------------------------------

@@ -206,6 +206,8 @@ namespace lockstep
         TapeConDrop = 230,         // drop a marker here
         TapeConCue = 231,          // cue (locate) to a marker
         TapeConIdle = 232,         // an inert console cell
+        TapeConRew = 233,          // << hold-to-wind rewind (standalone only, §40.2)
+        TapeConFwd = 234,          // >> hold-to-wind fast-forward (standalone only)
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step
