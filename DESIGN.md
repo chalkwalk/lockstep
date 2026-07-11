@@ -6908,14 +6908,58 @@ mutes, kits, and P-locks are *state*, and state does not travel with position
 song sounded like there" — only what the tape sounded like there). Pending
 launch edges re-derive against the new position's grid.
 
-**Scrub is a decoupled audition.** While scrubbing, the deck's playhead
-detaches from the transport and plays the medium under the jog; the sequencer
-keeps running. On release the transport commits to the scrubbed position at the
-next quantum (§25's one grid, again). This is the tape idiom — you hear the
-medium while you wind, and the band comes back in on the bar.
+**The Tape is chase-locked to musical time.** The organizing lens is a studio
+**master reel-to-reel at the centre of the split-desk console** — Looper is
+performative, the 4-track is a multitrack recording flow, and the Tape is the
+master reel. A studio deck chase-locks to a timecode master; here the master is
+the sequencer, and the reel's head position is a pure function of **musical
+time**:
 
-**Varispeed is a medium-rate deviation**, exactly as the looper's Free-Len /
-tape-FX rate envelope already is, and it never re-times the sequencer.
+    headPos = ppq × K
+
+`K` (the **calibration**, samples-per-ppq) latches from the transport tempo at
+the **first record onto an empty reel**, and `CLEAR` resets it (a fresh reel is
+uncalibrated and chases at unity, so an empty deck behaves exactly as a 1×
+timeline). Because `ppq` is continuous and `K` is constant per reel, position is
+bar-aligned **by construction** under any tempo history: locate to a bar, punch
+"re-record bars 33–41", cue a marker — they land on the musical position they
+name, with no offset to manage, no tempo map, no sync flow, and no per-marker
+bar stamps (musical position *is* reel position, so markers are bar-true for
+free, §40.4).
+
+**Tempo ≠ calibration is varispeed, openly.** The chase rate is `r = K /
+samplesPerPpq(current)`; `r == 1` exactly at the calibration tempo. Away from
+it the reel reads *and writes* at `r` through the §40.10 head law — pitch
+follows tempo, as tape does when the capstan changes speed. This is accepted,
+not hidden: at the calibration tempo the whole path is unity and bit-exact (the
+no-tempo-change majority pays nothing), and away from it the console/strip shows
+the chase ratio (e.g. "×0.5"). Recording below calibration writes at `r < 1` and
+downsamples into the reel — highs above the shifted Nyquist are permanently lost
+(honest chase-locked physics). That is allowed (expert-first) and surfaced; a
+2× oversampled reel (§40.10 medium rate) is the documented remedy if it ever
+bites, not built pre-emptively.
+
+*Why chase-lock and not a real-time reel* (the position integrating in real
+time, tempo landing only in the audio, tape not caring how fast the band plays):
+because **this is a sequencer**, and most of what a deck records is *sequenced*
+material driven by the same clock. A real-time reel desyncs the sequencer
+timeline from the reel timeline the instant tempo changes, and then the deck's
+bread-and-butter CUJ — "re-record bars 33–41" — needs the two re-aligned by
+hand (a manual offset the user must track). Chase-lock makes that CUJ correct
+with zero ceremony. The alternative was considered twice and rejected on exactly
+this ground; the reasoning is recorded here so it is not re-litigated. The
+"fun" tempo tricks (detune rides, conform, free varispeed as a *performance*
+control) are the looper's domain and the partner app's — the master deck has no
+performed varispeed UX.
+
+**Winding is a standalone-only affordance.** Scrubbing and FF/RW move the
+**transport** with the reel (reel-is-truth: a wind commits `Clock::locate` so
+play and punch start where your ear found the point). Hosted, a plugin cannot
+move the DAW's playhead, so the jog and wind affordances are simply **not
+offered** (cells absent, jog inert) rather than made to half-work — one rule,
+"transport winding exists standalone only." While winding, no writes occur; the
+read runs through the same bandlimited head as playback, so a wind is audible
+(chipmunk one way, growl the other) and stops honestly at the reel's leader.
 
 **Multiple decks share the one timeline.** Two Tape machines are two media
 addressed by one position, like two tracks of one reel. There is no per-deck
@@ -7007,8 +7051,13 @@ selector every track has — and it would create a second edge class into the
 topo-sort with its own cycle rules. The pull model expresses every routing the
 push model does, from the place that already knows how to express it.
 
-**Overdub and undo** are the looper's, unchanged: a take is a stack of layers;
-`UNDO` pops the last; a new layer begins at each record edge.
+**Overdub and undo** are the looper's, extended across the sub-tracks: a take is
+a stack of layers, `UNDO` is one level deep, and a new layer begins at each
+record edge. On the 4-track Loop, overdub fans out to the **armed** sub-tracks —
+sub-track 0 is armed by default (a single-track looper session never thinks
+about arming and behaves exactly as before), and the TRACKS console arms the
+rest. Undo is **whole-deck**: it restores every sub-track to the pre-overdub
+snapshot in one act, not per-track.
 
 **The seam is spliced, never crossfaded on playback.** A loop recorded from a
 performance is discontinuous where its end meets its start, and that jump is a
@@ -7050,7 +7099,10 @@ optional auto-label. They are dropped
 - **manually**, by a console marker cell.
 
 They are metadata, survive every audio operation (overdub, punch, bounce), and
-are removed only by an explicit delete.
+are removed only by an explicit delete. A marker stores **position only** — no
+tempo or bar stamp. Under chase-lock (§40.2) musical position *is* reel
+position, so a marker is bar-true for free; stamping the bar into the marker
+would be complexity for a case chase-lock already handles.
 
 **Markers never fire anything.** A marker does not recall a scene, and a deck
 never emits a scene/song change during playback. This is precisely where fence
@@ -7254,7 +7306,12 @@ catch-up); the scatter write's cutoff selection is correct in both directions
 but the |rate| gain factor is missing (a half-speed overdub lands +6 dB, a
 rate-2 overdub −6 dB, and a stalled write is unbounded); and the initial
 record write is integer-unity only. **ROADMAP 9.28** closes the read and gain
-gaps in place; the erase head is deck-arc work.
+gaps in place; the erase head is deck-arc work — landed by the Phase 11 tail's
+**chase-locked Tape** (§40.2), whose `r ≠ 1` record is exactly *replace at
+varispeed* (erase-ahead + |rate| scatter). The Tape reel additionally supports
+an **i16 medium depth** (`medium_depth` param, Tape only — the Loop stays a
+float volatile-pool slot); `dc::Store` is depth-erased, so the choice is an
+allocation-edge concern, not a second signal path.
 
 **Medium rate is a medium property.** The medium carries its own sample rate,
 decoupled from the engine rate — the heads already read and write at arbitrary
@@ -7309,7 +7366,9 @@ boundary, and the deck is not a tenant of it.)
 
 ### 40.12 Deferred to the implementation arc
 
-- Scrub DSP quality (windowing, the granular-vs-varispeed choice at low rates).
+- Scrub DSP *fine* quality (windowing, the granular-vs-varispeed choice at very
+  low rates). The Phase 11 tail ships scrub/wind on the shared bandlimited head
+  (§40.2); a dedicated low-rate granular mode is the remaining refinement.
 - Whether the metronome (A6) monitors *through* a recording deck or beside it.
 - The practical limit on simultaneous decks (the medium length question is
   settled: per-deck param, §40.3).

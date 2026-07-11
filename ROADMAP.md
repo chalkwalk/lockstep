@@ -15,13 +15,13 @@ three faces (Record, the 4-sub-track Loop, and Tape) run on one JUCE-free
 `deck_core` library. Loop + Record re-seated with the suite unchanged (the risk
 gate). Tape records along the song's timeline, punches non-destructively, drives
 from a console, shows on a timeline strip, and promotes to WAV; the 4-track Loop
-records four taps, mixes them, and promotes as a take-group. **Remaining Phase 11
-tail** (all deferred, not blocking): the 6/5 take-group picker rule,
-load-onto-sub-track + FIT, multi-sub-track overdub, Tape varispeed-via-heads + i16
-depth, the §19 hardware-proxy chrome, and the channel-policy helper. Marker
-serialisation was dropped by decision (tape audio is promote-or-lose, so markers
-live and die with the session). See the Phase 11 checklist below for per-item
-status.
+records four taps, mixes them, and promotes as a take-group. The 6/5 take-group
+picker, load-onto-sub-track + FIT, and the channel-policy helper shipped in 11.6.
+**Phase 11 tail — now in progress** (the "Phase 11 tail" checklist below,
+build order T→A→B→C→D): chase-locked Tape position + varispeed IO (the tempo
+model, DESIGN §40.2), i16 reel depth, §19 hardware-proxy chrome, Tape scrub/wind,
+and multi-sub-track overdub. Marker serialisation was dropped by decision (tape
+audio is promote-or-lose, so markers live and die with the session).
 
 **Prior focus:** Phase 8/9. **8.28 track channel/envelope split shipped**
 (CHANNEL always-on, ENVELOPE optional, FLTR universal with OFF mode, serializer
@@ -2960,6 +2960,37 @@ existing test suite passing **unchanged**.
       entity; sample-class pickers see the members ("up to 5 samples"). Codify the
       **stereo-engine / native-storage** channel policy, retiring the scattered
       `min(2, …)` clamps as policy rather than accident.
+
+### Phase 11 tail — chase-locked Tape, i16, proxies, wind, multi-sub overdub  *[in progress]*
+
+The deferred deck-engine tail, design-settled 2026-07-09 (chase-locked tempo
+model; see DESIGN §40.2 for the reasoning, which reversed an earlier real-time-reel
+lean). Build order T→A→B→C→D — the tempo model first because it fixes the
+mid-record head-jump and every later item builds on the position law.
+
+- [ ] **11.9T — Chase-locked Tape position + varispeed IO.** Head = `ppq × K`;
+      `K` (samples-per-ppq calibration) latches at the first record onto an empty
+      reel, resets on Clear. Chase rate `r = K / samplesPerPpq(current)`; `r ≠ 1`
+      reads and writes through the §40.10 head law (varispeed, pitch follows).
+      `r == 1` (calibration tempo) is unity/bit-exact — the existing Tape suite
+      passes unchanged. Kills the mid-record head-jump (ppq continuous, K
+      constant). Chase ratio surfaced on the strip/console when ≠1×.
+- [ ] **11.9A — i16 Tape reel (`medium_depth`).** F32/I16 per-Tape param, wired
+      like `medium_length` (quiesced reinstall, realloc only on change). `dc::Store`
+      is depth-erased; `undoReel_` and promote go through the depth-transparent
+      `medium_.read`. Loop stays a float pool slot (§40.10).
+- [ ] **11.9B — §19 hardware proxies.** Console REC pulse while Recording,
+      marker-approach brighten on the CUE cell — editor chrome (30 Hz timer +
+      `trigPulse_`/hold-decay patterns), pure `markerApproach01` helper. No
+      animated CellState (palette stays static).
+- [ ] **11.9C — Tape scrub + FF/RW wind (standalone only).** MZ encoder = jog,
+      hold-to-wind `<<`/`>>` console cells (~±8× slewed). Rides Stage T's
+      fractional read; reel-is-truth (`Clock::locate(headPos/K)`). Suppressed
+      hosted (`transportWindable()` — cells absent, jog inert), never half-working.
+- [ ] **11.9D — Multi-sub-track overdub.** Overdub fans out to armed sub-tracks
+      (sub 0 default-armed; single-track sessions byte-identical). `overdubLayer_`/
+      `backup_` widen to the take's channel count; whole-deck one-level undo.
+      Acceptance gate: the entire existing suite passes unchanged.
 
 ---
 
