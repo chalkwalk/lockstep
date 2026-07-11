@@ -7361,7 +7361,10 @@ gaps in place; the erase head is deck-arc work — landed by the Phase 11 tail's
 varispeed* (erase-ahead + |rate| scatter). The Tape reel additionally supports
 an **i16 medium depth** (`medium_depth` param, Tape only — the Loop stays a
 float volatile-pool slot); `dc::Store` is depth-erased, so the choice is an
-allocation-edge concern, not a second signal path.
+allocation-edge concern, not a second signal path. The control runs
+`16i` (anticlockwise) → `32f` (clockwise), defaults to 32f, and **converts the
+reel in place** on a change (the take survives; a `32f→16i` down-convert is lossy
+and warns) rather than wiping it. One depth covers the whole reel.
 
 **Medium rate is a medium property.** The medium carries its own sample rate,
 decoupled from the engine rate — the heads already read and write at arbitrary

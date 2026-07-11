@@ -237,6 +237,8 @@ namespace lockstep
         [[nodiscard]] int looperState(int track) const;
         // S4: a take has closed and set a loop length (drives the REC/DUB label).
         [[nodiscard]] bool looperHasLoop(int track) const;
+        // Stage 1b: consume (once) the "reel down-converted to 16-bit" warning.
+        [[nodiscard]] bool consumeTapeDepthWarn() noexcept { return tapeDepthWarn_.exchange(false); }
         // Deck TRACKS-page state + toggles (§40.5). sub is 0-based.
         [[nodiscard]] int looperSubTrackCount(int track) const;
         [[nodiscard]] bool looperSubArmed(int track, int sub) const;
@@ -1159,6 +1161,9 @@ namespace lockstep
         std::atomic<bool> stagedSwapReady_{ false };        // [ATOMIC]
         std::atomic<bool> pendingSceneApply_{ false };        // [ATOMIC]
         std::atomic<bool> sceneSwitchApplied_{ false };        // [ATOMIC]
+        // Stage 1b: set when a Tape depth change down-converts a recorded reel to
+        // 16-bit (lossy). The editor consumes it once into a status toast.
+        std::atomic<bool> tapeDepthWarn_{ false };          // [ATOMIC]
 
         // 9.17: per-track Phrase deviation lane. Message thread pre-stages the
         // projected Track into stagedDeviation_[t] and publishes the phrase index

@@ -1301,6 +1301,10 @@ namespace lockstep
                 processor_.transportStopReset();
                 setStatus(status::transportReset());
             }
+            // Stage 1b: surface a lossy Tape depth down-convert as a status toast.
+            if (processor_.consumeTapeDepthWarn())
+                setStatus(juce::String("Reel down-converted to 16-bit (lossy)"));
+
             // S4: looper console REC/DUB cell held past the long-press threshold →
             // engage momentary punch-replace (fires while held; ended on release).
             if (looperReplaceTrack_ >= 0 && !looperReplaceFired_

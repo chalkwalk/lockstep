@@ -117,6 +117,28 @@ namespace lockstep
                   "Stage 2: stopped transport → silence, no frozen-head buzz");
         }
 
+        // Stage 1b: changing Bits CONVERTS the reel in place (it used to WIPE it).
+        // Record at 32f, switch to 16i (take survives, quantised), switch back (still
+        // there — the round-trip is non-destructive to the recording's existence).
+        {
+            TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(2.0);  // default 32f
+            t.applyVerb(1);
+            tapeBlock(t, 0.0, n, 0.5f, kSr);
+            t.applyVerb(1);
+            const int rec = t.recordedSamples();
+            CHECK(rec > 0, "Stage 1b: recorded a take at 32f");
+
+            t.setMediumDepth(1);   // → 16i (convert, not wipe)
+            CHECK(t.recordedSamples() == rec, "Stage 1b: 16i convert preserves the extent");
+            CHECK(feq(tapeBlock(t, 0.0, n, 0.0f, kSr).getSample(0, 100), 0.5f, 1.0f / 32767.0f),
+                  "Stage 1b: the take survives the 32f→16i convert (quantised)");
+
+            t.setMediumDepth(0);   // → back to 32f (lossless from 16i)
+            CHECK(t.recordedSamples() == rec, "Stage 1b: 32f convert-back preserves the extent");
+            CHECK(feq(tapeBlock(t, 0.0, n, 0.0f, kSr).getSample(0, 100), 0.5f, 1.0f / 32767.0f),
+                  "Stage 1b: the take survives the depth round-trip (no wipe)");
+        }
+
         // ── Record along the timeline ────────────────────────────────────────
         // Punch in, lay 0.5 across positions [0, 512), punch out.
         tape.applyVerb(1);  // RecordCycle → Recording
@@ -375,19 +397,18 @@ namespace lockstep
                   "i16 punch undo restores the original from the i16 undo backing");
         }
 
-        // ── Depth switch clears the reel (you swapped the tape stock) ────────
+        // ── Depth switch CONVERTS the reel in place (Stage 1b — was a wipe) ──────
         {
             TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(2.0);
             t.applyVerb(1);
             tapeBlock(t, 0.0, n, 0.5f, kSr);
             t.applyVerb(1);
             CHECK(t.recordedSamples() >= n, "f32 take recorded");
-            t.setMediumDepth(1);  // → i16, discards audio
-            CHECK(t.recordedSamples() == 0, "switching depth wipes the reel");
-            CHECK(feq(tapeBlock(t, 0.0, n, 0.0f, kSr).getSample(0, 100), 0.0f),
-                  "and playback is silent after the depth switch");
-            // A no-op switch (same depth) does NOT clear.
-            t.applyVerb(1); tapeBlock(t, 0.0, n, 0.3f, kSr); t.applyVerb(1);
+            t.setMediumDepth(1);  // → i16, converts (no longer discards)
+            CHECK(t.recordedSamples() >= n, "switching depth converts, keeping the take");
+            CHECK(feq(tapeBlock(t, 0.0, n, 0.0f, kSr).getSample(0, 100), 0.5f, 1.0f / 32767.0f),
+                  "and the take plays back after the depth switch (quantised to 16-bit)");
+            // A no-op switch (same depth) leaves it untouched.
             t.setMediumDepth(1);  // already i16 → no-op
             CHECK(t.recordedSamples() >= n, "re-selecting the current depth keeps the take");
         }

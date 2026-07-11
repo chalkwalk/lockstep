@@ -3946,14 +3946,20 @@ namespace lockstep
                 if (auto* tm = dynamic_cast<TapeMachine*>(wm))
                     withQuiescedEngine([&] { tm->setMediumSeconds(static_cast<double>(value)); });
             }
-            // §40.10: switching the reel's sample depth reallocates its backing (and
-            // discards the take, like a length change). Quiesced, only on a change.
+            // §40.10: switching the reel's sample depth reallocates its backing but
+            // CONVERTS the take in place (Stage 1b — no longer discards). Quiesced,
+            // only on a change; a lossy down-convert warns via tapeDepthWarn_.
             else if (pickedId == "medium_depth")
             {
                 // Stage 1: param 0 = 16i, 1 = 32f; setMediumDepth keeps its 1==i16 arg.
                 if (auto* tm = dynamic_cast<TapeMachine*>(wm))
                 {
                     const bool wantI16 = std::lround(value) == 0;
+                    // Stage 1b: a lossy down-convert of a recorded reel warns the user
+                    // (the conversion is non-destructive, so this is a notice, not a
+                    // block). The editor picks it up on its next tick.
+                    if (wantI16 && ! tm->depthI16() && tm->recordedSamples() > 0)
+                        tapeDepthWarn_.store(true, std::memory_order_relaxed);
                     withQuiescedEngine([&] { tm->setMediumDepth(wantI16 ? 1 : 0); });
                 }
             }

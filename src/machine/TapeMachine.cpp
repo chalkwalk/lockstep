@@ -79,10 +79,29 @@ namespace lockstep
     {
         const bool i16 = depth != 0;
         if (i16 == depthI16_) return;   // no change → keep the take
+
+        // Stage 1b: changing depth CONVERTS the reel in place — it no longer wipes.
+        // Snapshot the recorded content, reallocate at the new depth, write it back
+        // (32f→16i quantizes once; 16i→32f is lossless). Calibration is a musical-
+        // addressing property, independent of stock, so it survives the swap.
+        const int recorded = recordedSamples();
+        juce::AudioBuffer<float> snapshot;
+        if (recorded > 0)
+        {
+            snapshot.setSize(2, recorded, false, false, false);
+            copyReelTo(snapshot, recorded);     // depth-transparent read of the old reel
+        }
+
         depthI16_ = i16;
-        // Swapping tape stock discards the recording (like Clear) and its calibration.
-        allocateReel();
-        calSamplesPerPpq_ = 0.0;
+        allocateReel();                         // fresh stores at the new depth (used → 0)
+
+        if (recorded > 0)
+        {
+            medium_.ensureCommitted(0, recorded);
+            for (int ch = 0; ch < 2; ++ch)
+                for (int i = 0; i < recorded; ++i)
+                    medium_.write(0, ch, i, snapshot.getSample(ch, i));  // depth-transparent
+        }
     }
 
     void TapeMachine::allocateReel()
