@@ -160,6 +160,7 @@ target_sources(Lockstep
         ui/InspectorModel.cpp
         ui/TimelineModel.cpp
         ui/InspectorBar.cpp
+        ui/TimelineStrip.cpp
         ui/InPluginTransport.cpp
         ui/ManipulationZone.cpp
         ui/SamplePoolOverlay.cpp

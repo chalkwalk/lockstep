@@ -430,6 +430,7 @@ namespace lockstep
         tempoReadout_.setInterceptsMouseClicks(false, false);
         addAndMakeVisible(tempoReadout_);
         addAndMakeVisible(inspectorBar_);
+        addAndMakeVisible(timelineStrip_);
 
         if (juce::PluginHostType::getPluginLoadedAs() == juce::AudioProcessor::wrapperType_Standalone)
         {
@@ -1505,6 +1506,21 @@ namespace lockstep
         inspectorBar_.setModel(buildInspectorModel(
             uiState_, processor_.editContext(), processor_,
             lastFocusedButton_, lastFocusedIndex_));
+
+        // 11.5 (§40.6): the tape timeline strip. Relayout only when it appears or
+        // disappears (a tape added/removed), so it never churns the layout per tick.
+        {
+            const double barPpq = processor_.effectiveTimeSig().barPpq();
+            const double spb = processor_.clock().samplesPerPpq() * barPpq;
+            auto tm = buildTimelineModel(processor_, spb, barPpq);
+            const bool nowActive = tm.active;
+            timelineStrip_.setModel(tm);
+            if (nowActive != lastTimelineActive_)
+            {
+                lastTimelineActive_ = nowActive;
+                resized();
+            }
+        }
 
         // Controller *input* only — drain encoder/button MIDI every tick, since
         // input must be serviced even when nothing is redrawing (DESIGN §35.9.3:
@@ -6421,6 +6437,19 @@ namespace lockstep
         inspectorRow_ = bounds.removeFromTop(26);
         inspectorBar_.setBounds(inspectorRow_);
         bounds.removeFromTop(2);
+
+        // 11.5 (§40.6): the tape timeline strip sits just below the inspector, and
+        // ONLY reserves a row when a tape exists (fence #5: display-only chrome).
+        if (timelineStrip_.wantsRow())
+        {
+            timelineStrip_.setVisible(true);
+            timelineStrip_.setBounds(bounds.removeFromTop(20));
+            bounds.removeFromTop(2);
+        }
+        else
+        {
+            timelineStrip_.setVisible(false);
+        }
 
         // MHX.5: encoder band (MZ 4x2) + vertical crossfader to its right.
         static constexpr int kMZHeight = 160; // MHX 4x2 MZ (two rows of 4 slots)
