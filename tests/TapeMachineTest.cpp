@@ -186,13 +186,17 @@ namespace lockstep
         CHECK(feq(stillZero.getSample(0, 100), 0.5f),
               "and the over-run wrote nothing — the first take is intact, not wrapped over");
 
-        // ── Stop detaches from the timeline ──────────────────────────────────
-        tape.applyVerb(2);  // PlayStop → Stopped
-        auto silent = tapeBlock(tape, 0.0, n, 0.0f, kSr);
-        CHECK(feq(silent.getSample(0, 100), 0.0f), "a stopped tape plays nothing");
-        tape.applyVerb(2);  // resume
-        auto resumed = tapeBlock(tape, 0.0, n, 0.0f, kSr);
-        CHECK(feq(resumed.getSample(0, 100), 0.5f), "resuming plays the reel again");
+        // ── Stage 4: the tape follows the main transport (no separate Stop) ─────
+        // A parked (not-running) transport plays nothing; a running one chases.
+        {
+            TransportInfo tr; tr.sampleRate = kSr; tr.running = false; tape.setTransport(tr);
+            juce::AudioBuffer<float> b(2, n);
+            for (int ch = 0; ch < 2; ++ch) for (int i = 0; i < n; ++i) b.setSample(ch, i, 0.0f);
+            juce::MidiBuffer none; ParamFrame pf{ 1.0f, 0.0f, 0.0f }; tape.process(none, pf, b);
+            CHECK(feq(b.getSample(0, 100), 0.0f), "a parked transport plays nothing");
+        }
+        auto resumed = tapeBlock(tape, 0.0, n, 0.0f, kSr);  // running=true → chase
+        CHECK(feq(resumed.getSample(0, 100), 0.5f), "a running transport plays the reel again");
 
         // ── Clear wipes the reel ─────────────────────────────────────────────
         tape.applyVerb(3);
@@ -413,41 +417,52 @@ namespace lockstep
             CHECK(t.recordedSamples() >= n, "re-selecting the current depth keeps the take");
         }
 
-        // ── Scrub (§40.2): a stopped tape auditions the reel under a moving head ─
+        // ── Scrub (§40.2, Stage 4): a PARKED transport auditions the reel under a
+        // moving head. Winding is available whenever the song is stopped — no Stop
+        // button — so the scrub reads render with the transport not running.
         {
+            // Render one block with the transport PARKED at `pos` (so the scrub
+            // branch runs). Recording still uses tapeBlock (running).
+            const auto parkedBlock = [&](TapeMachine& m, double pos) {
+                TransportInfo tr; tr.sampleRate = kSr; tr.running = false;
+                tr.transportPhaseSamples = pos; m.setTransport(tr);
+                juce::AudioBuffer<float> b(2, n);
+                juce::MidiBuffer none; ParamFrame pf{ 1.0f, 0.0f, 0.0f };
+                m.process(none, pf, b);
+                return b;
+            };
+
             TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(2.0);
             // Lay 0.6 across a wide region [0, 2048) so the head has content to read.
             t.applyVerb(1);
             for (int blk = 0; blk < 4; ++blk) tapeBlock(t, blk * n, n, 0.6f, kSr);
-            t.applyVerb(1);            // punch out → Playing
-            t.applyVerb(2);            // PlayStop → Stopped (scrub-able)
+            t.applyVerb(1);            // punch out → Playing (chasing)
 
-            CHECK(! t.scrubActive(), "a stopped tape is not scrubbing until commanded");
+            parkedBlock(t, 1000);      // park the transport
+            CHECK(! t.scrubActive(), "a parked tape is not scrubbing until commanded");
 
-            // Wind forward from inside the take. The first wind block's head is still
-            // inside the content, so the wind is audible (not silent); over more
-            // blocks the head keeps advancing.
+            // Wind forward from inside the take (head ~1000, still in content).
             t.setScrubTargetRate(6.0);
-            auto wind0 = tapeBlock(t, 1000, n, 0.0f, kSr);   // head ~1000 → still in take
+            auto wind0 = parkedBlock(t, 1000);
             CHECK(t.scrubActive(), "a non-zero scrub rate is active");
             CHECK(std::abs(wind0.getSample(0, 400)) > 0.1f, "the wind auditions the reel (audible)");
-            for (int blk = 0; blk < 8; ++blk) tapeBlock(t, 1000, n, 0.0f, kSr);
+            for (int blk = 0; blk < 8; ++blk) parkedBlock(t, 1000);
             CHECK(t.scrubHeadReelPos() > 1000.0, "winding forward advanced the head");
 
-            // Reverse from a fresh stopped tape at 1500 → the head retreats.
+            // Reverse from a fresh parked tape at 1500 → the head retreats.
             TapeMachine r; r.prepare(kSr, n); r.setMediumSeconds(2.0);
             r.applyVerb(1);
             for (int blk = 0; blk < 4; ++blk) tapeBlock(r, blk * n, n, 0.6f, kSr);
-            r.applyVerb(1); r.applyVerb(2);
+            r.applyVerb(1);
             r.setScrubTargetRate(-6.0);
-            for (int blk = 0; blk < 8; ++blk) tapeBlock(r, 1500, n, 0.0f, kSr);
+            for (int blk = 0; blk < 8; ++blk) parkedBlock(r, 1500);
             CHECK(r.scrubHeadReelPos() < 1500.0, "winding backward retreated the head");
 
             // Clamp at the leader: reverse from near 0 stops at 0, never negative.
             TapeMachine c; c.prepare(kSr, n); c.setMediumSeconds(2.0);
-            c.applyVerb(1); tapeBlock(c, 0.0, n, 0.6f, kSr); c.applyVerb(1); c.applyVerb(2);
+            c.applyVerb(1); tapeBlock(c, 0.0, n, 0.6f, kSr); c.applyVerb(1);
             c.setScrubTargetRate(-6.0);
-            for (int blk = 0; blk < 20; ++blk) tapeBlock(c, 50, n, 0.0f, kSr);
+            for (int blk = 0; blk < 20; ++blk) parkedBlock(c, 50);
             CHECK(c.scrubHeadReelPos() >= 0.0, "winding backward clamps at the leader (>= 0)");
 
             // Jog (encoder rock): a one-shot nudge moves the head and then COASTS to
@@ -455,16 +470,15 @@ namespace lockstep
             TapeMachine j; j.prepare(kSr, n); j.setMediumSeconds(2.0);
             j.applyVerb(1);
             for (int blk = 0; blk < 4; ++blk) tapeBlock(j, blk * n, n, 0.6f, kSr);
-            j.applyVerb(1); j.applyVerb(2);
-            tapeBlock(j, 1000, n, 0.0f, kSr);          // seed the head at 1000
+            j.applyVerb(1);
+            parkedBlock(j, 1000);          // seed the head at 1000
             const double h0 = j.scrubHeadReelPos();
-            j.nudgeScrub(800.0);                        // one forward jog impulse
-            tapeBlock(j, 1000, n, 0.0f, kSr);
+            j.nudgeScrub(800.0);           // one forward jog impulse
+            parkedBlock(j, 1000);
             const double h1 = j.scrubHeadReelPos();
             CHECK(h1 > h0 + 1.0, "a jog nudge moves the head forward");
-            // With no further nudges the velocity decays; over the next blocks the
-            // head keeps drifting but eventually settles (scrub goes inactive).
-            for (int blk = 0; blk < 40; ++blk) tapeBlock(j, 1000, n, 0.0f, kSr);
+            // With no further nudges the velocity decays; the head settles (inactive).
+            for (int blk = 0; blk < 40; ++blk) parkedBlock(j, 1000);
             CHECK(! j.scrubActive(), "the jog coasts to rest (scrub goes inactive)");
         }
     }

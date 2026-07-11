@@ -1295,24 +1295,23 @@ namespace lockstep
             else if (activeLayer == SurfaceLayer::MachineConsole
                      && proc.isTapeTrack(activeTrack))
             {
-                // 11.4 (§40.5): the Tape console — transport on the top row, markers
-                // on the bottom. State-lit off tapeState (dc::DeckState int:
-                // 0 Idle, 1 Recording, 2 Playing, 4 Stopped).
+                // 11.4 (§40.5): the Tape console — punch + markers. Stage 4: the Tape
+                // follows the MAIN transport, so there is no Play/Stop (cells 1/2 are
+                // retired); winding is available whenever the song is parked. State-lit
+                // off tapeState (1 = Recording).
                 const int st = proc.tapeState(activeTrack);
-                const bool rec = (st == 1), stop = (st == 4);
+                const bool rec = (st == 1);
                 // §40.2: the hold-to-wind cells exist only when the transport is
                 // windable (standalone / not host-locked) — suppressed, not
                 // half-working, when the host owns the playhead.
                 const bool windable = proc.transportWindable();
                 const char* kLabel[16] = {  // NOLINT(*-avoid-c-arrays) — mutable, int-indexed
-                    "REC", "PLAY", "STOP", "CLEAR", "UNDO", "", "", "",
+                    "REC", "", "", "CLEAR", "UNDO", "", "", "",
                     "DROP", "|<", "CUE", ">|", "", "", "", ""
                 };
                 std::array<CellState, 16> tok;
                 tok.fill(CellState::TapeConIdle);
                 tok[0] = rec ? CellState::TapeConRecActive : CellState::TapeConRec;
-                tok[1] = CellState::TapeConPlay;
-                tok[2] = stop ? CellState::TapeConStop : CellState::TapeConIdle;
                 tok[3] = CellState::TapeConClear;
                 tok[4] = proc.tapeCanUndo(activeTrack) ? CellState::TapeConUndo : CellState::TapeConIdle;
                 tok[8] = CellState::TapeConDrop;

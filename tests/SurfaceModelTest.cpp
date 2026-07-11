@@ -589,8 +589,9 @@ namespace lockstep
         const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
                                          GridDisplayMode::Ortholinear);
         CHECK(m.step[0].primary == "REC",   "tape console cell 0 = REC");
-        CHECK(m.step[1].primary == "PLAY",  "cell 1 = PLAY");
-        CHECK(m.step[2].primary == "STOP",  "cell 2 = STOP");
+        // Stage 4: cells 1/2 (PLAY/STOP) retired — the Tape follows the main transport.
+        CHECK(m.step[1].primary == "",      "cell 1 blank (no separate Play)");
+        CHECK(m.step[2].primary == "",      "cell 2 blank (no separate Stop)");
         CHECK(m.step[3].primary == "CLEAR", "cell 3 = CLEAR");
         CHECK(m.step[8].primary == "DROP",  "cell 8 = DROP marker");
         CHECK(m.step[10].primary == "CUE",  "cell 10 = CUE");

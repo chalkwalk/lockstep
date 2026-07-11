@@ -6936,6 +6936,15 @@ mutes, kits, and P-locks are *state*, and state does not travel with position
 song sounded like there" — only what the tape sounded like there). Pending
 launch edges re-derive against the new position's grid.
 
+**The Tape has no transport of its own (Stage 4).** It follows the song
+transport, full stop — there is no tape Play/Stop button, because a second
+per-deck transport is exactly the rival authority §25 forbids. When the song
+plays, the reel chases; when the song is parked, the head **detaches** and is
+available to **scrub/wind** (the jog and the `<< / >>` cells work whenever the
+song is stopped, not behind a mode). A parked, un-scrubbed reel is silent — it
+does not re-read its frozen head. On release, the reel is truth: the transport
+locates to where you wound it, so play resumes from the point your ear found.
+
 **The Tape is chase-locked to musical time.** The organizing lens is a studio
 **master reel-to-reel at the centre of the split-desk console** — Looper is
 performative, the 4-track is a multitrack recording flow, and the Tape is the

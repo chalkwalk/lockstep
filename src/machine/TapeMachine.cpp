@@ -191,10 +191,9 @@ namespace lockstep
                     haveUndo_ = false;
                 }
                 break;
-            case 2:  // PlayStop
-                deck_.setState(deck_.state() == dc::DeckState::Stopped
-                                   ? dc::DeckState::Playing : dc::DeckState::Stopped);
-                break;
+            // Stage 4: verb 2 (PlayStop) retired — the Tape follows the main
+            // transport, so there is no separate tape Play/Stop. Winding is available
+            // whenever the song is parked (handled in process()).
             case 3:  // Clear — wipe the reel
                 medium_.resetAllUsed();
                 haveUndo_ = false;
@@ -267,11 +266,15 @@ namespace lockstep
             ? static_cast<int>(std::lround(params[kSlotMonitor])) : 0;
 
         const bool recording = deck_.state() == dc::DeckState::Recording;
-        const bool stopped = deck_.state() == dc::DeckState::Stopped;
 
-        // Stopped detaches from the transport (§40.2). It either scrubs — auditioning
-        // the reel under a moving head, no writes — or plays nothing.
-        if (stopped)
+        // Stage 4: the Tape follows the MAIN transport — there is no separate tape
+        // Play/Stop. When the transport is parked (not running) and we are not
+        // recording, the head detaches (§40.2): it scrubs if there is scrub/jog
+        // input, else idles (Mon live-thru passes; no reel read = no frozen buzz).
+        // Winding is therefore available whenever the song is stopped, not behind a
+        // button. A running transport chases; the reel is truth on release.
+        const bool parked = ! recording && ! transport_.running;
+        if (parked)
         {
             const double target = scrubTarget_.load(std::memory_order_relaxed);
             jogVel_ += jogPending_.exchange(0.0, std::memory_order_relaxed);  // drain jog
@@ -281,8 +284,7 @@ namespace lockstep
 
             if (! scrubbing_)
             {
-                for (int ch = 0; ch < outChans; ++ch)
-                    for (int i = 0; i < numSamples; ++i) buffer.setSample(ch, i, 0.0f);
+                if (monMode != 1) buffer.clear();  // Mon On passes live-thru; else silence
                 scrubHeadReel_.store(reelPosAtBlockStart(), std::memory_order_relaxed);
                 return;
             }
@@ -310,16 +312,8 @@ namespace lockstep
             return;
         }
 
-        // Stage 2: the reel chases the transport, so a stopped transport freezes the
-        // head — reading it every block replays the same tiny slice (the "tiny loop"
-        // buzz). When we are not recording and the transport is not running, do not
-        // read the reel: pass live-thru if Mon is On, else silence. (The Stopped
-        // scrub branch above owns audition-while-parked.)
-        if (! recording && ! transport_.running)
-        {
-            if (monMode != 1) buffer.clear();  // Mon On leaves the input as thru
-            return;
-        }
+        // (The parked branch above owns the stopped-transport case — scrub or idle —
+        // so reaching here means the transport is running or we are recording.)
 
         // §40.2 chase-lock. Calibration latches from the current tempo at the FIRST
         // record onto a still-uncalibrated reel; from then on the reel is addressed

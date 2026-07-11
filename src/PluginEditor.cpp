@@ -4349,7 +4349,8 @@ namespace lockstep
                             switch (ev.index)
                             {
                                 case 0: processor_.tapeApplyVerb(mct, 1); break;  // REC/punch
-                                case 1: case 2: processor_.tapeApplyVerb(mct, 2); break;  // PLAY/STOP
+                                // Stage 4: cells 1/2 (PLAY/STOP) retired — the Tape
+                                // follows the main transport, no separate Play/Stop.
                                 case 3: processor_.tapeApplyVerb(mct, 3); break;  // CLEAR
                                 case 4: processor_.tapeApplyVerb(mct, 4); break;  // UNDO
                                 case 8: processor_.dropTapeMarker(mct); break;    // DROP
