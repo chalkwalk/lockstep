@@ -471,6 +471,13 @@ namespace lockstep
         return s->isVolatile ? s->volatileCapacity : 0;
     }
 
+    void SamplePool::setTakeGroup(int index, std::uint32_t groupId, int member)
+    {
+        if (index < 0 || index >= static_cast<int>(samples_.size())) return;
+        samples_[static_cast<std::size_t>(index)]->takeGroupId = groupId;
+        samples_[static_cast<std::size_t>(index)]->takeMember = member;
+    }
+
     void SamplePool::setSourceBars(int index, double bars)
     {
         if (index < 0 || index >= static_cast<int>(samples_.size()))

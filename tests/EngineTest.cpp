@@ -438,6 +438,58 @@ namespace lockstep
         }
     }
 
+    // §40.7: promoting a 4-sub-track Loop take writes N sub-track WAVs + a downmix,
+    // all linked by one take-group id. The members are ordinary File pool citizens.
+    static void testDeckTakeGroupPromote()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+        p.setTrackMachine(0, LoopMachine::kMachineId);
+        p.setTrackLength(0, 4);
+        p.setTrackSubdivision(0, indexFromParts(DivBase::D1_64, DivFlavour::Straight));
+        p.writeParam(0, p.slotForId(0, "loop_sync"), 2.0f);              // Sync (auto-close)
+        p.writeParam(0, p.slotForId(0, "subtrack_count"), 2.0f);        // two sub-tracks
+        h.renderBlocks(1);
+
+        p.sendLooperCommand(0, static_cast<int>(LoopMachine::Cmd::RecordCycle), true);
+        for (int b = 0; b < 40 && p.looperState(0) != static_cast<int>(LoopMachine::State::Playing); ++b)
+            h.renderBlocks(1);
+        CHECK(p.looperState(0) == static_cast<int>(LoopMachine::State::Playing),
+              "the 2-sub-track loop recorded and closed");
+
+        const int poolBefore = p.samplePool().size();
+        auto stem = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                        .getChildFile("lockstep_deck_take");
+        const int mixIdx = p.promoteDeckTake(0, stem);
+        CHECK(mixIdx >= 0, "the take promoted");
+
+        // Two sub-tracks + one downmix = three new File entries, one take-group.
+        CHECK(p.samplePool().size() == poolBefore + 3, "promote wrote 2 sub-tracks + a downmix");
+        const auto* mix = p.samplePool().get(mixIdx);
+        CHECK(mix != nullptr && !mix->isVolatile && mix->takeMember == 0,
+              "the downmix is a durable File entry, member 0");
+        const std::uint32_t group = mix ? mix->takeGroupId : 0;
+        CHECK(group != 0, "the downmix carries a take-group id");
+
+        int members = 0, subOnes = 0;
+        for (int i = 0; i < p.samplePool().size(); ++i)
+        {
+            const auto* e = p.samplePool().get(i);
+            if (e != nullptr && e->takeGroupId == group)
+            {
+                ++members;
+                if (e->takeMember >= 1) ++subOnes;
+                CHECK(!e->isVolatile, "every group member is a durable File entry");
+            }
+        }
+        CHECK(members == 3, "the group has three members (2 sub-tracks + downmix)");
+        CHECK(subOnes == 2, "and two of them are sub-tracks (member >= 1)");
+
+        for (const char* suf : { "_1", "_2", "_mix" })
+            stem.getSiblingFile(stem.getFileNameWithoutExtension()
+                                + juce::String(suf)).withFileExtension("wav").deleteFile();
+    }
+
     // §40.4: a Scene switch WHILE a Tape records auto-drops a marker on that deck,
     // so a take performed by launching scenes comes back with the launches marked.
     // A non-recording Tape gets no marker (the switch is not, itself, a mark).
@@ -4233,6 +4285,7 @@ namespace lockstep
         testTapeMarkerOnSceneSwitch();
         testTapeMediumLengthParam();
         testTapePromote();
+        testDeckTakeGroupPromote();
         testSceneLaunchGridRouting();
         testQueuedSongSwitchAtBoundary();
         testDoubleTapSongSwitchInstant();

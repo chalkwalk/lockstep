@@ -199,6 +199,9 @@ namespace lockstep
         // Deck TRACKS-page state (§40.5). Advisory (last processed block); the mute
         // and solo flags mirror their params, armed is ephemeral deck state.
         [[nodiscard]] int subTrackCount() const noexcept { return deck_.subTrackCount(); }
+        // The resolved volatile pool slot the loop records into (for promotion).
+        [[nodiscard]] int targetSlot() const noexcept { return targetSlot_; }
+        [[nodiscard]] bool subMutedFor(int sub) const noexcept { return deck_.subTrack(clampSub(sub)).muted; }
         [[nodiscard]] bool subArmed(int sub) const noexcept { return deck_.subTrack(clampSub(sub)).armed; }
         [[nodiscard]] bool subMuted(int sub) const noexcept { return deck_.subTrack(clampSub(sub)).muted; }
         [[nodiscard]] bool subSoloed(int sub) const noexcept { return deck_.subTrack(clampSub(sub)).soloed; }

@@ -72,6 +72,14 @@ namespace lockstep
         // project tempo. Volatile-only; not serialised.
         double sourceBars = 0.0;
 
+        // Take-group linkage (§40.7). When a deck take is promoted, its N
+        // sub-track WAVs and their downmix are written as separate File entries all
+        // stamped the same non-zero takeGroupId, so a picker can present them as one
+        // take. 0 = not part of a group. `takeMember` labels the entry within the
+        // group: 0 = the downmix, 1..N = sub-track N. Serialised additively.
+        std::uint32_t takeGroupId = 0;
+        int takeMember = 0;
+
         // Auto-detected tempo (BPM) of a file-loaded loop, estimated from the
         // RMS envelope at load (message thread; see dsp/TempoEstimate.h). 0 =
         // unknown / not rhythmic / too long to be a loop. A tempo-tracking
@@ -256,6 +264,11 @@ namespace lockstep
         // recorder/looper write this at capture close (audio thread); a tempo-
         // tracking Player reads it. Out-of-range / non-volatile reads return 0.
         void setSourceBars(int index, double bars);
+        // Stamp a pool entry as a member of a take-group (§40.7).
+        void setTakeGroup(int index, std::uint32_t groupId, int member);
+        // A fresh, session-unique take-group id (monotonic; not serialised — the id
+        // is a link, re-derived on load from the stamped values).
+        std::uint32_t nextTakeGroupId() noexcept { return ++takeGroupSeq_; }
         double sourceBars(int index) const;
 
         // W3a: tag a volatile entry with the capture kind that wrote it (Record /
@@ -364,6 +377,7 @@ namespace lockstep
 
         juce::AudioFormatManager formatManager_;
         std::vector<std::unique_ptr<Sample>> samples_;
+        std::uint32_t takeGroupSeq_ = 0;   // §40.7 take-group id source (session-local)
         // The natural capture width prepareVolatile was prepared with (the default
         // a capture inherits). Slots are allocated wider — kMaxDeckChannels — for a
         // four-sub-track deck, but a stereo-prepared bank captures stereo (§40.3).

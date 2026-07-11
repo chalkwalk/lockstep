@@ -257,6 +257,12 @@ namespace lockstep
         // the recorded extent of the reel and loads it as a durable File entry.
         // Returns the new pool index, or -1 on failure / empty reel.
         int promoteTape(int track, const juce::File& dest);
+        // Promote a 4-sub-track Loop take (§40.7): write one 2ch WAV per non-empty
+        // sub-track plus a materialised stereo downmix, all loaded as File entries
+        // linked by one take-group id. Returns the downmix pool index, or -1.
+        int promoteDeckTake(int track, const juce::File& destStem);
+        int writeWavAndLoad(const juce::AudioBuffer<float>& buf, int firstChan,
+                            int numChan, int len, double sr, const juce::File& dest);
         // Timeline-strip data (§40.6). All in samples; -1 / 0 when not a tape.
         [[nodiscard]] int tapeReelCapacity(int track) const;      // reel length, samples
         [[nodiscard]] double tapePosition(int track) const;       // playhead, samples

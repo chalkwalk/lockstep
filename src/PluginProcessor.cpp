@@ -5597,6 +5597,83 @@ namespace lockstep
         return samplePool_.relink(index, newPath);
     }
 
+    // Write a buffer's first `len` frames (up to 2 channels) to a 32-bit float WAV
+    // and load it back as a durable pool File entry. Shared by every promote path.
+    int LockstepProcessor::writeWavAndLoad(const juce::AudioBuffer<float>& buf,
+                                           int firstChan, int numChan, int len,
+                                           double sr, const juce::File& dest)
+    {
+        const int chans = std::min(2, numChan);
+        if (chans <= 0 || len <= 0 || sr <= 0.0) return -1;
+
+        juce::File out = dest.withFileExtension("wav");
+        out.deleteFile();
+        juce::WavAudioFormat fmt;
+        std::unique_ptr<juce::OutputStream> os(out.createOutputStream());
+        if (os == nullptr) return -1;
+        const auto options = juce::AudioFormatWriterOptions{}
+                                 .withSampleRate(sr)
+                                 .withNumChannels(chans)
+                                 .withBitsPerSample(32)
+                                 .withSampleFormat(
+                                     juce::AudioFormatWriterOptions::SampleFormat::floatingPoint);
+        auto writer = fmt.createWriterFor(os, options);
+        if (writer == nullptr) return -1;
+        // The writer wants channel 0..chans-1; offset into the source buffer.
+        std::array<const float*, 2> ptrs{};
+        for (int c = 0; c < chans; ++c)
+            ptrs[static_cast<std::size_t>(c)] = buf.getReadPointer(firstChan + c);
+        writer->writeFromFloatArrays(ptrs.data(), chans, len);
+        writer.reset();
+        return samplePool_.load(out.getFullPathName());
+    }
+
+    int LockstepProcessor::promoteDeckTake(int track, const juce::File& destStem)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
+        auto* lm = dynamic_cast<LoopMachine*>(machines_[static_cast<std::size_t>(track)].get());
+        if (lm == nullptr) return -1;
+        const int slot = lm->targetSlot();
+        const auto* s = samplePool_.get(slot);
+        if (s == nullptr || !s->isVolatile || s->pcm.getNumSamples() <= 0) return -1;
+        const int len = s->pcm.getNumSamples();
+        const double sr = s->sampleRate > 0.0 ? s->sampleRate : getSampleRate();
+        const int subCount = lm->subTrackCount();
+        const int haveChans = s->pcm.getNumChannels();
+
+        const std::uint32_t group = samplePool_.nextTakeGroupId();
+
+        // One 2ch WAV per non-empty sub-track (channel-pair k), member = k+1.
+        for (int k = 0; k < subCount; ++k)
+        {
+            const int firstCh = 2 * k;
+            if (firstCh + 1 >= haveChans) break;
+            const int idx = writeWavAndLoad(s->pcm, firstCh, 2, len, sr,
+                                             destStem.getSiblingFile(
+                                                 destStem.getFileNameWithoutExtension()
+                                                 + "_" + juce::String(k + 1)));
+            if (idx >= 0) samplePool_.setTakeGroup(idx, group, k + 1);
+        }
+
+        // Materialised stereo downmix: sum the non-muted sub-tracks' pairs. A
+        // simple unity sum — what a promote should capture is the take, and per-
+        // sub-track level/pan sculpting is re-applied by whoever loads the members.
+        juce::AudioBuffer<float> mix(2, len);
+        mix.clear();
+        for (int k = 0; k < subCount; ++k)
+        {
+            const int firstCh = 2 * k;
+            if (firstCh + 1 >= haveChans || lm->subMutedFor(k)) continue;
+            for (int c = 0; c < 2; ++c)
+                mix.addFrom(c, 0, s->pcm, firstCh + c, 0, len);
+        }
+        const int mixIdx = writeWavAndLoad(mix, 0, 2, len, sr,
+                                           destStem.getSiblingFile(
+                                               destStem.getFileNameWithoutExtension() + "_mix"));
+        if (mixIdx >= 0) samplePool_.setTakeGroup(mixIdx, group, 0);
+        return mixIdx;
+    }
+
     int LockstepProcessor::promoteTape(int track, const juce::File& dest)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
