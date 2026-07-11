@@ -247,6 +247,11 @@ namespace lockstep
         CaptureController captureController_;
         bool   captureCellHeld_ = false;        // CAPTURE cell physically down
         bool   captureLongPressFired_ = false;  // long-press already serviced this hold
+        // S4: looper console cell 0 (REC/DUB) — tap is the record verb (double-tap
+        // = now), a long hold is momentary punch-replace. Deferred to key-up.
+        int    looperReplaceTrack_ = -1;        // track whose cell 0 is held (-1 = none)
+        bool   looperReplaceFired_ = false;     // punch-replace engaged this hold
+        bool   looperReplaceWasDouble_ = false; // double-tap captured at key-down
         bool   recordResetHeld_ = false;        // bare Record down: hold = transport reset
         bool   recordResetFired_ = false;       // reset already serviced this hold (timer path)
         double captureStartMs_ = 0.0;           // for the REC elapsed timer

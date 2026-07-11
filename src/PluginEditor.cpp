@@ -1301,6 +1301,16 @@ namespace lockstep
                 processor_.transportStopReset();
                 setStatus(status::transportReset());
             }
+            // S4: looper console REC/DUB cell held past the long-press threshold →
+            // engage momentary punch-replace (fires while held; ended on release).
+            if (looperReplaceTrack_ >= 0 && !looperReplaceFired_
+                && gesture_.longPressElapsed(kLooperReplaceToken, nowMs))
+            {
+                looperReplaceFired_ = true;
+                processor_.sendLooperPerf(looperReplaceTrack_, 12 /*ReplacePunch*/, true);
+                setStatus(juce::String("Loop: punch-replace"));
+                refreshSurface();
+            }
             const float capPeak = std::max(processor_.masterPeak(), processor_.masterPeakR());
             const bool capPlaying = processor_.clock().inPluginPlaying();
             const auto prevPhase = captureController_.phase();
@@ -4181,9 +4191,15 @@ namespace lockstep
                         const double nowMs = juce::Time::getMillisecondCounterHiRes();
                         switch (ev.index)
                         {
-                            case 0:  // REC — start / punch-out / overdub cycle (2-tap=now)
-                                routeLooperVerb(1 /*RecordCycle*/,
-                                                gesture_.doubleTap(kLooperRecordToken, nowMs));
+                            case 0:  // REC/DUB — tap = record verb (2-tap=now);
+                                     // long hold = momentary punch-replace (S4).
+                                // Defer the verb to key-up so the same cell can hold.
+                                // Evaluate the double-tap at DOWN (records this press
+                                // for the next), and arm the long-press.
+                                looperReplaceWasDouble_ = gesture_.doubleTap(kLooperRecordToken, nowMs);
+                                gesture_.armLongPress(kLooperReplaceToken, nowMs);
+                                looperReplaceTrack_ = trk;
+                                looperReplaceFired_ = false;
                                 break;
                             case 1:  // PLAY — only from Stopped (toggle is state-aware)
                                 if (st == 4)
@@ -5940,6 +5956,27 @@ namespace lockstep
                 // long-press = remove). Sticky picker path (funcFxHeld / master).
                 if (fxPickerStepUp(ev.index))
                     break;
+
+                // S4: looper console cell 0 (REC/DUB) resolves on release — a long
+                // hold was punch-replace (end it now); a short tap is the record verb
+                // (double-tap captured at key-down = record/punch now). Always fires
+                // on release so a replace can never stick.
+                if (ev.index == 0 && looperReplaceTrack_ >= 0)
+                {
+                    const int trk = looperReplaceTrack_;
+                    looperReplaceTrack_ = -1;
+                    if (looperReplaceFired_)
+                    {
+                        processor_.sendLooperPerf(trk, 12 /*ReplacePunch*/, false);
+                        looperReplaceFired_ = false;
+                    }
+                    else if (processor_.isLooperTrack(trk))
+                    {
+                        routeLooperVerb(1 /*RecordCycle*/, looperReplaceWasDouble_);
+                    }
+                    refreshSurface();
+                    break;
+                }
 
                 // S5/S6: looper performance cells are momentary — a step-release on a
                 // console cell (8-11 beat-repeat, 12-15 tape FX) must always end the

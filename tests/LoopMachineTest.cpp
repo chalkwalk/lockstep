@@ -1148,5 +1148,53 @@ namespace lockstep
                 CHECK(feq(pcm->getSample(4, 100), 0.5f, 1e-3f), "default arm: sub 2 untouched");
             }
         }
+
+        // S4: momentary punch-replace. While held it erases the committed loop A
+        // under the head and writes the live input in its place — a REPLACE, not an
+        // add (0.5 → 0.2, never 0.7). Whole-deck undo restores the original.
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LoopMachine lp(p); lp.prepare(kSr, 512);
+            TransportInfo tr; tr.samplesPerBar = 512.0; tr.running = true;
+            lp.setTransport(tr);
+
+            // Record a 512-sample loop of constant 0.5 (Free mode), close to Playing.
+            {
+                juce::AudioBuffer<float> b(2, 512);
+                for (int ch = 0; ch < 2; ++ch)
+                    for (int i = 0; i < 512; ++i) b.setSample(ch, i, 0.5f);
+                lp.postCommand(Cmd::RecordCycle);
+                juce::MidiBuffer midi; ParamFrame pr{ 1.0f, 0.0f, 0.0f };  // Ext, buf0, Free
+                lp.process(midi, pr, b);
+            }
+            runBlock(lp, 1, 0.0f, Cmd::RecordCycle);  // close → Playing
+            CHECK(lp.state() == State::Playing, "punch: loop closed to Playing");
+
+            auto* s = p.get(p.nthVolatileIndex(0));
+            CHECK(s != nullptr && feq(s->pcm.getSample(0, 100), 0.5f, 1e-2f),
+                  "punch: committed loop A is 0.5 before replace");
+
+            // Engage replace, feed 0.2 across a full loop, release, let the fold land.
+            lp.postPerf(Cmd::ReplacePunch, true);
+            {
+                juce::AudioBuffer<float> b(2, 512);
+                for (int ch = 0; ch < 2; ++ch)
+                    for (int i = 0; i < 512; ++i) b.setSample(ch, i, 0.2f);
+                juce::MidiBuffer midi; ParamFrame pr{ 1.0f, 0.0f, 0.0f };
+                lp.process(midi, pr, b);
+            }
+            lp.postPerf(Cmd::ReplacePunch, false);
+            runBlock(lp, 1, 0.0f);  // block-start fold folds B into the erased A
+
+            CHECK(feq(s->pcm.getSample(0, 100), 0.2f, 2e-2f),
+                  "punch: A was replaced by the live input (not summed to 0.7)");
+
+            // Whole-deck undo restores the pre-replace take.
+            lp.postCommand(Cmd::Undo);
+            runBlock(lp, 1, 0.0f);
+            CHECK(feq(s->pcm.getSample(0, 100), 0.5f, 1e-2f),
+                  "punch: undo restored the original 0.5");
+        }
     }
 }

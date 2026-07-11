@@ -219,6 +219,7 @@ namespace lockstep
         tapeMult_ = 1.0;
         wowPhase_ = 0.0;
         wowDepth_ = 0.0;
+        replacing_ = false;
         dropOverdubLayer();
         stateMirror_.store(static_cast<int>(deck_.state()), std::memory_order_release);
     }
@@ -559,7 +560,8 @@ namespace lockstep
                 case Cmd::TapeStop:
                 case Cmd::Dip:
                 case Cmd::HalfSpeed:
-                case Cmd::Reverse:     break;
+                case Cmd::Reverse:
+                case Cmd::ReplacePunch: break;  // momentary — never the discrete path
             }
             return dc::DeckCmd::None;
         }();
@@ -607,6 +609,7 @@ namespace lockstep
             case Cmd::Dip:
             case Cmd::HalfSpeed:
             case Cmd::Reverse:
+            case Cmd::ReplacePunch:
                 break;  // momentary — driven by handlePerf, never the discrete path
         }
     }
@@ -645,7 +648,32 @@ namespace lockstep
                 if (c.pressed) startTapeFx(c.action);
                 else stopTapeFx(c.action);
                 break;
+            case Cmd::ReplacePunch:
+                if (c.pressed) startReplacePunch();
+                else stopReplacePunch();
+                break;
         }
+    }
+
+    // S4: enter momentary punch-replace. Only meaningful once a loop exists; we
+    // ride the ordinary overdub machinery (which snapshots for undo and drops a
+    // fresh layer B) and set `replacing_` so the write erases A under the head.
+    void LoopMachine::startReplacePunch()
+    {
+        if (loopLen_ <= 0) return;
+        if (deck_.state() == State::Playing)
+            applyCommand(Cmd::RecordCycle, /*immediate=*/true);  // → Overdubbing (snapshots)
+        if (deck_.state() == State::Overdubbing)
+            replacing_ = true;
+    }
+
+    void LoopMachine::stopReplacePunch()
+    {
+        if (! replacing_) return;
+        replacing_ = false;
+        // Fold the replacement in and return to Playing, exactly as ending a dub.
+        if (deck_.state() == State::Overdubbing)
+            applyCommand(Cmd::RecordCycle, /*immediate=*/true);
     }
 
     void LoopMachine::startBeatRepeat(int rateIdx)
@@ -1004,6 +1032,18 @@ namespace lockstep
                                 sharedLoopResampler().scatterAddCircular(
                                     overdubLayer_.getWritePointer(lch), loopLen_, pos,
                                     std::abs(effRate_), sin);
+                                // S4 punch-replace: erase committed A under the head
+                                // so the fold nets a replacement, not an add. Exact at
+                                // rate 1 (the scatter deposits at the integer
+                                // position); |rate| != 1 under-covers the scatter
+                                // footprint and leaves faint bleed — varispeed replace
+                                // is deferred (documented, acceptable v1).
+                                if (replacing_ && lch < target_->getNumChannels())
+                                {
+                                    int idx = static_cast<int>(std::floor(pos)) % loopLen_;
+                                    if (idx < 0) idx += loopLen_;
+                                    target_->setSample(lch, idx, 0.0f);
+                                }
                             }
                             overdubPending_ = true;
                         }

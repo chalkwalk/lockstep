@@ -119,6 +119,8 @@ namespace lockstep
     // a double-tap forces the edge instantly, overriding the sync-mode quantize (#2).
     static constexpr int kLooperRecordToken = 7100;
     static constexpr int kLooperPlayToken   = 7200;
+    // S4: long-press on the looper console REC/DUB cell = momentary punch-replace.
+    static constexpr int kLooperReplaceToken = 7400;
 
     // Hold-Record = transport reset (rewind to phrase start). Long-press on the
     // bare Record verb; the tap path keeps the ordinary record-arm/overdub.

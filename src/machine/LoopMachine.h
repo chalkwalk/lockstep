@@ -43,7 +43,8 @@ namespace lockstep
         // press/release edges: BeatRepeat (S5) loops a grid cell while held; the tape
         // family (S6) drives the playback rate envelope while held. ABI: add-only.
         enum class Cmd : int { None = 0, RecordCycle, PlayStop, Clear, Undo, Halve, Double,
-                               BeatRepeat, TapeStop, Dip, HalfSpeed, Reverse };
+                               BeatRepeat, TapeStop, Dip, HalfSpeed, Reverse,
+                               ReplacePunch /* S4: momentary hold = erase-then-write */ };
 
         // One control edge crossing the message→audio boundary. Discrete verbs use
         // pressed=true (a single edge); momentary actions carry both press and release.
@@ -305,6 +306,8 @@ namespace lockstep
         // braked to a graceful Stopped.
         void startTapeFx(Cmd fx);
         void stopTapeFx(Cmd fx);
+        void startReplacePunch();  // S4: momentary punch-replace enter/exit
+        void stopReplacePunch();
         // Begin a fresh recording take: (re)size + clear the slot, reset positions,
         // arm the N-bar auto-close. Shared by the immediate and boundary-fired paths.
         void startRecording();
@@ -416,6 +419,12 @@ namespace lockstep
         // here add-only; folded into the committed loop A once per iteration).
         juce::AudioBuffer<float> overdubLayer_;
         bool overdubPending_ = false;  // B holds uncommitted overdub content
+        // S4: momentary punch-REPLACE. While held, the overdub write also erases
+        // the committed loop A under the head (armed subs), so the fold nets a
+        // replacement rather than an add. Message-thread write / audio-thread read;
+        // a plain bool like brActive_ (benign single-word race). v1 is exact at
+        // rate 1; varispeed replace is deferred (documented in the write loop).
+        bool replacing_ = false;
 
         // Lock-free SPSC command FIFO (message → audio). Capacity is generous: at most
         // a handful of edges per block (one gesture), drained fully each process().

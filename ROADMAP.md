@@ -3009,8 +3009,9 @@ Docs land first per item; commit + tests per work item.
 - [x] **S3 — Four stereo external inputs.** Ext1–4 buses (In 2–4 disabled by default);
       `input_source` encoding append-only (19–21 = Ext2–4, legacy `Ext`=1 → Ext1).
       Per-bus capture into `inputCapture_` channel-pairs; per-sub selectable.
-- [ ] **S4 — Loop record model.** ARM gates every write (Rec and Dub alike); SRC-assign
-      auto-arms / None disarms; contextual REC/DUB label; hold REC/DUB = punch-replace.
+- [x] **S4 — Loop record model.** ARM gates every write (Rec and Dub alike); SRC-assign
+      auto-arms / None disarms; contextual REC/DUB label; hold REC/DUB = punch-replace
+      (momentary erase-then-write on armed subs, exact at rate 1; undo covers it).
 - [ ] **S5 — Retroactive double-tap.** Durable-span edges retro-stamp to tap 1; ephemeral
       verbs act at tap 2. Loop and Tape.
 - [ ] **S6 — Stretch research spike.** Cheap PV vs Bungee vs varispeed baseline for
