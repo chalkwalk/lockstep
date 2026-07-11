@@ -244,10 +244,12 @@ Phrase ──trigs──▶ Machine ──▶ Foundation (FILTER → AMP) ──
   its feeders audible (you hear what flows in), and soloing a feeder keeps
   its downstream bus chain audible (so it still reaches master).
 - **Audio input** — a machine can *consume* audio instead of synthesising
-  it, via an `input_source` tap: `None`, `External` (the plugin/device
-  input), or `Master` (the prior block's master sum, for whole-mix
-  resampling). The **Route** machine is the pure router — it adds nothing,
-  just passes its input (External, or the bus sum routed to it) through
+  it, via an `input_source` tap: `None`, `Ext1`–`Ext4` (four stereo
+  plugin/device input buses), or `Master` (the prior block's master sum,
+  for whole-mix resampling). Only the first input bus (`In`) is enabled by
+  default; enable `In 2`–`In 4` in the host to feed `Ext2`–`Ext4`. The
+  **Route** machine is the pure router — it adds nothing,
+  just passes its input (an external bus, or the bus sum routed to it) through
   the canonical FILTER/AMP/FX. A fresh Route defaults to `None`, so it is
   a silent sub-bus until you route audio in or pick a source. The source
   rotary omits any selection that would feed back (e.g. `Master` on a

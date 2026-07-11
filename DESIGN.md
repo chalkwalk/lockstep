@@ -4093,9 +4093,21 @@ controls together describe the routing graph:
    | Source | Meaning |
    |---|---|
    | **None** | Default. The machine synthesises into an empty buffer (every synth/sampler). |
-   | **External** | The plugin's audio input bus (sidechain / standalone device input). |
+   | **Ext1–Ext4** | One of four stereo audio input buses (sidechain / standalone device input). |
    | **Master** | The plugin's master sum (prior block — see below). |
    | **Track N** | A read-only **post-chain tap** of track `N` (the *fork*, below). |
+
+   **External is four buses, not one.** The plugin declares four stereo
+   input buses (`In`, `In 2`, `In 3`, `In 4`); the `input_source` enum
+   labels them `Ext1..Ext4`. Only `In` is enabled by default — the extra
+   three are declared DISABLED so a host opts in (matching the §31.1 output
+   complement discipline). The value encoding is **append-only**: legacy
+   `External` = 1 stays `Ext1`; `Ext2..Ext4` were appended past the Track
+   range (19–21), so every stored `input_source` keeps its meaning across
+   the upgrade. In standalone, JUCE maps device channels across *enabled*
+   buses in order, so a single stereo device fills `Ext1` and the rest stay
+   silent until the user enables and patches more. A disabled bus reads as
+   silence — selecting `Ext3` when `In 3` is off is legal and quiet.
 
    **Tap-fork.** `Track N` is a separate edge class from the output
    destination (below): it reads a *copy* of track `N`'s finished output,
