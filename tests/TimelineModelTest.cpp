@@ -14,39 +14,47 @@ namespace lockstep
 {
     void runTimelineModelTests()
     {
-        // ── No tape → the strip is inactive ──────────────────────────────────
+        // Harness runs 48 kHz / 120 BPM; barPpq 4 → samplesPerBar 96000 = a 2 s bar.
+        const double kSr = 48000.0, kSpb = 96000.0, kBarPpq = 4.0;
+
+        // ── No tape → strip is inactive but the ruler + caption still live ───
         {
             EngineHarness h;
-            const auto m = buildTimelineModel(h.processor(), 96000.0, 4.0);
-            CHECK(! m.active, "no tape → the strip hides");
+            h.renderBlocks(4);  // advance the transport
+            const auto m = buildTimelineModel(h.processor(), kSpb, kBarPpq, kSr);
+            CHECK(! m.active, "no tape → the strip is inactive (no extent/markers)");
+            CHECK(m.domainBars == 32, "no tape → the domain floors at 32 bars");
+            CHECK(m.position.isNotEmpty(), "no tape → the bars.beats caption is still driven");
+            CHECK(feq(static_cast<float>(m.secondsPerBar), 2.0f),
+                  "secondsPerBar = samplesPerBar / sampleRate (2 s at 120 BPM 4/4)");
+            CHECK(m.wallTime.isNotEmpty(), "no tape → the wall-clock caption is still driven");
+            CHECK(m.tapeEnds.empty(), "no tape → no end lugs");
         }
 
-        // ── A tape with a take → cursor, extent, markers ─────────────────────
+        // ── A tape with a take → active, extent, markers, one focused end lug ─
         {
             EngineHarness h;
             auto& proc = h.processor();
             proc.setTrackMachine(0, TapeMachine::kMachineId);
-            proc.writeParam(0, proc.slotForId(0, "medium_length"), 4.0f);  // 4 s reel
-            h.renderBlocks(1);  // apply the length
+            proc.writeParam(0, proc.slotForId(0, "medium_length"), 20.0f);  // 20 s reel
+            h.renderBlocks(1);
 
-            // Record a stretch of tape (harness input is silent; the extent still
-            // grows). Render ~1 s so the recorded high-water is well past 0.
             proc.tapeApplyVerb(0, 1);  // punch in
             for (int b = 0; b < 90; ++b) h.renderBlocks(1);
             proc.tapeApplyVerb(0, 1);  // punch out
             proc.dropTapeMarker(0);    // drop a mark at the current position
 
-            const double sr = 48000.0, spb = 96000.0, barPpq = 4.0;  // 2 s bar
-            const auto m = buildTimelineModel(proc, spb, barPpq);
+            const auto m = buildTimelineModel(proc, kSpb, kBarPpq, kSr);
             CHECK(m.active, "a tape makes the strip active");
+            CHECK(m.domainBars == 32, "a short tape keeps the 32-bar floor");
             CHECK(m.recordedExtent01 > 0.0f && m.recordedExtent01 <= 1.0f,
-                  "the recorded extent is a reel fraction");
-            CHECK(m.mediumFull01 == m.recordedExtent01, "the near-full gauge tracks the extent");
+                  "the recorded extent is a bar-domain fraction");
             CHECK(m.markers.size() == 1, "the dropped marker appears");
             CHECK(m.markers[0].pos01 >= 0.0f && m.markers[0].pos01 <= 1.0f,
-                  "the marker is placed as a reel fraction");
-            CHECK(m.position.isNotEmpty(), "the position caption is filled");
-            (void)sr;
+                  "the marker is placed as a bar-domain fraction");
+            CHECK(m.tapeEnds.size() == 1, "one tape → one end lug");
+            CHECK(m.tapeEnds[0].focused, "the sole tape is the chosen one (focused)");
+            CHECK(m.tapeEnds[0].end01 > 0.0f, "the end lug sits past the origin");
         }
 
         // ── The cursor follows the transport position ────────────────────────
@@ -54,16 +62,14 @@ namespace lockstep
             EngineHarness h;
             auto& proc = h.processor();
             proc.setTrackMachine(0, TapeMachine::kMachineId);
-            proc.writeParam(0, proc.slotForId(0, "medium_length"), 10.0f);  // 10 s = 480000
+            proc.writeParam(0, proc.slotForId(0, "medium_length"), 60.0f);
             h.renderBlocks(1);
 
-            // Drive the transport forward and read the cursor climb. Recording along
-            // the reel advances the tape position with the transport.
             proc.tapeApplyVerb(0, 1);
             for (int b = 0; b < 5; ++b) h.renderBlocks(1);
-            const auto early = buildTimelineModel(proc, 96000.0, 4.0);
+            const auto early = buildTimelineModel(proc, kSpb, kBarPpq, kSr);
             for (int b = 0; b < 200; ++b) h.renderBlocks(1);
-            const auto later = buildTimelineModel(proc, 96000.0, 4.0);
+            const auto later = buildTimelineModel(proc, kSpb, kBarPpq, kSr);
             CHECK(later.cursor01 >= early.cursor01, "the cursor advances with the transport");
             CHECK(later.recording, "while punched in, the cursor is hot (recording)");
         }

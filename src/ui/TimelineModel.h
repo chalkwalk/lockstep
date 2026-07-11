@@ -22,8 +22,18 @@ namespace lockstep
 
     struct TimelineMarker
     {
-        float pos01 = 0.0f;   // marker position as a fraction of the reel
+        float pos01 = 0.0f;   // marker position as a fraction of the bar domain
         int ordinal = 0;
+    };
+
+    // S8: the recorded end of one tape, as a fraction of the bar domain, plus
+    // whether it is the currently chosen (focused/first) tape. When several tapes
+    // exist the strip shows an end lug per tape and highlights the chosen one.
+    struct TapeEnd
+    {
+        float end01 = 0.0f;
+        int track = -1;
+        bool focused = false;
     };
 
     // §19 hardware proxy: how close the playhead is to the NEXT marker ahead, as a
@@ -41,22 +51,32 @@ namespace lockstep
 
     struct TimelineModel
     {
-        bool active = false;          // a tape exists → show the strip
-        bool recording = false;       // tape is punched in (the cursor is hot)
+        // S8: the strip is ALWAYS visible. `active` now means "a tape exists" (so
+        // the extent / markers / tape-ends are meaningful and the medium-full
+        // warning applies); the bar ruler, cursor and captions render regardless,
+        // driven by the transport so you see time advance with no tape at all.
+        bool active = false;          // a tape exists
+        bool recording = false;       // a tape is punched in (the cursor is hot)
 
-        juce::String position;        // "bars.beats" caption of the current position
-        float cursor01 = 0.0f;        // playhead as a fraction of the reel [0,1]
-        float recordedExtent01 = 0.0f;// how much of the reel holds a take [0,1]
+        juce::String position;        // "bars.beats" caption (transport-driven)
+        juce::String wallTime;        // "m:ss" wall-clock caption (transport-driven)
+        int domainBars = 32;          // strip domain in bars = max(32, longest tape, cursor)
+        double cursorBars = 0.0;      // transport position in bars
+        double secondsPerBar = 0.0;   // for the wall-clock ruler
+        float cursor01 = 0.0f;        // playhead as a fraction of the bar domain [0,1]
+        float recordedExtent01 = 0.0f;// chosen tape's take extent in the bar domain
         float mediumFull01 = 0.0f;    // used / capacity, for the near-full warning
         float chaseRatio = 1.0f;      // §40.2: reel/engine rate; !=1 = varispeed
         float markerApproach = 0.0f;  // §19: 0→1 as the playhead nears the next marker
 
-        std::vector<TimelineMarker> markers;
+        std::vector<TimelineMarker> markers;  // chosen tape, re-based to the bar domain
+        std::vector<TapeEnd> tapeEnds;        // every tape's recorded end
     };
 
-    // Build the strip from the focused (or first) tape's state. `barPpq` and
-    // `samplesPerBar` come from the live transport so the position caption reads in
-    // musical time. Pure: reads the processor, allocates only the marker vector.
-    TimelineModel buildTimelineModel(const LockstepProcessor& proc,
-                                     double samplesPerBar, double barPpq) noexcept;
+    // Build the always-on strip. `samplesPerBar`, `barPpq` and `sampleRate` come
+    // from the live transport so the bar domain, position caption and wall-clock
+    // ruler read in musical + real time — with or without a tape. Pure: reads the
+    // processor, allocates only the marker / tape-end vectors.
+    TimelineModel buildTimelineModel(const LockstepProcessor& proc, double samplesPerBar,
+                                     double barPpq, double sampleRate) noexcept;
 }

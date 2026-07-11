@@ -3019,8 +3019,9 @@ Docs land first per item; commit + tests per work item.
       transition — not a candidate.)
 - [ ] **S7 — FreeLen pitch-preserved fit.** Tempo-corrected, extend-only to the next
       launch-quant multiple; architecture shaped by S6.
-- [ ] **S8 — Permanent timeline strip.** Always visible (bar domain = max(32 bars,
-      longest tape), bar ticks + wall-clock ruler); window grows permanently.
+- [x] **S8 — Permanent timeline strip.** Always visible (bar domain = max(32 bars,
+      longest tape, cursor); bar ticks + wall-clock ruler; per-tape end lugs, chosen
+      highlighted; bars.beats + m:ss caption transport-driven). Window grows +22px.
 
 ---
 

@@ -7184,6 +7184,18 @@ interaction is the console and the jog encoder, both of which a hardware surface
 has. Built from a pure `buildTimelineModel(...)` beside `buildInspectorModel`,
 so a controller display can render it (PRINCIPLES §19, dual-target).
 
+**It is permanently on (S8), tape or not.** The window reserves a fixed row for
+it, so leaving the tape face still shows the position and recording time
+advancing. Its horizontal domain is measured in **musical bars** — `max(32
+bars, the longest tape, the current cursor)` — carrying a **bar ruler** (a tick
+per bar, numbered every fourth) and a **wall-clock ruler** (whole-time ticks
+from `secondsPerBar = samplesPerBar / sampleRate`). The caption reads the
+transport in both `bars.beats` and `m:ss`, and it is driven by the transport
+itself, so it is live with no tape at all. When tapes exist, each contributes a
+**recorded-end lug**; the chosen (focused, else first) tape is highlighted and
+supplies the extent, markers, chase ratio and medium-full warning. Everything is
+a fraction of the bar domain, so the renderer stays a dumb mapper.
+
 Its **hardware proxies** — the performable subset that must survive with no
 screen (§19) — are console-cell chrome: marker-approach (marker cell brightens
 as the cursor nears it), punch-armed (in/out cells pulse), region-active (punch

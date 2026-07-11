@@ -7,67 +7,100 @@
 
 namespace lockstep
 {
-    TimelineModel buildTimelineModel(const LockstepProcessor& proc,
-                                     double samplesPerBar, double barPpq) noexcept
+    TimelineModel buildTimelineModel(const LockstepProcessor& proc, double samplesPerBar,
+                                     double barPpq, double sampleRate) noexcept
     {
         TimelineModel m;
-        const int track = proc.firstTapeTrack();
-        if (track < 0) return m;  // no tape → strip hidden
-
-        const int cap = proc.tapeReelCapacity(track);
-        if (cap <= 0) return m;
-
-        m.active = true;
-        m.recording = proc.tapeState(track) == 1;  // dc::DeckState::Recording
-
-        const double pos = proc.tapePosition(track);
-        const double capD = static_cast<double>(cap);
         const auto clamp01 = [](double v) { return static_cast<float>(std::clamp(v, 0.0, 1.0)); };
+        m.secondsPerBar = (sampleRate > 0.0) ? samplesPerBar / sampleRate : 0.0;
 
-        m.cursor01 = clamp01(pos / capD);
-        m.recordedExtent01 = clamp01(static_cast<double>(proc.tapeRecordedSamples(track)) / capD);
-        m.mediumFull01 = m.recordedExtent01;
+        // Transport cursor in bars — the one thing that always exists, so the strip
+        // shows time advancing even with no tape. Reel position and transport are
+        // chase-locked (§40.2), so the transport bar is the tape's bar too.
+        const double ppq = proc.clock().cumulativePpq();
+        m.cursorBars = (barPpq > 0.0) ? ppq / barPpq : 0.0;
 
-        // §40.2: the reel position is musical (ppq × K), but samplesPerBar is at the
-        // CURRENT tempo. The chase ratio r = K / spp(current) reconciles them, so a
-        // bar reads as a bar under any BPM: bars = pos / (r × samplesPerBar).
-        const double ratio = proc.tapeChaseRatio(track);
+        // A bar in reel samples for tape `t` (chase-lock: ratio × samplesPerBar).
+        const auto barsOf = [&](int t, double samples) {
+            const double ratio = proc.tapeChaseRatio(t);
+            const double barSamp = (ratio > 0.0 ? ratio : 1.0) * samplesPerBar;
+            return (barSamp > 0.0) ? samples / barSamp : 0.0;
+        };
+
+        // First pass: the chosen tape + the longest recorded extent across all tapes.
+        const int chosen = proc.firstTapeTrack();
+        double longestBars = 0.0;
+        struct RawEnd { int track; double endBars; };
+        std::vector<RawEnd> ends;
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+        {
+            if (! proc.isTapeTrack(t) || proc.tapeReelCapacity(t) <= 0) continue;
+            const double endBars = barsOf(t, static_cast<double>(proc.tapeRecordedSamples(t)));
+            longestBars = std::max(longestBars, endBars);
+            ends.push_back({ t, endBars });
+            m.active = true;  // a tape exists
+        }
+
+        // Domain: max(32 bars, the longest tape, the current cursor) so both the
+        // recorded material and the playhead always stay on-strip.
+        m.domainBars = std::max({ 32,
+                                  static_cast<int>(std::ceil(longestBars)),
+                                  static_cast<int>(std::ceil(m.cursorBars)) + 1 });
+        const double domD = static_cast<double>(m.domainBars);
+
+        m.cursor01 = clamp01(m.cursorBars / domD);
+
+        // Tape-end lugs (every tape), highlighting the chosen one.
+        m.tapeEnds.reserve(ends.size());
+        for (const auto& e : ends)
+            m.tapeEnds.push_back({ clamp01(e.endBars / domD), e.track, e.track == chosen });
+
+        // Position caption (bar.beat) + wall-clock caption, both transport-driven.
+        const int bar = static_cast<int>(std::floor(m.cursorBars)) + 1;
+        const double fracBar = m.cursorBars - std::floor(m.cursorBars);
+        const int beat = (barPpq > 0.0)
+                             ? static_cast<int>(std::floor(fracBar * barPpq)) + 1 : 1;
+        m.position = juce::String(bar) + "." + juce::String(beat);
+        if (m.secondsPerBar > 0.0)
+        {
+            const double secs = m.cursorBars * m.secondsPerBar;
+            const int mins = static_cast<int>(secs) / 60;
+            const int rem = static_cast<int>(secs) % 60;
+            m.wallTime = juce::String(mins) + ":" + juce::String(rem).paddedLeft('0', 2);
+        }
+
+        if (! m.active || chosen < 0) return m;  // no tape → ruler + cursor only
+
+        // The chosen tape supplies the recorded extent, markers, and warnings.
+        m.recording = proc.tapeState(chosen) == 1;  // dc::DeckState::Recording
+        const double ratio = proc.tapeChaseRatio(chosen);
         m.chaseRatio = static_cast<float>(ratio);
+        if (std::abs(ratio - 1.0) > 1e-3)
+            m.position += " x" + juce::String(ratio, 2);
 
-        // Position caption in musical time: bar.beat (1-based bars, beats within).
-        if (samplesPerBar > 0.0 && barPpq > 0.0 && ratio > 0.0)
-        {
-            const double bars = pos / (ratio * samplesPerBar);
-            const int bar = static_cast<int>(std::floor(bars)) + 1;
-            const int beat = static_cast<int>(std::floor((bars - std::floor(bars)) * barPpq)) + 1;
-            m.position = juce::String(bar) + "." + juce::String(beat);
-            // Surface varispeed: append "×0.50" when the tempo is off calibration.
-            if (std::abs(ratio - 1.0) > 1e-3)
-                m.position += " x" + juce::String(ratio, 2);
-        }
-        else
-        {
-            m.position = juce::String(pos / 48000.0, 2) + "s";  // fallback: seconds
-        }
+        m.recordedExtent01 = clamp01(barsOf(chosen,
+                              static_cast<double>(proc.tapeRecordedSamples(chosen))) / domD);
+        const int cap = proc.tapeReelCapacity(chosen);
+        m.mediumFull01 = (cap > 0)
+            ? clamp01(static_cast<double>(proc.tapeRecordedSamples(chosen)) / cap) : 0.0f;
 
-        const int n = proc.tapeMarkerCount(track);
+        const double pos = proc.tapePosition(chosen);
+        const int n = proc.tapeMarkerCount(chosen);
         m.markers.reserve(static_cast<std::size_t>(n));
         double nextMarker = -1.0;  // nearest marker strictly ahead of the playhead
         for (int i = 0; i < n; ++i)
         {
-            const double mp = proc.tapeMarkerPosition(track, i);
+            const double mp = proc.tapeMarkerPosition(chosen, i);
             if (mp >= 0.0)
             {
-                m.markers.push_back({ clamp01(mp / capD), i });
+                m.markers.push_back({ clamp01(barsOf(chosen, mp) / domD), i });
                 if (mp > pos && (nextMarker < 0.0 || mp < nextMarker)) nextMarker = mp;
             }
         }
 
         // §19: brighten as the playhead approaches the next marker, over a one-bar
-        // window in reel samples (a musical bar is ratio × samplesPerBar under
-        // chase-lock, §40.2). Display-only; the strip and a controller render it.
-        const double windowSamples = ratio * samplesPerBar;
-        m.markerApproach = markerApproach01(pos, nextMarker, windowSamples);
+        // window in reel samples (chase-lock, §40.2). Display-only.
+        m.markerApproach = markerApproach01(pos, nextMarker, (ratio > 0.0 ? ratio : 1.0) * samplesPerBar);
         return m;
     }
 }

@@ -805,7 +805,7 @@ namespace lockstep
         keyboardArea_.setPressTracker(&pressTracker_);
 
 
-        setSize(990, 604);  // MHX: taller for 4x2 MZ encoder band; +8 for timeline nav row
+        setSize(990, 626);  // MHX 4x2 MZ band; S8: +22 permanent timeline strip row
         setWantsKeyboardFocus(true);
 
         // Controller surfaces (DESIGN §35).
@@ -1521,19 +1521,14 @@ namespace lockstep
             uiState_, processor_.editContext(), processor_,
             lastFocusedButton_, lastFocusedIndex_));
 
-        // 11.5 (§40.6): the tape timeline strip. Relayout only when it appears or
-        // disappears (a tape added/removed), so it never churns the layout per tick.
+        // S8 (§40.6): the timeline strip is ALWAYS on — its row is permanent, so no
+        // appear/disappear relayout. Rebuild the model each tick (cheap) so the
+        // cursor + captions track the transport with or without a tape.
         {
             const double barPpq = processor_.effectiveTimeSig().barPpq();
             const double spb = processor_.clock().samplesPerPpq() * barPpq;
-            auto tm = buildTimelineModel(processor_, spb, barPpq);
-            const bool nowActive = tm.active;
-            timelineStrip_.setModel(tm);
-            if (nowActive != lastTimelineActive_)
-            {
-                lastTimelineActive_ = nowActive;
-                resized();
-            }
+            timelineStrip_.setModel(
+                buildTimelineModel(processor_, spb, barPpq, processor_.getSampleRate()));
         }
 
         // Controller *input* only — drain encoder/button MIDI every tick, since
@@ -6495,18 +6490,12 @@ namespace lockstep
         inspectorBar_.setBounds(inspectorRow_);
         bounds.removeFromTop(2);
 
-        // 11.5 (§40.6): the tape timeline strip sits just below the inspector, and
-        // ONLY reserves a row when a tape exists (fence #5: display-only chrome).
-        if (timelineStrip_.wantsRow())
-        {
-            timelineStrip_.setVisible(true);
-            timelineStrip_.setBounds(bounds.removeFromTop(20));
-            bounds.removeFromTop(2);
-        }
-        else
-        {
-            timelineStrip_.setVisible(false);
-        }
+        // S8 (§40.6): the timeline strip sits just below the inspector and is now
+        // PERMANENT (display-only chrome, fence #5) — the window carries a fixed
+        // extra 22 px for it, so you can leave the tape face and still watch the
+        // recording time advance. Slightly taller than before to fit the two rulers.
+        timelineStrip_.setVisible(true);
+        timelineStrip_.setBounds(bounds.removeFromTop(22));  // matches the +22 window
 
         // MHX.5: encoder band (MZ 4x2) + vertical crossfader to its right.
         static constexpr int kMZHeight = 160; // MHX 4x2 MZ (two rows of 4 slots)

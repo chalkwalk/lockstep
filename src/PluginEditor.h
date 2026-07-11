@@ -295,8 +295,7 @@ namespace lockstep
         std::unique_ptr<StandaloneFileBar> fileBar_;
         // 9.11: inspector bar — always-on 4-region context strip.
         InspectorBar inspectorBar_;
-        TimelineStrip timelineStrip_;    // 11.5 tape timeline (§40.6)
-        bool lastTimelineActive_ = false;
+        TimelineStrip timelineStrip_;    // 11.5 tape timeline (§40.6); S8 permanent
         ControllerButton lastFocusedButton_ = ControllerButton::None;
         int lastFocusedIndex_ = -1;
         // 9.11: row bounds stored during resized() for dynamic re-use if needed.
