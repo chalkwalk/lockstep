@@ -2954,7 +2954,7 @@ existing test suite passing **unchanged**.
       inspector-class, **display-only** always-on strip (the 9.11 precedent) from a
       pure `buildTimelineModel`, with console-cell hardware proxies for the
       performable subset (§19).
-- [~] **11.6 — Take-groups + channel policy.** PARTIAL — group promote SHIPPED (N sub-track WAVs + materialised downmix, one take-group id; `promoteDeckTake`). REMAINING: the 6/5 picker rule, load-onto-sub-track + FIT (Bungee), the channel-policy helper. Promote writes per-sub-track WAVs
+- [~] **11.6 — Take-groups + channel policy.** PARTIAL — group promote SHIPPED (`promoteDeckTake`: N sub-track WAVs + downmix + take-group id). **6/5 picker rule SHIPPED** (pure `buildTakePickerRows` + sample-class picker wiring; `IMachine::isDeckClass`). REMAINING: the deck-class group *load* (coupled to load-onto-sub-track), load-onto-sub-track + FIT (Bungee), the channel-policy helper. Promote writes per-sub-track WAVs
       plus a materialized downmix, linked by a take-group id (distinct from the
       origin groups `groupOrdinal` numbers). Deck-class pickers load the group as one
       entity; sample-class pickers see the members ("up to 5 samples"). Codify the
