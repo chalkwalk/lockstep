@@ -2954,7 +2954,7 @@ existing test suite passing **unchanged**.
       inspector-class, **display-only** always-on strip (the 9.11 precedent) from a
       pure `buildTimelineModel`, with console-cell hardware proxies for the
       performable subset (§19).
-- [~] **11.6 — Take-groups + channel policy.** PARTIAL — group promote SHIPPED (`promoteDeckTake`: N sub-track WAVs + downmix + take-group id). **6/5 picker rule SHIPPED** (pure `buildTakePickerRows` + sample-class picker wiring; `IMachine::isDeckClass`). **Load-onto-sub-track + FIT SHIPPED** (`loadSampleToDeckSubTrack` / `loadTakeGroupToDeck` — the deck-class group pick loads a whole take; `fitDeckSubTrack` renders the source stretched to the window via Bungee, on `Func`+SRC). REMAINING: the channel-policy helper (retire scattered `min(2,…)` clamps). Promote writes per-sub-track WAVs
+- [x] **11.6 — Take-groups + channel policy.** SHIPPED — group promote (`promoteDeckTake`: N sub-track WAVs + downmix + take-group id); the **6/5 picker rule** (`buildTakePickerRows` + `IMachine::isDeckClass`); **load-onto-sub-track + FIT** (`loadSampleToDeckSubTrack` / `loadTakeGroupToDeck` group pick; `fitDeckSubTrack` = pitch-preserving Bungee time-stretch to the window, on `Func`+SRC); the **channel policy** (`ChannelPolicy.h` / `engineChannels()`, which also fixed two latent 4-track bugs — decay + double only touched pair 0). Promote writes per-sub-track WAVs
       plus a materialized downmix, linked by a take-group id (distinct from the
       origin groups `groupOrdinal` numbers). Deck-class pickers load the group as one
       entity; sample-class pickers see the members ("up to 5 samples"). Codify the
