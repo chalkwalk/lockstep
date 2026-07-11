@@ -253,6 +253,10 @@ namespace lockstep
         // Cue: locate the transport to a marker (nearest / prev / next). A cue is a
         // LOCATE, never a launch (§40.4). No-op if there is no such marker.
         void tapeCue(int track, int dir);   // -1 prev, 0 nearest, +1 next
+        // Promote a Tape take to a WAV in the pool (§40.8: promote-or-lose). Writes
+        // the recorded extent of the reel and loads it as a durable File entry.
+        // Returns the new pool index, or -1 on failure / empty reel.
+        int promoteTape(int track, const juce::File& dest);
         void looperToggleSubMute(int track, int sub);
         void looperToggleSubSolo(int track, int sub);
         void looperCycleSubSource(int track, int sub);  // step through the safe sources

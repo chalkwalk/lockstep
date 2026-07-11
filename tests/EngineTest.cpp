@@ -502,6 +502,41 @@ namespace lockstep
               "a scene switch does not resize an unchanged reel");
     }
 
+    // §40.8: promote a Tape take to a WAV in the pool (promote-or-lose). The reel
+    // is not a pool slot, so it has its own promote path; the result is an ordinary
+    // File entry a player can use.
+    static void testTapePromote()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        proc.setTrackMachine(0, TapeMachine::kMachineId);
+
+        const int poolBefore = proc.samplePool().size();
+
+        // Nothing recorded yet → promote refuses.
+        auto tmp = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                       .getChildFile("lockstep_tape_promote_test");
+        CHECK(proc.promoteTape(0, tmp) < 0, "an empty reel cannot be promoted");
+
+        // Record a take along the timeline. The harness input is silent, so the
+        // reel commits a silent-but-real take (recordedSamples() grows); content
+        // fidelity is covered by TapeMachineTest — here we only need a take to exist.
+        proc.tapeApplyVerb(0, 1);  // punch in
+        for (int b = 0; b < 4; ++b) h.renderBlocks(1);
+        proc.tapeApplyVerb(0, 1);  // punch out
+
+        const int idx = proc.promoteTape(0, tmp);
+        CHECK(idx >= 0, "a recorded reel promotes to a pool entry");
+        CHECK(proc.samplePool().size() == poolBefore + 1, "the pool gained one entry");
+        if (idx >= 0)
+        {
+            const auto* e = proc.samplePool().get(idx);
+            CHECK(e != nullptr && !e->isVolatile, "the promoted take is a durable File entry");
+            CHECK(e != nullptr && e->pcm.getNumSamples() > 0, "and carries the recorded PCM");
+        }
+        tmp.withFileExtension("wav").deleteFile();
+    }
+
     // 9.17: the scene launch resolves against the shared LaunchQuant grid
     // (DESIGN §4.8). A Beat grid lands the scene sooner (mid-bar) than the
     // default Bar grid — proving the grid value actually routes the timing —
@@ -4197,6 +4232,7 @@ namespace lockstep
         testSceneSwitchAtBoundary();
         testTapeMarkerOnSceneSwitch();
         testTapeMediumLengthParam();
+        testTapePromote();
         testSceneLaunchGridRouting();
         testQueuedSongSwitchAtBoundary();
         testDoubleTapSongSwitchInstant();

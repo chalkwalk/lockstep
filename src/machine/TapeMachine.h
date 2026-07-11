@@ -99,6 +99,10 @@ namespace lockstep
         [[nodiscard]] bool recording() const noexcept { return deck_.state() == dc::DeckState::Recording; }
         [[nodiscard]] double mediumSeconds() const noexcept { return mediumSeconds_; }
         [[nodiscard]] int recordedSamples() const noexcept { return medium_.used(0); }
+        // The reel buffer, for promotion (§40.8): the first recordedSamples() frames
+        // hold the take. Message thread / non-audio use only.
+        [[nodiscard]] const juce::AudioBuffer<float>& reelView() const noexcept { return reel_; }
+        [[nodiscard]] double sampleRate() const noexcept { return sampleRate_; }
         [[nodiscard]] double positionSamples() const noexcept { return transport_.transportPhaseSamples; }
 
     private:

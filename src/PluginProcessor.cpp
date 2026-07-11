@@ -5597,6 +5597,44 @@ namespace lockstep
         return samplePool_.relink(index, newPath);
     }
 
+    int LockstepProcessor::promoteTape(int track, const juce::File& dest)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
+        auto* tm = dynamic_cast<TapeMachine*>(machines_[static_cast<std::size_t>(track)].get());
+        if (tm == nullptr) return -1;
+        const int n = tm->recordedSamples();
+        if (n <= 0) return -1;  // nothing recorded on the reel yet
+        const double sr = tm->sampleRate() > 0.0 ? tm->sampleRate() : getSampleRate();
+        if (sr <= 0.0) return -1;
+
+        const juce::AudioBuffer<float>& reel = tm->reelView();
+        const int chans = std::min(2, reel.getNumChannels());
+        const int len = std::min(n, reel.getNumSamples());
+        if (chans <= 0 || len <= 0) return -1;
+
+        // Write the recorded extent to a 32-bit float WAV (message thread), then
+        // decode it back as a durable File entry — the same promote-or-lose path a
+        // volatile take takes (§40.8), so a promoted tape is an ordinary pool
+        // citizen a player can slice/stretch/stream.
+        juce::File out = dest.withFileExtension("wav");
+        out.deleteFile();
+        juce::WavAudioFormat fmt;
+        std::unique_ptr<juce::OutputStream> os(out.createOutputStream());
+        if (os == nullptr) return -1;
+        const auto options = juce::AudioFormatWriterOptions{}
+                                 .withSampleRate(sr)
+                                 .withNumChannels(chans)
+                                 .withBitsPerSample(32)
+                                 .withSampleFormat(
+                                     juce::AudioFormatWriterOptions::SampleFormat::floatingPoint);
+        auto writer = fmt.createWriterFor(os, options);
+        if (writer == nullptr) return -1;
+        writer->writeFromAudioSampleBuffer(reel, 0, len);
+        writer.reset();
+
+        return samplePool_.load(out.getFullPathName());
+    }
+
     int LockstepProcessor::promoteVolatileToFile(int poolIndex, const juce::File& dest)
     {
         const auto* s = samplePool_.get(poolIndex);
