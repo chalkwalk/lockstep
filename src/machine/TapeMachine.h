@@ -94,15 +94,17 @@ namespace lockstep
         {
             scrubTarget_.store(reelRate, std::memory_order_relaxed);
         }
-        // A jog nudge (encoder rock): a one-shot velocity impulse the audio decays.
+        // A jog nudge (encoder rock): a one-shot velocity impulse the audio decays,
+        // so it rocks the reel and coasts to rest — distinct from the steady wind.
         void nudgeScrub(double reelImpulse) noexcept
         {
-            scrubTarget_.store(scrubTarget_.load(std::memory_order_relaxed) + reelImpulse,
-                               std::memory_order_relaxed);
+            jogPending_.store(jogPending_.load(std::memory_order_relaxed) + reelImpulse,
+                              std::memory_order_relaxed);
         }
         [[nodiscard]] bool scrubActive() const noexcept
         {
-            return std::abs(scrubTarget_.load(std::memory_order_relaxed)) > 1e-6 || scrubbing_;
+            return std::abs(scrubTarget_.load(std::memory_order_relaxed)) > 1e-6
+                || std::abs(jogPending_.load(std::memory_order_relaxed)) > 1e-6 || scrubbing_;
         }
         [[nodiscard]] double scrubHeadReelPos() const noexcept
         {
@@ -240,12 +242,15 @@ namespace lockstep
         // steady value; a jog adds an impulse). The audio owns headPos_ + the slewed
         // scrubSmoothed_ and publishes the head to scrubHeadReel_ for the processor's
         // reel-is-truth locate.
-        std::atomic<double> scrubTarget_{ 0.0 };     // reel samples / engine sample
+        std::atomic<double> scrubTarget_{ 0.0 };     // steady wind rate (cells)
+        std::atomic<double> jogPending_{ 0.0 };      // jog impulse awaiting the audio
         std::atomic<double> scrubHeadReel_{ 0.0 };   // published head (reel samples)
-        double scrubSmoothed_ = 0.0;                 // slewed rate (audio thread)
+        double scrubSmoothed_ = 0.0;                 // slewed steady rate (audio)
+        double jogVel_ = 0.0;                        // decaying jog velocity (audio)
         double scrubHeadPos_ = 0.0;                  // fractional reel head (audio)
         bool scrubbing_ = false;                     // rendering a wind this block
         static constexpr double kScrubEase = 0.0008; // one-pole slew per sample
+        static constexpr double kJogDecay = 0.9996;  // jog coast per sample (~50 ms)
 
         std::array<dc::Store, 2> planes_{};
         dc::Medium medium_;

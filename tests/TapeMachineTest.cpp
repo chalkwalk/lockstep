@@ -398,6 +398,23 @@ namespace lockstep
             c.setScrubTargetRate(-6.0);
             for (int blk = 0; blk < 20; ++blk) tapeBlock(c, 50, n, 0.0f, kSr);
             CHECK(c.scrubHeadReelPos() >= 0.0, "winding backward clamps at the leader (>= 0)");
+
+            // Jog (encoder rock): a one-shot nudge moves the head and then COASTS to
+            // rest (decaying velocity), unlike the steady wind.
+            TapeMachine j; j.prepare(kSr, n); j.setMediumSeconds(2.0);
+            j.applyVerb(1);
+            for (int blk = 0; blk < 4; ++blk) tapeBlock(j, blk * n, n, 0.6f, kSr);
+            j.applyVerb(1); j.applyVerb(2);
+            tapeBlock(j, 1000, n, 0.0f, kSr);          // seed the head at 1000
+            const double h0 = j.scrubHeadReelPos();
+            j.nudgeScrub(800.0);                        // one forward jog impulse
+            tapeBlock(j, 1000, n, 0.0f, kSr);
+            const double h1 = j.scrubHeadReelPos();
+            CHECK(h1 > h0 + 1.0, "a jog nudge moves the head forward");
+            // With no further nudges the velocity decays; over the next blocks the
+            // head keeps drifting but eventually settles (scrub goes inactive).
+            for (int blk = 0; blk < 40; ++blk) tapeBlock(j, 1000, n, 0.0f, kSr);
+            CHECK(! j.scrubActive(), "the jog coasts to rest (scrub goes inactive)");
         }
     }
 }

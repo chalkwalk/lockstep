@@ -255,8 +255,10 @@ namespace lockstep
         if (stopped)
         {
             const double target = scrubTarget_.load(std::memory_order_relaxed);
+            jogVel_ += jogPending_.exchange(0.0, std::memory_order_relaxed);  // drain jog
             const bool wasScrub = scrubbing_;
-            scrubbing_ = std::abs(target) > 1e-6 || std::abs(scrubSmoothed_) > 1e-4;
+            scrubbing_ = std::abs(target) > 1e-6 || std::abs(scrubSmoothed_) > 1e-4
+                      || std::abs(jogVel_) > 1e-4;
 
             if (! scrubbing_)
             {
@@ -275,13 +277,15 @@ namespace lockstep
             for (int i = 0; i < numSamples; ++i)
             {
                 scrubSmoothed_ += (target - scrubSmoothed_) * kScrubEase;  // slewed wind
-                rh.setRate(scrubSmoothed_);
+                const double rate = scrubSmoothed_ + jogVel_;             // + jog rock
+                rh.setRate(rate);
                 rh.setPosition(scrubHeadPos_);
                 rh.readFrame(medium_, 0, sframe, outChans);
                 for (int ch = 0; ch < outChans; ++ch) buffer.setSample(ch, i, sframe[ch]);
-                scrubHeadPos_ += scrubSmoothed_;
-                if (scrubHeadPos_ <= 0.0) { scrubHeadPos_ = 0.0; scrubSmoothed_ = 0.0; }
-                if (scrubHeadPos_ >= cap) { scrubHeadPos_ = cap; scrubSmoothed_ = 0.0; }
+                scrubHeadPos_ += rate;
+                jogVel_ *= kJogDecay;                                     // jog coasts to rest
+                if (scrubHeadPos_ <= 0.0) { scrubHeadPos_ = 0.0; scrubSmoothed_ = jogVel_ = 0.0; }
+                if (scrubHeadPos_ >= cap) { scrubHeadPos_ = cap; scrubSmoothed_ = jogVel_ = 0.0; }
             }
             scrubHeadReel_.store(scrubHeadPos_, std::memory_order_relaxed);
             return;

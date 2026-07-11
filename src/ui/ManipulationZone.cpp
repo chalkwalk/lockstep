@@ -13,6 +13,10 @@
 
 namespace lockstep
 {
+    // §40.2 reel jog: encoder units → reel-sample scrub impulse. One detent of the
+    // slot-0 encoder (a stopped Tape) rocks the reel by ~this many samples/sample.
+    static constexpr double kJogEncoderGain = 200.0;
+
     // WS4: the CHANNEL "Out" routing slot id lives in OutputDest.h (kOutSlotId) —
     // shared with the editor's encoder path so both drive Out as a filtered
     // candidate-index rotary (valid bus targets only) rather than the raw
@@ -157,6 +161,25 @@ namespace lockstep
                     if (band_ == MetaBand::StepPosition && onStepPositionChanged)
                         onStepPositionChanged();
                     return;
+                }
+                // §40.2 jog: when a STOPPED Tape's console is focused and the
+                // transport is windable, slot 0's encoder is the reel jog — its
+                // incremental delta injects a decaying scrub impulse (reel-rocking)
+                // instead of writing a param. Playing/recording it edits Source as
+                // usual, and the other slots always edit their params.
+                if (i == 0)
+                {
+                    const int jt = area_.getActiveTrack();
+                    if (processor_.isTapeTrack(jt) && processor_.transportWindable()
+                        && processor_.tapeState(jt) == 4 /*dc::DeckState::Stopped*/)
+                    {
+                        if (lastSlotValid_)
+                            processor_.tapeJog(jt, static_cast<double>(
+                                v - lastSlotValue_[static_cast<std::size_t>(i)]) * kJogEncoderGain);
+                        lastSlotValue_[static_cast<std::size_t>(i)] = v;
+                        lastSlotValid_ = true;
+                        return;
+                    }
                 }
                 // Machine-param path.
                 if (processor_.fillActive())
