@@ -41,6 +41,7 @@ namespace lockstep
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
         [[nodiscard]] const char* badge() const noexcept override { return "TAPE"; }
+        [[nodiscard]] bool isDeckClass() const override { return true; }  // §40.7
         // A tape is a console machine (§40.5): the step grid is its transport +
         // marker surface, always on when the track is focused.
         [[nodiscard]] ConsoleMode consoleMode() const override { return ConsoleMode::AlwaysOn; }

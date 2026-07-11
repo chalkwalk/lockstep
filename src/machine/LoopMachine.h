@@ -68,6 +68,7 @@ namespace lockstep
 
         [[nodiscard]] const char* machineId() const noexcept override { return kMachineId; }
         [[nodiscard]] const char* badge() const noexcept override { return "LOOP"; }
+        [[nodiscard]] bool isDeckClass() const override { return true; }  // §40.7
 
         // ITempoAware — bar length + transport phase for varispeed sync (C4).
         void setTransport(const TransportInfo& t) noexcept override { transport_ = t; }

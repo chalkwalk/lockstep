@@ -9,6 +9,7 @@
 #include "UITheme.h"   // kVerbRecAccent (A3 motion-record tint)
 #include <algorithm>
 #include <cmath>
+#include "../machine/TakePicker.h"
 
 namespace lockstep
 {
@@ -736,18 +737,31 @@ namespace lockstep
         juce::PopupMenu menu;
         // 9.18: only offer entries the track's machine can actually play — a PCM
         // player sees File + volatile captures, a StreamMachine sees Stream entries.
-        // The item id still encodes the true pool index (+1), so selection writes the
-        // correct index even though the list is filtered.
+        // 11.6 (§40.7): a promoted deck take's members are labelled as a group
+        // ("Take N sub k" / "Take N mix") through the shared 6/5 picker rule, so a
+        // four-track take reads as a legible cluster rather than five anonymous WAVs.
+        // A sample-class picker (this one) sees the members only. The item id still
+        // encodes the true pool index (+1).
+        const auto* mi = processor_.machineForTrack(track);
+        const bool deckClass = mi && mi->isDeckClass();
+        const auto rows = buildTakePickerRows(
+            processor_.samplePool(),
+            [&](int i) { return processor_.sampleAcceptedByTrack(track, i); },
+            deckClass);
         int shown = 0;
-        for (int i = 0; i < poolSize; ++i)
+        for (const auto& r : rows)
         {
-            if (!processor_.sampleAcceptedByTrack(track, i)) continue;
-            // C4: a per-group ordinal (FILE 1, STREAM 1, REC 1, ...) instead of the
-            // raw pool index, which jumps when the reserved volatile slots re-seed at
-            // the pool front on reload. The item id still encodes the true pool index
-            // (+1) so selection writes the correct entry.
-            menu.addItem(i + 1, juce::String(processor_.samplePool().groupOrdinal(i))
-                                    + "  " + processor_.sampleShortName(i));
+            // Sample-class picker: only member/plain rows are actionable (a group
+            // entity needs load-onto-sub-track, which is deck-only).
+            if (r.kind != TakePickerRow::Kind::Sample) continue;
+            // Plain samples keep their existing group-ordinal label; only take-group
+            // members get the "Take N sub k / mix" grouping.
+            const juce::String label =
+                r.groupId == 0
+                    ? (juce::String(processor_.samplePool().groupOrdinal(r.poolIndex))
+                           + "  " + processor_.sampleShortName(r.poolIndex))
+                    : r.label;
+            menu.addItem(r.poolIndex + 1, label);
             ++shown;
         }
         if (shown == 0)

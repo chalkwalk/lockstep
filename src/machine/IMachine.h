@@ -286,6 +286,14 @@ namespace lockstep
         enum class SampleClass { None = 0, Pcm, Stream };
         [[nodiscard]] virtual SampleClass sampleClass() const { return SampleClass::None; }
 
+        // A deck-class machine (Loop, Tape) has sub-tracks and can load a promoted
+        // take-group as one entity (§40.7). It changes how a picker presents a
+        // take-group: a deck-class picker offers the whole group PLUS its members
+        // (up to six for a four-track take); a sample-class picker offers the
+        // members only (up to five). Default false — an ordinary sampler is
+        // sample-class. Independent of sampleClass (a deck still consumes PCM).
+        [[nodiscard]] virtual bool isDeckClass() const { return false; }
+
         // sequencesTrigs(): false for control-only machines (Route, and future
         // pure-control engines) that produce no note voices and derive nothing
         // from note-on. When false, a step press places a *lock-only* anchor

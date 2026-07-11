@@ -7125,6 +7125,15 @@ This is the 6/5 rule: a deck offers the group and its parts; everything else
 offers just the parts. Both counts are ceilings — an empty sub-track contributes
 no member.
 
+**Implementation.** The enumeration is a pure function (`buildTakePickerRows`,
+`machine/TakePicker.h`) over the pool and the machine's `isDeckClass()`, so it is
+unit-tested and shared by every picker surface. The sample-class side is live: a
+promoted take's members read as a labelled cluster ("Take N sub k / mix") in the
+sample picker. The deck-class group *entity* is enumerated but not yet actionable —
+picking it must load all sub-tracks onto the deck, which waits on the
+load-onto-sub-track path (a Loop has no sample reference today; §40.3's "copy in"
+is unbuilt). Until then a deck reloads a take one member at a time.
+
 **Channel policy** (stated once, here, because it has been implicit and
 accidental):
 
