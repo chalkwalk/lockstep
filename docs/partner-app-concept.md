@@ -45,6 +45,16 @@ their set does not want to leave the instrument to do it.
   and they land on the repeats for free because they are medium properties.
   Varispeed sweeps the head spacing, which is the sound everybody wants and no
   digital delay has.
+- **Echo also ships as an insert effect.** Because the echo is a head
+  configuration over `deck_core` and closes its feedback caller-side, the same
+  build reduces cleanly to a **VST3/CLAP insert** — a tape delay on a DAW
+  channel. The insert signal *is* the write-head input; there is no sequencer,
+  no take surface, no transport ownership — just the medium, the heads, and the
+  colour. It is the standalone instrument's echo mode with everything that
+  isn't the delay removed, so it inherits the wow/flutter/saturation for free.
+  This is the one form of the app that lives *on* another instrument's channel
+  rather than beside it, and it is still not a Lockstep tenant (DESIGN §36.9) —
+  it is the partner app in its smallest useful shape.
 - **Colour:** a tape model on the medium — wow/flutter (rate + depth),
   saturation, head bump, hiss, and the transport artefacts (spin-up, brake).
   These are medium properties, not an insert effect; they apply on write and on
