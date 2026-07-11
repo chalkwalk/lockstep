@@ -506,6 +506,34 @@ namespace lockstep
               "S2: sub 0 source unchanged after round-trip");
     }
 
+    // S4 arming law: cycling a sub's SRC off None auto-arms it; landing on None
+    // disarms it. The console SRC cell routes through looperCycleSubSource.
+    static void testLoopAutoArmOnSource()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+        p.setTrackMachine(0, LoopMachine::kMachineId);
+
+        // Sub 2 defaults to source None and disarmed.
+        CHECK(!p.looperSubArmed(0, 2), "S4: sub 2 disarmed by default (source None)");
+
+        // Cycle its source once: None -> first available source -> auto-armed.
+        p.looperCycleSubSource(0, 2);
+        h.renderBlocks(2);
+        CHECK(p.looperSubArmed(0, 2), "S4: assigning a source auto-arms the sub");
+        CHECK(p.looperSubSourceLabel(0, 2) != "--", "S4: sub 2 now has a real source");
+
+        // Cycle all the way back to None: it disarms again. Walk the cycle until
+        // the label returns to None (the candidate list is finite).
+        for (int i = 0; i < 40 && p.looperSubSourceLabel(0, 2) != "--"; ++i)
+        {
+            p.looperCycleSubSource(0, 2);
+            h.renderBlocks(1);
+        }
+        CHECK(p.looperSubSourceLabel(0, 2) == "--", "S4: cycled back to None");
+        CHECK(!p.looperSubArmed(0, 2), "S4: source None disarms the sub");
+    }
+
     // §40.7 channel policy: a deck-medium-wide op (Double) touches EVERY sub-track,
     // not just pair 0. Before the policy fix, Double clamped to min(2,...) and left
     // sub-tracks 1..3 un-duplicated in the new half.
@@ -4527,6 +4555,7 @@ namespace lockstep
         testDeckTakeGroupPromote();
         testLoadOntoSubTrack();
         testPerSubSourceRoundTrip();
+        testLoopAutoArmOnSource();
         testLoadTakeGroupToDeck();
         testFitDeckSubTrack();
         testDeckWideDouble();

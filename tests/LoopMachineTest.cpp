@@ -579,6 +579,10 @@ namespace lockstep
             pf[static_cast<std::size_t>(lp.slotForId("input_source"))]   = 1.0f;  // External
             pf[static_cast<std::size_t>(lp.slotForId("loop_sync"))]      = 0.0f;  // Free
             pf[static_cast<std::size_t>(lp.slotForId("subtrack_count"))] = 4.0f;
+            // S4 arming law: only sub 0 is armed by default; arm the rest so this
+            // 4-track capture records into every pair (the console/SRC would arm
+            // them live — here we arm directly).
+            for (int sub = 1; sub < 4; ++sub) lp.setSubArmed(sub, true);
 
             const int slot = p.nthVolatileIndex(0);
             CHECK(p.get(slot)->pcm.getNumChannels() == 2, "the slot is stereo before recording");
@@ -692,6 +696,45 @@ namespace lockstep
             // numParams grew by exactly the three extra subs; nothing renumbered.
             CHECK(lp.slotForId("sub4_solo") >= 0 && lp.slotForId("sub4_solo") < s0 + lp.numParams(),
                   "mix slots still present after the appended source slots");
+        }
+
+        // S4: ARM gates the length-defining Recording pass too (not just overdub).
+        // A disarmed sub-track records silence into its channel-pair; sub 0 is
+        // armed by default, so a single-track loop is unaffected.
+        {
+            SamplePool p; p.addVolatile();
+            p.prepareVolatile(kSr, 4, static_cast<int>(kSr));  // 4ch = 2 sub-tracks
+            LoopMachine lp(p); lp.prepare(kSr, 4096);
+
+            std::vector<float> pf(static_cast<std::size_t>(lp.numParams()), 0.0f);
+            for (int i = 0; i < lp.numParams(); ++i)
+                pf[static_cast<std::size_t>(i)] = lp.paramSpec(i).defaultValue;
+            pf[static_cast<std::size_t>(lp.slotForId("input_source"))]   = 1.0f;  // External
+            pf[static_cast<std::size_t>(lp.slotForId("loop_sync"))]      = 0.0f;  // Free
+            pf[static_cast<std::size_t>(lp.slotForId("subtrack_count"))] = 2.0f;
+
+            // Disarm sub 0, arm sub 1: the exact inverse of the default.
+            lp.setSubArmed(0, false);
+            lp.setSubArmed(1, true);
+
+            {
+                lp.postCommand(Cmd::RecordCycle);
+                juce::AudioBuffer<float> b(2, 4096);
+                for (int i = 0; i < 4096; ++i) { b.setSample(0, i, 0.6f); b.setSample(1, i, 0.6f); }
+                auto& sub1 = lp.inputSubTrackBuffer(1);
+                for (int i = 0; i < 4096; ++i) { sub1.setSample(0, i, 0.8f); sub1.setSample(1, i, 0.8f); }
+                juce::MidiBuffer none; ParamFrame frame(pf.begin(), pf.end());
+                lp.process(none, frame, b);
+            }
+            { lp.postCommand(Cmd::RecordCycle);  // close
+              juce::AudioBuffer<float> b(2, 1); juce::MidiBuffer none;
+              ParamFrame frame(pf.begin(), pf.end()); lp.process(none, frame, b); }
+
+            const int slot = p.nthVolatileIndex(0);
+            CHECK(feq(p.get(slot)->pcm.getSample(0, 10), 0.0f),
+                  "S4: disarmed sub 0 records silence into its pair");
+            CHECK(feq(p.get(slot)->pcm.getSample(2, 10), 0.8f),
+                  "S4: armed sub 1 records its input");
         }
 
         // S6: DIP is tape WOW, and HALF is a plateau. They used to be the same
@@ -1052,7 +1095,10 @@ namespace lockstep
                 return buf;
             };
 
+            // S4: the base take records only ARMED subs, so arm all four to lay
+            // material on every pair; the per-case overdub arming is set afterward.
             auto layTake = [&](LoopMachine& m) {
+                for (int s = 1; s < 4; ++s) m.setSubArmed(s, true);
                 run4(m, 0.5f, 0.5f, 0.5f, 0.5f, Cmd::RecordCycle);  // Idle → Recording
                 run4(m, 0.0f, 0.0f, 0.0f, 0.0f, Cmd::RecordCycle);  // Recording → Playing
             };
@@ -1062,10 +1108,11 @@ namespace lockstep
                 SamplePool p; p.addVolatile();
                 p.prepareVolatile(kSr, 8, static_cast<int>(kSr));   // 8ch = 4 sub-tracks
                 LoopMachine lp(p); lp.prepare(kSr, n);
-                layTake(lp);
                 CHECK(lp.subArmed(0) && !lp.subArmed(1) && !lp.subArmed(2) && !lp.subArmed(3),
-                      "fresh deck: only sub 0 armed");
-                lp.toggleSubArmed(2);   // arm sub 2 as well
+                      "fresh deck: only sub 0 armed by default");
+                layTake(lp);
+                lp.setSubArmed(1, false);   // overdub-arm subs 0+2 only
+                lp.setSubArmed(3, false);
 
                 run4(lp, 0.25f, 0.25f, 0.25f, 0.25f, Cmd::RecordCycle);  // → Overdubbing
                 run4(lp, 0.25f, 0.25f, 0.25f, 0.25f, Cmd::RecordCycle);  // → Playing (fold)
@@ -1089,6 +1136,9 @@ namespace lockstep
                 p.prepareVolatile(kSr, 8, static_cast<int>(kSr));
                 LoopMachine lp(p); lp.prepare(kSr, n);
                 layTake(lp);
+                lp.setSubArmed(1, false);   // back to only sub 0 armed for the overdub
+                lp.setSubArmed(2, false);
+                lp.setSubArmed(3, false);
                 run4(lp, 0.25f, 0.25f, 0.25f, 0.25f, Cmd::RecordCycle);  // → Overdubbing
                 run4(lp, 0.25f, 0.25f, 0.25f, 0.25f, Cmd::RecordCycle);  // → Playing (fold)
 

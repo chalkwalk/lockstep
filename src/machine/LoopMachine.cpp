@@ -956,13 +956,17 @@ namespace lockstep
                     case State::Recording:
                         if (recPos_ < capacity_)
                         {
-                            if (tch)
+                            // S4: ARM gates every write. Sub 0 is default-armed, so a
+                            // single-sub-track loop is byte-identical; a disarmed sub
+                            // leaves its channel-pair silent (the capture is cleared).
+                            if (tch && deck_.subTrack(0).armed)
                                 target_->setSample(ch, recPos_, in);  // sub 0 → pair 0
                             // §40.3: each extra sub-track records its own input into
                             // its channel-pair. ch (0/1) selects the pair's L/R, so
                             // sub k's L → target channel 2k, its R → 2k+1.
                             for (int sub = 1; sub < subCount; ++sub)
                             {
+                                if (! deck_.subTrack(sub).armed) continue;
                                 const int tgtCh = 2 * sub + ch;
                                 const auto& si = subInput_[static_cast<std::size_t>(sub)];
                                 if (tgtCh < target_->getNumChannels() && ch < si.getNumChannels())

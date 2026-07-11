@@ -1275,6 +1275,10 @@ namespace lockstep
                 if (tapeCell >= 0 && tapeCell < 4)
                     tok[static_cast<std::size_t>(12 + tapeCell)] = CellState::LooperConTapeActive;
 
+                // S4: cell 0 is the unified record verb. Its label is contextual —
+                // "REC" is the length-defining first pass (deck empty); once a loop
+                // exists the same press is an overdub, so it reads "DUB".
+                const bool hasLoop = proc.looperHasLoop(activeTrack);
                 for (int i = 0; i < 16; ++i)
                 {
                     SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
@@ -1284,7 +1288,8 @@ namespace lockstep
                     c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
                     c.base = c.pressed ? CellState::Pressed : tok[static_cast<std::size_t>(i)];
                     c.baseColour = compatColour(tok[static_cast<std::size_t>(i)]);
-                    c.primary = juce::String(kConLabels[i]);
+                    c.primary = (i == 0 && hasLoop) ? juce::String("DUB")
+                                                    : juce::String(kConLabels[i]);
                 }
             }
             else if (activeLayer == SurfaceLayer::MachineConsole

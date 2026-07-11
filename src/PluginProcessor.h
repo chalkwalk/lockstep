@@ -235,6 +235,8 @@ namespace lockstep
         // Held tape-fx cell (0=TapeStop, 1=Dip, 2=HalfSpeed, 3=Reverse), or -1 (S6).
         [[nodiscard]] int looperTapeFx(int track) const;
         [[nodiscard]] int looperState(int track) const;
+        // S4: a take has closed and set a loop length (drives the REC/DUB label).
+        [[nodiscard]] bool looperHasLoop(int track) const;
         // Deck TRACKS-page state + toggles (§40.5). sub is 0-based.
         [[nodiscard]] int looperSubTrackCount(int track) const;
         [[nodiscard]] bool looperSubArmed(int track, int sub) const;

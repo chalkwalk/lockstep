@@ -7195,6 +7195,17 @@ namespace lockstep
         return -1;
     }
 
+    // S4: a loop "exists" once a take has closed and set its length. Drives the
+    // contextual REC/DUB label — REC is the length-defining pass (deck empty),
+    // and after it the record verb is Dub.
+    bool LockstepProcessor::looperHasLoop(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        if (auto* lm = dynamic_cast<LoopMachine*>(machines_[static_cast<std::size_t>(track)].get()))
+            return lm->loopLengthSamples() > 0;
+        return false;
+    }
+
     static LoopMachine* asLooper(const std::array<std::unique_ptr<IMachine>, kNumTracks>& m,
                                  int track)
     {
@@ -7400,7 +7411,12 @@ namespace lockstep
         std::size_t idx = 0;
         for (std::size_t k = 0; k < cands.size(); ++k)
             if (std::abs(cands[k] - cur) < 0.5f) { idx = k; break; }
-        writeParam(track, slot, cands[(idx + 1) % cands.size()]);
+        const float next = cands[(idx + 1) % cands.size()];
+        writeParam(track, slot, next);
+        // S4 arming law: assigning a source auto-arms the sub; picking None
+        // disarms it. Arming is deck-side state (not a param), so ordering vs the
+        // queued writeParam is irrelevant.
+        lm->setSubArmed(sub, decodeInputSource(next).kind != InputSourceKind::None);
     }
 
     float LockstepProcessor::looperPhase(int track) const

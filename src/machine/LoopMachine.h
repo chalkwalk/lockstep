@@ -225,6 +225,12 @@ namespace lockstep
         {
             auto& st = deck_.subTrack(clampSub(sub)); st.armed = ! st.armed;
         }
+        // S4: SRC-assign auto-arms a sub (None disarms). One setter so the
+        // arming law has a single owner (mirrors toggleSubArmed).
+        void setSubArmed(int sub, bool armed) noexcept
+        {
+            deck_.subTrack(clampSub(sub)).armed = armed;
+        }
 
     private:
         static constexpr int kSlotInputSource = 0;
