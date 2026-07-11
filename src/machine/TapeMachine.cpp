@@ -41,6 +41,16 @@ namespace lockstep
                 s.valueLabels = std::span<const char* const>(kMonitorLabels.data(),
                                                              kMonitorLabels.size());
                 return s;
+            case kSlotMediumDepth:
+                s.id = "medium_depth";
+                s.label = "Bits";
+                s.minValue = 0.0f;
+                s.maxValue = static_cast<float>(kDepthLabels.size() - 1);
+                s.defaultValue = 0.0f;   // 32-bit float
+                s.isStepped = true;
+                s.valueLabels = std::span<const char* const>(kDepthLabels.data(),
+                                                             kDepthLabels.size());
+                return s;
             default:
                 return {};
         }
@@ -62,11 +72,59 @@ namespace lockstep
     void TapeMachine::setMediumSeconds(double seconds)
     {
         mediumSeconds_ = std::clamp(seconds, kMinMediumSeconds, kMaxMediumSeconds);
+        allocateReel();
+    }
+
+    void TapeMachine::setMediumDepth(int depth)
+    {
+        const bool i16 = depth != 0;
+        if (i16 == depthI16_) return;   // no change → keep the take
+        depthI16_ = i16;
+        // Swapping tape stock discards the recording (like Clear) and its calibration.
+        allocateReel();
+        calSamplesPerPpq_ = 0.0;
+    }
+
+    void TapeMachine::allocateReel()
+    {
         const int cap = std::max(1, static_cast<int>(mediumSeconds_ * sampleRate_));
-        // Allocate without zero-fill (§40.3 lazy commit): the reel costs address
-        // space, and only recorded samples become resident.
-        reel_.setSize(2, cap, false, false, false);
-        undoReel_.setSize(2, cap, false, false, false);  // fence #8 punch undo (lazy)
+        reelCap_ = cap;
+        const auto n = static_cast<std::size_t>(cap) * 2;  // 2 planar channels
+
+        // Exactly one backing is live; release the other. Both allocate WITHOUT
+        // zero-fill (§40.3 lazy commit): `new T[]` default-inits trivial types, so
+        // pages stay unmapped until written, and AudioBuffer::setSize(...,false)
+        // skips the memset. ensureCommitted zeroes the span it hands to the head,
+        // and out-of-range reads return 0, so the initial garbage is never read.
+        if (depthI16_)
+        {
+            reel_.setSize(0, 0);
+            undoReel_.setSize(0, 0);
+            reelI16_.reset(new std::int16_t[n]);           // NOLINT(*-avoid-c-arrays)
+            undoI16_.reset(new std::int16_t[n]);           // NOLINT(*-avoid-c-arrays)
+            for (int ch = 0; ch < 2; ++ch)
+            {
+                const auto off = static_cast<std::size_t>(ch) * static_cast<std::size_t>(cap);
+                planes_[static_cast<std::size_t>(ch)] =
+                    dc::Store{ reelI16_.get() + off, static_cast<std::size_t>(cap) };
+                undoStore_[static_cast<std::size_t>(ch)] =
+                    dc::Store{ undoI16_.get() + off, static_cast<std::size_t>(cap) };
+            }
+        }
+        else
+        {
+            reelI16_.reset();
+            undoI16_.reset();
+            reel_.setSize(2, cap, false, false, false);
+            undoReel_.setSize(2, cap, false, false, false);  // fence #8 punch undo (lazy)
+            for (int ch = 0; ch < 2; ++ch)
+            {
+                planes_[static_cast<std::size_t>(ch)] =
+                    dc::Store{ reel_.getWritePointer(ch), static_cast<std::size_t>(cap) };
+                undoStore_[static_cast<std::size_t>(ch)] =
+                    dc::Store{ undoReel_.getWritePointer(ch), static_cast<std::size_t>(cap) };
+            }
+        }
         haveUndo_ = false;
         undoLo_ = undoHi_ = -1;
         bindReel();
@@ -74,7 +132,7 @@ namespace lockstep
 
     void TapeMachine::bindReel() noexcept
     {
-        const int cap = reel_.getNumSamples();
+        const int cap = reelCap_;
         if (cap <= 0) { medium_.unbind(); return; }
 
         dc::Medium::Config cfg;
@@ -83,10 +141,16 @@ namespace lockstep
         cfg.numSubTracks = 1;
         cfg.channelsPerSubTrack = 2;
         cfg.capacitySamples = cap;
-        for (int ch = 0; ch < 2; ++ch)
-            planes_[static_cast<std::size_t>(ch)] =
-                dc::Store{ reel_.getWritePointer(ch), static_cast<std::size_t>(cap) };
         medium_.bindPlanes(cfg, planes_.data(), 2);
+    }
+
+    void TapeMachine::copyReelTo(juce::AudioBuffer<float>& dst, int numFrames) const noexcept
+    {
+        const int chans = std::min(dst.getNumChannels(), 2);
+        const int len = std::min(numFrames, dst.getNumSamples());
+        for (int ch = 0; ch < chans; ++ch)
+            for (int i = 0; i < len; ++i)
+                dst.setSample(ch, i, medium_.read(0, ch, i));  // depth-transparent
     }
 
     void TapeMachine::applyVerb(int verb)
@@ -124,7 +188,9 @@ namespace lockstep
                 {
                     for (int p = undoLo_; p <= undoHi_; ++p)
                         for (int ch = 0; ch < 2; ++ch)
-                            medium_.write(0, ch, p, undoReel_.getSample(ch, p));
+                            medium_.write(0, ch, p,
+                                          undoStore_[static_cast<std::size_t>(ch)]
+                                              .get(static_cast<std::size_t>(p)));
                     haveUndo_ = false;
                 }
                 break;
@@ -210,7 +276,7 @@ namespace lockstep
         // pre-punch value). Reel-domain, so the span logic is rate-independent.
         auto saveOriginals = [&](std::int64_t a, std::int64_t b) noexcept
         {
-            const auto cap = static_cast<std::int64_t>(undoReel_.getNumSamples());
+            const auto cap = static_cast<std::int64_t>(reelCap_);
             a = std::max<std::int64_t>(a, 0);
             b = std::min<std::int64_t>(b, cap - 1);
             for (std::int64_t p = a; p <= b; ++p)
@@ -220,7 +286,8 @@ namespace lockstep
                 if (firstTouch)
                 {
                     for (int c = 0; c < outChans; ++c)
-                        undoReel_.setSample(c, ip, medium_.read(0, c, p));
+                        undoStore_[static_cast<std::size_t>(c)]
+                            .set(static_cast<std::size_t>(ip), medium_.read(0, c, p));
                     undoLo_ = (undoLo_ < 0) ? ip : std::min(undoLo_, ip);
                     undoHi_ = (undoHi_ < 0) ? ip : std::max(undoHi_, ip);
                 }

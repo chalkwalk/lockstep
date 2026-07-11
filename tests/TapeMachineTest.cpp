@@ -311,5 +311,55 @@ namespace lockstep
             CHECK(feq(restored.getSample(0, 400), 0.5f),
                   "and left the untouched tail alone");
         }
+
+        // ── i16 reel (§40.10 medium_depth): record → playback round-trip ─────
+        {
+            TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(2.0);
+            t.setMediumDepth(1);  // I16
+            CHECK(t.depthI16(), "medium_depth switched the reel to 16-bit");
+
+            // 0.5 is exactly representable in i16 (0.5 × 32767 rounds cleanly), so
+            // the round-trip is lossless to within the 1/32767 quantum.
+            t.applyVerb(1);
+            tapeBlock(t, 0.0, n, 0.5f, kSr);
+            t.applyVerb(1);
+            auto play16 = tapeBlock(t, 0.0, n, 0.0f, kSr);
+            CHECK(feq(play16.getSample(0, 100), 0.5f, 1.0f / 32767.0f),
+                  "i16 record → playback round-trips within the quantisation step");
+            CHECK(feq(play16.getSample(1, 300), 0.5f, 1.0f / 32767.0f), "on both channels");
+
+            // Punch + undo on the i16 reel (undo backing is i16 too).
+            t.applyVerb(1);
+            {
+                TransportInfo tr; tr.sampleRate = kSr; tr.running = true;
+                tr.transportPhaseSamples = 100.0; t.setTransport(tr);
+                juce::AudioBuffer<float> b(2, 200);
+                for (int ch = 0; ch < 2; ++ch) for (int i = 0; i < 200; ++i) b.setSample(ch, i, -0.25f);
+                juce::MidiBuffer none; ParamFrame pf{ 1.0f, 0.0f, 0.0f }; t.process(none, pf, b);
+            }
+            t.applyVerb(1);
+            CHECK(feq(tapeBlock(t, 0.0, n, 0.0f, kSr).getSample(0, 150), -0.25f, 1.0f / 32767.0f),
+                  "i16 punch lays the new take");
+            t.applyVerb(4);  // undo
+            CHECK(feq(tapeBlock(t, 0.0, n, 0.0f, kSr).getSample(0, 150), 0.5f, 1.0f / 32767.0f),
+                  "i16 punch undo restores the original from the i16 undo backing");
+        }
+
+        // ── Depth switch clears the reel (you swapped the tape stock) ────────
+        {
+            TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(2.0);
+            t.applyVerb(1);
+            tapeBlock(t, 0.0, n, 0.5f, kSr);
+            t.applyVerb(1);
+            CHECK(t.recordedSamples() >= n, "f32 take recorded");
+            t.setMediumDepth(1);  // → i16, discards audio
+            CHECK(t.recordedSamples() == 0, "switching depth wipes the reel");
+            CHECK(feq(tapeBlock(t, 0.0, n, 0.0f, kSr).getSample(0, 100), 0.0f),
+                  "and playback is silent after the depth switch");
+            // A no-op switch (same depth) does NOT clear.
+            t.applyVerb(1); tapeBlock(t, 0.0, n, 0.3f, kSr); t.applyVerb(1);
+            t.setMediumDepth(1);  // already i16 → no-op
+            CHECK(t.recordedSamples() >= n, "re-selecting the current depth keeps the take");
+        }
     }
 }

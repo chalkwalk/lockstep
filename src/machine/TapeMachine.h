@@ -13,6 +13,8 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 
 #include <array>
+#include <cstdint>
+#include <memory>
 
 namespace lockstep
 {
@@ -70,6 +72,10 @@ namespace lockstep
         // Message thread: (re)allocate the reel to `seconds`. Allocation policy is
         // host-side (§40.11) — this is the one place the tape's storage is sized.
         void setMediumSeconds(double seconds);
+        // Message thread: switch the reel's sample depth (F32 ↔ I16, §40.10). A
+        // depth change reallocates the backing and discards the take — honest: you
+        // swapped the tape stock. No-op when the depth is unchanged.
+        void setMediumDepth(int depth);   // 0 = F32, 1 = I16
 
         // Console verbs (§40.5), routed like the looper's. For now: RecordCycle
         // punches in/out; PlayStop stops/resumes; Clear wipes the reel.
@@ -102,9 +108,11 @@ namespace lockstep
         [[nodiscard]] bool recording() const noexcept { return deck_.state() == dc::DeckState::Recording; }
         [[nodiscard]] double mediumSeconds() const noexcept { return mediumSeconds_; }
         [[nodiscard]] int recordedSamples() const noexcept { return medium_.used(0); }
-        // The reel buffer, for promotion (§40.8): the first recordedSamples() frames
-        // hold the take. Message thread / non-audio use only.
-        [[nodiscard]] const juce::AudioBuffer<float>& reelView() const noexcept { return reel_; }
+        // Copy the recorded extent out for promotion (§40.8), reading through the
+        // medium so it is depth-transparent (an i16 reel promotes the same as f32).
+        // Message thread / non-audio use only.
+        void copyReelTo(juce::AudioBuffer<float>& dst, int numFrames) const noexcept;
+        [[nodiscard]] bool depthI16() const noexcept { return depthI16_; }
         [[nodiscard]] double sampleRate() const noexcept { return sampleRate_; }
         // Reel position under chase-lock (§40.2): a CALIBRATED reel is addressed by
         // musical position × calibration (`ppq × K`); an uncalibrated one falls back
@@ -151,29 +159,43 @@ namespace lockstep
         static constexpr int kSlotInputSource = 0;
         static constexpr int kSlotMediumLength = 1;  // reel length, seconds
         static constexpr int kSlotMonitor = 2;       // Off | On (live-thru)
-        static constexpr int kNumSlots = 3;
+        static constexpr int kSlotMediumDepth = 3;   // F32 | I16 (§40.10)
+        static constexpr int kNumSlots = 4;
 
         static constexpr double kDefaultMediumSeconds = 300.0;  // 5 min (§40.3)
         static constexpr double kMinMediumSeconds = 1.0;
         static constexpr double kMaxMediumSeconds = 600.0;
 
         static constexpr std::array<const char* const, 2> kMonitorLabels = { "Off", "On" };
+        static constexpr std::array<const char* const, 2> kDepthLabels = { "32f", "16i" };
 
         void bindReel() noexcept;
+        // (Re)allocate the reel + undo backing for the current seconds/depth and
+        // rebind the medium. One place owns the storage geometry (§40.11).
+        void allocateReel();
 
         TransportInfo transport_{};
         double sampleRate_ = 44100.0;
 
-        // The reel: host-allocated, stereo, bound as a LINEAR dc::Medium. A
-        // pending length change is applied on the next message-thread setMediumSeconds.
+        // The reel: host-allocated, stereo, bound as a LINEAR dc::Medium (§40.3).
+        // Exactly ONE backing is live at a time — a 32-bit float AudioBuffer, or a
+        // flat 16-bit block (2×cap, planar). Both are allocated WITHOUT zero-fill
+        // (lazy commit): a reel costs address space, and only recorded samples
+        // become resident — i16 must keep that property to actually halve RAM.
+        int reelCap_ = 0;               // per-channel capacity of the live backing
+        bool depthI16_ = false;         // false = F32 (reel_), true = I16 (reelI16_)
         juce::AudioBuffer<float> reel_;
+        std::unique_ptr<std::int16_t[]> reelI16_;
 
         // §40.3 / fence #8: a punch is non-destructive. As recording overwrites the
-        // reel, the ORIGINAL sample at each first-touched position is saved into
-        // undoReel_ (span-scoped: only the punched region), so Undo restores what
-        // was there. One level deep, like the looper's. undoReel_ is reel-sized but
-        // lazily committed — only the punched span is resident.
+        // reel, the ORIGINAL sample at each first-touched position is saved into the
+        // undo backing (span-scoped: only the punched region), so Undo restores what
+        // was there. One level deep, like the looper's. The undo backing mirrors the
+        // reel's depth (keeping it f32 would forfeit half the i16 RAM win) and is
+        // reached through undoStore_ so save/restore is depth-transparent.
         juce::AudioBuffer<float> undoReel_;
+        std::unique_ptr<std::int16_t[]> undoI16_;
+        std::array<dc::Store, 2> undoStore_{};
         int undoLo_ = -1;      // lowest position saved this punch (-1 = none)
         int undoHi_ = -1;      // highest position saved this punch
         bool haveUndo_ = false;

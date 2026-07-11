@@ -3881,6 +3881,13 @@ namespace lockstep
                 if (auto* tm = dynamic_cast<TapeMachine*>(wm))
                     withQuiescedEngine([&] { tm->setMediumSeconds(static_cast<double>(value)); });
             }
+            // §40.10: switching the reel's sample depth reallocates its backing (and
+            // discards the take, like a length change). Quiesced, only on a change.
+            else if (pickedId == "medium_depth")
+            {
+                if (auto* tm = dynamic_cast<TapeMachine*>(wm))
+                    withQuiescedEngine([&] { tm->setMediumDepth(static_cast<int>(std::lround(value))); });
+            }
         }
     }
 
@@ -5819,10 +5826,14 @@ namespace lockstep
         const double sr = tm->sampleRate() > 0.0 ? tm->sampleRate() : getSampleRate();
         if (sr <= 0.0) return -1;
 
-        const juce::AudioBuffer<float>& reel = tm->reelView();
-        const int chans = engineChannels(reel.getNumChannels());
-        const int len = std::min(n, reel.getNumSamples());
+        const int chans = engineChannels(2);   // the reel is stereo (§40.7)
+        const int cap = static_cast<int>(tm->mediumSeconds() * tm->sampleRate());
+        const int len = std::min(n, cap);
         if (chans <= 0 || len <= 0) return -1;
+        // Read the recorded extent out through the medium (depth-transparent, so an
+        // i16 reel promotes identically to f32) into a staging float buffer.
+        juce::AudioBuffer<float> reel(chans, len);
+        tm->copyReelTo(reel, len);
 
         // Write the recorded extent to a 32-bit float WAV (message thread), then
         // decode it back as a durable File entry — the same promote-or-lose path a
@@ -6736,8 +6747,19 @@ namespace lockstep
             {
                 auto* tm = dynamic_cast<TapeMachine*>(machines_[t].get());
                 if (tm == nullptr) continue;
-                const int slot = slotForId(static_cast<int>(t), "medium_length");
                 const auto& bp = sequence().tracks[t].baseParams;
+                // §40.10: apply depth first (it reallocates), then length, so a
+                // reinstall settles on one final allocation. Both realloc only on a
+                // real change — reinstall runs on every scene switch and an
+                // unconditional resize would wipe the tape each time.
+                const int dslot = slotForId(static_cast<int>(t), "medium_depth");
+                if (dslot >= 0 && dslot < static_cast<int>(bp.size()))
+                {
+                    const bool wantI16 = std::lround(bp[static_cast<std::size_t>(dslot)]) != 0;
+                    if (wantI16 != tm->depthI16())
+                        tm->setMediumDepth(wantI16 ? 1 : 0);
+                }
+                const int slot = slotForId(static_cast<int>(t), "medium_length");
                 if (slot < 0 || slot >= static_cast<int>(bp.size())) continue;
                 const double want = static_cast<double>(bp[static_cast<std::size_t>(slot)]);
                 if (std::abs(want - tm->mediumSeconds()) > 0.001)
