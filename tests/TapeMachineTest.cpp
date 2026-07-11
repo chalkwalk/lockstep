@@ -98,6 +98,25 @@ namespace lockstep
             CHECK(feq(bits.defaultValue, 1.0f), "Bits defaults to 32f (value 1)");
         }
 
+        // Stage 2: a stopped transport must not replay the frozen head (the "tiny
+        // loop" buzz). Record a take, then render with the transport stopped → silent.
+        {
+            TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(2.0);
+            t.applyVerb(1);                          // punch in
+            tapeBlock(t, 0.0, n, 0.5f, kSr);         // record 0.5 (running)
+            t.applyVerb(1);                          // punch out → playing
+            CHECK(feq(tapeBlock(t, 0.0, n, 0.0f, kSr).getSample(0, 100), 0.5f, 1e-3f),
+                  "Stage 2: a running transport plays the take back");
+            // Stop the transport at a frozen position → silence (was a repeating buzz).
+            TransportInfo tr; tr.sampleRate = kSr; tr.running = false;
+            tr.transportPhaseSamples = 100.0; t.setTransport(tr);
+            juce::AudioBuffer<float> b(2, n);
+            for (int ch = 0; ch < 2; ++ch) for (int i = 0; i < n; ++i) b.setSample(ch, i, 0.0f);
+            juce::MidiBuffer none; ParamFrame pf{ 1.0f, 0.0f, 0.0f }; t.process(none, pf, b);
+            CHECK(feq(b.getSample(0, 100), 0.0f),
+                  "Stage 2: stopped transport → silence, no frozen-head buzz");
+        }
+
         // ── Record along the timeline ────────────────────────────────────────
         // Punch in, lay 0.5 across positions [0, 512), punch out.
         tape.applyVerb(1);  // RecordCycle → Recording

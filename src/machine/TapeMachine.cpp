@@ -291,6 +291,17 @@ namespace lockstep
             return;
         }
 
+        // Stage 2: the reel chases the transport, so a stopped transport freezes the
+        // head — reading it every block replays the same tiny slice (the "tiny loop"
+        // buzz). When we are not recording and the transport is not running, do not
+        // read the reel: pass live-thru if Mon is On, else silence. (The Stopped
+        // scrub branch above owns audition-while-parked.)
+        if (! recording && ! transport_.running)
+        {
+            if (monMode != 1) buffer.clear();  // Mon On leaves the input as thru
+            return;
+        }
+
         // §40.2 chase-lock. Calibration latches from the current tempo at the FIRST
         // record onto a still-uncalibrated reel; from then on the reel is addressed
         // by musical time (ppq × K) and any tempo deviation is varispeed. An
