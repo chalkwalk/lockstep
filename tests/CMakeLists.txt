@@ -66,6 +66,7 @@ add_executable(lockstep_tests
     FuncReskinTest.cpp
     LatchOpsTest.cpp
     InspectorModelTest.cpp
+    TimelineModelTest.cpp
     ModalStateTest.cpp
     SurfaceDispatcherTest.cpp
     InputSourceTest.cpp
@@ -81,6 +82,7 @@ add_executable(lockstep_tests
     ../src/ui/SurfaceModel.cpp
     ../src/ui/SectionResolve.cpp
     ../src/ui/InspectorModel.cpp
+    ../src/ui/TimelineModel.cpp
     ../src/ui/mode/ModeReducer.cpp
     ../src/ui/mode/FuncReskin.cpp
     ../src/ui/mode/ModalState.cpp

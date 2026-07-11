@@ -116,6 +116,8 @@ namespace lockstep
     void runLatchOpsTests();
     // 9.12: InspectorModel context-region builder (grammar-derived)
     void runInspectorModelTests();
+    void runTimelineModelTests();
+    void runTimelineModelTests();  // 11.5 tape timeline strip model (§40.6)
     // 9.13: unified Modal accessor (reducer foundation)
     void runModalStateTests();
     // 9.15: SurfaceDispatcher coalescing contract (one invalidation channel)

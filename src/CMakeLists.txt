@@ -158,6 +158,7 @@ target_sources(Lockstep
         ui/SurfaceModel.cpp
         ui/SectionResolve.cpp
         ui/InspectorModel.cpp
+        ui/TimelineModel.cpp
         ui/InspectorBar.cpp
         ui/InPluginTransport.cpp
         ui/ManipulationZone.cpp

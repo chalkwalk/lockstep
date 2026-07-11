@@ -6995,6 +6995,38 @@ namespace lockstep
         return tm && tm->canUndo();
     }
 
+    int LockstepProcessor::tapeReelCapacity(int track) const
+    {
+        auto* tm = asTape(const_cast<std::array<std::unique_ptr<IMachine>, kNumTracks>&>(machines_), track);
+        return tm ? static_cast<int>(tm->mediumSeconds() * tm->sampleRate()) : 0;
+    }
+
+    double LockstepProcessor::tapePosition(int track) const
+    {
+        auto* tm = asTape(const_cast<std::array<std::unique_ptr<IMachine>, kNumTracks>&>(machines_), track);
+        return tm ? tm->positionSamples() : 0.0;
+    }
+
+    int LockstepProcessor::tapeRecordedSamples(int track) const
+    {
+        auto* tm = asTape(const_cast<std::array<std::unique_ptr<IMachine>, kNumTracks>&>(machines_), track);
+        return tm ? tm->recordedSamples() : 0;
+    }
+
+    double LockstepProcessor::tapeMarkerPosition(int track, int i) const
+    {
+        auto* tm = asTape(const_cast<std::array<std::unique_ptr<IMachine>, kNumTracks>&>(machines_), track);
+        return tm ? tm->markerPosition(i) : -1.0;
+    }
+
+    int LockstepProcessor::firstTapeTrack() const
+    {
+        if (isTapeTrack(focusTrack())) return focusTrack();
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            if (isTapeTrack(t)) return t;
+        return -1;
+    }
+
     void LockstepProcessor::tapeCue(int track, int dir)
     {
         auto* tm = asTape(machines_, track);

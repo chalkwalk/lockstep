@@ -257,6 +257,13 @@ namespace lockstep
         // the recorded extent of the reel and loads it as a durable File entry.
         // Returns the new pool index, or -1 on failure / empty reel.
         int promoteTape(int track, const juce::File& dest);
+        // Timeline-strip data (§40.6). All in samples; -1 / 0 when not a tape.
+        [[nodiscard]] int tapeReelCapacity(int track) const;      // reel length, samples
+        [[nodiscard]] double tapePosition(int track) const;       // playhead, samples
+        [[nodiscard]] int tapeRecordedSamples(int track) const;   // used high-water
+        [[nodiscard]] double tapeMarkerPosition(int track, int i) const;
+        // The focused track if it is a tape, else the first tape track, else -1.
+        [[nodiscard]] int firstTapeTrack() const;
         void looperToggleSubMute(int track, int sub);
         void looperToggleSubSolo(int track, int sub);
         void looperCycleSubSource(int track, int sub);  // step through the safe sources
