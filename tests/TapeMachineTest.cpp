@@ -87,6 +87,17 @@ namespace lockstep
         tape.setMediumSeconds(2.0);   // 2 s reel = 96000 samples
         CHECK(tape.recordedSamples() == 0, "a fresh reel has recorded nothing");
 
+        // Stage 1: SRC-page param polish. Reel reads as a duration in seconds; Bits
+        // runs 16i (min/anticlockwise) → 32f (max/clockwise) and defaults to 32f.
+        {
+            const auto reel = tape.paramSpec(1);
+            CHECK(reel.unit == ParamSpec::Unit::Seconds, "Reel is a seconds duration (was mislabelled ms)");
+            const auto bits = tape.paramSpec(3);
+            CHECK(juce::String(bits.valueLabels[0]) == "16i", "Bits[0] = 16i (anticlockwise)");
+            CHECK(juce::String(bits.valueLabels[1]) == "32f", "Bits[1] = 32f (clockwise)");
+            CHECK(feq(bits.defaultValue, 1.0f), "Bits defaults to 32f (value 1)");
+        }
+
         // ── Record along the timeline ────────────────────────────────────────
         // Punch in, lay 0.5 across positions [0, 512), punch out.
         tape.applyVerb(1);  // RecordCycle → Recording

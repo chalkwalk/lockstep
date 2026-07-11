@@ -27,9 +27,11 @@ namespace lockstep
             Percent,
             Cents,  // appended last: table-driven machines cast raw unit ordinals,
                     // so a new Unit must not shift the existing values.
-            Beats   // a musical duration in beats (1.0 = a quarter note). Reads as
+            Beats,  // a musical duration in beats (1.0 = a quarter note). Reads as
                     // its division name on a detent, and as milliseconds at the
                     // current tempo between them.
+            Seconds // a wall-clock duration in seconds; reads as "Xs" under a minute
+                    // and "m:ss" above (e.g. a tape reel length). Appended last.
         };
 
         // Closed set of semantic roles. Used by Control-All as an id-fallback

@@ -197,7 +197,10 @@ namespace lockstep
         static constexpr double kMaxMediumSeconds = 600.0;
 
         static constexpr std::array<const char* const, 2> kMonitorLabels = { "Off", "On" };
-        static constexpr std::array<const char* const, 2> kDepthLabels = { "32f", "16i" };
+        // Stage 1: 16i at the anticlockwise end, 32f at the clockwise (higher = better).
+        // Param value 0 = 16i, 1 = 32f; setMediumDepth's arg keeps its 1==i16 contract,
+        // so the param<->depth mapping is translated at the processor apply site.
+        static constexpr std::array<const char* const, 2> kDepthLabels = { "16i", "32f" };
 
         void bindReel() noexcept;
         // (Re)allocate the reel + undo backing for the current seconds/depth and

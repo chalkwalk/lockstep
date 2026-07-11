@@ -29,7 +29,7 @@ namespace lockstep
                 s.minValue = static_cast<float>(kMinMediumSeconds);
                 s.maxValue = static_cast<float>(kMaxMediumSeconds);
                 s.defaultValue = static_cast<float>(kDefaultMediumSeconds);
-                s.unit = ParamSpec::Unit::Ms;  // seconds shown; a reel is a duration
+                s.unit = ParamSpec::Unit::Seconds;  // a reel is a duration in seconds
                 return s;
             case kSlotMonitor:
                 s.id = "tape_monitor";
@@ -46,7 +46,7 @@ namespace lockstep
                 s.label = "Bits";
                 s.minValue = 0.0f;
                 s.maxValue = static_cast<float>(kDepthLabels.size() - 1);
-                s.defaultValue = 0.0f;   // 32-bit float
+                s.defaultValue = 1.0f;   // 32-bit float (clockwise end)
                 s.isStepped = true;
                 s.valueLabels = std::span<const char* const>(kDepthLabels.data(),
                                                              kDepthLabels.size());

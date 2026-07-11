@@ -77,6 +77,12 @@ namespace lockstep
                     ? juce::String(static_cast<int>(
                           std::round(static_cast<double>(v) * 60000.0 / bpm))) + " ms"
                     : juce::String(v, 2) + " bt";
+            case ParamSpec::Unit::Seconds: {
+                const int total = static_cast<int>(std::round(v));
+                return total < 60
+                    ? juce::String(total) + " s"
+                    : juce::String(total / 60) + ":" + juce::String(total % 60).paddedLeft('0', 2);
+            }
             case ParamSpec::Unit::None:
             default:
                 return juce::String(v, 2);

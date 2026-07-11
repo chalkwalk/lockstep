@@ -3950,8 +3950,12 @@ namespace lockstep
             // discards the take, like a length change). Quiesced, only on a change.
             else if (pickedId == "medium_depth")
             {
+                // Stage 1: param 0 = 16i, 1 = 32f; setMediumDepth keeps its 1==i16 arg.
                 if (auto* tm = dynamic_cast<TapeMachine*>(wm))
-                    withQuiescedEngine([&] { tm->setMediumDepth(static_cast<int>(std::lround(value))); });
+                {
+                    const bool wantI16 = std::lround(value) == 0;
+                    withQuiescedEngine([&] { tm->setMediumDepth(wantI16 ? 1 : 0); });
+                }
             }
         }
     }
@@ -6820,7 +6824,8 @@ namespace lockstep
                 const int dslot = slotForId(static_cast<int>(t), "medium_depth");
                 if (dslot >= 0 && dslot < static_cast<int>(bp.size()))
                 {
-                    const bool wantI16 = std::lround(bp[static_cast<std::size_t>(dslot)]) != 0;
+                    // Stage 1: param 0 = 16i, 1 = 32f.
+                    const bool wantI16 = std::lround(bp[static_cast<std::size_t>(dslot)]) == 0;
                     if (wantI16 != tm->depthI16())
                         tm->setMediumDepth(wantI16 ? 1 : 0);
                 }
