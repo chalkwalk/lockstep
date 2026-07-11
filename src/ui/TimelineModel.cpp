@@ -28,13 +28,22 @@ namespace lockstep
         m.recordedExtent01 = clamp01(static_cast<double>(proc.tapeRecordedSamples(track)) / capD);
         m.mediumFull01 = m.recordedExtent01;
 
+        // §40.2: the reel position is musical (ppq × K), but samplesPerBar is at the
+        // CURRENT tempo. The chase ratio r = K / spp(current) reconciles them, so a
+        // bar reads as a bar under any BPM: bars = pos / (r × samplesPerBar).
+        const double ratio = proc.tapeChaseRatio(track);
+        m.chaseRatio = static_cast<float>(ratio);
+
         // Position caption in musical time: bar.beat (1-based bars, beats within).
-        if (samplesPerBar > 0.0 && barPpq > 0.0)
+        if (samplesPerBar > 0.0 && barPpq > 0.0 && ratio > 0.0)
         {
-            const double bars = pos / samplesPerBar;
+            const double bars = pos / (ratio * samplesPerBar);
             const int bar = static_cast<int>(std::floor(bars)) + 1;
             const int beat = static_cast<int>(std::floor((bars - std::floor(bars)) * barPpq)) + 1;
             m.position = juce::String(bar) + "." + juce::String(beat);
+            // Surface varispeed: append "×0.50" when the tempo is off calibration.
+            if (std::abs(ratio - 1.0) > 1e-3)
+                m.position += " x" + juce::String(ratio, 2);
         }
         else
         {

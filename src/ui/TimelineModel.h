@@ -35,6 +35,7 @@ namespace lockstep
         float cursor01 = 0.0f;        // playhead as a fraction of the reel [0,1]
         float recordedExtent01 = 0.0f;// how much of the reel holds a take [0,1]
         float mediumFull01 = 0.0f;    // used / capacity, for the near-full warning
+        float chaseRatio = 1.0f;      // §40.2: reel/engine rate; !=1 = varispeed
 
         std::vector<TimelineMarker> markers;
     };

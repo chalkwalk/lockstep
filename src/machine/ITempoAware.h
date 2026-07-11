@@ -21,6 +21,12 @@ namespace lockstep
         // field on the one transport authority, not a rival to it. A locate moves
         // it; nothing else does, and no state travels with it (fence #1).
         double transportPhaseSamples = 0.0;
+        // The absolute musical position at this block's start, in ppq (quarter
+        // notes from the transport zero). The chase-locked Tape (DESIGN §40.2)
+        // needs raw ppq, not samples: its head is `ppq × K` for a per-reel
+        // calibration K, so it must not re-multiply by the *current* tempo the
+        // way transportPhaseSamples already has. (Appended field — struct growth.)
+        double transportPpq = 0.0;
         bool running = false;                // transport advancing this block
         // 9.17: the looper's edge timing (record/play/overdub) resolves against
         // the one shared launch-quantize grid, not a private looper grid. The

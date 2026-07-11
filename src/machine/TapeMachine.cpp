@@ -116,6 +116,7 @@ namespace lockstep
                 medium_.resetAllUsed();
                 haveUndo_ = false;
                 undoLo_ = undoHi_ = -1;
+                calSamplesPerPpq_ = 0.0;   // §40.2: a blank reel is uncalibrated again
                 deck_.setState(dc::DeckState::Playing);
                 break;
             case 4:  // Undo — restore the last punch's original content
@@ -134,7 +135,10 @@ namespace lockstep
 
     int TapeMachine::dropMarkerHere(int labelId)
     {
-        return markers_.drop(transport_.transportPhaseSamples, labelId);
+        // Reel domain (§40.2): a marker points at a place on the reel, so it lives
+        // where the head is — ppq × K on a calibrated reel, transportPhaseSamples
+        // otherwise. Cue/position/promote all read the same domain.
+        return markers_.drop(reelPosAtBlockStart(), labelId);
     }
 
     int TapeMachine::dropMarkerAt(double posSamples, int labelId)
@@ -142,21 +146,27 @@ namespace lockstep
         return markers_.drop(posSamples, labelId);
     }
 
+    int TapeMachine::dropMarkerAtPpq(double ppq, int labelId)
+    {
+        const double k = calSamplesPerPpq_ > 0.0 ? calSamplesPerPpq_ : currentSamplesPerPpq();
+        return markers_.drop(ppq * (k > 0.0 ? k : 1.0), labelId);
+    }
+
     double TapeMachine::cueNearest() const noexcept
     {
-        const int i = markers_.nearest(transport_.transportPhaseSamples);
+        const int i = markers_.nearest(reelPosAtBlockStart());
         return i < 0 ? -1.0 : markers_.at(i).positionSamples;
     }
 
     double TapeMachine::cueNext() const noexcept
     {
-        const int i = markers_.next(transport_.transportPhaseSamples);
+        const int i = markers_.next(reelPosAtBlockStart());
         return i < 0 ? -1.0 : markers_.at(i).positionSamples;
     }
 
     double TapeMachine::cuePrev() const noexcept
     {
-        const int i = markers_.prev(transport_.transportPhaseSamples);
+        const int i = markers_.prev(reelPosAtBlockStart());
         return i < 0 ? -1.0 : markers_.at(i).positionSamples;
     }
 
@@ -174,53 +184,128 @@ namespace lockstep
         const bool recording = deck_.state() == dc::DeckState::Recording;
         const bool stopped = deck_.state() == dc::DeckState::Stopped;
 
-        // The playhead IS the transport position (§40.2). At unity medium rate the
-        // reel index equals the absolute sample position; a locate jumps the
-        // transport, so the head follows for free. Stopped detaches from position.
-        const auto posAtBlockStart =
-            static_cast<std::int64_t>(std::llround(transport_.transportPhaseSamples));
-
-        // Capture the live input before we overwrite the buffer with playback.
-        // (Sub-track 0 only in this slice; the deck is single-sub-track for now.)
-        for (int i = 0; i < numSamples; ++i)
+        // Stopped detaches from position and plays nothing (§40.2).
+        if (stopped)
         {
-            const std::int64_t pos = posAtBlockStart + i;
             for (int ch = 0; ch < outChans; ++ch)
-            {
-                const float in = buffer.getSample(ch, i);
-                float out = 0.0f;
+                for (int i = 0; i < numSamples; ++i) buffer.setSample(ch, i, 0.0f);
+            return;
+        }
 
-                if (recording && ! stopped)
+        // §40.2 chase-lock. Calibration latches from the current tempo at the FIRST
+        // record onto a still-uncalibrated reel; from then on the reel is addressed
+        // by musical time (ppq × K) and any tempo deviation is varispeed. An
+        // uncalibrated reel (fresh, or with no tempo context) chases at unity and
+        // behaves exactly as the integer timeline did before.
+        if (recording && calSamplesPerPpq_ <= 0.0)
+        {
+            const double spp = currentSamplesPerPpq();
+            if (spp > 0.0) calSamplesPerPpq_ = spp;
+        }
+        const double r = chaseRatioNow();
+        const double posStart = reelPosAtBlockStart();
+
+        // Fence #8 undo: save the ORIGINAL of every integer reel sample the write
+        // is about to touch, once per punch (span-scoped; a re-touch keeps the
+        // pre-punch value). Reel-domain, so the span logic is rate-independent.
+        auto saveOriginals = [&](std::int64_t a, std::int64_t b) noexcept
+        {
+            const auto cap = static_cast<std::int64_t>(undoReel_.getNumSamples());
+            a = std::max<std::int64_t>(a, 0);
+            b = std::min<std::int64_t>(b, cap - 1);
+            for (std::int64_t p = a; p <= b; ++p)
+            {
+                const int ip = static_cast<int>(p);
+                const bool firstTouch = (undoLo_ < 0) || ip < undoLo_ || ip > undoHi_;
+                if (firstTouch)
                 {
-                    // Fence #8: save the ORIGINAL before overwriting, once per
-                    // position per punch (only when the span extends — a
-                    // re-touch inside the span keeps the pre-punch value). Channel 0
-                    // drives the span bookkeeping so both channels save together.
-                    const int ip = static_cast<int>(pos);
-                    if (ip >= 0 && ip < undoReel_.getNumSamples())
+                    for (int c = 0; c < outChans; ++c)
+                        undoReel_.setSample(c, ip, medium_.read(0, c, p));
+                    undoLo_ = (undoLo_ < 0) ? ip : std::min(undoLo_, ip);
+                    undoHi_ = (undoHi_ < 0) ? ip : std::max(undoHi_, ip);
+                }
+            }
+        };
+
+        const bool unity = std::abs(r - 1.0) < 1e-9;
+
+        if (unity)
+        {
+            // Unity fast path: integer read/write, bit-exact with the pre-chase-lock
+            // record. The head index equals the absolute reel position; a locate
+            // jumps the transport, so the head follows for free.
+            const auto posInt = static_cast<std::int64_t>(std::llround(posStart));
+            for (int i = 0; i < numSamples; ++i)
+            {
+                const std::int64_t pos = posInt + i;
+                if (recording)
+                {
+                    saveOriginals(pos, pos);
+                    medium_.ensureCommitted(0, static_cast<int>(pos) + 1);
+                    for (int ch = 0; ch < outChans; ++ch)
                     {
-                        const bool firstTouch = (undoLo_ < 0) || ip < undoLo_ || ip > undoHi_;
-                        if (firstTouch)
-                        {
-                            for (int c = 0; c < outChans; ++c)
-                                undoReel_.setSample(c, ip, medium_.read(0, c, pos));
-                            undoLo_ = (undoLo_ < 0) ? ip : std::min(undoLo_, ip);
-                            undoHi_ = (undoHi_ < 0) ? ip : std::max(undoHi_, ip);
-                        }
+                        const float in = buffer.getSample(ch, i);
+                        medium_.write(0, ch, pos, in);      // replace what was there
+                        buffer.setSample(ch, i, in);        // monitor what we lay down
                     }
-                    // Replace what is on the reel at this position with the input.
-                    // Committing first turns virgin tape into silence so a write into
-                    // an unrecorded region is exact, not additive.
-                    medium_.ensureCommitted(0, ip + 1);
-                    medium_.write(0, ch, pos, in);
-                    out = in;  // monitor what we are laying down
                 }
-                else if (! stopped)
+                else
                 {
-                    out = medium_.read(0, ch, pos);              // play the reel
-                    if (monMode == 1) out += in;                 // On: live-thru on top
+                    for (int ch = 0; ch < outChans; ++ch)
+                    {
+                        float out = medium_.read(0, ch, pos);
+                        if (monMode == 1) out += buffer.getSample(ch, i);  // live-thru
+                        buffer.setSample(ch, i, out);
+                    }
                 }
-                buffer.setSample(ch, i, out);
+            }
+            return;
+        }
+
+        // Varispeed path (r != 1, §40.10 head law): bandlimited fractional read and
+        // erase-ahead + |rate|-scaled scatter write. Heads reseed from the musical
+        // position each block, so they never drift from chase-lock.
+        float frame[2] = { 0.0f, 0.0f };  // NOLINT(*-avoid-c-arrays) — head float* API
+        if (recording)
+        {
+            dc::WriteHead wh;
+            wh.setRate(r);
+            wh.setPosition(posStart);
+            dc::EraseHead eh;                       // replace = erase + write
+            eh.setErasure(1.0f);
+            eh.setRate(r);
+            eh.setPosition(dc::EraseHead::leadFor(wh, dc::EraseHead::kMinGap));
+            // A generous, bounded window over the kernel + erase-lead extent: any
+            // sample the erase/write can touch is saved before either runs. Extra
+            // saved originals just restore to themselves (harmless).
+            const auto reach = static_cast<std::int64_t>(
+                dc::Resampler::kHalf + dc::EraseHead::kMinGap + std::ceil(std::abs(r)) + 2.0);
+            for (int i = 0; i < numSamples; ++i)
+            {
+                for (int ch = 0; ch < outChans; ++ch) frame[ch] = buffer.getSample(ch, i);
+                const auto base = static_cast<std::int64_t>(std::floor(wh.position()));
+                saveOriginals(base - reach, base + reach);
+                eh.sweep(medium_, 0);               // clear tape ahead of the deposit
+                wh.writeFrame(medium_, 0, frame, outChans);
+                wh.step(medium_);
+                for (int ch = 0; ch < outChans; ++ch) buffer.setSample(ch, i, frame[ch]);
+            }
+        }
+        else
+        {
+            dc::ReadHead rh;
+            rh.setRate(r);
+            rh.setPosition(posStart);
+            for (int i = 0; i < numSamples; ++i)
+            {
+                rh.readFrame(medium_, 0, frame, outChans);
+                for (int ch = 0; ch < outChans; ++ch)
+                {
+                    float out = frame[ch];
+                    if (monMode == 1) out += buffer.getSample(ch, i);  // live-thru
+                    buffer.setSample(ch, i, out);
+                }
+                rh.step(medium_);
             }
         }
     }

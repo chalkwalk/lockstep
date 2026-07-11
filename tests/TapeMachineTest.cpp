@@ -37,6 +37,43 @@ namespace lockstep
             t.process(none, pf, b);
             return b;
         }
+
+        // Chase-locked drive (§40.2): give the machine full musical context — a
+        // ppq position and a samples-per-ppq tempo — so a CALIBRATED reel addresses
+        // itself by `ppq × K`. barPpq is fixed at 4; only spp (the tempo) varies.
+        juce::AudioBuffer<float> tapeBlockT(TapeMachine& t, double ppq, double spp,
+                                            int n, float inValue, double sr)
+        {
+            TransportInfo tr;
+            tr.sampleRate = sr;
+            tr.running = true;
+            tr.barPpq = 4.0;
+            tr.samplesPerBar = 4.0 * spp;
+            tr.transportPpq = ppq;
+            tr.transportPhaseSamples = ppq * spp;
+            t.setTransport(tr);
+
+            juce::AudioBuffer<float> b(2, n);
+            for (int ch = 0; ch < 2; ++ch)
+                for (int i = 0; i < n; ++i) b.setSample(ch, i, inValue);
+
+            juce::MidiBuffer none;
+            ParamFrame pf{ 1.0f, 0.0f, 0.0f };
+            t.process(none, pf, b);
+            return b;
+        }
+
+        // Set musical context without processing a block (to read positionSamples()).
+        void setTapePos(TapeMachine& t, double ppq, double spp, double sr)
+        {
+            TransportInfo tr;
+            tr.sampleRate = sr;
+            tr.barPpq = 4.0;
+            tr.samplesPerBar = 4.0 * spp;
+            tr.transportPpq = ppq;
+            tr.transportPhaseSamples = ppq * spp;
+            t.setTransport(tr);
+        }
     }
 
     void runTapeMachineTests()
@@ -169,6 +206,110 @@ namespace lockstep
             CHECK(t.markerCount() == 2, "Clear wipes audio, not markers");
             t.clearMarkers();
             CHECK(t.markerCount() == 0, "clearMarkers is the explicit delete");
+        }
+
+        // ── Chase-lock (§40.2): position is musical, calibration latches ─────
+        {
+            constexpr double spp0 = 480.0;   // calibration tempo (samples per ppq)
+            TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(4.0);
+            CHECK(t.calibrationSamplesPerPpq() == 0.0, "a fresh reel is uncalibrated");
+
+            // First record onto the empty reel latches K from the current tempo.
+            t.applyVerb(1);  // punch in
+            tapeBlockT(t, 0.0, spp0, n, 0.5f, kSr);
+            CHECK(feq(static_cast<float>(t.calibrationSamplesPerPpq()), 480.0f),
+                  "calibration latches to the first-record tempo");
+            CHECK(feq(static_cast<float>(t.chaseRatio()), 1.0f),
+                  "the first record is unity (K == current tempo)");
+            t.applyVerb(1);  // punch out
+
+            // Reel position is a pure function of musical time: ppq × K, the SAME
+            // at any tempo. This is what makes cue/punch bar-aligned by construction.
+            setTapePos(t, 1.0, spp0, kSr);
+            CHECK(feq(static_cast<float>(t.positionSamples()), 480.0f),
+                  "reel position = ppq × K at the calibration tempo");
+            setTapePos(t, 1.0, spp0 * 0.5, kSr);  // double tempo (half spp)
+            CHECK(feq(static_cast<float>(t.positionSamples()), 480.0f),
+                  "reel position is tempo-invariant — a bar is a bar under any BPM");
+            CHECK(feq(static_cast<float>(t.chaseRatio()), 2.0f),
+                  "double tempo → chase ratio ×2 (surfaced on the strip)");
+
+            // Play the take back at double tempo: varispeed read of the recorded
+            // region returns the recorded amplitude (chipmunk pitch, same content).
+            auto fast = tapeBlockT(t, 0.0, spp0 * 0.5, n, 0.0f, kSr);
+            CHECK(feq(fast.getSample(0, 40), 0.5f, 0.02f),
+                  "varispeed playback reads the take (bandlimited, ~unity amplitude)");
+        }
+
+        // ── Mid-record tempo change: no head jump, take stays contiguous ─────
+        {
+            constexpr double spp0 = 480.0;
+            TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(4.0);
+
+            t.applyVerb(1);  // punch in
+            // Block 1 at cal tempo: reel [0, 512), calibrates K = 480.
+            tapeBlockT(t, 0.0, spp0, n, 0.5f, kSr);
+            // Block 2 at DOUBLE tempo (r = 2). The head is ppq × K, so it starts at
+            // reel 512 — contiguous — not ppq × spp(current) = 256 (the old bug,
+            // which would jump BACK and overwrite block 1).
+            const double ppq2 = static_cast<double>(n) / spp0;   // ppq after block 1
+            tapeBlockT(t, ppq2, spp0 * 0.5, n, -0.3f, kSr);
+            t.applyVerb(1);  // punch out
+
+            // Block 1's audio is intact at the start (not overwritten by a jump).
+            auto atStart = tapeBlockT(t, 0.0, spp0, n, 0.0f, kSr);
+            CHECK(feq(atStart.getSample(0, 100), 0.5f),
+                  "mid-record tempo change did not jump the head back over block 1");
+            // The second region exists further along (reel >= 512), non-silent.
+            CHECK(t.recordedSamples() > n, "the take extended past block 1, contiguous");
+        }
+
+        // ── Varispeed record level law: |rate| write gain (§40.10) ───────────
+        {
+            constexpr double spp0 = 480.0;
+            TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(4.0);
+
+            t.applyVerb(1);  // punch in
+            // Block 1 calibrates K = 480 (unity), reel [0, 512) = 0.4.
+            tapeBlockT(t, 0.0, spp0, n, 0.4f, kSr);
+            // Block 2 at HALF tempo (spp = 960 → r = 0.5): records into reel
+            // [512, 768) at half rate. With the |rate| gain the deposited amplitude
+            // stays ~0.4; drop the gain and a half-speed write lands ~0.8.
+            const double ppq2 = static_cast<double>(n) / spp0;
+            tapeBlockT(t, ppq2, spp0 * 2.0, n, 0.4f, kSr);
+            t.applyVerb(1);  // punch out
+
+            // Read the interior of the r = 0.5 region (reel ~640) at unity.
+            auto region = tapeBlockT(t, 640.0 / spp0, spp0, n, 0.0f, kSr);
+            CHECK(feq(region.getSample(0, 0), 0.4f, 0.05f),
+                  "varispeed record is amplitude-invariant (|rate| gain holds level)");
+        }
+
+        // ── Punch + undo at varispeed restores the original exactly ──────────
+        {
+            constexpr double spp0 = 480.0;
+            TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(4.0);
+
+            // Original take across reel [0, 512) at cal tempo (calibrates K).
+            t.applyVerb(1);
+            tapeBlockT(t, 0.0, spp0, n, 0.5f, kSr);
+            t.applyVerb(1);
+            CHECK(feq(tapeBlockT(t, 0.0, spp0, n, 0.0f, kSr).getSample(0, 100), 0.5f),
+                  "original take laid at cal tempo");
+
+            // Punch over the middle at DOUBLE tempo (r = 2), musical ppq ~0.4..
+            t.applyVerb(1);  // punch in
+            tapeBlockT(t, 200.0 / spp0, spp0 * 0.5, 128, -0.4f, kSr);
+            t.applyVerb(1);  // punch out
+            CHECK(t.canUndo(), "a varispeed punch is undoable");
+
+            // Undo restores the original content over the whole punched span.
+            t.applyVerb(4);
+            auto restored = tapeBlockT(t, 0.0, spp0, n, 0.0f, kSr);
+            CHECK(feq(restored.getSample(0, 100), 0.5f),
+                  "undo restored the original over the varispeed punch");
+            CHECK(feq(restored.getSample(0, 400), 0.5f),
+                  "and left the untouched tail alone");
         }
     }
 }

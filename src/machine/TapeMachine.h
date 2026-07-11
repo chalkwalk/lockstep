@@ -1,6 +1,8 @@
 #pragma once
 
 #include "../deckcore/Deck.h"
+#include "../deckcore/EraseHead.h"
+#include "../deckcore/Heads.h"
 #include "../deckcore/MarkerLane.h"
 #include "../deckcore/Medium.h"
 #include "ConsoleMode.h"
@@ -104,7 +106,46 @@ namespace lockstep
         // hold the take. Message thread / non-audio use only.
         [[nodiscard]] const juce::AudioBuffer<float>& reelView() const noexcept { return reel_; }
         [[nodiscard]] double sampleRate() const noexcept { return sampleRate_; }
-        [[nodiscard]] double positionSamples() const noexcept { return transport_.transportPhaseSamples; }
+        // Reel position under chase-lock (§40.2): a CALIBRATED reel is addressed by
+        // musical position × calibration (`ppq × K`); an uncalibrated one falls back
+        // to the raw transportPhaseSamples, which is byte-identical to today (and
+        // is what a reel with no tempo context — e.g. a bare unit test — uses).
+        [[nodiscard]] double positionSamples() const noexcept { return reelPosAtBlockStart(); }
+        // §40.2 chase-lock diagnostics (message thread / strip / tests).
+        [[nodiscard]] double calibrationSamplesPerPpq() const noexcept { return calSamplesPerPpq_; }
+        // Reel samples advanced per engine sample at the current tempo: 1 at the
+        // calibration tempo (and on an uncalibrated reel), != 1 when the tempo
+        // deviates. This is the number the strip surfaces as "×0.5" etc. Live from
+        // the last transport snapshot, so it is right even between processed blocks.
+        [[nodiscard]] double chaseRatio() const noexcept { return chaseRatioNow(); }
+        // Reel-sample → ppq, via this reel's calibration (single owner of the
+        // inverse mapping — the cue→locate path uses it, §40.2 reel-is-truth).
+        [[nodiscard]] double reelToPpq(double reelPos) const noexcept
+        {
+            const double k = calSamplesPerPpq_ > 0.0 ? calSamplesPerPpq_ : currentSamplesPerPpq();
+            return k > 0.0 ? reelPos / k : 0.0;
+        }
+        // Drop a marker at a musical position (ppq), converted into this reel's
+        // domain by its own calibration — the processor's auto-drop passes the
+        // block's ppq (the machine's transport_ lags a block, §40.4).
+        int dropMarkerAtPpq(double ppq, int labelId = 0);
+
+        [[nodiscard]] double currentSamplesPerPpq() const noexcept
+        {
+            return (transport_.barPpq > 0.0) ? transport_.samplesPerBar / transport_.barPpq : 0.0;
+        }
+        // The chase rate r = K / samplesPerPpq(current). 1 on an uncalibrated reel
+        // or with no tempo context (→ the unity integer path, today's behaviour).
+        [[nodiscard]] double chaseRatioNow() const noexcept
+        {
+            const double spp = currentSamplesPerPpq();
+            return (calSamplesPerPpq_ > 0.0 && spp > 0.0) ? calSamplesPerPpq_ / spp : 1.0;
+        }
+        [[nodiscard]] double reelPosAtBlockStart() const noexcept
+        {
+            return calSamplesPerPpq_ > 0.0 ? transport_.transportPpq * calSamplesPerPpq_
+                                           : transport_.transportPhaseSamples;
+        }
 
     private:
         static constexpr int kSlotInputSource = 0;
@@ -137,6 +178,14 @@ namespace lockstep
         int undoHi_ = -1;      // highest position saved this punch
         bool haveUndo_ = false;
         double mediumSeconds_ = kDefaultMediumSeconds;
+
+        // §40.2 chase-lock. The reel's calibration (samples per ppq) latches from
+        // the transport tempo at the first record onto an empty reel, and Clear
+        // resets it to 0. 0 = uncalibrated → chase at unity (an empty deck behaves
+        // exactly as a 1× timeline). Session-local runtime state, like the reel
+        // audio: promote-or-lose, never serialized; a fresh machine loses both.
+        double calSamplesPerPpq_ = 0.0;
+
         std::array<dc::Store, 2> planes_{};
         dc::Medium medium_;
 

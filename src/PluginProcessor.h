@@ -277,6 +277,7 @@ namespace lockstep
         // Timeline-strip data (§40.6). All in samples; -1 / 0 when not a tape.
         [[nodiscard]] int tapeReelCapacity(int track) const;      // reel length, samples
         [[nodiscard]] double tapePosition(int track) const;       // playhead, samples
+        [[nodiscard]] double tapeChaseRatio(int track) const;     // §40.2 reel/engine rate
         [[nodiscard]] int tapeRecordedSamples(int track) const;   // used high-water
         [[nodiscard]] double tapeMarkerPosition(int track, int i) const;
         // The focused track if it is a tape, else the first tape track, else -1.

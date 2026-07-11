@@ -1676,6 +1676,7 @@ namespace lockstep
         blockTransport_.samplesPerBar = effectiveTimeSig().barPpq() * samplesPerPpq;
         blockTransport_.barPpq = effectiveTimeSig().barPpq();
         blockTransport_.transportPhaseSamples = clock_.ppqAtBlockStart() * samplesPerPpq;
+        blockTransport_.transportPpq = clock_.ppqAtBlockStart();  // raw ppq (§40.2 chase-lock)
         blockTransport_.running = sequencerRunning;
 
         // If the DAW looped or the user hit Reset (backward PPQ jump), or the
@@ -2247,11 +2248,13 @@ namespace lockstep
                 // marker on that deck — so a take performed by launching scenes
                 // comes back with the launches marked. The marker is metadata and
                 // fires nothing (fence #1); the position is this block's start.
-                const double markPos = clock_.ppqAtBlockStart() * clock_.samplesPerPpq();
+                // Pass ppq — each reel converts it through its own calibration
+                // (§40.2), so a marker lands where the head is regardless of tempo.
+                const double markPpq = clock_.ppqAtBlockStart();
                 for (auto& mm : machines_)
                     if (auto* tape = dynamic_cast<TapeMachine*>(mm.get()))
                         if (tape->recording())
-                            tape->dropMarkerAt(markPos);
+                            tape->dropMarkerAtPpq(markPpq);
             }
 
             // 9.17: apply any per-track Phrase deviations that reached their
@@ -7216,6 +7219,12 @@ namespace lockstep
         return tm ? tm->positionSamples() : 0.0;
     }
 
+    double LockstepProcessor::tapeChaseRatio(int track) const
+    {
+        auto* tm = asTape(const_cast<std::array<std::unique_ptr<IMachine>, kNumTracks>&>(machines_), track);
+        return tm ? tm->chaseRatio() : 1.0;  // §40.2 reel samples / engine sample
+    }
+
     int LockstepProcessor::tapeRecordedSamples(int track) const
     {
         auto* tm = asTape(const_cast<std::array<std::unique_ptr<IMachine>, kNumTracks>&>(machines_), track);
@@ -7244,9 +7253,10 @@ namespace lockstep
                                    : dir > 0 ? tm->cueNext()
                                              : tm->cueNearest();
         if (targetSamples < 0.0) return;  // no marker in that direction
-        const double spp = clock_.samplesPerPpq();
-        if (spp <= 0.0) return;
-        clock_.locate(targetSamples / spp);  // a cue is a locate, not a launch (§40.4)
+        // Reel-is-truth (§40.2): the cue target is a reel sample; convert it back
+        // to ppq through the reel's OWN calibration, not the current tempo.
+        const double targetPpq = tm->reelToPpq(targetSamples);
+        clock_.locate(targetPpq);  // a cue is a locate, not a launch (§40.4)
     }
 
     void LockstepProcessor::looperToggleSubMute(int track, int sub)
