@@ -261,6 +261,13 @@ namespace lockstep
         // sub-track plus a materialised stereo downmix, all loaded as File entries
         // linked by one take-group id. Returns the downmix pool index, or -1.
         int promoteDeckTake(int track, const juce::File& destStem);
+        // §40.3 load-onto-sub-track: copy a pool entry's PCM (native) onto a deck
+        // sub-track. Returns true on success. Message thread.
+        bool loadSampleToDeckSubTrack(int track, int sub, int poolIndex);
+        // Load a whole promoted take-group onto a deck's sub-tracks (the deck-class
+        // group pick, §40.7): each member sub-track WAV onto its sub-track. Returns
+        // the number of sub-tracks loaded.
+        int loadTakeGroupToDeck(int track, std::uint32_t groupId);
         int writeWavAndLoad(const juce::AudioBuffer<float>& buf, int firstChan,
                             int numChan, int len, double sr, const juce::File& dest);
         // Timeline-strip data (§40.6). All in samples; -1 / 0 when not a tape.

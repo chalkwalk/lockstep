@@ -748,14 +748,21 @@ namespace lockstep
             processor_.samplePool(),
             [&](int i) { return processor_.sampleAcceptedByTrack(track, i); },
             deckClass);
+        // Group-entity items use a high id range so the callback can tell a "load
+        // the whole take onto the deck" pick from an ordinary sample pick.
+        constexpr int kGroupItemBase = 100000;
+        std::vector<std::uint32_t> groupForItem;  // item id (kGroupItemBase+n) → groupId
         int shown = 0;
         for (const auto& r : rows)
         {
-            // Sample-class picker: only member/plain rows are actionable (a group
-            // entity needs load-onto-sub-track, which is deck-only).
-            if (r.kind != TakePickerRow::Kind::Sample) continue;
-            // Plain samples keep their existing group-ordinal label; only take-group
-            // members get the "Take N sub k / mix" grouping.
+            if (r.kind == TakePickerRow::Kind::TakeGroup)
+            {
+                // Deck-class only (§40.7): picking it loads all sub-tracks.
+                menu.addItem(kGroupItemBase + static_cast<int>(groupForItem.size()), r.label);
+                groupForItem.push_back(r.groupId);
+                ++shown;
+                continue;
+            }
             const juce::String label =
                 r.groupId == 0
                     ? (juce::String(processor_.samplePool().groupOrdinal(r.poolIndex))
@@ -775,13 +782,21 @@ namespace lockstep
 
         menu.showMenuAsync(
             juce::PopupMenu::Options().withTargetComponent(samplePickerBtn_),
-            [this, track, absoluteSlot](int result) {
+            [this, track, absoluteSlot, groupForItem = std::move(groupForItem)](int result) {
                 if (result == 1000)
                 {
                     if (onOpenPoolManager) onOpenPoolManager();
                     return;
                 }
                 if (result < 1) return;
+                if (result >= 100000)
+                {
+                    // A take-group entity: load the whole take onto the deck (§40.7).
+                    const std::size_t gi = static_cast<std::size_t>(result - 100000);
+                    if (gi < groupForItem.size())
+                        processor_.loadTakeGroupToDeck(track, groupForItem[gi]);
+                    return;
+                }
                 processor_.writeParam(track, absoluteSlot, static_cast<float>(result - 1));
             });
     }

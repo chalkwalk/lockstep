@@ -5628,6 +5628,49 @@ namespace lockstep
         return samplePool_.load(out.getFullPathName());
     }
 
+    bool LockstepProcessor::loadSampleToDeckSubTrack(int track, int sub, int poolIndex)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        auto* lm = dynamic_cast<LoopMachine*>(machines_[static_cast<std::size_t>(track)].get());
+        if (lm == nullptr) return false;
+        const auto* src = samplePool_.get(poolIndex);
+        if (src == nullptr || src->pcm.getNumSamples() <= 0) return false;
+
+        // Resolve the loop's volatile slot from its target_buffer ordinal.
+        const int tbSlot = slotForId(track, "target_buffer");
+        const auto& bp = sequence().tracks[static_cast<std::size_t>(track)].baseParams;
+        const int ord = (tbSlot >= 0 && tbSlot < static_cast<int>(bp.size()))
+                            ? static_cast<int>(std::lround(bp[static_cast<std::size_t>(tbSlot)])) : 0;
+        const int slot = samplePool_.nthVolatileIndex(ord);
+        if (slot < 0) return false;
+
+        // Grow subtrack_count to cover this sub-track so the param persists it.
+        const int scSlot = slotForId(track, "subtrack_count");
+        if (scSlot >= 0 && scSlot < static_cast<int>(bp.size())
+            && static_cast<int>(std::lround(bp[static_cast<std::size_t>(scSlot)])) < sub + 1)
+            writeParam(track, scSlot, static_cast<float>(sub + 1));
+
+        bool ok = false;
+        withQuiescedEngine([&] {
+            ok = lm->loadSubTrack(sub, src->pcm, src->pcm.getNumSamples(), slot, poolIndex);
+        });
+        return ok;
+    }
+
+    int LockstepProcessor::loadTakeGroupToDeck(int track, std::uint32_t groupId)
+    {
+        if (groupId == 0) return 0;
+        int loaded = 0;
+        for (int i = 0; i < samplePool_.size(); ++i)
+        {
+            const auto* e = samplePool_.get(i);
+            if (e == nullptr || e->takeGroupId != groupId || e->takeMember < 1) continue;
+            // member k (1..N) → sub-track k-1.
+            if (loadSampleToDeckSubTrack(track, e->takeMember - 1, i)) ++loaded;
+        }
+        return loaded;
+    }
+
     int LockstepProcessor::promoteDeckTake(int track, const juce::File& destStem)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;

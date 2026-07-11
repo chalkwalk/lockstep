@@ -202,6 +202,19 @@ namespace lockstep
         [[nodiscard]] int subTrackCount() const noexcept { return deck_.subTrackCount(); }
         // The resolved volatile pool slot the loop records into (for promotion).
         [[nodiscard]] int targetSlot() const noexcept { return targetSlot_; }
+        // §40.3 load-onto-sub-track: copy `src` (native) into sub-track `sub`'s
+        // channel-pair of the volatile slot `slot`. On an empty loop the window
+        // becomes the source length; on a loop that already has a window, the source
+        // is copied native into that window (truncated/padded — FIT stretches it).
+        // Message thread (quiesced). Records provenance for a later FIT. Returns
+        // false if it could not load.
+        bool loadSubTrack(int sub, const juce::AudioBuffer<float>& src, int srcLen,
+                          int slot, int srcPoolIndex);
+        // The pool entry a sub-track was last loaded from, or -1 (for FIT).
+        [[nodiscard]] int subSource(int sub) const noexcept
+        {
+            return subSrcPool_[static_cast<std::size_t>(clampSub(sub))];
+        }
         [[nodiscard]] bool subMutedFor(int sub) const noexcept { return deck_.subTrack(clampSub(sub)).muted; }
         [[nodiscard]] bool subArmed(int sub) const noexcept { return deck_.subTrack(clampSub(sub)).armed; }
         [[nodiscard]] bool subMuted(int sub) const noexcept { return deck_.subTrack(clampSub(sub)).muted; }
@@ -346,6 +359,9 @@ namespace lockstep
         // The state machine, the pending quantized edge, and the sub-track table.
         dc::Deck deck_;
         int loopLen_ = 0;
+        // §40.3: the pool entry each sub-track was loaded from (-1 = recorded, not
+        // loaded). FIT re-reads the source to stretch it to the window.
+        std::array<int, kMaxInputSubTracks> subSrcPool_{ -1, -1, -1, -1 };
         double playPos_ = 0.0;    // fractional read position (varispeed, C4)
         double lastPos_ = 0.0;    // previous read position, for Always-decay wrap detect (#4)
         int recPos_ = 0;

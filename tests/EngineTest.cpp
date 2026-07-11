@@ -438,6 +438,76 @@ namespace lockstep
         }
     }
 
+    // §40.3: load a File onto a deck sub-track — the PCM is COPIED into the
+    // sub-track's channel-pair (it becomes tape), and the deck adopts it.
+    static void testLoadOntoSubTrack()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+
+        // Build a durable File entry of constant 0.5 via a volatile capture + promote.
+        const int vslot = p.volatilePoolIndex(5);
+        if (auto* pcm = p.samplePool().beginVolatileCapture(vslot, 2000, 2))
+            for (int ch = 0; ch < 2; ++ch)
+                for (int i = 0; i < 2000; ++i) pcm->setSample(ch, i, 0.5f);
+        auto tmp = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                       .getChildFile("lockstep_load_src");
+        const int fileIdx = p.promoteVolatileToFile(vslot, tmp);
+        CHECK(fileIdx >= 0, "built a File source");
+
+        // Load it onto sub-track 1 of a fresh Loop on track 0.
+        p.setTrackMachine(0, LoopMachine::kMachineId);
+        CHECK(p.loadSampleToDeckSubTrack(0, 1, fileIdx), "the sample loaded onto sub-track 1");
+
+        // It landed in channel-pair 1 (channels 2,3) of the loop's volatile slot.
+        const int slot = p.volatilePoolIndex(0);   // default target_buffer = 0
+        const auto* s = p.samplePool().get(slot);
+        CHECK(s != nullptr && s->pcm.getNumChannels() >= 4, "the slot opened to the deck width");
+        if (s != nullptr && s->pcm.getNumChannels() >= 4)
+        {
+            CHECK(feq(s->pcm.getSample(2, 100), 0.5f), "sub-track 1 (channel 2) holds the source");
+            CHECK(feq(s->pcm.getSample(3, 100), 0.5f), "and channel 3");
+            CHECK(feq(s->pcm.getSample(0, 100), 0.0f), "sub-track 0 stays silent (not loaded)");
+        }
+        // The loop adopted a window and grew to two sub-tracks.
+        CHECK(p.looperSubTrackCount(0) == 2, "the deck grew to two sub-tracks");
+        CHECK(p.looperState(0) == static_cast<int>(LoopMachine::State::Playing),
+              "and the loaded take is playing");
+        tmp.withFileExtension("wav").deleteFile();
+    }
+
+    // §40.7: the deck-class group pick loads a whole promoted take back onto a deck.
+    static void testLoadTakeGroupToDeck()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+        // Record + promote a 2-sub-track take on track 0.
+        p.setTrackMachine(0, LoopMachine::kMachineId);
+        p.setTrackLength(0, 4);
+        p.setTrackSubdivision(0, indexFromParts(DivBase::D1_64, DivFlavour::Straight));
+        p.writeParam(0, p.slotForId(0, "loop_sync"), 2.0f);
+        p.writeParam(0, p.slotForId(0, "subtrack_count"), 2.0f);
+        h.renderBlocks(1);
+        p.sendLooperCommand(0, static_cast<int>(LoopMachine::Cmd::RecordCycle), true);
+        for (int b = 0; b < 40 && p.looperState(0) != static_cast<int>(LoopMachine::State::Playing); ++b)
+            h.renderBlocks(1);
+        auto stem = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                        .getChildFile("lockstep_group_load");
+        const int mixIdx = p.promoteDeckTake(0, stem);
+        CHECK(mixIdx >= 0, "the take promoted");
+        const std::uint32_t group = p.samplePool().get(mixIdx)->takeGroupId;
+
+        // Load the whole group onto a fresh Loop on track 1.
+        p.setTrackMachine(1, LoopMachine::kMachineId);
+        const int loaded = p.loadTakeGroupToDeck(1, group);
+        CHECK(loaded == 2, "both sub-tracks loaded from the group");
+        CHECK(p.looperSubTrackCount(1) == 2, "the target deck grew to two sub-tracks");
+
+        for (const char* suf : { "_1", "_2", "_mix" })
+            stem.getSiblingFile(stem.getFileNameWithoutExtension()
+                                + juce::String(suf)).withFileExtension("wav").deleteFile();
+    }
+
     // §40.7: promoting a 4-sub-track Loop take writes N sub-track WAVs + a downmix,
     // all linked by one take-group id. The members are ordinary File pool citizens.
     static void testDeckTakeGroupPromote()
@@ -4286,6 +4356,8 @@ namespace lockstep
         testTapeMediumLengthParam();
         testTapePromote();
         testDeckTakeGroupPromote();
+        testLoadOntoSubTrack();
+        testLoadTakeGroupToDeck();
         testSceneLaunchGridRouting();
         testQueuedSongSwitchAtBoundary();
         testDoubleTapSongSwitchInstant();

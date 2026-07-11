@@ -662,6 +662,55 @@ namespace lockstep
         wowDepth_ = 0.0;                // S6: the wobble stops; tapeMult_ glides to 1
     }
 
+    bool LoopMachine::loadSubTrack(int sub, const juce::AudioBuffer<float>& src,
+                                   int srcLen, int slot, int srcPoolIndex)
+    {
+        if (slot < 0 || srcLen <= 0) return false;
+        const int cap = pool_.volatileCapacity(slot);
+        if (cap <= 0) return false;
+        sub = clampSub(sub);
+
+        juce::AudioBuffer<float>* buf = nullptr;
+        int L = loopLen_;
+        if (L <= 0)
+        {
+            // Empty loop: the window becomes the source length. Open the slot at the
+            // full deck width so every sub-track's pair exists (others stay silent).
+            L = std::min(srcLen, cap);
+            if (L <= 0) return false;
+            buf = pool_.beginVolatileCapture(slot, L, 2 * kMaxInputSubTracks);
+            loopLen_ = L;
+        }
+        else
+        {
+            // Existing window: write into the pair without disturbing the others.
+            buf = pool_.mutableVolatilePcm(slot);
+        }
+        if (buf == nullptr) return false;
+        targetSlot_ = slot;
+
+        const int firstCh = 2 * sub;
+        if (firstCh + 1 >= buf->getNumChannels()) return false;
+        const int copyN = std::min(srcLen, L);
+        const int srcChans = std::max(1, std::min(2, src.getNumChannels()));
+        for (int c = 0; c < 2; ++c)
+        {
+            buf->clear(firstCh + c, 0, L);                  // replace the sub-track
+            const int useCh = std::min(c, srcChans - 1);    // a mono source fills both
+            buf->copyFrom(firstCh + c, 0, src, useCh, 0, copyN);
+        }
+
+        // The deck now has at least sub+1 sub-tracks; adopt the take.
+        if (deck_.subTrackCount() < sub + 1) deck_.setSubTrackCount(sub + 1);
+        subSrcPool_[static_cast<std::size_t>(sub)] = srcPoolIndex;
+        pool_.setVolatileOrigin(slot, SampleOrigin::Loop);
+        deck_.setState(State::Playing);
+        playPos_ = 0.0;
+        lastPos_ = 0.0;
+        stateMirror_.store(static_cast<int>(deck_.state()), std::memory_order_release);
+        return true;
+    }
+
     void LoopMachine::closeRecording()
     {
         loopLen_ = std::max(0, recPos_);
