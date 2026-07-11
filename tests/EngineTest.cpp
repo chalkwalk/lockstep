@@ -476,6 +476,47 @@ namespace lockstep
         tmp.withFileExtension("wav").deleteFile();
     }
 
+    // §40.3: FIT stretches a sub-track's loaded source to the deck's window. A
+    // native load into a longer window leaves silence past the source; FIT fills it.
+    static void testFitDeckSubTrack()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+
+        const auto makeFile = [&](int vslot, int len, const char* stem) {
+            if (auto* pcm = p.samplePool().beginVolatileCapture(vslot, len, 2))
+                for (int ch = 0; ch < 2; ++ch)
+                    for (int i = 0; i < len; ++i) pcm->setSample(ch, i, 0.5f);
+            auto f = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile(stem);
+            return std::pair<int, juce::File>{ p.promoteVolatileToFile(vslot, f), f };
+        };
+        auto [longIdx, longF] = makeFile(p.volatilePoolIndex(5), 4000, "lockstep_fit_long");
+        auto [shortIdx, shortF] = makeFile(p.volatilePoolIndex(6), 2000, "lockstep_fit_short");
+        CHECK(longIdx >= 0 && shortIdx >= 0, "built two File sources");
+
+        p.setTrackMachine(0, LoopMachine::kMachineId);
+        // The 4000-sample source sets the window; the 2000-sample source loads
+        // native onto sub 1 (truncated/padded — silent past 2000).
+        CHECK(p.loadSampleToDeckSubTrack(0, 0, longIdx), "sub 0 sets the 4000 window");
+        CHECK(p.loadSampleToDeckSubTrack(0, 1, shortIdx), "sub 1 loads native");
+
+        const int slot = p.volatilePoolIndex(0);
+        const auto* s = p.samplePool().get(slot);
+        CHECK(s != nullptr && feq(s->pcm.getSample(2, 3000), 0.0f),
+              "native load leaves sub 1 silent past its source (sample 3000)");
+
+        // FIT sub 1: the 2000-sample source stretches to the 4000 window → 0.5 fills
+        // it (a constant stretches to a constant).
+        CHECK(p.fitDeckSubTrack(0, 1), "FIT stretched sub 1 to the window");
+        const auto* s2 = p.samplePool().get(slot);
+        CHECK(s2 != nullptr && std::abs(s2->pcm.getSample(2, 3000) - 0.5f) < 0.1f,
+              "FIT filled sub 1 past 2000 (stretched, got "
+                  + juce::String(s2 ? s2->pcm.getSample(2, 3000) : 0.0f, 3) + ")");
+
+        longF.withFileExtension("wav").deleteFile();
+        shortF.withFileExtension("wav").deleteFile();
+    }
+
     // §40.7: the deck-class group pick loads a whole promoted take back onto a deck.
     static void testLoadTakeGroupToDeck()
     {
@@ -4358,6 +4399,7 @@ namespace lockstep
         testDeckTakeGroupPromote();
         testLoadOntoSubTrack();
         testLoadTakeGroupToDeck();
+        testFitDeckSubTrack();
         testSceneLaunchGridRouting();
         testQueuedSongSwitchAtBoundary();
         testDoubleTapSongSwitchInstant();

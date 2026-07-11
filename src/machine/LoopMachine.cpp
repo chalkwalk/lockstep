@@ -708,6 +708,7 @@ namespace lockstep
         playPos_ = 0.0;
         lastPos_ = 0.0;
         stateMirror_.store(static_cast<int>(deck_.state()), std::memory_order_release);
+        loopLenMirror_.store(loopLen_, std::memory_order_release);  // chrome/tests + FIT
         return true;
     }
 

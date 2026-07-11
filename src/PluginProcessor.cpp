@@ -16,6 +16,7 @@
 #include "machine/RecordMachine.h"
 #include "machine/LoopMachine.h"
 #include "machine/TapeMachine.h"
+#include "dsp/BungeeStretchEngine.h"
 #include "machine/StreamMachine.h"
 #include "machine/StretchMachine.h"
 #include "machine/MidiDevicePresets.h"
@@ -5626,6 +5627,93 @@ namespace lockstep
         writer->writeFromFloatArrays(ptrs.data(), chans, len);
         writer.reset();
         return samplePool_.load(out.getFullPathName());
+    }
+
+    namespace
+    {
+        // A random-access IStretchSource over a resident buffer, for offline FIT.
+        struct BufferStretchSource : IStretchSource
+        {
+            const juce::AudioBuffer<float>& buf;
+            double rate;
+            BufferStretchSource(const juce::AudioBuffer<float>& b, double r) : buf(b), rate(r) {}
+            int read(float* dest, int ch, juce::int64 srcPos, int n) override
+            {
+                const int chans = buf.getNumChannels();
+                const int useCh = std::min(ch, chans - 1);
+                for (int i = 0; i < n; ++i)
+                {
+                    const juce::int64 sp = srcPos + i;
+                    dest[i] = (useCh >= 0 && sp >= 0 && sp < buf.getNumSamples())
+                                  ? buf.getSample(useCh, static_cast<int>(sp)) : 0.0f;
+                }
+                return n;
+            }
+            [[nodiscard]] juce::int64 length() const override { return buf.getNumSamples(); }
+            [[nodiscard]] int numChannels() const override { return std::min(2, buf.getNumChannels()); }
+            [[nodiscard]] double sampleRate() const override { return rate; }
+        };
+
+        // Offline: render `src` time-stretched to exactly `outLen` frames (pitch
+        // preserved) into `out`. Message thread; the engine allocates in prepare().
+        void renderStretch(const juce::AudioBuffer<float>& src, double srcRate,
+                           int outLen, double outRate, juce::AudioBuffer<float>& out)
+        {
+            out.setSize(2, outLen, false, false, true);
+            out.clear();
+            const int srcLen = src.getNumSamples();
+            if (srcLen <= 0 || outLen <= 0) return;
+
+            constexpr int kBlock = 512;
+            BungeeStretchEngine eng;
+            eng.prepare(srcRate, outRate, 2, kBlock);
+            BufferStretchSource ssrc{ src, srcRate };
+            const double ratio = static_cast<double>(outLen) / static_cast<double>(srcLen);
+            eng.start(&ssrc, 0.0, ratio, 1.0);
+
+            // Discard the engine's onset latency, then capture outLen frames.
+            const int lat = eng.latencySamples();
+            juce::AudioBuffer<float> tmp(2, kBlock);
+            int produced = 0, discarded = 0;
+            // Bound the loop generously so a misbehaving engine cannot spin forever.
+            const int maxIters = (outLen + lat) / kBlock + 8;
+            for (int it = 0; it < maxIters && produced < outLen; ++it)
+            {
+                tmp.clear();
+                eng.process(tmp, 0, kBlock);
+                for (int i = 0; i < kBlock && produced < outLen; ++i)
+                {
+                    if (discarded < lat) { ++discarded; continue; }
+                    for (int c = 0; c < 2; ++c) out.setSample(c, produced, tmp.getSample(c, i));
+                    ++produced;
+                }
+            }
+        }
+    }
+
+    bool LockstepProcessor::fitDeckSubTrack(int track, int sub)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        auto* lm = dynamic_cast<LoopMachine*>(machines_[static_cast<std::size_t>(track)].get());
+        if (lm == nullptr) return false;
+        const int L = lm->loopLengthSamples();
+        if (L <= 0) return false;
+        const int srcIdx = lm->subSource(sub);
+        const auto* src = samplePool_.get(srcIdx);
+        if (src == nullptr || src->pcm.getNumSamples() <= 0) return false;
+
+        const double srcRate = src->sampleRate > 0.0 ? src->sampleRate : getSampleRate();
+        const double outRate = getSampleRate() > 0.0 ? getSampleRate() : srcRate;
+
+        // Render the source stretched to the window (message thread), then adopt it
+        // into the same window — loadSubTrack writes the pair and keeps provenance.
+        juce::AudioBuffer<float> fitted;
+        renderStretch(src->pcm, srcRate, L, outRate, fitted);
+
+        const int slot = lm->targetSlot();
+        bool ok = false;
+        withQuiescedEngine([&] { ok = lm->loadSubTrack(sub, fitted, L, slot, srcIdx); });
+        return ok;
     }
 
     bool LockstepProcessor::loadSampleToDeckSubTrack(int track, int sub, int poolIndex)

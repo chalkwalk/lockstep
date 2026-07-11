@@ -4160,7 +4160,14 @@ namespace lockstep
                                     case 0: processor_.looperToggleSubArmed(trk, row); break;
                                     case 1: processor_.looperToggleSubMute(trk, row);  break;
                                     case 2: processor_.looperToggleSubSolo(trk, row);  break;
-                                    default: processor_.looperCycleSubSource(trk, row); break;
+                                    // SRC: tap cycles the source; Func+SRC = FIT the
+                                    // loaded source to the deck window (§40.3).
+                                    default:
+                                        if (uiState_.funcHeld)
+                                            processor_.fitDeckSubTrack(trk, row);
+                                        else
+                                            processor_.looperCycleSubSource(trk, row);
+                                        break;
                                 }
                             }
                             refreshSurface();

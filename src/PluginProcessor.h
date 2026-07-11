@@ -268,6 +268,10 @@ namespace lockstep
         // group pick, §40.7): each member sub-track WAV onto its sub-track. Returns
         // the number of sub-tracks loaded.
         int loadTakeGroupToDeck(int track, std::uint32_t groupId);
+        // §40.3 FIT: render a deck sub-track's loaded source, time-stretched to the
+        // deck's window (pitch-preserved, via the stretch engine), and write it back.
+        // A no-op if the sub-track was recorded (no source) or the window is unknown.
+        bool fitDeckSubTrack(int track, int sub);
         int writeWavAndLoad(const juce::AudioBuffer<float>& buf, int firstChan,
                             int numChan, int len, double sr, const juce::File& dest);
         // Timeline-strip data (§40.6). All in samples; -1 / 0 when not a tape.
