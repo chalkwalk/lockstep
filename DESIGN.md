@@ -4462,6 +4462,22 @@ first is an ordinary playback engine; the latter three consume audio via
   half-speed/reverse resync to the grid on release. The mini-seq strip is
   the loop-position display (playhead + pending-edge landing pip).
 
+  **Arming law (S4).** ARM gates *every* write — the length-defining first
+  pass and every subsequent overdub alike. Sub-track 0 is armed by default
+  (so a single-sub-track loop behaves exactly as before); the other subs
+  arm when you assign them a source and disarm when you set it back to
+  `None` — the SRC cell and the ARM cell are two views of the same intent,
+  so assigning a source *is* arming. A disarmed sub records silence into
+  its channel-pair. **Rec is not a separate mode from Dub**: there is one
+  record verb. While the deck is empty it is the length-defining pass and
+  the console labels it `REC`; once a loop exists the same press overdubs,
+  and it reads `DUB`. Dubbing onto a virgin armed sub is simply that sub's
+  first take — no special case. **Holding** the record cell is a momentary
+  **punch-replace**: on each armed sub the committed loop's material under
+  the head is erased and replaced by the live input for as long as the cell
+  is held (quantized edges), where a tap is the ordinary additive dub. The
+  whole-deck one-level undo covers a punch-replace.
+
 - **Tape** *(designed, §40; not built)*. The linear, position-addressed
   face of the same deck engine Record and Loop are faces of: four
   sub-tracks recorded against the **project timeline**, with overdub
