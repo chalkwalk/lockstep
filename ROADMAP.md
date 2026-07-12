@@ -3014,11 +3014,21 @@ Docs land first per item; commit + tests per work item.
       (momentary erase-then-write on armed subs, exact at rate 1; undo covers it).
 - [ ] **S5 — Retroactive double-tap.** Durable-span edges retro-stamp to tap 1; ephemeral
       verbs act at tap 2. Loop and Tape.
-- [ ] **S6 — Stretch research spike.** Cheap PV vs Bungee vs varispeed baseline for
-      extend-only loop-fit ratios; decision memo. (WSOLA was deleted with the Bungee
-      transition — not a candidate.)
-- [ ] **S7 — FreeLen pitch-preserved fit.** Tempo-corrected, extend-only to the next
-      launch-quant multiple; architecture shaped by S6.
+- [x] **S6 — Stretch research spike.** Measured: **Bungee Basic alone is ~160×RT** per
+      stereo stream at -O3 (ratio-independent), so the planned two-tier (cheap streamed +
+      background Bungee) is unnecessary — **one engine** is simultaneously the fast path and
+      the quality path. signalsmith-stretch stays the documented fallback only. The real
+      risk was dev builds: Eigen collapses Bungee to 2.7×RT at -O0, so `bungee_library` +
+      `pffft` now compile at `-O2` even in Debug (62×RT; shipped as `76493ca`). (WSOLA was
+      deleted with the Bungee transition — not a candidate.)
+- [ ] **S7 — FreeLen pitch-preserved fit** *(streaming + background bake)*. `loop_sync =
+      Free Len` **replaces varispeed** with a pitch-preserved length quantize: on
+      record-close it rounds the loop length **up to the next launch-quant multiple**
+      (extend-only) and time-stretches to fill. A realtime Bungee engine **streams** the
+      stretched loop live the instant the take closes; a background worker **bakes** the full
+      stretched PCM and swaps it in seamlessly, leaving a plain grid-aligned static loop that
+      survives a transport stop. The offline **FIT** verb (Func+SRC, loaded source) unifies
+      under the same streaming machinery (instant, no hitch). Architecture shaped by S6.
 - [x] **S8 — Permanent timeline strip.** Always visible (bar domain = max(32 bars,
       longest tape, cursor); bar ticks + wall-clock ruler; per-tape end lugs, chosen
       highlighted; bars.beats + m:ss caption transport-driven). Window grows +22px.
@@ -3065,9 +3075,18 @@ JUCE-free.
       ("Raise Sub-tracks (SRC) to reach the TRACKS page") so the multi-track page is
       findable; this round ticked.
 
-**Deferred:** re-back **Record** onto the deck medium as a 1-track linear form (it
-kept its original machinery this round). The stretch spike (old S6) + FreeLen
-pitch-preserved fit (old S7) remain deferred.
+### Phase 11 play-test round 3 — streaming loop fit + Record port
+
+Post-spike follow-through: the streaming pitch-preserved fit (S6/S7 above, now shipped
+in this round) plus the deferred **Record → deck-medium port**.
+
+- [ ] **Record re-backed on the deck medium (1-track linear face).** RecordMachine captures
+      through the deck reel `dc::Medium` (Record = the linear deck face, the "one deck
+      engine, three faces" intent) instead of a raw pool buffer, gaining deck-native **undo**
+      and the **tape varispeed character** — a tempo change mid-take warps the take like tape
+      (explicitly **not** pitch-preserved). Existing surface retained: trig-driven one-shot
+      capture into a volatile pool slot, `Source`/`Buffer`/`Length`/`Monitor`. Bits/depth,
+      retro double-tap and markers deferred.
 
 ---
 

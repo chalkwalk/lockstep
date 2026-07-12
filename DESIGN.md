@@ -251,9 +251,14 @@ exactly three kinds of machine:
 
   **`loop_sync {Free | Free Len | Sync}` selects the loop's *length*** (the
   Octatrack QREC/QPL analog): **Free** records at native length (ignores tempo);
-  **Free Len** varispeeds to the recorded musical duration; **Sync** grid-locks
-  the loop length to the track's own length × divider and phase-locks it — the
-  loop *is* the track grid by construction (no looper-only length params).
+  **Free Len** rounds the recorded length **up to the next `launchQuant` multiple**
+  (extend-only) and **time-stretches to fill it, pitch-preserved** — streamed live
+  the instant the take closes, then baked to a static grid-aligned loop in the
+  background (so it survives a transport stop and needs no ongoing stretch cost);
+  **Sync** grid-locks the loop length to the track's own length × divider and
+  varispeed phase-locks it — the loop *is* the track grid by construction (no
+  looper-only length params). (Free Len supersedes the old varispeed conform;
+  Sync keeps varispeed because a grid-locked loop must track tempo exactly.)
   **Edge *timing* is not a looper concept** — record-start, punch-out, play,
   stop, and overdub enter/exit all arm to the one shared `launchQuant` grid
   (§4.8, PRINCIPLES §25), exactly like a Scene launch. A quantized stop is a
