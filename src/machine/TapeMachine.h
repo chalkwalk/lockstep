@@ -87,6 +87,13 @@ namespace lockstep
         // Console verbs (§40.5), routed like the looper's. For now: RecordCycle
         // punches in/out; PlayStop stops/resumes; Clear wipes the reel.
         void applyVerb(int verb);  // 1 RecordCycle, 2 PlayStop, 3 Clear, 4 Undo
+        // §40.13 retroactive double-tap: while recording (after a punch-in), a
+        // double-tap on the REC cell backfills the run-up — the last `windowSamples`
+        // of the pre-roll ring into the reel immediately BEFORE the punch-in point,
+        // with undo save (fence #8). `windowSamples` is the gap between the two taps
+        // (how late the punch was). No-op if not recording or nothing written yet.
+        // v1: exact at reel rate 1 (message thread; a benign store like applyVerb).
+        void retroExtend(int windowSamples) noexcept;
         [[nodiscard]] bool canUndo() const noexcept { return haveUndo_; }
 
         // §40.2 scrub / wind (standalone only — the processor gates on
@@ -338,6 +345,19 @@ namespace lockstep
         // clears + fills them from input_source_2/3/4 each block, and process()
         // records each armed sub from its own buffer (6c).
         std::array<juce::AudioBuffer<float>, kMaxInputSubTracks> subInput_;
+
+        // §40.13 retroactive double-tap: a deck-wide rolling pre-roll of the input,
+        // pushed ONLY while playing (running & not recording) so its newest sample
+        // sits at the punch-in reel position. `retroExtend` backfills the last
+        // `window` samples of this ring into the reel just before undoLo_, with undo
+        // save. Deck-wide (kNumPlanes); TapeMachine had no pre-roll before.
+        static constexpr double kTapePreRollSec = 0.5;
+        juce::AudioBuffer<float> preRing_;
+        int preLen_ = 0;    // ring length (samples)
+        int preWrite_ = 0;  // circular write cursor (newest written = preWrite_-1)
+        // Push one input frame (deck-wide) into the pre-roll ring: sub 0 from the
+        // track buffer, subs 1..3 from subInput_.
+        void pushPreRoll(const juce::AudioBuffer<float>& in, int sample, int subCount) noexcept;
 
         // The deck state machine (§40.1): Idle/Playing/Recording/Stopped. Tape does
         // not overdub-at-wrap or close-at-length, so it uses a subset.

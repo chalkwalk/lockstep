@@ -121,6 +121,9 @@ namespace lockstep
     static constexpr int kLooperPlayToken   = 7200;
     // S4: long-press on the looper console REC/DUB cell = momentary punch-replace.
     static constexpr int kLooperReplaceToken = 7400;
+    // §40.13: double-tap on the Tape console REC cell while recording = retro
+    // backfill the run-up before the punch-in (the deck remembers your first tap).
+    static constexpr int kTapeRecordToken = 7500;
 
     // Hold-Record = transport reset (rewind to phrase start). Long-press on the
     // bare Record verb; the tap path keeps the ordinary record-arm/overdub.

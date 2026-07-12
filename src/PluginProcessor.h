@@ -249,6 +249,10 @@ namespace lockstep
         // Tape face verbs (§40.5): 1 RecordCycle(punch), 2 PlayStop, 3 Clear;
         // dropTapeMarker drops a manual marker at the current position.
         void tapeApplyVerb(int track, int verb);
+        // §40.13 retroactive double-tap: is the tape mid-punch (Recording)? and
+        // backfill `windowSamples` of run-up before the punch-in from the pre-roll.
+        [[nodiscard]] bool tapeRecording(int track) const;
+        void tapeRetroExtend(int track, int windowSamples);
         void dropTapeMarker(int track);
         [[nodiscard]] int tapeMarkerCount(int track) const;
         [[nodiscard]] bool isTapeTrack(int track) const;

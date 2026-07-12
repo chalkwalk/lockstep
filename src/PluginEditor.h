@@ -252,6 +252,7 @@ namespace lockstep
         int    looperReplaceTrack_ = -1;        // track whose cell 0 is held (-1 = none)
         bool   looperReplaceFired_ = false;     // punch-replace engaged this hold
         bool   looperReplaceWasDouble_ = false; // double-tap captured at key-down
+        double tapeRecLastDownMs_ = 0.0;        // §40.13: last tape REC-cell down, for the retro gap
         bool   recordResetHeld_ = false;        // bare Record down: hold = transport reset
         bool   recordResetFired_ = false;       // reset already serviced this hold (timer path)
         double captureStartMs_ = 0.0;           // for the REC elapsed timer

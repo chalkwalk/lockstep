@@ -634,5 +634,36 @@ namespace lockstep
             CHECK(feq(playBk(u, pf).getSample(0, 100), 0.8f, 1e-3f),
                   "Stage 6c: undo restores both armed subs (0.5 + 0.3)");
         }
+
+        // §40.13 retroactive double-tap on the Tape: a punch-in double-tap backfills
+        // the run-up before the punch from the pre-roll ring. Uncalibrated reel =
+        // rate 1 (the v1 restriction). One play block fills the ring with 0.6; the
+        // punch records 0.9 at reel 300; retroExtend(100) backfills [200,300) = 0.6.
+        {
+            TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(2.0);
+
+            tapeBlock(t, 0.0, n, 0.6f, kSr);      // playing: fills the pre-roll with 0.6
+            t.applyVerb(1);                        // Playing → Recording (punch in)
+            tapeBlock(t, 300.0, n, 0.9f, kSr);     // records [300, 812) = 0.9; undoLo_ = 300
+            CHECK(t.recording(), "tape retro: punched in (Recording)");
+            t.retroExtend(100);                    // backfill [200, 300) from the ring
+            t.applyVerb(1);                        // punch out → committed
+            CHECK(t.canUndo(), "tape retro: the retro-extended punch is undoable");
+
+            juce::AudioBuffer<float> reel(2, 900);
+            t.copyReelTo(reel, 900);
+            CHECK(feq(reel.getSample(0, 400), 0.9f, 1e-3f),
+                  "tape retro: the live punch is on the reel (0.9)");
+            CHECK(feq(reel.getSample(0, 250), 0.6f, 1e-3f),
+                  "tape retro: the run-up before the punch is backfilled from the pre-roll (0.6)");
+            CHECK(feq(reel.getSample(0, 100), 0.0f, 1e-3f),
+                  "tape retro: the reel before the backfill window is untouched (0.0)");
+
+            t.applyVerb(4);                        // whole-punch undo (incl the retro span)
+            juce::AudioBuffer<float> reel2(2, 900);
+            t.copyReelTo(reel2, 900);
+            CHECK(feq(reel2.getSample(0, 250), 0.0f, 1e-3f) && feq(reel2.getSample(0, 400), 0.0f, 1e-3f),
+                  "tape retro: undo restores the backfilled run-up and the punch to silence");
+        }
     }
 }

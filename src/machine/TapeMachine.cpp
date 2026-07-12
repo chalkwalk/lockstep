@@ -124,6 +124,12 @@ namespace lockstep
         // fills from input_source_2/3/4. [0] is unused (sub 0 is the track buffer).
         const int maxBlock = std::max(1, maxBlockSize);
         for (auto& b : subInput_) { b.setSize(kChannelsPerSub, maxBlock, false, true, false); b.clear(); }
+        // §40.13: the deck-wide retro pre-roll ring, long enough to cover a
+        // double-tap gap. Zero-filled (small) so an early backfill reads silence.
+        preLen_ = std::max(1, static_cast<int>(kTapePreRollSec * sampleRate_));
+        preRing_.setSize(kNumPlanes, preLen_, false, true, false);
+        preRing_.clear();
+        preWrite_ = 0;
         setMediumSeconds(mediumSeconds_);
         reset();
     }
@@ -132,6 +138,71 @@ namespace lockstep
     {
         deck_.setState(dc::DeckState::Playing);  // a tape is always playing its position
         medium_.resetAllUsed();
+        if (preLen_ > 0) preRing_.clear();
+        preWrite_ = 0;
+    }
+
+    void TapeMachine::pushPreRoll(const juce::AudioBuffer<float>& in, int sample,
+                                  int subCount) noexcept
+    {
+        if (preLen_ <= 0) return;
+        const int ringCh = preRing_.getNumChannels();
+        // Sub 0 → channel-pair 0 (from the track buffer).
+        for (int ch = 0; ch < std::min({ in.getNumChannels(), kChannelsPerSub, ringCh }); ++ch)
+            preRing_.setSample(ch, preWrite_, in.getSample(ch, sample));
+        // Subs 1..N → their channel-pairs (from subInput_), for a deck-wide backfill.
+        for (int sub = 1; sub < subCount; ++sub)
+        {
+            const auto& si = subInput_[static_cast<std::size_t>(sub)];
+            for (int ch = 0; ch < kChannelsPerSub; ++ch)
+            {
+                const int rc = kChannelsPerSub * sub + ch;
+                if (rc < ringCh && ch < si.getNumChannels() && sample < si.getNumSamples())
+                    preRing_.setSample(rc, preWrite_, si.getSample(ch, sample));
+            }
+        }
+        if (++preWrite_ >= preLen_) preWrite_ = 0;
+    }
+
+    void TapeMachine::retroExtend(int windowSamples) noexcept
+    {
+        // §40.13: backfill the run-up before a punch-in. Only meaningful once the
+        // punch has written at least one sample (undoLo_ >= 0). The take's start is
+        // undoLo_ (the lowest reel position written this punch); prepend the ring's
+        // most-recent `n` samples into [undoLo_ - n, undoLo_) on the ARMED sub-tracks
+        // that the punch is writing, saving originals so Undo restores them too.
+        if (deck_.state() != dc::DeckState::Recording) return;
+        if (windowSamples <= 0 || undoLo_ < 0 || preLen_ <= 0) return;
+        const int r1 = undoLo_;
+        const int n = std::min({ windowSamples, preLen_, r1 });
+        if (n <= 0) return;
+
+        const int subCount = deck_.subTrackCount();
+        const int ringCh = preRing_.getNumChannels();
+        for (int sub = 0; sub < subCount; ++sub)
+        {
+            if (((undoArmedMask_ >> sub) & 1) == 0) continue;  // only armed subs
+            medium_.ensureCommitted(sub, r1);
+            for (int ch = 0; ch < kChannelsPerSub; ++ch)
+            {
+                const int rc = kChannelsPerSub * sub + ch;
+                if (rc >= ringCh) continue;
+                auto& us = undoStore_[static_cast<std::size_t>(kChannelsPerSub * sub + ch)];
+                for (int k = 1; k <= n; ++k)
+                {
+                    const int P = r1 - k;  // reel position, descending below the punch-in
+                    // Fence #8: these positions are below undoLo_ → first-touch, save.
+                    us.set(static_cast<std::size_t>(P),
+                           medium_.read(sub, ch, static_cast<std::int64_t>(P)));
+                    // Ring: the k-th most recent sample (newest written = preWrite_-1).
+                    const int ri = ((preWrite_ - k) % preLen_ + preLen_) % preLen_;
+                    medium_.write(sub, ch, static_cast<std::int64_t>(P),
+                                  preRing_.getSample(rc, ri));
+                }
+            }
+        }
+        undoLo_ = std::max(0, r1 - n);
+        haveUndo_ = true;
     }
 
     void TapeMachine::setMediumSeconds(double seconds)
@@ -486,6 +557,14 @@ namespace lockstep
         }
         const double r = chaseRatioNow();
         const double posStart = reelPosAtBlockStart();
+
+        // §40.13: keep the pre-roll ring current while PLAYING (running, not
+        // recording) — its newest sample then sits at the punch-in reel position, so
+        // a retro punch-in double-tap backfills the run-up. Pushed BEFORE the play
+        // path overwrites `buffer` with reel output, so it captures the live input.
+        if (! recording && transport_.running)
+            for (int i = 0; i < numSamples; ++i)
+                pushPreRoll(buffer, i, subCount);
 
         // Fence #8 undo: save the ORIGINAL of every integer reel sample the write
         // is about to touch, once per punch (span-scoped; a re-touch keeps the

@@ -4379,7 +4379,26 @@ namespace lockstep
                             }
                             switch (ev.index)
                             {
-                                case 0: processor_.tapeApplyVerb(mct, 1); break;  // REC/punch
+                                case 0:  // REC / punch (§40.13: a quick second tap
+                                         // WHILE recording = retro backfill the
+                                         // run-up before the punch-in, not punch-out)
+                                {
+                                    const double nowMs = juce::Time::getMillisecondCounterHiRes();
+                                    const bool dbl = gesture_.doubleTap(kTapeRecordToken, nowMs);
+                                    if (dbl && processor_.tapeRecording(mct))
+                                    {
+                                        const double sr = processor_.getSampleRate();
+                                        const double gapMs = std::max(0.0, nowMs - tapeRecLastDownMs_);
+                                        const int gap = static_cast<int>(std::lround(
+                                            gapMs * 0.001 * (sr > 0.0 ? sr : 44100.0)));
+                                        processor_.tapeRetroExtend(mct, gap);
+                                        setStatus("Tape: grabbed the run-up (retro punch-in)");
+                                    }
+                                    else
+                                        processor_.tapeApplyVerb(mct, 1);
+                                    tapeRecLastDownMs_ = nowMs;
+                                    break;
+                                }
                                 // Stage 4: cells 1/2 (PLAY/STOP) retired — the Tape
                                 // follows the main transport, no separate Play/Stop.
                                 case 3: processor_.tapeApplyVerb(mct, 3); break;  // CLEAR

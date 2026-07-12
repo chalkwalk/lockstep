@@ -7313,6 +7313,18 @@ namespace lockstep
         if (auto* tm = asTape(machines_, track)) tm->applyVerb(verb);
     }
 
+    bool LockstepProcessor::tapeRecording(int track) const
+    {
+        auto* tm = asTape(const_cast<std::array<std::unique_ptr<IMachine>, kNumTracks>&>(machines_),
+                          track);
+        return tm != nullptr && tm->recording();
+    }
+
+    void LockstepProcessor::tapeRetroExtend(int track, int windowSamples)
+    {
+        if (auto* tm = asTape(machines_, track)) tm->retroExtend(windowSamples);
+    }
+
     void LockstepProcessor::dropTapeMarker(int track)
     {
         if (auto* tm = asTape(machines_, track)) tm->dropMarkerHere();
