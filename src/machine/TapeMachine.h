@@ -36,9 +36,13 @@ namespace lockstep
     // the tape ran out. Unlike Loop, Tape does not use the volatile pool (a
     // five-minute reel cannot be a twelve-second slot); it owns its reel.
     //
-    // This is the first slice: record-along-timeline + playback + locate at unity
-    // rate. Varispeed (medium-rate deviation via the heads), punch-as-a-layer,
-    // markers, i16 depth, and the console are follow-ups.
+    // A Tape is a FOUR-SUB-TRACK deck (§40.3, Stage 6): the reel is allocated at the
+    // full width (four stereo sub-tracks) and lazily committed, so a single-sub-track
+    // tape is byte-identical to the original. Each sub-track pulls its own
+    // input_source_k, arms from that source, punch-records onto its own channel-pair
+    // while unarmed subs play back, and playback sums the enabled subs through
+    // level/pan/mute/solo. One Bits/depth covers the whole deck; whole-deck undo and
+    // take-group promote span every armed sub-track.
     class TapeMachine : public IMachine, public ITempoAware, public IMultiInput
     {
     public:
@@ -174,6 +178,10 @@ namespace lockstep
         // medium so it is depth-transparent (an i16 reel promotes the same as f32).
         // Message thread / non-audio use only.
         void copyReelTo(juce::AudioBuffer<float>& dst, int numFrames) const noexcept;
+        // Copy every live sub-track's recorded extent into `dst` (>= 2*subTrackCount
+        // channels, sub-major), depth-transparent — the staging buffer a multi-sub
+        // take-group promote writes from (§40.8, Stage 6e).
+        void copyDeckTo(juce::AudioBuffer<float>& dst, int numFrames) const noexcept;
         [[nodiscard]] bool depthI16() const noexcept { return depthI16_; }
         [[nodiscard]] double sampleRate() const noexcept { return sampleRate_; }
         // Reel position under chase-lock (§40.2): a CALIBRATED reel is addressed by

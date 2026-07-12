@@ -7054,6 +7054,20 @@ sub-index is a *volatile-slot* concern only — **promotion splits the slot into
 ordinary 2-channel files** (§40.7), after which every member is a plain pool
 citizen with no sub-index at all.
 
+**A Tape's four sub-tracks live in one wide reel.** The Tape realises the same
+four-sub-track deck model on its linear medium: the reel is allocated at the
+full width (four stereo sub-tracks = eight planes), lazily committed so a
+single-sub-track tape costs the higher sub-tracks only address space and records
+byte-identically to before. Each sub-track pulls its own `input_source_k`, arms
+when that source is not `None`, and punch-records onto its own channel-pair while
+the unarmed sub-tracks keep playing back; playback sums every enabled sub through
+the same `level`/`pan`/`mute`/`solo` mix as the Loop. One `Bits`/depth covers the
+whole deck (a 32f↔16i change converts every sub-track), whole-deck undo restores
+every armed sub over a punch span, and a multi-sub tape **promotes as a
+take-group** (one 2-channel WAV per sub-track plus a stereo mix, §40.8) exactly as
+the Loop does. The Tape reaches the shared **`TRACKS`** page (§40.5) once its
+sub-track count exceeds one.
+
 **Loading a sample onto a sub-track copies it in.** A deck sub-track is audio you
 overdub, punch, erase and undo — it is tape, not a reference to a file. So loading
 a File (or another pool entry) onto a sub-track **decodes its PCM into the

@@ -796,6 +796,43 @@ namespace lockstep
             CHECK(e != nullptr && e->pcm.getNumSamples() > 0, "and carries the recorded PCM");
         }
         tmp.withFileExtension("wav").deleteFile();
+
+        // Stage 6e: a MULTI-SUB tape promotes as a take-group — a stereo mix
+        // (member 0) plus one 2ch WAV per sub-track (members 1..N), same shape as
+        // the Loop's promoteDeckTake.
+        {
+            EngineHarness h2;
+            auto& p2 = h2.processor();
+            p2.setTrackMachine(0, TapeMachine::kMachineId);
+            p2.writeParam(0, p2.slotForId(0, "subtrack_count"), 2.0f);
+            h2.renderBlocks(1);  // propagate the width into the deck
+
+            p2.tapeApplyVerb(0, 1);  // punch in
+            for (int b = 0; b < 4; ++b) h2.renderBlocks(1);
+            p2.tapeApplyVerb(0, 1);  // punch out
+
+            auto stem = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                            .getChildFile("lockstep_tape_group_test");
+            const int mixIdx = p2.promoteTape(0, stem);
+            CHECK(mixIdx >= 0, "Stage 6e: a multi-sub tape promotes");
+            const auto* mix = p2.samplePool().get(mixIdx);
+            CHECK(mix != nullptr && ! mix->isVolatile && mix->takeMember == 0,
+                  "Stage 6e: the returned entry is the take-group mix (member 0)");
+            const std::uint32_t group = mix ? mix->takeGroupId : 0;
+            CHECK(group != 0, "Stage 6e: the mix carries a take-group id");
+            int subMembers = 0;
+            for (int i = 0; i < p2.samplePool().size(); ++i)
+            {
+                const auto* e2 = p2.samplePool().get(i);
+                if (e2 != nullptr && e2->takeGroupId == group && e2->takeMember >= 1) ++subMembers;
+            }
+            CHECK(subMembers == 2, "Stage 6e: two sub-track members joined the group");
+
+            // Clean up the written WAVs.
+            stem.getSiblingFile(stem.getFileNameWithoutExtension() + "_1").withFileExtension("wav").deleteFile();
+            stem.getSiblingFile(stem.getFileNameWithoutExtension() + "_2").withFileExtension("wav").deleteFile();
+            stem.getSiblingFile(stem.getFileNameWithoutExtension() + "_mix").withFileExtension("wav").deleteFile();
+        }
     }
 
     // §40.2 scrub / wind: transportWindable() gates it (standalone / not

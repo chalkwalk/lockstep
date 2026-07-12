@@ -5905,32 +5905,50 @@ namespace lockstep
         const int cap = static_cast<int>(tm->mediumSeconds() * tm->sampleRate());
         const int len = std::min(n, cap);
         if (chans <= 0 || len <= 0) return -1;
+        const int subCount = tm->subTrackCount();
+
+        // Multi-sub tape (§40.8, Stage 6e): promote as a TAKE-GROUP — one 2ch WAV
+        // per sub-track (member k+1) plus a materialised stereo mix (member 0), the
+        // same shape the Loop's promoteDeckTake produces, so the members re-load
+        // onto a deck and the mix is a stand-alone stereo take.
+        if (subCount > 1)
+        {
+            juce::AudioBuffer<float> reelWide(2 * subCount, len);
+            reelWide.clear();
+            tm->copyDeckTo(reelWide, len);
+
+            const std::uint32_t group = samplePool_.nextTakeGroupId();
+            for (int k = 0; k < subCount; ++k)
+            {
+                const int idx = writeWavAndLoad(reelWide, 2 * k, 2, len, sr,
+                                                dest.getSiblingFile(
+                                                    dest.getFileNameWithoutExtension()
+                                                    + "_" + juce::String(k + 1)));
+                if (idx >= 0) samplePool_.setTakeGroup(idx, group, k + 1);
+            }
+            // Unity sum of the non-muted sub-tracks — the take, not the sculpt.
+            juce::AudioBuffer<float> mix(2, len);
+            mix.clear();
+            for (int k = 0; k < subCount; ++k)
+            {
+                if (tm->subMuted(k)) continue;
+                for (int c = 0; c < 2; ++c)
+                    mix.addFrom(c, 0, reelWide, 2 * k + c, 0, len);
+            }
+            const int mixIdx = writeWavAndLoad(mix, 0, 2, len, sr,
+                                               dest.getSiblingFile(
+                                                   dest.getFileNameWithoutExtension() + "_mix"));
+            if (mixIdx >= 0) samplePool_.setTakeGroup(mixIdx, group, 0);
+            return mixIdx;
+        }
+
+        // Single-sub tape: one WAV, the original promote-or-lose path (§40.8) — a
+        // promoted tape is an ordinary pool citizen a player can slice/stretch/stream.
         // Read the recorded extent out through the medium (depth-transparent, so an
         // i16 reel promotes identically to f32) into a staging float buffer.
         juce::AudioBuffer<float> reel(chans, len);
         tm->copyReelTo(reel, len);
-
-        // Write the recorded extent to a 32-bit float WAV (message thread), then
-        // decode it back as a durable File entry — the same promote-or-lose path a
-        // volatile take takes (§40.8), so a promoted tape is an ordinary pool
-        // citizen a player can slice/stretch/stream.
-        juce::File out = dest.withFileExtension("wav");
-        out.deleteFile();
-        juce::WavAudioFormat fmt;
-        std::unique_ptr<juce::OutputStream> os(out.createOutputStream());
-        if (os == nullptr) return -1;
-        const auto options = juce::AudioFormatWriterOptions{}
-                                 .withSampleRate(sr)
-                                 .withNumChannels(chans)
-                                 .withBitsPerSample(32)
-                                 .withSampleFormat(
-                                     juce::AudioFormatWriterOptions::SampleFormat::floatingPoint);
-        auto writer = fmt.createWriterFor(os, options);
-        if (writer == nullptr) return -1;
-        writer->writeFromAudioSampleBuffer(reel, 0, len);
-        writer.reset();
-
-        return samplePool_.load(out.getFullPathName());
+        return writeWavAndLoad(reel, 0, chans, len, sr, dest);
     }
 
     int LockstepProcessor::promoteVolatileToFile(int poolIndex, const juce::File& dest)

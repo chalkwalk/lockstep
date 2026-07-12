@@ -249,6 +249,16 @@ namespace lockstep
                 dst.setSample(ch, i, medium_.read(0, ch, i));  // depth-transparent
     }
 
+    void TapeMachine::copyDeckTo(juce::AudioBuffer<float>& dst, int numFrames) const noexcept
+    {
+        const int subs = std::min(deck_.subTrackCount(), dst.getNumChannels() / kChannelsPerSub);
+        const int len = std::min(numFrames, dst.getNumSamples());
+        for (int sub = 0; sub < subs; ++sub)
+            for (int ch = 0; ch < kChannelsPerSub; ++ch)
+                for (int i = 0; i < len; ++i)
+                    dst.setSample(sub * kChannelsPerSub + ch, i, medium_.read(sub, ch, i));
+    }
+
     void TapeMachine::applyVerb(int verb)
     {
         switch (verb)
