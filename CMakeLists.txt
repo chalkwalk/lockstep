@@ -86,6 +86,18 @@ add_subdirectory(modules/bungee EXCLUDE_FROM_ALL)
 # itself when building shared, so set it here for both static archives.
 set_target_properties(bungee_library pffft PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# Vendored DSP stays optimized even in Debug builds: we never step through it,
+# and Bungee's Eigen internals collapse ~60x at -O0 (2.7x realtime per stereo
+# stream vs 62x at -O2 — measured, S6 stretch spike). Debug's -g and asserts
+# are unaffected; only these third-party targets gain -O2. Extend this list if
+# another separately-compiled third-party DSP library is vendored. (JUCE and
+# header-only libraries compile inside first-party targets and are not covered.)
+if(NOT MSVC)
+    foreach(third_party_target bungee_library pffft)
+        target_compile_options(${third_party_target} PRIVATE $<$<CONFIG:Debug>:-O2>)
+    endforeach()
+endif()
+
 # Sources
 add_subdirectory(src)
 
