@@ -1196,5 +1196,96 @@ namespace lockstep
             CHECK(feq(s->pcm.getSample(0, 100), 0.5f, 1e-2f),
                   "punch: undo restored the original 0.5");
         }
+
+        // §40.13 retroactive double-tap: a durable-span edge stamps to the FIRST
+        // tap of a double, not the second. Both cases run in quantized mode — a huge
+        // launch period keeps the arm pending so it never auto-fires mid-block, and
+        // the transport position is stepped explicitly per block.
+        {
+            const double period = 1.0e9;  // effectively never crosses a boundary
+
+            // Retro START: arm record (tap 1) at pos 1000 while feeding 0.7 into the
+            // pre-roll, then double-tap (tap 2) at pos 2000 feeding 0.2. The take must
+            // begin at tap 1 — its first ~1000 samples are the pre-roll 0.7, and the
+            // live portion after the start is 0.2.
+            {
+                SamplePool p;
+                const int idx = p.addVolatile();
+                p.prepareVolatile(kSr, 2, static_cast<int>(kSr));  // 1 s capacity
+                LoopMachine lp(p);
+                lp.prepare(kSr, 512);
+
+                auto blk = [&](float v, double pos, Cmd cmd, bool imm)
+                {
+                    TransportInfo tr;
+                    tr.sampleRate = kSr; tr.samplesPerBar = 96000.0;
+                    tr.running = true; tr.transportPhaseSamples = pos;
+                    tr.launchQuantPeriodSamples = period;
+                    lp.setTransport(tr);
+                    if (cmd != Cmd::None) lp.postCommand(cmd, imm);
+                    juce::AudioBuffer<float> b(2, 512);
+                    for (int ch = 0; ch < 2; ++ch)
+                        for (int i = 0; i < 512; ++i) b.setSample(ch, i, v);
+                    juce::MidiBuffer midi; ParamFrame pr{ 1.0f, 0.0f, 0.0f };  // Ext, buf0, Free
+                    lp.process(midi, pr, b);
+                };
+
+                blk(0.7f, 1000.0, Cmd::RecordCycle, /*imm=*/false);  // arm; stamp tap1 = 1000
+                CHECK(lp.state() == State::Armed, "retro: first record tap arms (quantized)");
+                blk(0.7f, 1512.0, Cmd::None, false);                 // stay armed; pre-roll fills
+                blk(0.2f, 2000.0, Cmd::RecordCycle, /*imm=*/true);   // double-tap: start now, retro
+                CHECK(lp.state() == State::Recording, "retro: double-tap starts recording now");
+                blk(0.2f, 2512.0, Cmd::None, false);                 // record live 0.2
+                blk(0.0f, 3024.0, Cmd::RecordCycle, /*imm=*/true);   // close (no live stamp → full len)
+                CHECK(lp.state() == State::Playing, "retro: closes to Playing");
+
+                auto* s = p.get(idx);
+                CHECK(s != nullptr && s->pcm.getNumSamples() >= 1200,
+                      "retro-start: loop is backfilled pre-roll + live (long)");
+                CHECK(s != nullptr && feq(s->pcm.getSample(0, 400), 0.7f, 2e-2f),
+                      "retro-start: loop head is pre-roll content (0.7) from before tap 1");
+                CHECK(s != nullptr && feq(s->pcm.getSample(0, 1200), 0.2f, 2e-2f),
+                      "retro-start: live portion after the start is 0.2");
+            }
+
+            // Retro CLOSE: record from pos 0, arm the close (tap 1) at pos 3000, then
+            // double-tap (tap 2) at pos 4000. The loop length must be tap1 - recStart
+            // = 3000, not the ~4000 actually captured — the overshoot is discarded.
+            {
+                SamplePool p;
+                const int idx = p.addVolatile();
+                p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+                LoopMachine lp(p);
+                lp.prepare(kSr, 512);
+
+                auto blk = [&](float v, double pos, Cmd cmd, bool imm)
+                {
+                    TransportInfo tr;
+                    tr.sampleRate = kSr; tr.samplesPerBar = 96000.0;
+                    tr.running = true; tr.transportPhaseSamples = pos;
+                    tr.launchQuantPeriodSamples = period;
+                    lp.setTransport(tr);
+                    if (cmd != Cmd::None) lp.postCommand(cmd, imm);
+                    juce::AudioBuffer<float> b(2, 512);
+                    for (int ch = 0; ch < 2; ++ch)
+                        for (int i = 0; i < 512; ++i) b.setSample(ch, i, v);
+                    juce::MidiBuffer midi; ParamFrame pr{ 1.0f, 0.0f, 0.0f };
+                    lp.process(midi, pr, b);
+                };
+
+                blk(0.5f, 0.0, Cmd::RecordCycle, /*imm=*/true);   // start now at pos 0 (recStart=0)
+                CHECK(lp.state() == State::Recording, "retro-close: recording");
+                for (double pos = 512.0; pos < 3000.0; pos += 512.0)
+                    blk(0.5f, pos, Cmd::None, false);             // record forward
+                blk(0.5f, 3000.0, Cmd::RecordCycle, /*imm=*/false);  // arm close; stamp tap1 = 3000
+                blk(0.5f, 3512.0, Cmd::None, false);
+                blk(0.0f, 4000.0, Cmd::RecordCycle, /*imm=*/true);   // double-tap close now (retro)
+                CHECK(lp.state() == State::Playing, "retro-close: closes to Playing");
+
+                auto* s = p.get(idx);
+                CHECK(s != nullptr && s->pcm.getNumSamples() == 3000,
+                      "retro-close: loop length lands at the first tap (3000), not ~4000");
+            }
+        }
     }
 }

@@ -182,17 +182,21 @@ namespace lockstep
         // §40.3: the undo backup and the overdub layer are deck-medium-wide, not
         // pair-0 — a 4-sub-track overdub folds into all armed channel-pairs, and
         // whole-deck undo restores all of them. Sized to the widest possible deck
-        // (2 × kMaxSubTracks); a single-track loop only ever touches pair 0.
-        static constexpr int kDeckChans = 2 * dc::kMaxSubTracks;
+        // (2 × kMaxSubTracks = kDeckChans); a single-track loop only ever touches
+        // pair 0.
         backup_.setSize(kDeckChans, cap, false, true, false);
         backup_.clear();
         overdubLayer_.setSize(kDeckChans, cap, false, true, false);  // R4 overdub layer B
         overdubLayer_.clear();
-        // C6: the seam splice's pre-roll. Small (a few ms) and always running.
-        preLen_ = std::max(1, static_cast<int>(kSeamSpliceSec * sampleRate_));
-        preRing_.setSize(2, preLen_, false, true, false);
+        // C6 + §40.13: the pre-roll ring is deck-wide and retro-length (long enough
+        // to cover a double-tap window), so a retro record-start can backfill every
+        // sub-track's channel-pair. The seam splice length (`seamLen_`) is kept
+        // short and independent — spliceSeam takes only that off the ring's tail.
+        seamLen_ = std::max(1, static_cast<int>(kSeamSpliceSec * sampleRate_));
+        preLen_ = std::max(seamLen_, static_cast<int>(kRetroPreRollSec * sampleRate_));
+        preRing_.setSize(kDeckChans, preLen_, false, true, false);
         preRing_.clear();
-        preSnap_.setSize(2, preLen_, false, true, false);
+        preSnap_.setSize(kDeckChans, preLen_, false, true, false);
         preSnap_.clear();
         const int maxBlock = std::max(1, maxBlockSize);
         for (auto& b : subInput_) { b.setSize(2, maxBlock, false, true, false); b.clear(); }
@@ -212,6 +216,11 @@ namespace lockstep
         haveBackup_ = false;
         manualLen_ = false;
         preSnapped_ = false;
+        tap1Valid_ = false;        // §40.13 retro double-tap
+        tap1Pos_ = 0.0;
+        recStartPos_ = 0.0;
+        retroBackfill_ = 0;
+        retroCloseLen_ = -1;
         brActive_ = false;
         brCaptured_ = false;
         tapeAction_ = Cmd::None;
@@ -241,8 +250,22 @@ namespace lockstep
     void LoopMachine::pushPreRoll(const juce::AudioBuffer<float>& in, int sample, int chans)
     {
         if (preLen_ <= 0) return;
-        for (int ch = 0; ch < std::min(chans, preRing_.getNumChannels()); ++ch)
+        const int ringCh = preRing_.getNumChannels();
+        // Sub 0 (the track buffer) → channel-pair 0.
+        for (int ch = 0; ch < std::min({ chans, 2, ringCh }); ++ch)
             preRing_.setSample(ch, preWrite_, in.getSample(ch, sample));
+        // §40.13: subs 1..3 → their channel-pairs, so a deck-wide retro backfill
+        // reaches every armed sub-track. The ring always runs, in every state.
+        for (int sub = 1; sub < kMaxInputSubTracks; ++sub)
+        {
+            const auto& si = subInput_[static_cast<std::size_t>(sub)];
+            for (int ch = 0; ch < 2; ++ch)
+            {
+                const int rc = 2 * sub + ch;
+                if (rc < ringCh && ch < si.getNumChannels() && sample < si.getNumSamples())
+                    preRing_.setSample(rc, preWrite_, si.getSample(ch, sample));
+            }
+        }
         if (++preWrite_ >= preLen_) preWrite_ = 0;
     }
 
@@ -250,9 +273,10 @@ namespace lockstep
     {
         if (! preSnapped_ || target_ == nullptr || loopLen_ <= 0) return;
 
-        // Never take more than a quarter of the loop, and never more pre-roll than
-        // we captured. A loop shorter than the splice keeps its seam, honestly.
-        const int len = std::min(preLen_, loopLen_ / 4);
+        // Never take more than a quarter of the loop, and never more than the seam
+        // length (`seamLen_`, a few ms — decoupled from the retro-length ring,
+        // §40.13). A loop shorter than the splice keeps its seam, honestly.
+        const int len = std::min(seamLen_, loopLen_ / 4);
         if (len <= 0) return;
 
         // Through deck_core: the pool slot and the pre-roll snapshot each become a
@@ -433,6 +457,13 @@ namespace lockstep
         haveBackup_ = false;
         manualLen_ = false;   // a fresh take re-attaches to grid-lock (S4)
 
+        // §40.13: the take's first sample is at the current transport position —
+        // unless a retro double-tap backfills, in which case the take began
+        // `retroBackfill_` samples earlier. recStartPos_ is the absolute position a
+        // retro close measures the loop length against.
+        recStartPos_ = toSnapshot(transport_).positionSamples
+                       - static_cast<double>(retroBackfill_);
+
         // C6: freeze the pre-roll — the input immediately before this take's first
         // sample. It is what must precede loop[0] when the loop wraps, and at close
         // it is spliced into the loop's end.
@@ -440,6 +471,29 @@ namespace lockstep
             for (int i = 0; i < preLen_; ++i)
                 preSnap_.setSample(ch, i, preRing_.getSample(ch, (preWrite_ + i) % preLen_));
         preSnapped_ = true;
+
+        // §40.13 retro record-start: prepend the pre-roll covering tap1..now into
+        // the loop, so the take begins where you first pressed. Only armed sub-
+        // tracks receive content (unarmed pairs stay silent); the pre-roll's LAST
+        // `n` samples are tap1..now, in order. Exact — the loop records at rate 1.
+        if (retroBackfill_ > 0)
+        {
+            const int n = std::min({ retroBackfill_, preLen_, capacity_ });
+            const int tch = target_->getNumChannels();
+            const int pch = preSnap_.getNumChannels();
+            for (int sub = 0; sub < deck_.subTrackCount(); ++sub)
+            {
+                if (! deck_.subTrack(sub).armed) continue;
+                for (int ch = 0; ch < 2; ++ch)
+                {
+                    const int c = 2 * sub + ch;
+                    if (c >= tch || c >= pch) continue;
+                    for (int i = 0; i < n; ++i)
+                        target_->setSample(c, i, preSnap_.getSample(c, preLen_ - n + i));
+                }
+            }
+            recPos_ = n;
+        }
         // Grid-locked modes (N Bar / Steps) auto-close after the synced length (at
         // the record tempo); Free/Free-Len close on the gesture.
         recLenTarget_ = 0;
@@ -454,6 +508,7 @@ namespace lockstep
     void LoopMachine::firePending()
     {
         applyEdge(deck_.firePending());
+        tap1Valid_ = false;  // §40.13: a normally-fired (non-double-tapped) edge is not retro
     }
 
     // One place turns a deck decision into looper work. dc::Deck owns the state
@@ -587,7 +642,34 @@ namespace lockstep
                     break;
             }
 
-            applyEdge(deck_.applyCommand(deckCmd, immediate, snapshot, haveTake));
+            // §40.13 retroactive double-tap. Snapshot pendingEdge() around the
+            // command: a false->true transition is a fresh arm (tap 1) — stamp its
+            // transport position. An immediate override (the double-tap "now") that
+            // fires a durable edge while the stamp is live consumes it: a
+            // record-start backfills from the pre-roll, a record-close trims the
+            // loop to the first tap. The stamp is dropped once the arm resolves.
+            const bool wasPending = deck_.pendingEdge();
+            const auto edge = deck_.applyCommand(deckCmd, immediate, snapshot, haveTake);
+            const bool nowPending = deck_.pendingEdge();
+            if (! wasPending && nowPending)
+            {
+                tap1Pos_ = snapshot.positionSamples;
+                tap1Valid_ = true;
+            }
+            if (immediate && tap1Valid_)
+            {
+                if (edge.startRecording)
+                    retroBackfill_ = static_cast<int>(std::lround(std::clamp(
+                        snapshot.positionSamples - tap1Pos_, 0.0,
+                        static_cast<double>(preLen_))));
+                if (edge.closeRecording)
+                    retroCloseLen_ = static_cast<int>(
+                        std::lround(std::max(0.0, tap1Pos_ - recStartPos_)));
+            }
+            applyEdge(edge);
+            retroBackfill_ = 0;
+            retroCloseLen_ = -1;
+            if (! nowPending) tap1Valid_ = false;  // arm resolved (fired or cancelled)
             return;
         }
 
@@ -773,7 +855,13 @@ namespace lockstep
 
     void LoopMachine::closeRecording()
     {
-        loopLen_ = std::max(0, recPos_);
+        // §40.13: a retro double-tap close lands the loop length at the FIRST tap
+        // (tap1Pos_ - recStartPos_, precomputed into retroCloseLen_), discarding
+        // the overshoot between the two taps; playback then wraps phase-continuously
+        // at the first tap. Never longer than what was actually captured. A normal
+        // close uses the full recorded length.
+        loopLen_ = (retroCloseLen_ > 0) ? std::clamp(retroCloseLen_, 0, recPos_)
+                                        : std::max(0, recPos_);
         playPos_ = 0.0;
         lastPos_ = 0.0;
         if (loopLen_ > 0 && target_ != nullptr)

@@ -289,6 +289,17 @@ namespace lockstep
         // the ring-out it replaces is not missed. The loop's head — the downbeat —
         // is never touched.
         static constexpr double kSeamSpliceSec = 0.005;
+        // §40.13 retroactive double-tap: the pre-roll ring is kept long enough to
+        // cover a human's double-tap window, so a retro record-start can backfill
+        // the loop from `tap1Pos_` to now. The seam splice still takes only its own
+        // few milliseconds (`kSeamSpliceSec`) off the ring's tail — the two lengths
+        // are decoupled (`seamLen_` vs `preLen_`).
+        static constexpr double kRetroPreRollSec = 0.35;
+        // The whole deck's channel width (2 per sub-track). The pre-roll ring, undo
+        // backup and overdub layer are all sized to it, so a retro backfill and a
+        // whole-deck undo reach every sub-track's pair; a single-sub loop touches
+        // only pair 0.
+        static constexpr int kDeckChans = 2 * dc::kMaxSubTracks;
 
         static int clampSub(int sub) noexcept
         {
@@ -429,6 +440,24 @@ namespace lockstep
         // a plain bool like brActive_ (benign single-word race). v1 is exact at
         // rate 1; varispeed replace is deferred (documented in the write loop).
         bool replacing_ = false;
+
+        // §40.13 retroactive double-tap (client-side, audio thread). When a verb
+        // ARMS a pending edge (pendingEdge() false->true) we stamp the transport
+        // position of that first tap in `tap1Pos_`. If the second tap of a double
+        // then fires the edge instantly (§25 override), durable-span edges consume
+        // the stamp: record-START backfills `now - tap1Pos_` from the pre-roll,
+        // record-CLOSE trims loopLen_ to `tap1Pos_ - recStartPos_`. `recStartPos_`
+        // is the absolute transport position of the take's first sample. The stamp
+        // is dropped when the arm resolves any other way (single-tap cancel, or the
+        // quantized boundary firing normally). Ephemeral verbs never look at it.
+        double tap1Pos_ = 0.0;
+        bool   tap1Valid_ = false;
+        double recStartPos_ = 0.0;
+        int    retroBackfill_ = 0;   // samples to prepend from the pre-roll at start
+        int    retroCloseLen_ = -1;  // target loopLen_ for a retro close (-1 = none)
+        // `preLen_`-independent seam length (samples): spliceSeam takes only this
+        // much off the pre-roll tail even though the ring itself is retro-length.
+        int    seamLen_ = 0;
 
         // Lock-free SPSC command FIFO (message → audio). Capacity is generous: at most
         // a handful of edges per block (one gesture), drained fully each process().
