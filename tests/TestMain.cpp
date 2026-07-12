@@ -104,6 +104,8 @@ int main()
     lockstep::runSectionResolveTests();
     // 9.17: LaunchQuant authority (grid periods, boundary maths, legacy map)
     lockstep::runLaunchQuantTests();
+    // S7: FreeLen fit target (round up to launch-quant multiple + jitter tolerance)
+    lockstep::runLoopFitTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather

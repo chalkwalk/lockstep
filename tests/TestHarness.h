@@ -135,4 +135,6 @@ namespace lockstep
     void runSectionResolveTests();
     // 9.17: LaunchQuant authority — grid periods, boundary maths, legacy map
     void runLaunchQuantTests();
+    // S7: FreeLen fit target — round-up-to-launch-quant-multiple + jitter tolerance
+    void runLoopFitTests();
 }
