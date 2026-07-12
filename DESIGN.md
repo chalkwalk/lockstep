@@ -880,7 +880,9 @@ Song → Scene → Track (per-track, no Set); it stays on its own page.
    **Double-tap = instant override.** Any launch-like gesture, double-tapped,
    fires *now* regardless of `launchQuant` (PRINCIPLES §17 verb family). Instant
    fires are **phase-preserving**; a phase-reset is a separate explicit rider
-   (§13.4), never a side-effect of firing now.
+   (§13.4), never a side-effect of firing now. On a deck the same override gains a
+   refinement — a durable-span edge (record start/close, punch) retro-stamps to
+   the *first* tap, not the second (§40.13).
 2. **Metronome downbeat.** The "1" fires at `barPpq` intervals.
 3. **Default phrase length.** New Phrase seeded from `numerator × (4 /
    denominator)` steps (a default only — freely editable afterward).
@@ -7460,3 +7462,40 @@ boundary, and the deck is not a tenant of it.)
 - Whether Lockstep ever surfaces the multi-tap read heads (§40.10) as a UX —
   a tape-delay face of the deck. The *interface* supports it from day one; the
   grammar for placing taps does not exist and is not needed for the deck arc.
+
+### 40.13 The deck remembers your first tap (retroactive double-tap)
+
+The §25 double-tap is an *instant* override: fire now, not at the quantum. On a
+deck, "now" is often a hair too late — you tapped `REC` on the downbeat, the grid
+would have delayed you to the next bar, and by the time your second tap says "no,
+*now*" the moment you meant to catch has already passed. The retroactive
+double-tap closes that gap: **a durable-span edge stamps to your *first* tap, not
+your second.**
+
+The mechanism is entirely client-side — `deck_core` never learns about it (no
+`DeckEdge.retroSamples`, no pending-press bookkeeping in the state machine). When
+a verb *arms* a pending edge — the `pendingEdge()` false→true transition — the
+deck face stamps the transport position of that first tap (`tap1Pos_`). If the
+second tap of a double then fires the edge instantly (the §25 override), the
+client consumes the stamp:
+
+- **Record start** backfills the loop from a rolling **pre-roll ring** covering
+  `now − tap1Pos_`, so the take begins where you first pressed. The ring is the
+  §40.3 seam pre-roll, kept deck-wide and ≥350 ms — long enough to cover a
+  human's double-tap window — while the seam splice still takes only its own few
+  milliseconds off the ring's tail.
+- **Record close** sets the loop length to `tap1Pos_ − recStart`: the overshoot
+  between the two taps is discarded and playback wraps phase-continuously at the
+  first tap.
+- **Punch in / out** (Tape) retro-stamp their span boundaries the same way, in
+  reel samples.
+
+Only **durable-span** edges retro-stamp; **ephemeral** verbs (stop, replay) act
+at tap 2, exactly as the bare §25 override does — there is no span for them to
+remember. Tap-1 is captured on the audio thread as the command drains, so no
+message-thread clock mapping is involved (§25.1: position is single-sourced). If
+the single tap simply cancels the arm (§40.3), the stamp is dropped.
+
+The v1 restriction: on the Tape, retro backfill is exact only at reel rate 1
+(varispeed retro is deferred, documented). The Loop records at rate 1 always, so
+it is exact there.

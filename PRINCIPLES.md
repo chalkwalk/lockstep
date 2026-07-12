@@ -907,7 +907,10 @@ Two invariants ride on top of it:
 
 - **Double-tap is the universal instant override.** Any launch-like gesture,
   double-tapped, fires *now* instead of at the boundary. This is the same
-  reserved family as §17's verb double-press — not a new exception.
+  reserved family as §17's verb double-press — not a new exception. On a deck the
+  override additionally **retro-stamps durable spans to the first tap** (DESIGN
+  §40.13): a record/punch edge remembers where you pressed, not where you
+  confirmed. Ephemeral verbs (stop, replay) still act at tap 2 — no span to keep.
 - **Instant transitions preserve phase; a phase-reset is always an explicit
   rider.** Firing *now* never silently re-zeros a track's cursor — an instant
   Scene/Phrase/mute change lands the performer exactly where the music already
