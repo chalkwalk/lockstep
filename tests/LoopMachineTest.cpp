@@ -7,6 +7,7 @@
 #include "../src/machine/LoopMachine.h"
 #include "../src/machine/SampleMachine.h"
 #include "../src/machine/SamplePool.h"
+#include "../src/dsp/StretchRender.h"
 #include <cmath>
 
 namespace lockstep
@@ -386,6 +387,85 @@ namespace lockstep
             runP(lp, 512, 0.5f, Cmd::None, fr);
             runP(lp, 1, 0.0f, Cmd::RecordCycle, fr);
             CHECK(lp.fitState() == FitState::Off, "Free mode does not fit");
+        }
+
+        // S7 Stage 3: the background bake swaps the live stream for static PCM. Drive
+        // the same render the worker runs (renderStretchWide) inline and adopt it —
+        // the loop becomes plain grid-aligned PCM at the fitted length, engine off.
+        {
+            SamplePool p;
+            const int idx = p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LoopMachine lp(p);
+            lp.prepare(kSr, 512);
+            TransportInfo tr; tr.samplesPerBar = 1024.0;
+            tr.launchQuantPeriodSamples = 1024.0; tr.running = false;
+            lp.setTransport(tr);
+
+            ParamFrame fr{ 1.0f, 0.0f, 1.0f };  // Free Len
+            runP(lp, 512, 0.5f, Cmd::RecordCycle, fr, /*impulseAt*/ -1, /*immediate*/ true);
+            runP(lp, 512, 0.5f, Cmd::None, fr);            // 1024
+            runP(lp, 512, 0.5f, Cmd::None, fr);            // 1536 recorded
+            runP(lp, 1, 0.0f, Cmd::RecordCycle, fr);       // close → Streaming, target 2048
+            CHECK(lp.fitState() == FitState::Streaming, "Stage 3: precondition — streaming");
+
+            // Snapshot the recorded source and render it stretched to the window, as
+            // the background worker does.
+            juce::AudioBuffer<float> snap;
+            CHECK(lp.snapshotFitSource(snap), "Stage 3: snapshot the recorded fit source");
+            CHECK(snap.getNumSamples() == 1536, "Stage 3: snapshot is the recorded length");
+            juce::AudioBuffer<float> baked;
+            renderStretchWide(snap, kSr, 2048, kSr, snap.getNumChannels(), baked);
+            CHECK(baked.getNumSamples() == 2048, "Stage 3: baked render is the fitted length");
+            CHECK(baked.getMagnitude(0, 2048) > 0.1f,
+                  "Stage 3: baked PCM is non-silent (0.5 DC stretched stays ~0.5)");
+
+            const std::uint32_t gen = lp.fitBakeGeneration();
+            CHECK(lp.adoptBakedFit(baked, 2048, gen), "Stage 3: adopt the baked fit");
+            CHECK(lp.fitState() == FitState::Baked, "Stage 3: adopt → Baked (engine retired)");
+            CHECK(lp.loopLengthSamples() == 2048, "Stage 3: loop length is the fitted window");
+            CHECK(p.get(idx) != nullptr && p.get(idx)->pcm.getNumSamples() == 2048,
+                  "Stage 3: the pool slot holds the baked static PCM at the fitted length");
+
+            // Now-static loop plays the baked PCM back at native rate (non-silent).
+            float mag = 0.0f;
+            for (int b = 0; b < 3; ++b)
+            {
+                auto out = runP(lp, 512, 0.0f, Cmd::None, fr);
+                mag = std::max(mag, out.getMagnitude(0, 512));
+            }
+            CHECK(mag > 0.1f, "Stage 3: baked loop plays back static PCM (mag "
+                              + juce::String(mag) + ")");
+        }
+        {
+            // Supersede: a fit that is cancelled (new take / clear) before the bake
+            // lands must NOT be adopted — the generation has moved on.
+            SamplePool p;
+            p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LoopMachine lp(p);
+            lp.prepare(kSr, 512);
+            TransportInfo tr; tr.samplesPerBar = 1024.0;
+            tr.launchQuantPeriodSamples = 1024.0; tr.running = false;
+            lp.setTransport(tr);
+
+            ParamFrame fr{ 1.0f, 0.0f, 1.0f };  // Free Len
+            runP(lp, 512, 0.5f, Cmd::RecordCycle, fr, /*impulseAt*/ -1, /*immediate*/ true);
+            runP(lp, 512, 0.5f, Cmd::None, fr);
+            runP(lp, 512, 0.5f, Cmd::None, fr);
+            runP(lp, 1, 0.0f, Cmd::RecordCycle, fr);       // close → Streaming
+            CHECK(lp.fitState() == FitState::Streaming, "supersede: precondition — streaming");
+
+            juce::AudioBuffer<float> snap;
+            CHECK(lp.snapshotFitSource(snap), "supersede: snapshot before cancel");
+            juce::AudioBuffer<float> baked;
+            renderStretchWide(snap, kSr, 2048, kSr, snap.getNumChannels(), baked);
+            const std::uint32_t staleGen = lp.fitBakeGeneration();
+
+            // Clear supersedes the fit (cancelFit bumps the generation, state → Off).
+            runP(lp, 512, 0.0f, Cmd::Clear, fr);
+            CHECK(lp.adoptBakedFit(baked, 2048, staleGen) == false,
+                  "supersede: a stale bake is dropped, not adopted");
         }
 
         // C6: the seam SPLICE removes the click at a sharp head/tail seam.

@@ -1197,6 +1197,11 @@ namespace lockstep
 
     void LockstepEditor::timerCallback()
     {
+        // S7: pump the FreeLen background-bake orchestration — queue a stretch for
+        // any newly-engaged streaming fit and adopt completed bakes (decoupled from
+        // the transport; the loop streams correctly until the bake lands).
+        processor_.pollLoopBakes();
+
         // A2: flash the status line when the engine refused / dormant-marked a
         // routing edit (DESIGN §27). Decoupled poll: any seq bump = a new notice.
         {

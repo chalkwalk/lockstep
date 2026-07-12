@@ -18,6 +18,7 @@
 #include "machine/LoopMachine.h"
 #include "machine/TapeMachine.h"
 #include "dsp/BungeeStretchEngine.h"
+#include "dsp/StretchRender.h"
 #include "machine/StreamMachine.h"
 #include "machine/StretchMachine.h"
 #include "machine/MidiDevicePresets.h"
@@ -228,7 +229,14 @@ namespace lockstep
         savedStateHash_ = stateHash();
     }
 
-    LockstepProcessor::~LockstepProcessor() = default;
+    LockstepProcessor::~LockstepProcessor()
+    {
+        // Wind down the FreeLen bake worker before members are torn down; any
+        // in-flight stretch finishes before the thread joins.
+        if (bakeThread_ != nullptr)
+            bakeThread_->stopThread(2000);
+        bakeJobs_.clear();
+    }
 
     void LockstepProcessor::setMZSlots(int slotOffset)
     {
@@ -5715,68 +5723,6 @@ namespace lockstep
         return samplePool_.load(out.getFullPathName());
     }
 
-    namespace
-    {
-        // A random-access IStretchSource over a resident buffer, for offline FIT.
-        struct BufferStretchSource : IStretchSource
-        {
-            const juce::AudioBuffer<float>& buf;
-            double rate;
-            BufferStretchSource(const juce::AudioBuffer<float>& b, double r) : buf(b), rate(r) {}
-            int read(float* dest, int ch, juce::int64 srcPos, int n) override
-            {
-                const int chans = buf.getNumChannels();
-                const int useCh = std::min(ch, chans - 1);
-                for (int i = 0; i < n; ++i)
-                {
-                    const juce::int64 sp = srcPos + i;
-                    dest[i] = (useCh >= 0 && sp >= 0 && sp < buf.getNumSamples())
-                                  ? buf.getSample(useCh, static_cast<int>(sp)) : 0.0f;
-                }
-                return n;
-            }
-            [[nodiscard]] juce::int64 length() const override { return buf.getNumSamples(); }
-            [[nodiscard]] int numChannels() const override { return engineChannels(buf.getNumChannels()); }
-            [[nodiscard]] double sampleRate() const override { return rate; }
-        };
-
-        // Offline: render `src` time-stretched to exactly `outLen` frames (pitch
-        // preserved) into `out`. Message thread; the engine allocates in prepare().
-        void renderStretch(const juce::AudioBuffer<float>& src, double srcRate,
-                           int outLen, double outRate, juce::AudioBuffer<float>& out)
-        {
-            out.setSize(2, outLen, false, false, true);
-            out.clear();
-            const int srcLen = src.getNumSamples();
-            if (srcLen <= 0 || outLen <= 0) return;
-
-            constexpr int kBlock = 512;
-            BungeeStretchEngine eng;
-            eng.prepare(srcRate, outRate, 2, kBlock);
-            BufferStretchSource ssrc{ src, srcRate };
-            const double ratio = static_cast<double>(outLen) / static_cast<double>(srcLen);
-            eng.start(&ssrc, 0.0, ratio, 1.0);
-
-            // Discard the engine's onset latency, then capture outLen frames.
-            const int lat = eng.latencySamples();
-            juce::AudioBuffer<float> tmp(2, kBlock);
-            int produced = 0, discarded = 0;
-            // Bound the loop generously so a misbehaving engine cannot spin forever.
-            const int maxIters = (outLen + lat) / kBlock + 8;
-            for (int it = 0; it < maxIters && produced < outLen; ++it)
-            {
-                tmp.clear();
-                eng.process(tmp, 0, kBlock);
-                for (int i = 0; i < kBlock && produced < outLen; ++i)
-                {
-                    if (discarded < lat) { ++discarded; continue; }
-                    for (int c = 0; c < 2; ++c) out.setSample(c, produced, tmp.getSample(c, i));
-                    ++produced;
-                }
-            }
-        }
-    }
-
     bool LockstepProcessor::fitDeckSubTrack(int track, int sub)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
@@ -5800,6 +5746,113 @@ namespace lockstep
         bool ok = false;
         withQuiescedEngine([&] { ok = lm->loadSubTrack(sub, fitted, L, slot, srcIdx); });
         return ok;
+    }
+
+    // ── S7 FreeLen background bake ────────────────────────────────────────────
+
+    bool LockstepProcessor::beginLoopBake(int track, LoopBakeJob& job)
+    {
+        auto* lm = dynamic_cast<LoopMachine*>(machines_[static_cast<std::size_t>(track)].get());
+        if (lm == nullptr) return false;
+        // Only a fit that is genuinely streaming (a real stretch) needs a bake; an
+        // on-grid take is already Baked and a non-fit loop is Off.
+        if (lm->fitState() != LoopMachine::FitState::Streaming) return false;
+        const int targetLen = lm->fitTargetLengthSamples();
+        if (targetLen <= 0) return false;
+
+        juce::AudioBuffer<float> snap;
+        if (! lm->snapshotFitSource(snap)) return false;
+
+        job.owner = this;
+        job.track = track;
+        job.generation = lm->fitBakeGeneration();
+        job.targetLen = targetLen;
+        job.srcRate = getSampleRate() > 0.0 ? getSampleRate() : 48000.0;
+        job.outRate = job.srcRate;   // pure time-stretch: source and output rate agree
+        job.snapshot = std::move(snap);
+        job.done.store(false, std::memory_order_relaxed);
+        return true;
+    }
+
+    void LockstepProcessor::finishLoopBake(LoopBakeJob& job)
+    {
+        auto* lm = dynamic_cast<LoopMachine*>(machines_[static_cast<std::size_t>(job.track)].get());
+        if (lm == nullptr) return;
+        const int nch = job.baked.getNumChannels();
+        const int len = job.baked.getNumSamples();
+        if (nch <= 0 || len <= 0) return;
+        // Adopt under a quiesced engine: the swap resizes the pool slot and retires
+        // the streaming engine. adoptBakedFit re-checks the generation and drops the
+        // bake if the fit was superseded while it rendered.
+        withQuiescedEngine([&] { lm->adoptBakedFit(job.baked, job.targetLen, job.generation); });
+    }
+
+    int LockstepProcessor::LoopBakeJob::useTimeSlice()
+    {
+        renderStretchWide(snapshot, srcRate, targetLen, outRate,
+                          snapshot.getNumChannels(), baked);
+        done.store(true, std::memory_order_release);
+        return -1;  // one-shot: remove from the thread once the stretch is rendered
+    }
+
+    void LockstepProcessor::pollLoopBakes()
+    {
+        // 1) Adopt any completed bakes and reclaim their jobs.
+        for (auto it = bakeJobs_.begin(); it != bakeJobs_.end();)
+        {
+            if ((*it)->done.load(std::memory_order_acquire))
+            {
+                if (bakeThread_ != nullptr)
+                    bakeThread_->removeTimeSliceClient(it->get());  // no-op if self-removed
+                finishLoopBake(**it);
+                it = bakeJobs_.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+
+        // 2) Scan for newly-engaged streaming fits and queue a bake for each. The
+        //    generation moves on every engage/supersede, so a track only queues once
+        //    per fit; a superseded fit's stale job is dropped at adopt (generation
+        //    check).
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+        {
+            auto* lm = dynamic_cast<LoopMachine*>(machines_[static_cast<std::size_t>(t)].get());
+            if (lm == nullptr) continue;
+            const std::uint32_t gen = lm->fitBakeGeneration();
+            const auto ti = static_cast<std::size_t>(t);
+            if (gen == lastBakeGen_[ti]) continue;
+            lastBakeGen_[ti] = gen;
+
+            auto job = std::make_unique<LoopBakeJob>();
+            if (! beginLoopBake(t, *job)) continue;
+            if (bakeThread_ == nullptr)
+            {
+                bakeThread_ = std::make_unique<juce::TimeSliceThread>("lockstep.loopfit.bake");
+                bakeThread_->startThread(juce::Thread::Priority::low);
+            }
+            bakeThread_->addTimeSliceClient(job.get());
+            bakeJobs_.push_back(std::move(job));
+        }
+    }
+
+    void LockstepProcessor::bakePendingLoopFitsSync()
+    {
+        // Deterministic test path: scan → render → adopt inline, no worker thread.
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+        {
+            const auto ti = static_cast<std::size_t>(t);
+            auto* lm = dynamic_cast<LoopMachine*>(machines_[ti].get());
+            if (lm == nullptr) continue;
+            lastBakeGen_[ti] = lm->fitBakeGeneration();
+            LoopBakeJob job;
+            if (! beginLoopBake(t, job)) continue;
+            renderStretchWide(job.snapshot, job.srcRate, job.targetLen, job.outRate,
+                              job.snapshot.getNumChannels(), job.baked);
+            finishLoopBake(job);
+        }
     }
 
     bool LockstepProcessor::loadSampleToDeckSubTrack(int track, int sub, int poolIndex)

@@ -460,6 +460,63 @@ namespace lockstep
         fitBakeGen_.fetch_add(1, std::memory_order_release);
     }
 
+    bool LoopMachine::snapshotFitSource(juce::AudioBuffer<float>& dst) const
+    {
+        // Read the source length off the published mirror (message thread); the
+        // recorded PCM behind it is stable while the fit streams (the take closed,
+        // and the streaming read path touches fitScratch_, not target_).
+        const int srcLen = fitSrcLenMirror_.load(std::memory_order_acquire);
+        if (target_ == nullptr || srcLen <= 0) return false;
+        const int nch = target_->getNumChannels();
+        const int copyLen = std::min(srcLen, target_->getNumSamples());
+        if (nch <= 0 || copyLen <= 0) return false;
+        dst.setSize(nch, srcLen, false, false, true);
+        dst.clear();
+        for (int ch = 0; ch < nch; ++ch)
+            dst.copyFrom(ch, 0, *target_, ch, 0, copyLen);
+        return true;
+    }
+
+    bool LoopMachine::adoptBakedFit(const juce::AudioBuffer<float>& baked, int targetLen,
+                                    std::uint32_t forGeneration)
+    {
+        // Drop a stale/superseded bake: a new take, Clear, or a manual length edit
+        // has bumped the generation (and moved fitState_ off Streaming).
+        if (forGeneration != fitBakeGen_.load(std::memory_order_acquire)) return false;
+        if (fitState_ != FitState::Streaming) return false;
+        if (target_ == nullptr || targetLen <= 0 || targetLen > capacity_) return false;
+
+        // Grow the slot to the fitted window (kept within the pre-reserved capacity,
+        // so no reallocation) and write the baked stretched PCM in, channel-for-
+        // channel across the whole recorded deck width.
+        const int nch = target_->getNumChannels();
+        target_->setSize(nch, targetLen, false, false, true);
+        const int copyCh = std::min(nch, baked.getNumChannels());
+        const int copyLen = std::min(targetLen, baked.getNumSamples());
+        for (int ch = 0; ch < nch; ++ch)
+        {
+            if (ch < copyCh) target_->copyFrom(ch, 0, baked, ch, 0, copyLen);
+            else             target_->clear(ch, 0, targetLen);
+        }
+
+        loopLen_ = targetLen;
+        // The stream advanced playPos_ at unity over this same fitted length, so the
+        // static read continues in phase; rate returns to native (targetOutputSamples
+        // is 0 for FreeLen). Retire the engine and mark the loop plain static PCM.
+        fitEngine_.reset();
+        fitState_ = FitState::Baked;
+        fitScratchFilled_ = false;
+
+        // Refresh the loop's musical length now that it is grid-aligned.
+        const double spb = transport_.samplesPerBar;
+        pool_.setSourceBars(targetSlot_,
+                            spb > 0.0 ? static_cast<double>(loopLen_) / spb : 0.0);
+
+        loopLenMirror_.store(loopLen_, std::memory_order_release);
+        fitStateMirror_.store(static_cast<int>(fitState_), std::memory_order_release);
+        return true;
+    }
+
     float LoopMachine::mixSubTracksStreamed(int outCh, int sample, int subCount) const
     {
         if (! fitScratchFilled_) return 0.0f;

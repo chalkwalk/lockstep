@@ -280,6 +280,18 @@ namespace lockstep
         // deck's window (pitch-preserved, via the stretch engine), and write it back.
         // A no-op if the sub-track was recorded (no source) or the window is unknown.
         bool fitDeckSubTrack(int track, int sub);
+        // S7 FreeLen background bake orchestration. Message thread. pollLoopBakes()
+        // is pumped by the editor's timer (LockstepEditor::timerCallback): it scans
+        // each Loop track for a newly-engaged streaming fit, snapshots its recorded
+        // PCM and queues a background stretch, and adopts any completed bake under
+        // withQuiescedEngine (turning the streamed loop into plain grid-aligned static
+        // PCM). The bake is decoupled from the transport, so it completes across a
+        // stop or a view change; if the editor is closed the loop keeps streaming
+        // correctly and the bake lands when the UI reopens. bakePendingLoopFitsSync()
+        // runs the same scan → render → adopt inline (no worker thread) — the
+        // deterministic test hook.
+        void pollLoopBakes();
+        void bakePendingLoopFitsSync();
         int writeWavAndLoad(const juce::AudioBuffer<float>& buf, int firstChan,
                             int numChan, int len, double sr, const juce::File& dest);
         // Timeline-strip data (§40.6). All in samples; -1 / 0 when not a tape.
@@ -1345,6 +1357,35 @@ namespace lockstep
         // (0=A, 1=B). An External send whose bus is disabled/absent is silent and
         // reads as loaded-but-bypassed (amber) in the UI.
         [[nodiscard]] bool sendBusEnabled(int slot) const;
+
+        // ── S7 FreeLen background bake ────────────────────────────────────────
+        // A LoopMachine that engages a streaming FreeLen fit plays the stretched
+        // loop live through its realtime engine; this worker bakes the full
+        // stretched PCM off the audio thread and the result is adopted (under
+        // withQuiescedEngine) as plain grid-aligned static PCM. The stream is the
+        // bridge; the bake is permanence (promotable, grid-lockable) and survives a
+        // transport stop or navigating away. All message-thread owned.
+        struct LoopBakeJob : juce::TimeSliceClient
+        {
+            LockstepProcessor* owner = nullptr;
+            int track = 0;
+            std::uint32_t generation = 0;
+            int targetLen = 0;
+            double srcRate = 48000.0;
+            double outRate = 48000.0;
+            juce::AudioBuffer<float> snapshot;   // recorded source PCM (filled at enqueue)
+            juce::AudioBuffer<float> baked;      // stretched result (filled by the worker)
+            std::atomic<bool> done{ false };
+            int useTimeSlice() override;
+        };
+        std::unique_ptr<juce::TimeSliceThread> bakeThread_;
+        std::vector<std::unique_ptr<LoopBakeJob>> bakeJobs_;   // in-flight bakes
+        std::array<std::uint32_t, kNumTracks> lastBakeGen_{};  // last-seen fit generation
+        // Shared by pollLoopBakes and bakePendingLoopFitsSync: snapshot a track's
+        // newly-engaged streaming fit into a job (returns false if none pending), and
+        // adopt a job's baked result. renderStretchWide runs between them.
+        bool beginLoopBake(int track, LoopBakeJob& job);
+        void finishLoopBake(LoopBakeJob& job);
 
         // [SUSPEND] structural: swapped only while processing is suspended.
         std::array<std::unique_ptr<IMachine>, kNumTracks> machines_;

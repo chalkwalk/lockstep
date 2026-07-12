@@ -164,6 +164,22 @@ namespace lockstep
             return fitBakeGen_.load(std::memory_order_acquire);
         }
 
+        // S7 background bake (Stage 3). Message thread only.
+        //
+        // snapshotFitSource — copy the recorded source region [0, fitSrcLen_) across
+        // the whole recorded deck width into `dst`, for the background stretch. Safe
+        // to read while the fit streams (the take is closed; the streaming read path
+        // does not mutate target_). Returns false if no fit source is available.
+        [[nodiscard]] bool snapshotFitSource(juce::AudioBuffer<float>& dst) const;
+        // adoptBakedFit — swap the streamed fit for the baked static PCM. Must be
+        // called inside the processor's withQuiescedEngine (the audio thread is
+        // parked, so target_/loopLen_/the engine are ours). Adopts only if the fit
+        // is still Streaming and `forGeneration` still matches the live bake
+        // generation — a superseding take/clear/length-edit has bumped it, and a
+        // stale bake must be dropped. Returns true when the swap happened.
+        bool adoptBakedFit(const juce::AudioBuffer<float>& baked, int targetLen,
+                           std::uint32_t forGeneration);
+
         // Message thread (chrome): the active beat-repeat rate index (0=1/16 … 3=1/2),
         // or -1 when beat-repeat is not held (S5). Lights the held console rate cell.
         [[nodiscard]] int beatRepeatRate() const noexcept
