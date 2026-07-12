@@ -133,6 +133,11 @@ namespace lockstep
         [[nodiscard]] dc::MarkerLane& markerLane() noexcept { return markers_; }
         [[nodiscard]] const dc::MarkerLane& markerLane() const noexcept { return markers_; }
 
+        // §40.3 deck width (Stage 6): a Tape is a 4-sub-track linear deck, like the
+        // Loop. Advisory count of live sub-tracks (mirrors the subtrack_count param,
+        // clamped 1..kMaxSubTracks); 1 = today's single-track tape.
+        [[nodiscard]] int subTrackCount() const noexcept { return deck_.subTrackCount(); }
+
         // Advisory (message thread / tests).
         [[nodiscard]] dc::DeckState state() const noexcept { return deck_.state(); }
         [[nodiscard]] bool recording() const noexcept { return deck_.state() == dc::DeckState::Recording; }
@@ -190,7 +195,19 @@ namespace lockstep
         static constexpr int kSlotMediumLength = 1;  // reel length, seconds
         static constexpr int kSlotMonitor = 2;       // Off | On (live-thru)
         static constexpr int kSlotMediumDepth = 3;   // F32 | I16 (§40.10)
-        static constexpr int kNumSlots = 4;
+        static constexpr int kSlotSubTrackCount = 4; // 1..4 deck sub-tracks (§40.3, Stage 6a)
+        static constexpr int kNumSlots = 5;
+
+        // §40.3 deck width. The reel is allocated at the FULL deck width
+        // (kNumPlanes channels = kMaxSubTracks stereo sub-tracks) and lazily
+        // committed, so a single-sub-track tape (subtrack_count default 1) costs the
+        // higher sub-tracks only address space and reads/writes/mixes exactly as
+        // before. One Bits/depth covers every plane. numSubTracks is bound at the
+        // full width too, so raising subtrack_count never reallocates or loses a
+        // sub-track's high-water mark — it just brings already-present planes into
+        // the mix.
+        static constexpr int kChannelsPerSub = 2;
+        static constexpr int kNumPlanes = dc::kMaxSubTracks * kChannelsPerSub;  // 8
 
         static constexpr double kDefaultMediumSeconds = 300.0;  // 5 min (§40.3)
         static constexpr double kMinMediumSeconds = 1.0;
@@ -228,7 +245,7 @@ namespace lockstep
         // reached through undoStore_ so save/restore is depth-transparent.
         juce::AudioBuffer<float> undoReel_;
         std::unique_ptr<std::int16_t[]> undoI16_;
-        std::array<dc::Store, 2> undoStore_{};
+        std::array<dc::Store, kNumPlanes> undoStore_{};
         int undoLo_ = -1;      // lowest position saved this punch (-1 = none)
         int undoHi_ = -1;      // highest position saved this punch
         bool haveUndo_ = false;
@@ -255,7 +272,7 @@ namespace lockstep
         static constexpr double kScrubEase = 0.0008; // one-pole slew per sample
         static constexpr double kJogDecay = 0.9996;  // jog coast per sample (~50 ms)
 
-        std::array<dc::Store, 2> planes_{};
+        std::array<dc::Store, kNumPlanes> planes_{};
         dc::Medium medium_;
 
         // The deck state machine (§40.1): Idle/Playing/Recording/Stopped. Tape does

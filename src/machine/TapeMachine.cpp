@@ -51,6 +51,14 @@ namespace lockstep
                 s.valueLabels = std::span<const char* const>(kDepthLabels.data(),
                                                              kDepthLabels.size());
                 return s;
+            case kSlotSubTrackCount:
+                s.id = "subtrack_count";
+                s.label = "Tracks";
+                s.minValue = 1.0f;
+                s.maxValue = static_cast<float>(dc::kMaxSubTracks);  // 1..4 (§40.3)
+                s.defaultValue = 1.0f;   // a single stereo sub-track — today's tape
+                s.isStepped = true;
+                return s;
             default:
                 return {};
         }
@@ -108,7 +116,9 @@ namespace lockstep
     {
         const int cap = std::max(1, static_cast<int>(mediumSeconds_ * sampleRate_));
         reelCap_ = cap;
-        const auto n = static_cast<std::size_t>(cap) * 2;  // 2 planar channels
+        // §40.3 deck width: kNumPlanes = kMaxSubTracks stereo sub-tracks, allocated
+        // at full width and lazily committed (a 1-sub tape never touches subs 1..3).
+        const auto n = static_cast<std::size_t>(cap) * kNumPlanes;
 
         // Exactly one backing is live; release the other. Both allocate WITHOUT
         // zero-fill (§40.3 lazy commit): `new T[]` default-inits trivial types, so
@@ -121,12 +131,12 @@ namespace lockstep
             undoReel_.setSize(0, 0);
             reelI16_.reset(new std::int16_t[n]);           // NOLINT(*-avoid-c-arrays)
             undoI16_.reset(new std::int16_t[n]);           // NOLINT(*-avoid-c-arrays)
-            for (int ch = 0; ch < 2; ++ch)
+            for (int p = 0; p < kNumPlanes; ++p)
             {
-                const auto off = static_cast<std::size_t>(ch) * static_cast<std::size_t>(cap);
-                planes_[static_cast<std::size_t>(ch)] =
+                const auto off = static_cast<std::size_t>(p) * static_cast<std::size_t>(cap);
+                planes_[static_cast<std::size_t>(p)] =
                     dc::Store{ reelI16_.get() + off, static_cast<std::size_t>(cap) };
-                undoStore_[static_cast<std::size_t>(ch)] =
+                undoStore_[static_cast<std::size_t>(p)] =
                     dc::Store{ undoI16_.get() + off, static_cast<std::size_t>(cap) };
             }
         }
@@ -134,14 +144,14 @@ namespace lockstep
         {
             reelI16_.reset();
             undoI16_.reset();
-            reel_.setSize(2, cap, false, false, false);
-            undoReel_.setSize(2, cap, false, false, false);  // fence #8 punch undo (lazy)
-            for (int ch = 0; ch < 2; ++ch)
+            reel_.setSize(kNumPlanes, cap, false, false, false);
+            undoReel_.setSize(kNumPlanes, cap, false, false, false);  // fence #8 punch undo (lazy)
+            for (int p = 0; p < kNumPlanes; ++p)
             {
-                planes_[static_cast<std::size_t>(ch)] =
-                    dc::Store{ reel_.getWritePointer(ch), static_cast<std::size_t>(cap) };
-                undoStore_[static_cast<std::size_t>(ch)] =
-                    dc::Store{ undoReel_.getWritePointer(ch), static_cast<std::size_t>(cap) };
+                planes_[static_cast<std::size_t>(p)] =
+                    dc::Store{ reel_.getWritePointer(p), static_cast<std::size_t>(cap) };
+                undoStore_[static_cast<std::size_t>(p)] =
+                    dc::Store{ undoReel_.getWritePointer(p), static_cast<std::size_t>(cap) };
             }
         }
         haveUndo_ = false;
@@ -157,10 +167,10 @@ namespace lockstep
         dc::Medium::Config cfg;
         cfg.topology = dc::Topology::Linear;   // a reel, not a loop
         cfg.mediumRate = sampleRate_;          // 1× medium (§40.10)
-        cfg.numSubTracks = 1;
-        cfg.channelsPerSubTrack = 2;
+        cfg.numSubTracks = dc::kMaxSubTracks;  // §40.3: bound at full deck width
+        cfg.channelsPerSubTrack = kChannelsPerSub;
         cfg.capacitySamples = cap;
-        medium_.bindPlanes(cfg, planes_.data(), 2);
+        medium_.bindPlanes(cfg, planes_.data(), kNumPlanes);
     }
 
     void TapeMachine::copyReelTo(juce::AudioBuffer<float>& dst, int numFrames) const noexcept
@@ -264,6 +274,14 @@ namespace lockstep
 
         const int monMode = (params.size() > kSlotMonitor)
             ? static_cast<int>(std::lround(params[kSlotMonitor])) : 0;
+
+        // §40.3 deck width (Stage 6a): the live sub-track count follows the param.
+        // Stored on the deck so subTrackCount()/IMultiInput report it; the record
+        // and mix paths still touch only sub 0 until 6b/6c bring the higher subs in.
+        const int subCount = (params.size() > kSlotSubTrackCount)
+            ? std::clamp(static_cast<int>(std::lround(params[kSlotSubTrackCount])), 1, dc::kMaxSubTracks)
+            : 1;
+        deck_.setSubTrackCount(subCount);
 
         const bool recording = deck_.state() == dc::DeckState::Recording;
 

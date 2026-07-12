@@ -481,5 +481,49 @@ namespace lockstep
             for (int blk = 0; blk < 40; ++blk) parkedBlock(j, 1000);
             CHECK(! j.scrubActive(), "the jog coasts to rest (scrub goes inactive)");
         }
+
+        // ── Stage 6a: the Tape is a 4-sub-track deck (widened medium + count) ────
+        // The subtrack_count param exists (1..4, default 1) and drives the deck's
+        // advisory count. The reel is bound at full deck width, and a single-sub-
+        // track tape (the default) records/plays byte-identically to before.
+        {
+            TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(2.0);
+            const auto sc = t.paramSpec(4);
+            CHECK(juce::String(sc.id) == "subtrack_count", "Stage 6a: slot 4 = subtrack_count");
+            CHECK(feq(sc.defaultValue, 1.0f), "Stage 6a: subtrack_count defaults to 1");
+            CHECK(feq(sc.maxValue, 4.0f), "Stage 6a: up to 4 sub-tracks");
+            CHECK(t.subTrackCount() == 1, "Stage 6a: a fresh tape is single-sub");
+
+            // Ask for 4 sub-tracks via the param frame → the deck reports 4.
+            {
+                TransportInfo tr; tr.sampleRate = kSr; tr.running = true;
+                tr.transportPhaseSamples = 0.0; t.setTransport(tr);
+                juce::AudioBuffer<float> b(2, n);
+                juce::MidiBuffer none; ParamFrame pf{ 1.0f, 0.0f, 0.0f, 1.0f, 4.0f };
+                t.process(none, pf, b);
+            }
+            CHECK(t.subTrackCount() == 4, "Stage 6a: subtrack_count raises the deck width");
+
+            // Record on sub 0 with the deck widened → still byte-identical playback.
+            t.applyVerb(1);
+            {
+                TransportInfo tr; tr.sampleRate = kSr; tr.running = true;
+                tr.transportPhaseSamples = 0.0; t.setTransport(tr);
+                juce::AudioBuffer<float> b(2, n);
+                for (int ch = 0; ch < 2; ++ch) for (int i = 0; i < n; ++i) b.setSample(ch, i, 0.5f);
+                juce::MidiBuffer none; ParamFrame pf{ 1.0f, 0.0f, 0.0f, 1.0f, 4.0f };
+                t.process(none, pf, b);
+            }
+            t.applyVerb(1);
+            {
+                TransportInfo tr; tr.sampleRate = kSr; tr.running = true;
+                tr.transportPhaseSamples = 0.0; t.setTransport(tr);
+                juce::AudioBuffer<float> b(2, n);
+                juce::MidiBuffer none; ParamFrame pf{ 1.0f, 0.0f, 0.0f, 1.0f, 4.0f };
+                t.process(none, pf, b);
+                CHECK(feq(b.getSample(0, 100), 0.5f),
+                      "Stage 6a: a widened deck still records/plays sub 0 unchanged");
+            }
+        }
     }
 }
