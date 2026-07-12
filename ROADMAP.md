@@ -3107,7 +3107,7 @@ the deck reel with a transport-chasing (varispeed) write head and one-level undo
       surface retained: trig-driven one-shot capture, `Source`/`Buffer`/`Length`/`Monitor`,
       `numSections()` unchanged. Bits/depth, retro double-tap and markers deferred.
 
-### Phase 11 round 4 — `deck_core` runtime width  *[planned]*
+### Phase 11 round 4 — `deck_core` runtime width  *[shipped]*
 
 The deck core still declares one product constant it has no business owning:
 `dc::kMaxSubTracks = 4`, backing a fixed `std::array<SubTrack, 4>` inside `dc::Deck`.
@@ -3117,7 +3117,7 @@ this is the last thing standing between `deck_core` and a **wider mixing/recordi
 host** (DESIGN §40.11). It is a de-duplication as much as a generalisation: Lockstep
 already declares both numbers on its own side.
 
-- [ ] **`dc::Deck` gets runtime sub-track capacity.** Delete `dc::kMaxSubTracks`. `subs_`
+- [x] **`dc::Deck` gets runtime sub-track capacity.** SHIPPED. Delete `dc::kMaxSubTracks`. `subs_`
       becomes a `std::vector<SubTrack>` sized by an `explicit Deck(int capacity = 1)`
       ctor — allocation happens once, at machine construction, on the message thread.
       `setSubTrackCount()` stays `noexcept` and allocation-free (it is called from
@@ -3125,7 +3125,7 @@ already declares both numbers on its own side.
       rather than raw-indexing — under the old fixed array an out-of-range sub was
       unreachable, but with runtime capacity it is a live possibility (a capacity-1
       Record deck asked for sub 2), so the library defends its own invariant.
-- [ ] **The `4` and the `2` live only on the Lockstep side.** Single-source them onto the
+- [x] **The `4` and the `2` live only on the Lockstep side.** SHIPPED. Single-source them onto the
       constants that already exist: `kMaxInputSubTracks` (=4) and `kMaxDeckChannels`
       (=8) in `machine/InputSource.h`, and `kEngineChannels` (=2) in
       `machine/ChannelPolicy.h`. `TapeMachine`'s private `kChannelsPerSub = 2` (a third
