@@ -139,6 +139,11 @@ namespace lockstep
         // Loop. Advisory count of live sub-tracks (mirrors the subtrack_count param,
         // clamped 1..kMaxSubTracks); 1 = today's single-track tape.
         [[nodiscard]] int subTrackCount() const noexcept { return deck_.subTrackCount(); }
+        // Deck TRACKS-page state (§40.5, Stage 6c). Advisory (last processed block);
+        // mute/solo mirror their params, armed mirrors the SRC auto-arm law.
+        [[nodiscard]] bool subArmed(int sub) const noexcept { return deck_.subTrack(clampSub(sub)).armed; }
+        [[nodiscard]] bool subMuted(int sub) const noexcept { return deck_.subTrack(clampSub(sub)).muted; }
+        [[nodiscard]] bool subSoloed(int sub) const noexcept { return deck_.subTrack(clampSub(sub)).soloed; }
 
         // IMultiInput (Stage 6b, §40.3): sub-track 0 is the ordinary track input (the
         // `buffer` arg to process); sub-tracks 1..N-1 pull their own input_source_k
@@ -156,7 +161,15 @@ namespace lockstep
         [[nodiscard]] dc::DeckState state() const noexcept { return deck_.state(); }
         [[nodiscard]] bool recording() const noexcept { return deck_.state() == dc::DeckState::Recording; }
         [[nodiscard]] double mediumSeconds() const noexcept { return mediumSeconds_; }
-        [[nodiscard]] int recordedSamples() const noexcept { return medium_.used(0); }
+        // The recorded extent — the furthest any sub-track has been written (§40.3).
+        // A single-sub tape reads sub 0 exactly as before; a multi-sub take's extent
+        // is the longest sub, which is what the timeline strip and promote need.
+        [[nodiscard]] int recordedSamples() const noexcept
+        {
+            int m = 0;
+            for (int sub = 0; sub < dc::kMaxSubTracks; ++sub) m = std::max(m, medium_.used(sub));
+            return m;
+        }
         // Copy the recorded extent out for promotion (§40.8), reading through the
         // medium so it is depth-transparent (an i16 reel promotes the same as f32).
         // Message thread / non-audio use only.
@@ -217,7 +230,14 @@ namespace lockstep
         // byte-identical on disk and in the graph.
         static constexpr int kSlotSubSrcBase = 5;
         static constexpr int kNumSubSrcSlots = kMaxInputSubTracks - 1;  // subs 1..3
-        static constexpr int kNumSlots = kSlotSubSrcBase + kNumSubSrcSlots;  // 8
+        // Per-sub-track mix (Stage 6c, §40.3): level/pan/mute/solo for each of the
+        // four sub-tracks, OEB-resolved / P-lockable / scene-able like every param.
+        // Laid out sub-major: slot = kSlotSubMixBase + sub*kSubMixFields + field
+        // (0 level, 1 pan, 2 mute, 3 solo). Defaults (level 1 / pan 0 / unmuted)
+        // leave a single-sub-track tape byte-identical.
+        static constexpr int kSlotSubMixBase = kSlotSubSrcBase + kNumSubSrcSlots;  // 8
+        static constexpr int kSubMixFields = 4;   // level, pan, mute, solo
+        static constexpr int kNumSlots = kSlotSubMixBase + kMaxInputSubTracks * kSubMixFields;  // 24
 
         // §40.3 deck width. The reel is allocated at the FULL deck width
         // (kNumPlanes channels = kMaxSubTracks stereo sub-tracks) and lazily
@@ -239,6 +259,11 @@ namespace lockstep
         // Param value 0 = 16i, 1 = 32f; setMediumDepth's arg keeps its 1==i16 contract,
         // so the param<->depth mapping is translated at the processor apply site.
         static constexpr std::array<const char* const, 2> kDepthLabels = { "16i", "32f" };
+
+        static int clampSub(int sub) noexcept
+        {
+            return std::clamp(sub, 0, dc::kMaxSubTracks - 1);
+        }
 
         void bindReel() noexcept;
         // (Re)allocate the reel + undo backing for the current seconds/depth and
@@ -270,6 +295,10 @@ namespace lockstep
         int undoLo_ = -1;      // lowest position saved this punch (-1 = none)
         int undoHi_ = -1;      // highest position saved this punch
         bool haveUndo_ = false;
+        // Stage 6c: which sub-tracks the current/last punch wrote (a bitmask over
+        // sub indices). Only armed subs are saved into the undo backing, so Undo
+        // restores exactly those — an unarmed sub was never touched.
+        int undoArmedMask_ = 0;
         double mediumSeconds_ = kDefaultMediumSeconds;
 
         // §40.2 chase-lock. The reel's calibration (samples per ppq) latches from

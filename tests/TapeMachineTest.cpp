@@ -553,5 +553,86 @@ namespace lockstep
             CHECK(mi->inputSubTrackBuffer(1).getNumSamples() >= n,
                   "Stage 6b: extra-sub input buffer is block-sized");
         }
+
+        // ── Stage 6c: armed multi-sub record + mute/solo/pan mix ─────────────────
+        {
+            // Build a full 24-slot param frame: two subs, both armed (source != None),
+            // both at unity level / center pan, with per-sub mix overrides.
+            const int kSlots = 24;   // kNumSlots
+            const auto frame = [&](int subs, float s1mute, float s1solo)
+            {
+                ParamFrame pf(static_cast<std::size_t>(kSlots), 0.0f);
+                pf[0] = 1.0f;                       // sub0 source = External (armed)
+                pf[3] = 1.0f;                       // Bits 32f
+                pf[4] = static_cast<float>(subs);   // subtrack_count
+                pf[5] = 1.0f;                       // sub1 source = External (armed)
+                pf[8]  = 1.0f;                      // sub0 level
+                pf[12] = 1.0f;                      // sub1 level
+                pf[14] = s1mute;                    // sub1 mute
+                pf[15] = s1solo;                    // sub1 solo
+                return pf;
+            };
+
+            // Drive one running block: sub0 input from `buffer`, sub1 from its buffer.
+            const auto driveRec = [&](TapeMachine& m, float in0, float in1, const ParamFrame& pf)
+            {
+                TransportInfo tr; tr.sampleRate = kSr; tr.running = true;
+                tr.transportPhaseSamples = 0.0; m.setTransport(tr);
+                auto& s1 = m.inputSubTrackBuffer(1);
+                for (int ch = 0; ch < 2; ++ch)
+                    for (int i = 0; i < n; ++i) s1.setSample(ch, i, in1);
+                juce::AudioBuffer<float> b(2, n);
+                for (int ch = 0; ch < 2; ++ch) for (int i = 0; i < n; ++i) b.setSample(ch, i, in0);
+                juce::MidiBuffer none; m.process(none, pf, b);
+            };
+            const auto playBk = [&](TapeMachine& m, const ParamFrame& pf)
+            {
+                TransportInfo tr; tr.sampleRate = kSr; tr.running = true;
+                tr.transportPhaseSamples = 0.0; m.setTransport(tr);
+                juce::AudioBuffer<float> b(2, n);
+                juce::MidiBuffer none; m.process(none, pf, b);
+                return b;
+            };
+
+            // Arm both subs, record sub0=0.5 and sub1=-0.3 across [0,512).
+            TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(2.0);
+            const auto pf = frame(2, 0.0f, 0.0f);
+            t.applyVerb(1);
+            driveRec(t, 0.5f, -0.3f, pf);
+            t.applyVerb(1);
+            CHECK(t.subArmed(0) && t.subArmed(1), "Stage 6c: a sourced sub auto-arms");
+
+            // Playback sums both armed subs: 0.5 + (-0.3) = 0.2.
+            CHECK(feq(playBk(t, pf).getSample(0, 100), 0.2f, 1e-3f),
+                  "Stage 6c: playback sums both recorded sub-tracks");
+            // Mute sub1 → only sub0 (0.5).
+            CHECK(feq(playBk(t, frame(2, 1.0f, 0.0f)).getSample(0, 100), 0.5f, 1e-3f),
+                  "Stage 6c: muting a sub drops it from the mix");
+            // Solo sub1 → only sub1 (-0.3).
+            CHECK(feq(playBk(t, frame(2, 0.0f, 1.0f)).getSample(0, 100), -0.3f, 1e-3f),
+                  "Stage 6c: solo is subtractive — only the soloed sub plays");
+
+            // A disarmed sub (source None) is not written by a punch.
+            TapeMachine d; d.prepare(kSr, n); d.setMediumSeconds(2.0);
+            ParamFrame pfDis = frame(2, 0.0f, 0.0f);
+            pfDis[5] = 0.0f;   // sub1 source = None → disarmed
+            d.applyVerb(1);
+            driveRec(d, 0.5f, -0.3f, pfDis);
+            d.applyVerb(1);
+            CHECK(d.subArmed(0) && ! d.subArmed(1), "Stage 6c: a None-source sub is disarmed");
+            // Sub1 was never written → playback is just sub0 (0.5), not 0.2.
+            CHECK(feq(playBk(d, pfDis).getSample(0, 100), 0.5f, 1e-3f),
+                  "Stage 6c: a disarmed sub records nothing (its channel stays silent)");
+
+            // Whole-deck undo restores every armed sub over the punched span.
+            TapeMachine u; u.prepare(kSr, n); u.setMediumSeconds(2.0);
+            u.applyVerb(1); driveRec(u, 0.5f, 0.3f, pf); u.applyVerb(1);    // original → 0.8
+            u.applyVerb(1); driveRec(u, 0.1f, 0.1f, pf); u.applyVerb(1);    // punch over → 0.2
+            CHECK(u.canUndo(), "Stage 6c: a multi-sub punch is undoable");
+            CHECK(feq(playBk(u, pf).getSample(0, 100), 0.2f, 1e-3f), "Stage 6c: punched = 0.1+0.1");
+            u.applyVerb(4);  // undo
+            CHECK(feq(playBk(u, pf).getSample(0, 100), 0.8f, 1e-3f),
+                  "Stage 6c: undo restores both armed subs (0.5 + 0.3)");
+        }
     }
 }

@@ -12,11 +12,45 @@ namespace lockstep
         ParamSpec s;
         s.sectionIndex = kSrcSecIdx;
 
+        // Per-sub-track mix (Stage 6c, §40.3), generated rather than switched.
+        if (index >= kSlotSubMixBase && index < kNumSlots)
+        {
+            const int rel = index - kSlotSubMixBase;
+            const int sub = rel / kSubMixFields;         // 0..3
+            const int field = rel % kSubMixFields;       // 0 level,1 pan,2 mute,3 solo
+            const juce::String nm{ sub + 1 };            // user-facing 1-based
+            switch (field)
+            {
+                case 0:  // level
+                    s.id = "sub" + nm + "_level";
+                    s.label = "T" + nm + " Lvl";
+                    s.minValue = 0.0f; s.maxValue = 1.0f; s.defaultValue = 1.0f;
+                    return s;
+                case 1:  // pan (balance law: 0 = both channels unity)
+                    s.id = "sub" + nm + "_pan";
+                    s.label = "T" + nm + " Pan";
+                    s.minValue = -1.0f; s.maxValue = 1.0f; s.defaultValue = 0.0f;
+                    return s;
+                case 2:  // mute
+                    s.id = "sub" + nm + "_mute";
+                    s.label = "T" + nm + " Mute";
+                    s.minValue = 0.0f; s.maxValue = 1.0f; s.defaultValue = 0.0f;
+                    s.isStepped = true;
+                    return s;
+                default: // solo
+                    s.id = "sub" + nm + "_solo";
+                    s.label = "T" + nm + " Solo";
+                    s.minValue = 0.0f; s.maxValue = 1.0f; s.defaultValue = 0.0f;
+                    s.isStepped = true;
+                    return s;
+            }
+        }
+
         // Per-sub input source for subs 1..3 (Stage 6b, §40.3). Sub 0 uses
         // kSlotInputSource (id "input_source"); these carry input_source_2/3/4.
         // Default None so an extra sub is unassigned (and, under the 6c arming law,
         // disarmed) until the user picks a source for it.
-        if (index >= kSlotSubSrcBase && index < kNumSlots)
+        if (index >= kSlotSubSrcBase && index < kSlotSubMixBase)
         {
             const int sub = index - kSlotSubSrcBase + 1;  // 1..3
             s.id = inputSourceSlotId(sub);                 // input_source_2/3/4
@@ -115,23 +149,33 @@ namespace lockstep
         // Snapshot the recorded content, reallocate at the new depth, write it back
         // (32f→16i quantizes once; 16i→32f is lossless). Calibration is a musical-
         // addressing property, independent of stock, so it survives the swap.
-        const int recorded = recordedSamples();
-        juce::AudioBuffer<float> snapshot;
-        if (recorded > 0)
+        // Stage 6c: the convert spans every sub-track — one Bits/depth covers the
+        // whole deck, so a multi-sub tape keeps all its sub-tracks across the flip.
+        std::array<int, dc::kMaxSubTracks> subUsed{};
+        std::array<juce::AudioBuffer<float>, dc::kMaxSubTracks> snapshot;
+        for (int sub = 0; sub < dc::kMaxSubTracks; ++sub)
         {
-            snapshot.setSize(2, recorded, false, false, false);
-            copyReelTo(snapshot, recorded);     // depth-transparent read of the old reel
+            const int u = medium_.used(sub);
+            subUsed[static_cast<std::size_t>(sub)] = u;
+            if (u <= 0) continue;
+            snapshot[static_cast<std::size_t>(sub)].setSize(kChannelsPerSub, u, false, false, false);
+            for (int ch = 0; ch < kChannelsPerSub; ++ch)
+                for (int i = 0; i < u; ++i)
+                    snapshot[static_cast<std::size_t>(sub)].setSample(ch, i, medium_.read(sub, ch, i));
         }
 
         depthI16_ = i16;
         allocateReel();                         // fresh stores at the new depth (used → 0)
 
-        if (recorded > 0)
+        for (int sub = 0; sub < dc::kMaxSubTracks; ++sub)
         {
-            medium_.ensureCommitted(0, recorded);
-            for (int ch = 0; ch < 2; ++ch)
-                for (int i = 0; i < recorded; ++i)
-                    medium_.write(0, ch, i, snapshot.getSample(ch, i));  // depth-transparent
+            const int u = subUsed[static_cast<std::size_t>(sub)];
+            if (u <= 0) continue;
+            medium_.ensureCommitted(sub, u);
+            for (int ch = 0; ch < kChannelsPerSub; ++ch)
+                for (int i = 0; i < u; ++i)
+                    medium_.write(sub, ch, i,
+                                  snapshot[static_cast<std::size_t>(sub)].getSample(ch, i));
         }
     }
 
@@ -237,11 +281,17 @@ namespace lockstep
             case 4:  // Undo — restore the last punch's original content
                 if (haveUndo_)
                 {
-                    for (int p = undoLo_; p <= undoHi_; ++p)
-                        for (int ch = 0; ch < 2; ++ch)
-                            medium_.write(0, ch, p,
-                                          undoStore_[static_cast<std::size_t>(ch)]
-                                              .get(static_cast<std::size_t>(p)));
+                    // Stage 6c: restore exactly the sub-tracks the punch wrote (armed
+                    // subs). An unarmed sub was never touched, so it is left alone.
+                    for (int sub = 0; sub < dc::kMaxSubTracks; ++sub)
+                    {
+                        if (((undoArmedMask_ >> sub) & 1) == 0) continue;
+                        for (int p = undoLo_; p <= undoHi_; ++p)
+                            for (int ch = 0; ch < kChannelsPerSub; ++ch)
+                                medium_.write(sub, ch, p,
+                                              undoStore_[static_cast<std::size_t>(sub * kChannelsPerSub + ch)]
+                                                  .get(static_cast<std::size_t>(p)));
+                    }
                     haveUndo_ = false;
                 }
                 break;
@@ -299,14 +349,64 @@ namespace lockstep
             ? static_cast<int>(std::lround(params[kSlotMonitor])) : 0;
 
         // §40.3 deck width (Stage 6a): the live sub-track count follows the param.
-        // Stored on the deck so subTrackCount()/IMultiInput report it; the record
-        // and mix paths still touch only sub 0 until 6b/6c bring the higher subs in.
         const int subCount = (params.size() > kSlotSubTrackCount)
             ? std::clamp(static_cast<int>(std::lround(params[kSlotSubTrackCount])), 1, dc::kMaxSubTracks)
             : 1;
         deck_.setSubTrackCount(subCount);
 
         const bool recording = deck_.state() == dc::DeckState::Recording;
+
+        // §40.3 mix + arming (Stage 6c). Pull each sub's level/pan/mute/solo into
+        // the deck table, and resolve the arming law: a sub is ARMED when its input
+        // source is not None (auto-arm on SRC). Only armed subs WRITE during a punch;
+        // unarmed subs play their content back. Defaults (source External on sub 0,
+        // None on 1..3; level 1 / pan 0 / unmuted) keep a single-sub tape identical.
+        bool anySolo = false;
+        int armedMask = 0;
+        for (int sub = 0; sub < subCount; ++sub)
+        {
+            const auto b = static_cast<std::size_t>(kSlotSubMixBase + sub * kSubMixFields);
+            auto& st = deck_.subTrack(sub);
+            st.level  = (params.size() > b)     ? std::clamp(params[b], 0.0f, 1.0f)      : 1.0f;
+            st.pan    = (params.size() > b + 1) ? std::clamp(params[b + 1], -1.0f, 1.0f) : 0.0f;
+            st.muted  = (params.size() > b + 2) && params[b + 2] >= 0.5f;
+            st.soloed = (params.size() > b + 3) && params[b + 3] >= 0.5f;
+            if (st.soloed) anySolo = true;
+
+            const auto srcSlot = static_cast<std::size_t>(
+                (sub == 0) ? kSlotInputSource : (kSlotSubSrcBase + sub - 1));
+            const bool hasSrc = (params.size() > srcSlot)
+                && decodeInputSource(params[srcSlot]).kind != InputSourceKind::None;
+            st.armed = hasSrc;
+            if (hasSrc) armedMask |= (1 << sub);
+        }
+        if (recording) undoArmedMask_ = armedMask;
+
+        // Playback predicate + mix gains (shared by the scrub, unity, and varispeed
+        // paths). A sub plays when it is enabled by the mute/solo law; solo is
+        // subtractive (any solo → only soloed subs). Center-unity balance pan:
+        // pan 0 leaves both channels at level, so a lone centered sub reads exactly
+        // as a raw medium read (single-sub byte-identity).
+        auto subPlays = [&](int sub) noexcept
+        {
+            const auto& st = deck_.subTrack(sub);
+            if (st.muted) return false;
+            if (anySolo && ! st.soloed) return false;
+            return true;
+        };
+        auto panGain = [&](int sub, int ch) noexcept
+        {
+            const float p = deck_.subTrack(sub).pan;
+            return (ch == 0) ? (p <= 0.0f ? 1.0f : 1.0f - p)
+                             : (p >= 0.0f ? 1.0f : 1.0f + p);
+        };
+        auto inputForSub = [&](int sub, int ch, int i) noexcept -> float
+        {
+            if (sub == 0) return buffer.getSample(ch, i);
+            const auto& si = subInput_[static_cast<std::size_t>(sub)];
+            const int c = std::min(ch, si.getNumChannels() - 1);
+            return (c >= 0 && i < si.getNumSamples()) ? si.getSample(c, i) : 0.0f;
+        };
 
         // Stage 4: the Tape follows the MAIN transport — there is no separate tape
         // Play/Stop. When the transport is parked (not running) and we are not
@@ -342,8 +442,16 @@ namespace lockstep
                 const double rate = scrubSmoothed_ + jogVel_;             // + jog rock
                 rh.setRate(rate);
                 rh.setPosition(scrubHeadPos_);
-                rh.readFrame(medium_, 0, sframe, outChans);
-                for (int ch = 0; ch < outChans; ++ch) buffer.setSample(ch, i, sframe[ch]);
+                // Audition the mix while winding (Stage 6c): sum every playing sub.
+                float acc[2] = { 0.0f, 0.0f };  // NOLINT(*-avoid-c-arrays)
+                for (int sub = 0; sub < subCount; ++sub)
+                {
+                    if (! subPlays(sub)) continue;
+                    rh.readFrame(medium_, sub, sframe, outChans);
+                    for (int ch = 0; ch < outChans; ++ch)
+                        acc[ch] += sframe[ch] * deck_.subTrack(sub).level * panGain(sub, ch);
+                }
+                for (int ch = 0; ch < outChans; ++ch) buffer.setSample(ch, i, acc[ch]);
                 scrubHeadPos_ += rate;
                 jogVel_ *= kJogDecay;                                     // jog coasts to rest
                 if (scrubHeadPos_ <= 0.0) { scrubHeadPos_ = 0.0; scrubSmoothed_ = jogVel_ = 0.0; }
@@ -383,9 +491,14 @@ namespace lockstep
                 const bool firstTouch = (undoLo_ < 0) || ip < undoLo_ || ip > undoHi_;
                 if (firstTouch)
                 {
-                    for (int c = 0; c < outChans; ++c)
-                        undoStore_[static_cast<std::size_t>(c)]
-                            .set(static_cast<std::size_t>(ip), medium_.read(0, c, p));
+                    // Save every ARMED sub's channel-pair (they share the span).
+                    for (int sub = 0; sub < subCount; ++sub)
+                    {
+                        if (((armedMask >> sub) & 1) == 0) continue;
+                        for (int c = 0; c < outChans; ++c)
+                            undoStore_[static_cast<std::size_t>(sub * kChannelsPerSub + c)]
+                                .set(static_cast<std::size_t>(ip), medium_.read(sub, c, p));
+                    }
                     undoLo_ = (undoLo_ < 0) ? ip : std::min(undoLo_, ip);
                     undoHi_ = (undoHi_ < 0) ? ip : std::max(undoHi_, ip);
                 }
@@ -403,24 +516,45 @@ namespace lockstep
             for (int i = 0; i < numSamples; ++i)
             {
                 const std::int64_t pos = posInt + i;
+                float out[2] = { 0.0f, 0.0f };  // NOLINT(*-avoid-c-arrays)
                 if (recording)
                 {
                     saveOriginals(pos, pos);
-                    medium_.ensureCommitted(0, static_cast<int>(pos) + 1);
-                    for (int ch = 0; ch < outChans; ++ch)
+                    for (int sub = 0; sub < subCount; ++sub)
                     {
-                        const float in = buffer.getSample(ch, i);
-                        medium_.write(0, ch, pos, in);      // replace what was there
-                        buffer.setSample(ch, i, in);        // monitor what we lay down
+                        if (((armedMask >> sub) & 1) != 0)
+                        {
+                            medium_.ensureCommitted(sub, static_cast<int>(pos) + 1);
+                            for (int ch = 0; ch < outChans; ++ch)
+                            {
+                                const float in = inputForSub(sub, ch, i);
+                                medium_.write(sub, ch, pos, in);  // replace what was there
+                                out[ch] += in;                    // monitor what we lay down
+                            }
+                        }
+                        else if (subPlays(sub))  // unarmed subs keep playing back
+                        {
+                            for (int ch = 0; ch < outChans; ++ch)
+                                out[ch] += medium_.read(sub, ch, pos)
+                                         * deck_.subTrack(sub).level * panGain(sub, ch);
+                        }
                     }
+                    for (int ch = 0; ch < outChans; ++ch) buffer.setSample(ch, i, out[ch]);
                 }
                 else
                 {
+                    for (int sub = 0; sub < subCount; ++sub)
+                    {
+                        if (! subPlays(sub)) continue;
+                        for (int ch = 0; ch < outChans; ++ch)
+                            out[ch] += medium_.read(sub, ch, pos)
+                                     * deck_.subTrack(sub).level * panGain(sub, ch);
+                    }
                     for (int ch = 0; ch < outChans; ++ch)
                     {
-                        float out = medium_.read(0, ch, pos);
-                        if (monMode == 1) out += buffer.getSample(ch, i);  // live-thru
-                        buffer.setSample(ch, i, out);
+                        float o = out[ch];
+                        if (monMode == 1) o += buffer.getSample(ch, i);  // live-thru
+                        buffer.setSample(ch, i, o);
                     }
                 }
             }
@@ -429,46 +563,79 @@ namespace lockstep
 
         // Varispeed path (r != 1, §40.10 head law): bandlimited fractional read and
         // erase-ahead + |rate|-scaled scatter write. Heads reseed from the musical
-        // position each block, so they never drift from chase-lock.
+        // position each block, so they never drift from chase-lock. Stage 6c: each
+        // ARMED sub owns its own write/erase head (they share the position but must
+        // advance once per engine sample, not once per sub), and one read head
+        // serves every unarmed/playing sub at the shared position.
         float frame[2] = { 0.0f, 0.0f };  // NOLINT(*-avoid-c-arrays) — head float* API
+        dc::ReadHead rh;
+        rh.setRate(r);
+        rh.setPosition(posStart);
         if (recording)
         {
-            dc::WriteHead wh;
-            wh.setRate(r);
-            wh.setPosition(posStart);
-            dc::EraseHead eh;                       // replace = erase + write
-            eh.setErasure(1.0f);
-            eh.setRate(r);
-            eh.setPosition(dc::EraseHead::leadFor(wh, dc::EraseHead::kMinGap));
+            std::array<dc::WriteHead, dc::kMaxSubTracks> wh{};
+            std::array<dc::EraseHead, dc::kMaxSubTracks> eh{};
+            for (int sub = 0; sub < subCount; ++sub)
+            {
+                if (((armedMask >> sub) & 1) == 0) continue;
+                auto& w = wh[static_cast<std::size_t>(sub)];
+                auto& e = eh[static_cast<std::size_t>(sub)];
+                w.setRate(r);
+                w.setPosition(posStart);
+                e.setErasure(1.0f);
+                e.setRate(r);
+                e.setPosition(dc::EraseHead::leadFor(w, dc::EraseHead::kMinGap));
+            }
             // A generous, bounded window over the kernel + erase-lead extent: any
             // sample the erase/write can touch is saved before either runs. Extra
             // saved originals just restore to themselves (harmless).
             const auto reach = static_cast<std::int64_t>(
                 dc::Resampler::kHalf + dc::EraseHead::kMinGap + std::ceil(std::abs(r)) + 2.0);
+            double wpos = posStart;
             for (int i = 0; i < numSamples; ++i)
             {
-                for (int ch = 0; ch < outChans; ++ch) frame[ch] = buffer.getSample(ch, i);
-                const auto base = static_cast<std::int64_t>(std::floor(wh.position()));
+                const auto base = static_cast<std::int64_t>(std::floor(wpos));
                 saveOriginals(base - reach, base + reach);
-                eh.sweep(medium_, 0);               // clear tape ahead of the deposit
-                wh.writeFrame(medium_, 0, frame, outChans);
-                wh.step(medium_);
-                for (int ch = 0; ch < outChans; ++ch) buffer.setSample(ch, i, frame[ch]);
+                float out[2] = { 0.0f, 0.0f };  // NOLINT(*-avoid-c-arrays)
+                for (int sub = 0; sub < subCount; ++sub)
+                {
+                    if (((armedMask >> sub) & 1) != 0)
+                    {
+                        for (int ch = 0; ch < outChans; ++ch) frame[ch] = inputForSub(sub, ch, i);
+                        eh[static_cast<std::size_t>(sub)].sweep(medium_, sub);   // clear ahead
+                        wh[static_cast<std::size_t>(sub)].writeFrame(medium_, sub, frame, outChans);
+                        wh[static_cast<std::size_t>(sub)].step(medium_);
+                        for (int ch = 0; ch < outChans; ++ch) out[ch] += frame[ch];  // monitor
+                    }
+                    else if (subPlays(sub))  // unarmed subs keep playing back
+                    {
+                        rh.readFrame(medium_, sub, frame, outChans);
+                        for (int ch = 0; ch < outChans; ++ch)
+                            out[ch] += frame[ch] * deck_.subTrack(sub).level * panGain(sub, ch);
+                    }
+                }
+                rh.step(medium_);
+                for (int ch = 0; ch < outChans; ++ch) buffer.setSample(ch, i, out[ch]);
+                wpos += r;
             }
         }
         else
         {
-            dc::ReadHead rh;
-            rh.setRate(r);
-            rh.setPosition(posStart);
             for (int i = 0; i < numSamples; ++i)
             {
-                rh.readFrame(medium_, 0, frame, outChans);
+                float out[2] = { 0.0f, 0.0f };  // NOLINT(*-avoid-c-arrays)
+                for (int sub = 0; sub < subCount; ++sub)
+                {
+                    if (! subPlays(sub)) continue;
+                    rh.readFrame(medium_, sub, frame, outChans);
+                    for (int ch = 0; ch < outChans; ++ch)
+                        out[ch] += frame[ch] * deck_.subTrack(sub).level * panGain(sub, ch);
+                }
                 for (int ch = 0; ch < outChans; ++ch)
                 {
-                    float out = frame[ch];
-                    if (monMode == 1) out += buffer.getSample(ch, i);  // live-thru
-                    buffer.setSample(ch, i, out);
+                    float o = out[ch];
+                    if (monMode == 1) o += buffer.getSample(ch, i);  // live-thru
+                    buffer.setSample(ch, i, o);
                 }
                 rh.step(medium_);
             }
