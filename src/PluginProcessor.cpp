@@ -7368,6 +7368,20 @@ namespace lockstep
         clock_.locate(targetPpq);  // a cue is a locate, not a launch (§40.4)
     }
 
+    bool LockstepProcessor::tapeScrubEligible(int track) const
+    {
+        // Windable + parked (the song is not running). Mirrors the audio thread's
+        // `parked` gate (TapeMachine::process): scrub/jog is live whenever the
+        // transport is stopped, not behind a button (Stage 4).
+        return isTapeTrack(track) && transportWindable() && ! clock_.inPluginPlaying();
+    }
+
+    double LockstepProcessor::tapeReelHead(int track) const
+    {
+        auto* tm = asTape(const_cast<std::array<std::unique_ptr<IMachine>, kNumTracks>&>(machines_), track);
+        return tm ? tm->scrubHeadReelPos() : 0.0;
+    }
+
     void LockstepProcessor::tapeSetScrubRate(int track, double reelRate)
     {
         if (! transportWindable()) return;   // §40.2 suppressed when hosted-locked

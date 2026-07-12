@@ -6945,6 +6945,15 @@ song is stopped, not behind a mode). A parked, un-scrubbed reel is silent — it
 does not re-read its frozen head. On release, the reel is truth: the transport
 locates to where you wound it, so play resumes from the point your ear found.
 
+**The reel is a visible widget, not an invisible encoder (Stage 5).** While the
+tape is parked, SRC slot 0 renders as a **spinning supply reel** — a drawn disc
+with three spoke-holes that turns with the reel head, so rocking it (jog) and
+winding it (the `<< / >>` cells) is a legible affordance instead of a silent
+encoder that "seemed to do nothing". Its value caption reads the head time
+(`m:ss`). The widget appears **exactly when the jog is live** (windable +
+parked, `tapeScrubEligible` — the same rule the audio thread scrubs under); the
+instant the song plays or records, slot 0 falls back to the Source picker.
+
 **The Tape is chase-locked to musical time.** The organizing lens is a studio
 **master reel-to-reel at the centre of the split-desk console** — Looper is
 performative, the 4-track is a multitrack recording flow, and the Tape is the

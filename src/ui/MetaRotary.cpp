@@ -25,6 +25,9 @@ namespace lockstep
         reelNext = v.reelNext;
         reelPrevWrapped = v.reelPrevWrapped;
         reelNextWrapped = v.reelNextWrapped;
+        tapeReel = v.tapeReel;
+        tapeReelAngle = v.tapeReelAngle;
+        tapeReelWinding = v.tapeReelWinding;
     }
 
     void MetaRotaryLookAndFeel::drawRotarySlider(juce::Graphics& g,
@@ -35,6 +38,47 @@ namespace lockstep
                                                  juce::Slider& slider)
     {
         auto* mr = dynamic_cast<MetaRotary*>(&slider);
+
+        // --- Tape reel scrub widget (§40.2, Stage 5): a drawn supply reel that
+        // spins with the reel head, so jog (rock) and wind (FF/RW) are a visible
+        // affordance instead of an invisible encoder. Shown on slot 0 only while the
+        // tape is parked (windable + not running) — exactly when the jog is live.
+        if (mr && mr->tapeReel)
+        {
+            const auto full = juce::Rectangle<int>(x, y, width, height).toFloat().reduced(4.0f);
+            const float cx = full.getCentreX();
+            const float cy = full.getCentreY();
+            const float R = juce::jmin(full.getWidth(), full.getHeight()) * 0.5f - 2.0f;
+            const auto tint = slider.findColour(juce::Slider::thumbColourId)
+                                  .withAlpha(slider.isEnabled() ? 1.0f : 0.4f);
+            const auto face = slider.findColour(juce::Slider::rotarySliderOutlineColourId);
+            const auto spun = mr->tapeReelWinding ? tint : tint.withAlpha(0.8f);
+
+            // Flange (outer disc) + hub.
+            g.setColour(face.withAlpha(0.5f));
+            g.fillEllipse(cx - R, cy - R, R * 2.0f, R * 2.0f);
+            g.setColour(spun);
+            g.drawEllipse(cx - R, cy - R, R * 2.0f, R * 2.0f, juce::jmax(1.5f, R * 0.06f));
+            const float hubR = R * 0.22f;
+            g.fillEllipse(cx - hubR, cy - hubR, hubR * 2.0f, hubR * 2.0f);
+
+            // Three spoke-holes, rotated by the reel angle, so the disc reads as
+            // spinning as the head moves.
+            const float holeR = R * 0.13f;
+            const float ring = R * 0.60f;
+            for (int k = 0; k < 3; ++k)
+            {
+                const float a = mr->tapeReelAngle
+                    + static_cast<float>(k) * juce::MathConstants<float>::twoPi / 3.0f;
+                const float hx = cx + ring * std::cos(a);
+                const float hy = cy + ring * std::sin(a);
+                g.setColour(face.withAlpha(0.85f));
+                g.fillEllipse(hx - holeR, hy - holeR, holeR * 2.0f, holeR * 2.0f);
+                g.setColour(spun.withAlpha(0.7f));
+                g.drawEllipse(hx - holeR, hy - holeR, holeR * 2.0f, holeR * 2.0f, 1.0f);
+            }
+            return;
+        }
 
         // --- Harmony CHORD view (10.10): one voice column = 3 chord rows
         // (prev / current / next) with a knob ring centred on the current row, so

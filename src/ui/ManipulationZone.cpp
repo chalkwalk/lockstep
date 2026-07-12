@@ -162,16 +162,17 @@ namespace lockstep
                         onStepPositionChanged();
                     return;
                 }
-                // §40.2 jog: when a STOPPED Tape's console is focused and the
-                // transport is windable, slot 0's encoder is the reel jog — its
-                // incremental delta injects a decaying scrub impulse (reel-rocking)
-                // instead of writing a param. Playing/recording it edits Source as
-                // usual, and the other slots always edit their params.
+                // §40.2 jog: when a PARKED Tape (windable + not running) is focused,
+                // slot 0 is the reel widget — its encoder delta injects a decaying
+                // scrub impulse (reel-rocking) instead of writing a param. Playing/
+                // recording it edits Source as usual, and the other slots always edit
+                // their params. (Stage 5: gated on tapeScrubEligible, the same parked
+                // rule the audio thread scrubs under — Stage 4 retired the old
+                // deck-Stopped state this used to key on.)
                 if (i == 0)
                 {
                     const int jt = area_.getActiveTrack();
-                    if (processor_.isTapeTrack(jt) && processor_.transportWindable()
-                        && processor_.tapeState(jt) == 4 /*dc::DeckState::Stopped*/)
+                    if (processor_.tapeScrubEligible(jt))
                     {
                         if (lastSlotValid_)
                             processor_.tapeJog(jt, static_cast<double>(
@@ -529,6 +530,42 @@ namespace lockstep
         {
             const auto si = static_cast<std::size_t>(i);
             const int slot = slotOffset_ + i;
+
+            // §40.2 reel widget (Stage 5): slot 0 of a PARKED tape (windable + not
+            // running) becomes a spinning tape reel — the visible affordance for the
+            // jog that already lives on this encoder. Its angle tracks the reel head,
+            // so it turns as you rock/wind; the value text reads the head time. When
+            // the song plays/records, slot 0 falls through to the Source picker below.
+            if (i == 0 && processor_.tapeScrubEligible(track))
+            {
+                const double sr = processor_.getSampleRate();
+                const double headSamp = processor_.tapeReelHead(track);
+                const double headSec = sr > 0.0 ? headSamp / sr : 0.0;
+                // Half a turn per second of tape — a legible spin at scrub speeds.
+                const auto angle = static_cast<float>(
+                    std::fmod(headSec, 4.0) * juce::MathConstants<double>::pi * 0.5);
+
+                MetaRotary::View rv;
+                rv.tapeReel = true;
+                rv.tapeReelAngle = angle;
+                rv.tapeReelWinding = std::abs(angle - lastReelAngle_) > 1.0e-3f;
+                lastReelAngle_ = angle;
+                rv.enabled = true;
+                rv.alpha = 1.0f;
+                sliders_[si].applyView(rv);
+
+                const int totalSec = static_cast<int>(headSec);
+                const juce::String hp = totalSec < 60
+                    ? juce::String(totalSec) + " s"
+                    : juce::String(totalSec / 60) + ":"
+                          + juce::String(totalSec % 60).paddedLeft('0', 2);
+                labels_[si].setText("Reel", juce::dontSendNotification);
+                valueLabels_[si].setText(hp, juce::dontSendNotification);
+                clearBtns_[si].setEnabled(false);
+                clearBtns_[si].setAlpha(0.0f);
+                samplePickerBtn_.setVisible(false);
+                continue;
+            }
 
             // Slot beyond this machine's schema, or belonging to a different
             // section than the page anchor — blank out the cell.

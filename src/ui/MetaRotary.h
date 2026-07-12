@@ -43,6 +43,14 @@ namespace lockstep
             juce::String reelPrev, reelNow, reelNext;
             bool reelPrevWrapped = false;
             bool reelNextWrapped = false;
+
+            // Tape reel scrub widget (§40.2, Stage 5): a drawn reel that spins with
+            // the reel head so jog/wind is a visible affordance. tapeReelAngle is the
+            // hub rotation in radians; tapeReelWinding tints it while a steady wind is
+            // engaged (FF/RW cells) vs a settling jog.
+            bool tapeReel = false;
+            float tapeReelAngle = 0.0f;
+            bool tapeReelWinding = false;
         };
 
         void applyView(const View& v);
@@ -54,6 +62,9 @@ namespace lockstep
         [[nodiscard]] float getDensityMasterOffset() const noexcept { return densityMasterOffset; }
         [[nodiscard]] float getDensityEffective() const noexcept { return densityEffective; }
         [[nodiscard]] bool isHarmonyVoiceCell() const noexcept { return harmonyVoiceCell; }
+        [[nodiscard]] bool isTapeReel() const noexcept { return tapeReel; }
+        [[nodiscard]] float getTapeReelAngle() const noexcept { return tapeReelAngle; }
+        [[nodiscard]] bool isTapeReelWinding() const noexcept { return tapeReelWinding; }
 
     private:
         friend class MetaRotaryLookAndFeel;
@@ -78,6 +89,11 @@ namespace lockstep
         juce::String reelPrev, reelNow, reelNext;
         bool reelPrevWrapped = false;
         bool reelNextWrapped = false;
+
+        // Tape reel scrub widget (§40.2, Stage 5).
+        bool tapeReel = false;
+        float tapeReelAngle = 0.0f;
+        bool tapeReelWinding = false;
     };
 
     // MetaRotaryLookAndFeel — custom rotary renderer.

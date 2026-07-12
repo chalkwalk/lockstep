@@ -161,6 +161,10 @@ namespace lockstep
         std::array<float, kNumSlots> lastSlotValue_{};
         bool lastSlotValid_ = false;
 
+        // §40.2 reel widget (Stage 5): last rendered reel angle, so a frame-to-frame
+        // change reads as "winding" (brighter tint) vs a settled reel.
+        float lastReelAngle_ = 0.0f;
+
         // WS4: which zone slot (0..kNumSlots-1) currently hosts the CHANNEL "Out"
         // routing control, or -1. When set, that slider runs over a filtered
         // candidate-index domain (Off / Master / valid buses) instead of the raw

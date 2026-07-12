@@ -284,6 +284,15 @@ namespace lockstep
         [[nodiscard]] double tapeChaseRatio(int track) const;     // §40.2 reel/engine rate
         // §40.2 scrub / wind (standalone only — see transportWindable()).
         [[nodiscard]] bool transportWindable() const;
+        // The single "can this tape be scrubbed/jogged right now" rule (Stage 5):
+        // a windable transport that is PARKED (the song is not running) — the same
+        // condition the audio thread's parked branch scrubs under. Replaces the old
+        // deck-Stopped gate, which Stage 4 retired (the tape follows the main
+        // transport, so it never sits in Stopped any more).
+        [[nodiscard]] bool tapeScrubEligible(int track) const;
+        // The reel head position in samples for the reel widget — the scrub head
+        // while parked (tracks jog/wind), the chase head otherwise.
+        [[nodiscard]] double tapeReelHead(int track) const;
         void tapeSetScrubRate(int track, double reelRate);  // wind cells (steady)
         void tapeJog(int track, double reelImpulse);        // MZ jog (encoder rock)
         [[nodiscard]] int tapeRecordedSamples(int track) const;   // used high-water

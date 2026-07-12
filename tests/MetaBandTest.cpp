@@ -712,6 +712,9 @@ namespace lockstep
         v.densityCell = true;
         v.densityMasterOffset = 0.3f;
         v.densityEffective = 0.7f;
+        v.tapeReel = true;
+        v.tapeReelAngle = 1.25f;
+        v.tapeReelWinding = true;
         mr.applyView(v);
 
         CHECK(feq(static_cast<float>(mr.getMinimum()), 10.0f),  "applyView: rangeLo");
@@ -724,6 +727,9 @@ namespace lockstep
         CHECK(mr.isDensityCell(),                                "applyView: densityCell");
         CHECK(feq(mr.getDensityMasterOffset(), 0.3f),           "applyView: densityMasterOffset");
         CHECK(feq(mr.getDensityEffective(), 0.7f),              "applyView: densityEffective");
+        CHECK(mr.isTapeReel(),                                   "applyView: tapeReel");
+        CHECK(feq(mr.getTapeReelAngle(), 1.25f),                "applyView: tapeReelAngle");
+        CHECK(mr.isTapeReelWinding(),                            "applyView: tapeReelWinding");
 
         // Apply a default (zeroed) view — every field must reset
         mr.applyView(MetaRotary::View{});
