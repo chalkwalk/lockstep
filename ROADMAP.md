@@ -3021,14 +3021,22 @@ Docs land first per item; commit + tests per work item.
       risk was dev builds: Eigen collapses Bungee to 2.7×RT at -O0, so `bungee_library` +
       `pffft` now compile at `-O2` even in Debug (62×RT; shipped as `76493ca`). (WSOLA was
       deleted with the Bungee transition — not a candidate.)
-- [ ] **S7 — FreeLen pitch-preserved fit** *(streaming + background bake)*. `loop_sync =
-      Free Len` **replaces varispeed** with a pitch-preserved length quantize: on
-      record-close it rounds the loop length **up to the next launch-quant multiple**
-      (extend-only) and time-stretches to fill. A realtime Bungee engine **streams** the
-      stretched loop live the instant the take closes; a background worker **bakes** the full
-      stretched PCM and swaps it in seamlessly, leaving a plain grid-aligned static loop that
-      survives a transport stop. The offline **FIT** verb (Func+SRC, loaded source) unifies
-      under the same streaming machinery (instant, no hitch). Architecture shaped by S6.
+- [x] **S7 — FreeLen pitch-preserved fit** *(streaming + background bake)*. SHIPPED.
+      `loop_sync = Free Len` **replaces varispeed** with a pitch-preserved length quantize:
+      on record-close `stretchmath::fitTargetLength` rounds the loop length **up to the next
+      launch-quant multiple** (extend-only, with a ±10 ms jitter snap so an on-grid take
+      needs no stretch) and time-stretches to fill. A realtime `BungeeStretchEngine`
+      (`LoopMachine::fitEngine_` + `LoopFitSource`, `setLoop` = seamless looped stretched
+      read) **streams** the stretched loop live the instant the take closes; a processor-owned
+      `juce::TimeSliceThread` worker **bakes** the full stretched PCM (`renderStretchWide`,
+      `dsp/StretchRender.h`) and `adoptBakedFit` swaps it in under `withQuiescedEngine`,
+      leaving a plain grid-aligned static loop — promotable, grid-lockable, and decoupled
+      from the transport (it completes across a stop). A bake generation supersedes a stale
+      swap (new take / Clear / length edit). The **FIT** verb (`Func`+SRC, loaded source)
+      unifies under the same machinery: `FitScope::SingleSub` loads the source unstretched,
+      streams that one sub-track stretched to the window while the others read their static
+      PCM, and the same worker bakes it into the sub's channel-pair — instant, no blocking
+      render. Architecture shaped by S6.
 - [x] **S8 — Permanent timeline strip.** Always visible (bar domain = max(32 bars,
       longest tape, cursor); bar ticks + wall-clock ruler; per-tape end lugs, chosen
       highlighted; bars.beats + m:ss caption transport-driven). Window grows +22px.
@@ -3077,16 +3085,27 @@ JUCE-free.
 
 ### Phase 11 play-test round 3 — streaming loop fit + Record port
 
-Post-spike follow-through: the streaming pitch-preserved fit (S6/S7 above, now shipped
-in this round) plus the deferred **Record → deck-medium port**.
+Post-spike follow-through, **SHIPPED**: the streaming pitch-preserved fit (S6/S7 above)
+plus the deferred **Record → deck-medium port**. The fit landed in stages — the
+`fitTargetLength` math, the realtime FreeLen stream, the background bake + seamless
+adopt, and the FIT verb unified onto the same engine + worker; Record then re-seated on
+the deck reel with a transport-chasing (varispeed) write head and one-level undo.
 
-- [ ] **Record re-backed on the deck medium (1-track linear face).** RecordMachine captures
-      through the deck reel `dc::Medium` (Record = the linear deck face, the "one deck
-      engine, three faces" intent) instead of a raw pool buffer, gaining deck-native **undo**
-      and the **tape varispeed character** — a tempo change mid-take warps the take like tape
-      (explicitly **not** pitch-preserved). Existing surface retained: trig-driven one-shot
-      capture into a volatile pool slot, `Source`/`Buffer`/`Length`/`Monitor`. Bits/depth,
-      retro double-tap and markers deferred.
+- [x] **Record re-backed on the deck medium (1-track linear face).** SHIPPED. RecordMachine
+      captures through a host-owned stereo reel bound as a LINEAR `dc::Medium` (Record = the
+      linear deck face, the "one deck engine, three faces" intent) instead of copying straight
+      into the pool buffer. **Chase-lock (§40.2):** the reel latches its calibration
+      `K = samples-per-ppq` at capture start and a **transport-chasing write head** runs at
+      `r = K / samplesPerPpq(now)` — constant (or absent) tempo gives `r == 1` and a unity
+      fast path that is bit-identical to the old copy, while a tempo change mid-take drives
+      the bandlimited `dc::WriteHead` and **warps the take like tape** (explicitly **not**
+      pitch-preserved — that is the Loop's FreeLen fit). `rec_length` stays a **wall-clock
+      cap**; the reel length it produces stretches/compresses with the tempo trajectory. On
+      close the reel region `[0, used)` commits into the volatile pool slot (`setSourceBars` +
+      `SampleOrigin::Record`) — so the commit lands **at close**, not progressively. Adds
+      deck-native **undo** (one level: the slot's prior take, restored by `undo()`). Existing
+      surface retained: trig-driven one-shot capture, `Source`/`Buffer`/`Length`/`Monitor`,
+      `numSections()` unchanged. Bits/depth, retro double-tap and markers deferred.
 
 ---
 

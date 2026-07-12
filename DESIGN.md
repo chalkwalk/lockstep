@@ -6896,6 +6896,19 @@ That default is what makes the unification honest rather than a mega-machine
 three roles the performer reasons about; they simply stop being three
 implementations of overdub, undo, punch, varispeed, and capture-close.
 
+**Record is reel-backed** (shipped). Its capture runs through a LINEAR `dc::Medium`
+and a **transport-chasing write head** — the same chase-lock the Tape uses (§40.2).
+The reel latches its calibration `K = samples-per-ppq` at capture start and the head
+runs at `r = K / samplesPerPpq(now)`, so constant (or absent) tempo is `r == 1` and a
+unity fast path writes integer-for-integer — bit-identical to a straight copy — while
+a **tempo change mid-take varispeeds the take like tape**. That is the deliberate
+division of labour between the faces: **Record warps, the Loop conforms.** A Record
+take is never pitch-preserved (it is a tape); a Loop's `Free Len` take is *always*
+pitch-preserved (§40.14). `rec_length` stays a **wall-clock cap** — the reel length it
+produces stretches or compresses with the tempo trajectory — and the reel region
+commits into the volatile pool slot **at close**, not progressively. Undo is
+deck-native: one level, restoring the slot's take from before the capture.
+
 **What this replaces.** An earlier draft coordinated several Loop *machines*
 into a "loop group" so four tracks could arm and punch together. That is
 rejected: cross-machine grouping puts the coordination state in a place no
@@ -7513,3 +7526,45 @@ pushed only while playing, so its newest sample sits at the punch-in position.
 The v1 restriction: on the Tape, retro backfill is exact only at reel rate 1
 (varispeed retro, and a symmetric punch-*out* trim, are deferred — documented).
 The Loop records at rate 1 always, so it is exact there.
+
+### 40.14 The Loop conforms (pitch-preserved fit: stream, then bake)
+
+**Record warps; the Loop conforms.** The Tape and Record faces are *tapes* — a
+tempo change varispeeds them (§40.1/§40.2), and that is the point. The Loop's
+`Free Len` is the opposite promise: a take that was played a little loose lands
+**on the grid, in tune**.
+
+On record-close, `Free Len` rounds the recorded length **up to the next
+launch-quant multiple** (extend-only — a loop is never truncated to fit) and
+fills the window by **time-stretching, pitch-preserved**. A take already sitting
+on the grid within a ±10 ms jitter window snaps to it and is not stretched at
+all. This supersedes the old varispeed conform, which changed the pitch to make
+the length fit. (`Sync` keeps varispeed, deliberately: a grid-locked loop must
+track tempo exactly, and there the pitch shift *is* the tempo lock.)
+
+**Two clocks, so: stream, then bake.** A stretch cannot be rendered on the audio
+thread, and the performer must hear the fitted loop on the very next cycle. So
+the fit runs in two phases against one engine:
+
+1. **Stream** (instant). The moment the take closes, a realtime stretch engine
+   starts, reading the recorded PCM and looping it (its loop-fold makes the wrap
+   seamless — no restart, no crossfade). The loop is audible, in tune, at its
+   fitted length, from the first block.
+2. **Bake** (background). A worker renders the *same* stretch — same engine, same
+   ratio — to a static buffer and swaps it in under a quiesced engine. The bake is
+   a **permanence commit, not a quality pass**: what you heard is what you keep.
+
+After the bake the loop is plain static PCM at a launch-quant multiple —
+promotable, grid-lockable, and free to play. The bake is **decoupled from the
+transport**, so it completes across a stop or a change of view; if it never lands
+(no UI), the loop simply keeps streaming, correctly. A new take, a Clear, or a
+manual length edit **supersedes** an in-flight bake, which is then dropped rather
+than swapped in over the newer take.
+
+**The FIT verb rides the same machinery.** `Func`+SRC on a deck sub-track (fit a
+loaded source to the deck's window) used to block on an offline render. It now
+loads the source unstretched, streams *that one sub-track* stretched to the window
+while the other sub-tracks read their static PCM, and hands the same worker the
+same bake — which writes the stretched result into that sub-track's channel-pair
+alone. One fit mechanism, two scopes: the whole deck (FreeLen record-close,
+extending the loop's length) and a single sub-track (FIT, filling a fixed window).
