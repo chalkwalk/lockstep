@@ -7487,8 +7487,6 @@ client consumes the stamp:
 - **Record close** sets the loop length to `tap1Pos_ − recStart`: the overshoot
   between the two taps is discarded and playback wraps phase-continuously at the
   first tap.
-- **Punch in / out** (Tape) retro-stamp their span boundaries the same way, in
-  reel samples.
 
 Only **durable-span** edges retro-stamp; **ephemeral** verbs (stop, replay) act
 at tap 2, exactly as the bare §25 override does — there is no span for them to
@@ -7496,6 +7494,17 @@ remember. Tap-1 is captured on the audio thread as the command drains, so no
 message-thread clock mapping is involved (§25.1: position is single-sourced). If
 the single tap simply cancels the arm (§40.3), the stamp is dropped.
 
+**The Tape is a variation on the same idea.** It follows the main transport and
+punches *instantly* (§40.5) — there is no quantize to beat, so there is no
+pending arm to remember. Its retro instead answers "I punched in a hair late":
+a quick **second** tap on the `REC` cell *while recording* backfills the run-up
+before the punch-in — the last `gap` samples of the tape's own pre-roll ring
+(where `gap` is the time between the two taps) written into the reel just before
+the punch-in point, with undo save so fence #8's restore covers the run-up too.
+That second tap is a retro-extend, not a punch-out; a deliberate punch-out is a
+single tap well after the punch-in. The tape had no pre-roll before this; it is
+pushed only while playing, so its newest sample sits at the punch-in position.
+
 The v1 restriction: on the Tape, retro backfill is exact only at reel rate 1
-(varispeed retro is deferred, documented). The Loop records at rate 1 always, so
-it is exact there.
+(varispeed retro, and a symmetric punch-*out* trim, are deferred — documented).
+The Loop records at rate 1 always, so it is exact there.

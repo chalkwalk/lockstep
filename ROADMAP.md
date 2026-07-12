@@ -3023,7 +3023,7 @@ Docs land first per item; commit + tests per work item.
       longest tape, cursor); bar ticks + wall-clock ruler; per-tape end lugs, chosen
       highlighted; bars.beats + m:ss caption transport-driven). Window grows +22px.
 
-### Phase 11 play-test round 2 — Tape UX  *[in progress]*
+### Phase 11 play-test round 2 — Tape UX  *[shipped]*
 
 A second play-test surfaced the architecture intent: **one deck engine, three faces**
 — Record = 1-track (untouched this round), Loop = 4-track circular, **Tape = 4-track
@@ -3051,8 +3051,16 @@ JUCE-free.
       varispeed head paths; **6d** shared **TRACKS** page (ARM/MUTE/SOLO/SRC); **6e**
       take-group promote (N WAVs + mix). One `Bits`/depth converts the whole deck.
       → DESIGN §40.3.
-- [ ] **7 — Retroactive double-tap** (client-side, Loop + Tape). Durable-span edges
-      retro-stamp to tap 1; ephemeral verbs act at tap 2. Adds a Tape pre-roll ring.
+- [x] **7 — Retroactive double-tap** (client-side, Loop + Tape). **Loop**: a
+      double-tapped record *start* backfills the loop from a deck-wide, retro-length
+      pre-roll ring so the take begins at tap 1; a double-tapped *close* trims the loop
+      length to tap 1 (overshoot discarded, phase-continuous). Client stamps `tap1Pos_`
+      on the `pendingEdge()` false→true arm and consumes it if the double-tap fires the
+      edge; the seam splice length is decoupled (`seamLen_`) from the widened ring. No
+      `deck_core` change. **Tape** (instant punch, no arm to beat): a quick second `REC`
+      tap *while recording* backfills the run-up before the punch-in from a new tape
+      pre-roll ring (undoable). v1 exact at reel rate 1. → DESIGN §40.13 + §13 +
+      PRINCIPLES §25.
 - [x] **8 — TRACKS discoverability + ROADMAP.** A single-sub deck shows a Nav hint
       ("Raise Sub-tracks (SRC) to reach the TRACKS page") so the multi-track page is
       findable; this round ticked.
