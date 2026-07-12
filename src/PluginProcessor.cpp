@@ -7224,36 +7224,53 @@ namespace lockstep
         return dynamic_cast<LoopMachine*>(m[static_cast<std::size_t>(track)].get());
     }
 
+    static TapeMachine* asTape(const std::array<std::unique_ptr<IMachine>, kNumTracks>& m,
+                               int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return nullptr;
+        return dynamic_cast<TapeMachine*>(m[static_cast<std::size_t>(track)].get());
+    }
+
+    // §40.3 (Stage 6d): the deck TRACKS-page accessors serve any multi-sub deck —
+    // the Loop and the Tape both expose subTrackCount()/subArmed()/subMuted()/
+    // subSoloed() and declare the same sub mix/source param ids, so one set of
+    // accessors drives one shared TRACKS page. (Names keep the `looper` prefix for
+    // call-site stability; they are deck-generic.)
     int LockstepProcessor::looperSubTrackCount(int track) const
     {
-        auto* lm = asLooper(machines_, track);
-        return lm ? lm->subTrackCount() : 1;
+        if (auto* lm = asLooper(machines_, track)) return lm->subTrackCount();
+        if (auto* tm = asTape(machines_, track)) return tm->subTrackCount();
+        return 1;
     }
 
     bool LockstepProcessor::looperSubArmed(int track, int sub) const
     {
-        auto* lm = asLooper(machines_, track);
-        return lm && lm->subArmed(sub);
+        if (auto* lm = asLooper(machines_, track)) return lm->subArmed(sub);
+        if (auto* tm = asTape(machines_, track)) return tm->subArmed(sub);
+        return false;
     }
 
     bool LockstepProcessor::looperSubMuted(int track, int sub) const
     {
-        auto* lm = asLooper(machines_, track);
-        return lm && lm->subMuted(sub);
+        if (auto* lm = asLooper(machines_, track)) return lm->subMuted(sub);
+        if (auto* tm = asTape(machines_, track)) return tm->subMuted(sub);
+        return false;
     }
 
     bool LockstepProcessor::looperSubSoloed(int track, int sub) const
     {
-        auto* lm = asLooper(machines_, track);
-        return lm && lm->subSoloed(sub);
+        if (auto* lm = asLooper(machines_, track)) return lm->subSoloed(sub);
+        if (auto* tm = asTape(machines_, track)) return tm->subSoloed(sub);
+        return false;
     }
 
     juce::String LockstepProcessor::looperSubSourceLabel(int track, int sub) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return {};
-        auto* lm = asLooper(machines_, track);
-        if (lm == nullptr) return {};
-        const int slot = lm->slotForId(inputSourceSlotId(sub));
+        IMachine* mi = asLooper(machines_, track);
+        if (mi == nullptr) mi = asTape(machines_, track);
+        if (mi == nullptr) return {};
+        const int slot = mi->slotForId(inputSourceSlotId(sub));
         if (slot < 0) return {};
         const auto& bp = sequence().tracks[static_cast<std::size_t>(track)].baseParams;
         if (slot >= static_cast<int>(bp.size())) return {};
@@ -7271,13 +7288,6 @@ namespace lockstep
     void LockstepProcessor::looperToggleSubArmed(int track, int sub)
     {
         if (auto* lm = asLooper(machines_, track)) lm->toggleSubArmed(sub);
-    }
-
-    static TapeMachine* asTape(const std::array<std::unique_ptr<IMachine>, kNumTracks>& m,
-                               int track)
-    {
-        if (track < 0 || track >= static_cast<int>(kNumTracks)) return nullptr;
-        return dynamic_cast<TapeMachine*>(m[static_cast<std::size_t>(track)].get());
     }
 
     void LockstepProcessor::tapeApplyVerb(int track, int verb)
@@ -7398,9 +7408,10 @@ namespace lockstep
 
     void LockstepProcessor::looperToggleSubMute(int track, int sub)
     {
-        auto* lm = asLooper(machines_, track);
-        if (lm == nullptr) return;
-        const int slot = lm->slotForId("sub" + juce::String(sub + 1) + "_mute");
+        IMachine* mi = asLooper(machines_, track);
+        if (mi == nullptr) mi = asTape(machines_, track);
+        if (mi == nullptr) return;
+        const int slot = mi->slotForId("sub" + juce::String(sub + 1) + "_mute");
         if (slot < 0) return;
         const auto& bp = sequence().tracks[static_cast<std::size_t>(track)].baseParams;
         const float cur = (slot < static_cast<int>(bp.size()))
@@ -7410,9 +7421,10 @@ namespace lockstep
 
     void LockstepProcessor::looperToggleSubSolo(int track, int sub)
     {
-        auto* lm = asLooper(machines_, track);
-        if (lm == nullptr) return;
-        const int slot = lm->slotForId("sub" + juce::String(sub + 1) + "_solo");
+        IMachine* mi = asLooper(machines_, track);
+        if (mi == nullptr) mi = asTape(machines_, track);
+        if (mi == nullptr) return;
+        const int slot = mi->slotForId("sub" + juce::String(sub + 1) + "_solo");
         if (slot < 0) return;
         const auto& bp = sequence().tracks[static_cast<std::size_t>(track)].baseParams;
         const float cur = (slot < static_cast<int>(bp.size()))
@@ -7423,8 +7435,9 @@ namespace lockstep
     void LockstepProcessor::looperCycleSubSource(int track, int sub)
     {
         auto* lm = asLooper(machines_, track);
-        if (lm == nullptr) return;
-        const int slot = lm->slotForId(inputSourceSlotId(sub));
+        IMachine* mi = lm ? static_cast<IMachine*>(lm) : static_cast<IMachine*>(asTape(machines_, track));
+        if (mi == nullptr) return;
+        const int slot = mi->slotForId(inputSourceSlotId(sub));
         if (slot < 0) return;
         // Step through the same safe-source list the rotary/picker uses (§40.3), so
         // a cycle can never land on a self-tap or a cycle-closing edge.
@@ -7439,9 +7452,11 @@ namespace lockstep
         const float next = cands[(idx + 1) % cands.size()];
         writeParam(track, slot, next);
         // S4 arming law: assigning a source auto-arms the sub; picking None
-        // disarms it. Arming is deck-side state (not a param), so ordering vs the
-        // queued writeParam is irrelevant.
-        lm->setSubArmed(sub, decodeInputSource(next).kind != InputSourceKind::None);
+        // disarms it. On the Loop, arming is deck-side state set here; on the Tape
+        // it is re-derived from the source each process() block, so no explicit
+        // set is needed (nor available).
+        if (lm != nullptr)
+            lm->setSubArmed(sub, decodeInputSource(next).kind != InputSourceKind::None);
     }
 
     float LockstepProcessor::looperPhase(int track) const

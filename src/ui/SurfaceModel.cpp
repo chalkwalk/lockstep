@@ -1185,14 +1185,16 @@ namespace lockstep
                     }
                 }
             }
-            else if (activeLayer == SurfaceLayer::LooperConsole
+            else if ((activeLayer == SurfaceLayer::LooperConsole
+                      || (activeLayer == SurfaceLayer::MachineConsole && proc.isTapeTrack(activeTrack)))
                      && ui.deckConsolePage == 1
                      && proc.looperSubTrackCount(activeTrack) > 1)
             {
-                // 11.8 (§40.5): the TRACKS page of a multi-sub-track deck. Four rows
-                // (sub-tracks) × four columns (ARM · MUTE · SOLO · SRC). A looper
-                // does not sequence, so Nav pages here from the DECK layout; a
-                // single-sub-track deck never reaches this page (guarded above).
+                // 11.8 / Stage 6d (§40.5): the TRACKS page of a multi-sub-track deck.
+                // Four rows (sub-tracks) × four columns (ARM · MUTE · SOLO · SRC).
+                // Shared by the Loop's console and the Tape's console (a deck does
+                // not sequence, so Nav pages here); a single-sub deck never reaches
+                // this page (guarded above).
                 const int subCount = proc.looperSubTrackCount(activeTrack);
                 static constexpr const char* kColWord[4] = { "ARM", "MUTE", "SOLO", "SRC" };
                 for (int i = 0; i < 16; ++i)

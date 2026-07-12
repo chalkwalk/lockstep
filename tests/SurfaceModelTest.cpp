@@ -621,6 +621,39 @@ namespace lockstep
               "windable → cell 12 = << rewind");
         CHECK(m3.step[13].primary == ">>" && m3.step[13].base == CellState::TapeConFwd,
               "windable → cell 13 = >> fast-forward");
+
+        // Stage 6d (§40.5): the Tape is a 4-sub deck and shares the TRACKS page.
+        // A single-sub tape has no TRACKS page (paging is a no-op); grow to 4 and
+        // Nav pages to the ARM/MUTE/SOLO/SRC grid, same cells as the Loop.
+        {
+            UiState tui; tui.deckConsolePage = 1;
+            auto s = buildSurfaceModel(tui, ec, nullptr, proc, 0, 0,
+                                       GridDisplayMode::Ortholinear);
+            CHECK(s.step[0].primary == "REC",
+                  "a single-sub tape has no TRACKS page (stays on the tape console)");
+
+            proc.writeParam(0, proc.slotForId(0, "subtrack_count"), 4.0f);
+            h.renderBlocks(1);   // propagate the param into the deck
+            CHECK(proc.looperSubTrackCount(0) == 4, "the tape adopted four sub-tracks");
+
+            s = buildSurfaceModel(tui, ec, nullptr, proc, 0, 0,
+                                  GridDisplayMode::Ortholinear);
+            // Sub 0 source is External by default → armed; the SRC cell shows a label.
+            CHECK(s.step[0].base == CellState::DeckTrkArmOn,
+                  "tape TRACKS row 0 = ARM on (sub 0 sourced by default)");
+            CHECK(s.step[1].base == CellState::DeckTrkMute, "col 1 = MUTE");
+            CHECK(s.step[2].base == CellState::DeckTrkSolo, "col 2 = SOLO");
+            CHECK(s.step[3].base == CellState::DeckTrkSrc,  "col 3 = SRC");
+            // Sub 1 has no source by default → disarmed.
+            CHECK(s.step[4].base == CellState::DeckTrkArm,
+                  "tape TRACKS row 1 disarmed (no source by default)");
+
+            // Back to the tape console page.
+            tui.deckConsolePage = 0;
+            s = buildSurfaceModel(tui, ec, nullptr, proc, 0, 0,
+                                  GridDisplayMode::Ortholinear);
+            CHECK(s.step[0].primary == "REC", "page 0 is the tape console");
+        }
     }
 
     // -------------------------------------------------------------------------

@@ -2719,7 +2719,9 @@ namespace lockstep
     {
         const int t = keyboardArea_.getActiveTrack();
         if (t < 0 || t >= static_cast<int>(kNumTracks)) return false;
-        if (! processor_.isLooperTrack(t)) return false;
+        // Stage 6d: any multi-sub deck pages — the Loop and the Tape both host the
+        // shared TRACKS page.
+        if (! processor_.isLooperTrack(t) && ! processor_.isTapeTrack(t)) return false;
         // Only a modifier-free Nav pages; Func/Track/held-step keep their roles.
         if (uiState_.funcHeld || uiState_.trackHeld) return false;
         // Pages available: DECK always, TRACKS when the deck has > 1 sub-track.
@@ -4346,6 +4348,28 @@ namespace lockstep
                         const int mct = processor_.focusTrack();
                         if (processor_.isTapeTrack(mct))
                         {
+                            // Stage 6d: the shared TRACKS page (deckConsolePage 1) —
+                            // ARM/MUTE/SOLO/SRC per sub-track, same as the Loop. ARM
+                            // is derived from SRC on the Tape (auto-arm), so its cell
+                            // is a status light; SRC cycles the source (which arms).
+                            if (uiState_.deckConsolePage == 1
+                                && processor_.looperSubTrackCount(mct) > 1)
+                            {
+                                const int row = ev.index / 4;   // sub-track
+                                const int col = ev.index % 4;
+                                if (row < processor_.looperSubTrackCount(mct))
+                                {
+                                    switch (col)
+                                    {
+                                        case 0: break;  // ARM: follows SRC on the Tape
+                                        case 1: processor_.looperToggleSubMute(mct, row); break;
+                                        case 2: processor_.looperToggleSubSolo(mct, row); break;
+                                        default: processor_.looperCycleSubSource(mct, row); break;
+                                    }
+                                }
+                                refreshSurface();
+                                return true;
+                            }
                             switch (ev.index)
                             {
                                 case 0: processor_.tapeApplyVerb(mct, 1); break;  // REC/punch
@@ -5994,7 +6018,8 @@ namespace lockstep
                     // §40.2 hold-to-wind: releasing a Tape FF/RW cell ends the wind
                     // (the machine slews to rest, then the transport settles). Always
                     // fires on release so a wind can never stick.
-                    else if (processor_.isTapeTrack(trk) && (ev.index == 12 || ev.index == 13))
+                    else if (processor_.isTapeTrack(trk) && uiState_.deckConsolePage == 0
+                             && (ev.index == 12 || ev.index == 13))
                         processor_.tapeSetScrubRate(trk, 0.0);
                 }
 
