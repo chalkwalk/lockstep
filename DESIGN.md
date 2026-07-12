@@ -6885,11 +6885,16 @@ Tape are **three faces of one deck engine**:
 | **Loop** | circular, layered | console verbs, quantized edges (§25) | a looping performance part |
 | **Tape** | linear, layered, position-addressed | console verbs against the project timeline | a take on the song's timeline |
 
-Every deck has **four sub-tracks** and **defaults to one stereo sub-track**.
-This default is a hard requirement, not a nicety: a freshly loaded Record or
-Loop must behave *exactly* as it does today — same console, same slots, same
-memory, same CUJ. The 4-track depth is opt-in, reached through the deck's
+In Lockstep, a deck has **four sub-tracks** and **defaults to one stereo
+sub-track**. That default is a hard requirement, not a nicety: a freshly loaded
+Record or Loop must behave *exactly* as it does today — same console, same slots,
+same memory, same CUJ. The 4-track depth is opt-in, reached through the deck's
 console, and Record may well never present it.
+
+The **four** and the **stereo** are Lockstep's numbers, not the engine's: the deck
+core knows only "one transport, `N` armable sub-tracks of `C` channels", and it is
+the *host* that chooses `N` and `C` (§40.11). Record is literally a capacity-1 deck.
+Nothing in this section changes if a different host picks twenty-four.
 
 That default is what makes the unification honest rather than a mega-machine
 (§24: a machine is named by its role, one bare word). The three names remain
@@ -7454,6 +7459,25 @@ the core needs nothing from JUCE anyway. Three layers:
   partner app (its own buffers, its own fully disjoint UI, its own
   persistence). Pool, take-group *promotion*, WAV IO, and transport all stay
   host-side; the take-group file convention (§40.7) is the exchange format.
+
+**The width is the host's, not the core's.** `deck_core` declares no track count
+and no channel count. `Medium::Config` carries `numSubTracks` and
+`channelsPerSubTrack` as ordinary runtime ints; the heads take a plain `int sub`
+and loop over `medium.channels()`; a `Deck` is constructed with the sub-track
+capacity its host wants and thereafter only ever *clamps* into it (so
+`setSubTrackCount()` stays allocation-free and safe to call from `process()`).
+Lockstep's `4` lives in `kMaxInputSubTracks` and its stereo invariant in
+`kEngineChannels` — both on the Lockstep side of the seam, with the deck faces
+constructing their decks at that capacity.
+
+This is not idle generality. It is the difference between a library that happens
+to run Lockstep's looper and one that can run a **mixing/recording variant** with
+sixteen or twenty-four tracks — which is precisely the partner-app direction, and
+precisely what a hard-coded `kMaxSubTracks = 4` in the core would have foreclosed.
+The engine's model — *one transport, N armable channels, one shared medium* — is
+already a multitrack tape recorder's model; only the constant was ever in the way.
+What does **not** generalise this way is independent per-channel transports: those
+are `N` decks, not one wide deck, and that is the correct seam.
 
 Why JUCE-free is worth the ceremony: the only JUCE facility the core would use
 is `AudioBuffer`, which is ~50 lines of `std::vector` + channel pointers to

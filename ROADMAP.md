@@ -3083,7 +3083,7 @@ JUCE-free.
       ("Raise Sub-tracks (SRC) to reach the TRACKS page") so the multi-track page is
       findable; this round ticked.
 
-### Phase 11 play-test round 3 — streaming loop fit + Record port
+### Phase 11 play-test round 3 — streaming loop fit + Record port  *[shipped]*
 
 Post-spike follow-through, **SHIPPED**: the streaming pitch-preserved fit (S6/S7 above)
 plus the deferred **Record → deck-medium port**. The fit landed in stages — the
@@ -3106,6 +3106,35 @@ the deck reel with a transport-chasing (varispeed) write head and one-level undo
       deck-native **undo** (one level: the slot's prior take, restored by `undo()`). Existing
       surface retained: trig-driven one-shot capture, `Source`/`Buffer`/`Length`/`Monitor`,
       `numSections()` unchanged. Bits/depth, retro double-tap and markers deferred.
+
+### Phase 11 round 4 — `deck_core` runtime width  *[planned]*
+
+The deck core still declares one product constant it has no business owning:
+`dc::kMaxSubTracks = 4`, backing a fixed `std::array<SubTrack, 4>` inside `dc::Deck`.
+Everything *else* in the library is already width-agnostic (`Medium::Config` carries
+runtime `numSubTracks` / `channelsPerSubTrack`; the heads take a plain `int sub`), so
+this is the last thing standing between `deck_core` and a **wider mixing/recording
+host** (DESIGN §40.11). It is a de-duplication as much as a generalisation: Lockstep
+already declares both numbers on its own side.
+
+- [ ] **`dc::Deck` gets runtime sub-track capacity.** Delete `dc::kMaxSubTracks`. `subs_`
+      becomes a `std::vector<SubTrack>` sized by an `explicit Deck(int capacity = 1)`
+      ctor — allocation happens once, at machine construction, on the message thread.
+      `setSubTrackCount()` stays `noexcept` and allocation-free (it is called from
+      `process()`): it only clamps into `[1, subTrackCapacity()]`. `subTrack(i)` clamps
+      rather than raw-indexing — under the old fixed array an out-of-range sub was
+      unreachable, but with runtime capacity it is a live possibility (a capacity-1
+      Record deck asked for sub 2), so the library defends its own invariant.
+- [ ] **The `4` and the `2` live only on the Lockstep side.** Single-source them onto the
+      constants that already exist: `kMaxInputSubTracks` (=4) and `kMaxDeckChannels`
+      (=8) in `machine/InputSource.h`, and `kEngineChannels` (=2) in
+      `machine/ChannelPolicy.h`. `TapeMachine`'s private `kChannelsPerSub = 2` (a third
+      home for the stereo invariant) collapses into `kEngineChannels`; `kNumPlanes` and
+      `LoopMachine::kDeckChans` both become `kMaxDeckChannels`; the ~10 remaining
+      `dc::kMaxSubTracks` uses in `TapeMachine` become `kMaxInputSubTracks`. Loop and
+      Tape construct `dc::Deck deck_{ kMaxInputSubTracks }`; Record keeps the default —
+      **capacity 1 *is* the linear one-track face**, which is the honest test that the
+      abstraction was right. Pure refactor: no behaviour change, suite green unchanged.
 
 ---
 
