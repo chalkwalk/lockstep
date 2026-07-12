@@ -3,6 +3,7 @@
 #include "../deckcore/Seam.h"
 #include "ChannelPolicy.h"
 #include "DeckAdapter.h"
+#include "StretchMath.h"
 #include <algorithm>
 #include <cmath>
 
@@ -200,6 +201,13 @@ namespace lockstep
         preSnap_.clear();
         const int maxBlock = std::max(1, maxBlockSize);
         for (auto& b : subInput_) { b.setSize(2, maxBlock, false, true, false); b.clear(); }
+        // S7: the FreeLen fit's realtime engine + its per-block output scratch. The
+        // engine is prepared at the deck width (equal source/output rate — a pure
+        // time stretch, no resampling); all allocation happens here, so start()/
+        // process() are audio-thread safe.
+        fitEngine_.prepare(sampleRate_, sampleRate_, kDeckChans, maxBlock);
+        fitScratch_.setSize(kDeckChans, maxBlock, false, true, false);
+        fitScratch_.clear();
         reset();
     }
 
@@ -229,6 +237,15 @@ namespace lockstep
         wowPhase_ = 0.0;
         wowDepth_ = 0.0;
         replacing_ = false;
+        // S7: drop any fit and its engine voice.
+        if (fitState_ == FitState::Streaming) fitEngine_.reset();
+        fitState_ = FitState::Off;
+        fitSrcLen_ = 0;
+        fitTargetLen_ = 0;
+        fitScratchFilled_ = false;
+        fitStateMirror_.store(0, std::memory_order_release);
+        fitTargetLenMirror_.store(0, std::memory_order_relaxed);
+        fitSrcLenMirror_.store(0, std::memory_order_relaxed);
         dropOverdubLayer();
         stateMirror_.store(static_cast<int>(deck_.state()), std::memory_order_release);
     }
@@ -354,6 +371,121 @@ namespace lockstep
         return acc;
     }
 
+    // -- S7 FreeLen pitch-preserved fit ------------------------------------------
+
+    int LoopMachine::LoopFitSource::read(float* dest, int ch, juce::int64 srcPos, int n)
+    {
+        const auto* buf = owner != nullptr ? owner->target_ : nullptr;
+        const int len = owner != nullptr ? owner->fitSrcLen_ : 0;
+        const int chans = buf != nullptr ? buf->getNumChannels() : 0;
+        const int useCh = std::min(ch, chans - 1);
+        for (int i = 0; i < n; ++i)
+        {
+            const juce::int64 sp = srcPos + i;
+            dest[i] = (buf != nullptr && useCh >= 0 && sp >= 0 && sp < len)
+                          ? buf->getSample(useCh, static_cast<int>(sp)) : 0.0f;
+        }
+        return n;
+    }
+
+    juce::int64 LoopMachine::LoopFitSource::length() const
+    {
+        return owner != nullptr ? owner->fitSrcLen_ : 0;
+    }
+
+    int LoopMachine::LoopFitSource::numChannels() const
+    {
+        // The recorded deck width (2 per sub-track). engineChannels() clamps to the
+        // policy width so the engine and the read agree on the channel count.
+        const auto* buf = owner != nullptr ? owner->target_ : nullptr;
+        return buf != nullptr ? engineChannels(buf->getNumChannels()) : 2;
+    }
+
+    double LoopMachine::LoopFitSource::sampleRate() const
+    {
+        return owner != nullptr ? owner->sampleRate_ : 44100.0;
+    }
+
+    void LoopMachine::engageFreeLenFit()
+    {
+        // FreeLen only (Free = native, Sync = varispeed grid-lock). The recorded
+        // length rounds UP to the next launch-quant multiple, extend-only, and the
+        // window is filled pitch-preserved.
+        fitState_ = FitState::Off;
+        if (syncMode_ != 1 || loopLen_ <= 0 || target_ == nullptr) return;
+
+        const double tol = kFitTolSec * sampleRate_;
+        const juce::int64 target = stretchmath::fitTargetLength(
+            loopLen_, transport_.launchQuantPeriodSamples, tol, transport_.samplesPerBar);
+        fitSrcLen_ = loopLen_;
+        fitTargetLen_ = static_cast<int>(target);
+
+        // Already on-grid (target == recorded), or the fitted window would overrun
+        // the slot capacity → adopt as-is (no stretch). Publishing Baked lets the
+        // processor skip a pointless bake.
+        if (fitTargetLen_ <= loopLen_ || (capacity_ > 0 && fitTargetLen_ > capacity_))
+        {
+            fitTargetLen_ = loopLen_;
+            fitState_ = FitState::Baked;
+        }
+        else
+        {
+            const double ratio = static_cast<double>(fitTargetLen_)
+                                 / static_cast<double>(loopLen_);
+            loopFitSource_.owner = this;
+            fitEngine_.start(&loopFitSource_, 0.0, ratio, 1.0);
+            fitEngine_.setLoop(0, fitSrcLen_);  // seamless looped stretched read
+            fitState_ = FitState::Streaming;
+            playPos_ = 0.0;
+            lastPos_ = 0.0;
+        }
+
+        // Publish the lengths BEFORE the generation bump (release), so a processor
+        // that observes the new generation reads consistent target/source lengths.
+        fitTargetLenMirror_.store(fitTargetLen_, std::memory_order_relaxed);
+        fitSrcLenMirror_.store(fitSrcLen_, std::memory_order_relaxed);
+        fitBakeGen_.fetch_add(1, std::memory_order_release);
+    }
+
+    void LoopMachine::cancelFit()
+    {
+        if (fitState_ == FitState::Streaming) fitEngine_.reset();
+        fitState_ = FitState::Off;
+        fitSrcLen_ = 0;
+        fitTargetLen_ = 0;
+        fitScratchFilled_ = false;
+        fitTargetLenMirror_.store(0, std::memory_order_relaxed);
+        fitSrcLenMirror_.store(0, std::memory_order_relaxed);
+        // Bump the generation so an in-flight background bake is superseded.
+        fitBakeGen_.fetch_add(1, std::memory_order_release);
+    }
+
+    float LoopMachine::mixSubTracksStreamed(int outCh, int sample, int subCount) const
+    {
+        if (! fitScratchFilled_) return 0.0f;
+        // Same per-sub level/pan/mute/solo mix as mixSubTracks, but the raw channel
+        // samples come from the engine's stretched output (fitScratch_) for this
+        // block instead of a fractional read of target_.
+        bool anySolo = false;
+        for (int sub = 0; sub < subCount; ++sub)
+            if (deck_.subTrack(sub).soloed) { anySolo = true; break; }
+
+        const int scChans = fitScratch_.getNumChannels();
+        float acc = 0.0f;
+        for (int sub = 0; sub < subCount; ++sub)
+        {
+            const auto& st = deck_.subTrack(sub);
+            if (st.muted || (anySolo && !st.soloed)) continue;
+            const int rdCh = 2 * sub + outCh;
+            if (rdCh >= scChans) continue;
+            const float panGain = (outCh == 0)
+                ? (st.pan <= 0.0f ? 1.0f : 1.0f - st.pan)
+                : (st.pan >= 0.0f ? 1.0f : 1.0f + st.pan);
+            acc += fitScratch_.getSample(rdCh, sample) * st.level * panGain;
+        }
+        return acc;
+    }
+
     float LoopMachine::readLayer(const juce::AudioBuffer<float>& buf, int ch,
                                  double pos, double readRate) const
     {
@@ -412,15 +544,13 @@ namespace lockstep
 
     double LoopMachine::targetOutputSamples() const
     {
-        if (syncMode_ >= kSyncGrid)  // Sync — grid-locked length
+        if (syncMode_ >= kSyncGrid)  // Sync — grid-locked length (varispeed)
             return syncedLengthSamples();
-        if (syncMode_ == 1)  // Free Len — the recorded musical duration
-        {
-            const double spb = transport_.samplesPerBar;
-            const double bars = pool_.sourceBars(targetSlot_);
-            return (spb > 0.0 && bars > 0.0) ? bars * spb : 0.0;
-        }
-        return 0.0;  // Free — native
+        // S7: Free Len no longer varispeeds. It rounds its length up to the grid and
+        // fills the window pitch-preserved (streamed then baked, engageFreeLenFit), so
+        // its playback rate is native (1.0) — the fit is length, not speed. Free is
+        // native too.
+        return 0.0;
     }
 
     void LoopMachine::scaleLoop(float g)
@@ -456,6 +586,7 @@ namespace lockstep
         recPos_ = 0;
         haveBackup_ = false;
         manualLen_ = false;   // a fresh take re-attaches to grid-lock (S4)
+        cancelFit();          // S7: a new take supersedes any active/pending fit
 
         // §40.13: the take's first sample is at the current transport position —
         // unless a retro double-tap backfills, in which case the take began
@@ -537,6 +668,7 @@ namespace lockstep
 
     void LoopMachine::doClear()
     {
+        cancelFit();  // S7: supersede any in-flight bake before the slot is emptied
         if (target_ != nullptr)
         {
             target_->setSize(target_->getNumChannels(), 0, false, false, true);
@@ -561,6 +693,7 @@ namespace lockstep
         // S4: play only the first half of the loop window — a clean cut, no
         // resample. The buffer keeps its full content (a later Double recovers
         // it). Detach from grid-lock so it plays native (no pitch change).
+        cancelFit();  // S7: a manual length edit overrides the grid fit
         commitOverdubLayer();  // R4: fold B at the current length first
         loopLen_ /= 2;
         if (playPos_ >= static_cast<double>(loopLen_))
@@ -575,6 +708,7 @@ namespace lockstep
     {
         // S4: double the loop window — duplicate the content into the second half
         // (no resample, no pitch change). Capped at the slot capacity.
+        cancelFit();  // S7: a manual length edit overrides the grid fit
         commitOverdubLayer();  // R4: fold B before duplicating content
         const int newLen = loopLen_ * 2;
         target_->setSize(target_->getNumChannels(), newLen, true, false, true);
@@ -873,6 +1007,9 @@ namespace lockstep
                                 spb > 0.0 ? static_cast<double>(loopLen_) / spb : 0.0);
             pool_.setVolatileOrigin(targetSlot_, SampleOrigin::Loop);  // W3a: tag origin
             deck_.setState(State::Playing);
+            // S7: a FreeLen take fits its length to the launch-quant grid,
+            // pitch-preserved — stream it live now, bake it static in the background.
+            engageFreeLenFit();
         }
         else
         {
@@ -994,6 +1131,22 @@ namespace lockstep
 
         const int tchans = std::min(chans, target_->getNumChannels());
 
+        // S7: while the FreeLen fit streams, pull this block of the stretched loop
+        // from the realtime engine into fitScratch_ ONCE, up front (the loop below
+        // then reads it per-sample). The engine loops the recorded source internally
+        // (setLoop), so successive blocks are a seamless stretched loop. Filled here,
+        // at block start, so a mid-block record-close that engages streaming leaves
+        // fitScratch_ unfilled for the rest of that block (a few silent loop samples
+        // at the very close — the next block streams cleanly).
+        const bool streaming = (fitState_ == FitState::Streaming);
+        fitScratchFilled_ = false;
+        if (streaming && fitTargetLen_ > 0)
+        {
+            fitScratch_.clear();
+            fitEngine_.process(fitScratch_, 0, numSamples);
+            fitScratchFilled_ = true;
+        }
+
         // Varispeed: target playback rate = loopLen / target output duration. Free
         // (or unknown tempo) → 1.0. Continuously tracked, one-pole slewed (~20 ms).
         // S4: a manual HALF/DBL length edit plays native (tOut=0 → rate 1, no
@@ -1091,11 +1244,23 @@ namespace lockstep
                         }
                         break;
                     case State::Playing:
-                        if (tch && loopLen_ > 0 && transportGates)
+                        // S7: while the fit streams, the loop output is the engine's
+                        // stretched block, not a fractional read of the source.
+                        if (tch && streaming && transportGates)
+                            loopOut = mixSubTracksStreamed(ch, i, subCount);
+                        else if (tch && loopLen_ > 0 && transportGates)
                             loopOut = mixSubTracks(ch, pos, effRate_, subCount);
                         break;
                     case State::Overdubbing:
-                        if (tch && loopLen_ > 0 && transportGates)
+                        // S7: streaming takes precedence — read the fitted stream and
+                        // skip the overdub scatter (an overdub during the brief
+                        // streaming bridge is deferred; the bake lands within a few
+                        // blocks and normal overdub resumes on the static PCM).
+                        if (tch && streaming && transportGates)
+                        {
+                            loopOut = mixSubTracksStreamed(ch, i, subCount);
+                        }
+                        else if (tch && loopLen_ > 0 && transportGates)
                         {
                             // R4 + §40.3: monitor the committed loop A (all sub-tracks
                             // mixed) plus the in-progress overdub layer B on each ARMED
@@ -1159,7 +1324,7 @@ namespace lockstep
             //     once-per-iteration scale since the overdub touches every slot once).
             //   • Committing B (add-only) folds the pass in AFTER A's decay, so k
             //     passes give A = Σ gᵏ⁻ʲ·Bⱼ (the classic feedback-looper sum).
-            if (loopLen_ > 0 && !brNow && !tapeNow && transportGates
+            if (loopLen_ > 0 && !brNow && !tapeNow && !streaming && transportGates
                 && (deck_.state() == State::Playing || deck_.state() == State::Overdubbing)
                 && pos < lastPos_)
             {
@@ -1178,9 +1343,19 @@ namespace lockstep
                     closeRecording();
             }
             else if ((deck_.state() == State::Playing || deck_.state() == State::Overdubbing)
-                     && loopLen_ > 0 && transportGates)
+                     && (loopLen_ > 0 || streaming) && transportGates)
             {
-                if (brNow)
+                if (streaming)
+                {
+                    // S7: the engine emits the stretched loop sequentially; playPos_
+                    // just tracks the fitted-window phase for chrome (the mini-seq
+                    // playhead), advancing at unity over the fitted length.
+                    effRate_ = 1.0;
+                    playPos_ += 1.0;
+                    if (fitTargetLen_ > 0 && playPos_ >= static_cast<double>(fitTargetLen_))
+                        playPos_ -= static_cast<double>(fitTargetLen_);
+                }
+                else if (brNow)
                 {
                     // Advance the free-running shadow in parallel (release resyncs to it),
                     // and the play position inside the captured cell. Before the first
@@ -1290,7 +1465,12 @@ namespace lockstep
             buffer.clear(ch, 0, numSamples);
 
         stateMirror_.store(static_cast<int>(deck_.state()), std::memory_order_release);
-        loopLenMirror_.store(loopLen_, std::memory_order_release);  // S4 chrome/tests
+        // S7: while streaming, the loop's musical length is the fitted window, not the
+        // shorter recorded source — chrome/tests see the length the ear hears. Baked
+        // sets loopLen_ = fitTargetLen_, so the two agree from then on.
+        const int reportedLen = streaming && fitTargetLen_ > 0 ? fitTargetLen_ : loopLen_;
+        loopLenMirror_.store(reportedLen, std::memory_order_release);  // S4 chrome/tests
+        fitStateMirror_.store(static_cast<int>(fitState_), std::memory_order_release);
         brRateMirror_.store(brNow ? brRateIdx_ : -1, std::memory_order_release);  // S5
         // S6: light the held tape-fx cell (TapeStop=0, Dip=1, HalfSpeed=2, Reverse=3);
         // -1 while idle or merely resyncing after release.
@@ -1309,9 +1489,9 @@ namespace lockstep
         // (-1 otherwise) drives the continuous playhead; pendingEdge drives the
         // landing pip at the loop-start anchor (Armed or a scheduled stop/re-play).
         const bool playing = (deck_.state() == State::Playing || deck_.state() == State::Overdubbing)
-                             && loopLen_ > 0;
+                             && reportedLen > 0;
         phaseMirror_.store(playing
-                               ? static_cast<float>(playPos_ / static_cast<double>(loopLen_))
+                               ? static_cast<float>(playPos_ / static_cast<double>(reportedLen))
                                : -1.0f,
                            std::memory_order_release);
         pendingMirror_.store(deck_.pendingEdge(),

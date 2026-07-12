@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../deckcore/Deck.h"
+#include "../dsp/BungeeStretchEngine.h"
 #include "IMultiInput.h"
 #include "IMachine.h"
 #include "ITempoAware.h"
@@ -134,6 +135,33 @@ namespace lockstep
         [[nodiscard]] int loopLengthSamples() const noexcept
         {
             return loopLenMirror_.load(std::memory_order_acquire);
+        }
+
+        // S7 FreeLen pitch-preserved fit lifecycle. Off = no fit; Streaming = the
+        // realtime engine fills the fitted window live while a background bake runs;
+        // Baked = plain static PCM at the fitted length (either already on-grid, or
+        // the background bake has been adopted). Add-only. Read from the message
+        // thread (chrome + the processor's bake orchestration) via mirrors.
+        enum class FitState : int { Off = 0, Streaming, Baked };
+        [[nodiscard]] FitState fitState() const noexcept
+        {
+            return static_cast<FitState>(fitStateMirror_.load(std::memory_order_acquire));
+        }
+        // The fitted (grid-aligned) length the fit targets, and the recorded source
+        // length it stretches from (both 0 when no fit is set).
+        [[nodiscard]] int fitTargetLengthSamples() const noexcept
+        {
+            return fitTargetLenMirror_.load(std::memory_order_acquire);
+        }
+        [[nodiscard]] int fitSourceLengthSamples() const noexcept
+        {
+            return fitSrcLenMirror_.load(std::memory_order_acquire);
+        }
+        // Bumped (release) each time a fit engages or is superseded. The processor
+        // polls it to detect a new bake request and to drop a stale in-flight bake.
+        [[nodiscard]] std::uint32_t fitBakeGeneration() const noexcept
+        {
+            return fitBakeGen_.load(std::memory_order_acquire);
         }
 
         // Message thread (chrome): the active beat-repeat rate index (0=1/16 … 3=1/2),
@@ -364,6 +392,19 @@ namespace lockstep
         // exactly loopSample(outCh, ...), so a one-track loop is unchanged.
         [[nodiscard]] float mixSubTracks(int outCh, double pos, double readRate,
                                          int subCount) const;
+        // S7: the streaming-fit read — the same per-sub level/pan/mute/solo mix as
+        // mixSubTracks, but the raw channel samples come from `fitScratch_` (the
+        // realtime stretch engine's output for this block, filled at block start)
+        // rather than a fractional read of `target_`. `sample` is the block index.
+        [[nodiscard]] float mixSubTracksStreamed(int outCh, int sample, int subCount) const;
+        // S7: engage the FreeLen pitch-preserved fit at record-close (FreeLen only).
+        // Rounds loopLen_ up to the next launch-quant multiple; on a genuine stretch
+        // it starts the realtime engine (Streaming) and requests a background bake,
+        // otherwise it marks the loop already-fitted (Baked). No-op for Free/Sync.
+        void engageFreeLenFit();
+        // S7: drop any active/pending fit (new take, Clear, manual length edit) and
+        // bump the bake generation so an in-flight background bake is superseded.
+        void cancelFit();
         // Same read law over an arbitrary loop-length buffer (the overdub layer
         // B) at a fractional position — no wrap crossfade (that is A's job).
         [[nodiscard]] float readLayer(const juce::AudioBuffer<float>& buf, int ch,
@@ -459,6 +500,30 @@ namespace lockstep
         // much off the pre-roll tail even though the ring itself is retro-length.
         int    seamLen_ = 0;
 
+        // S7 FreeLen pitch-preserved fit. A realtime Bungee engine streams the
+        // recorded loop stretched to the fitted (grid-aligned) length while a
+        // background bake (processor-owned) renders the static result and adopts it.
+        // `loopFitSource_` pulls the recorded PCM straight out of the machine's live
+        // `target_` (valid whenever the engine is asked to produce, i.e. inside
+        // process()), looping over [0, fitSrcLen_).
+        struct LoopFitSource : IStretchSource
+        {
+            LoopMachine* owner = nullptr;
+            int read(float* dest, int ch, juce::int64 srcPos, int n) override;
+            [[nodiscard]] juce::int64 length() const override;
+            [[nodiscard]] int numChannels() const override;
+            [[nodiscard]] double sampleRate() const override;
+        };
+        static constexpr double kFitTolSec = 0.010;  // jitter snap window (~ ±10 ms)
+
+        BungeeStretchEngine fitEngine_;
+        LoopFitSource loopFitSource_{};
+        FitState fitState_ = FitState::Off;     // audio-thread truth (mirror published)
+        int  fitSrcLen_ = 0;                    // recorded source length the fit reads
+        int  fitTargetLen_ = 0;                 // fitted (grid-aligned) output length
+        juce::AudioBuffer<float> fitScratch_;   // engine output for this block (streaming)
+        bool fitScratchFilled_ = false;         // did we fill fitScratch_ this block?
+
         // Lock-free SPSC command FIFO (message → audio). Capacity is generous: at most
         // a handful of edges per block (one gesture), drained fully each process().
         static constexpr int kPerfFifoCap = 64;
@@ -493,6 +558,13 @@ namespace lockstep
         std::atomic<int> tapeMirror_{ -1 };        // active tape-fx cell index / -1 (S6)
         std::atomic<float> phaseMirror_{ -1.0f };  // playback phase 0..1 (-1 = not playing), S2
         std::atomic<bool> pendingMirror_{ false }; // a quantized edge is pending (S2)
+        // S7 fit mirrors (audio → message thread). fitBakeGen_ is bumped (release) at
+        // engage/supersede; fitTargetLen/fitSrcLen mirrors are set BEFORE that bump so
+        // a processor that observes a new generation reads consistent lengths.
+        std::atomic<int> fitStateMirror_{ 0 };        // FitState (Off/Streaming/Baked)
+        std::atomic<int> fitTargetLenMirror_{ 0 };    // fitted length (samples)
+        std::atomic<int> fitSrcLenMirror_{ 0 };       // recorded source length (samples)
+        std::atomic<std::uint32_t> fitBakeGen_{ 0 };  // bake request / supersede token
 
         TransportInfo transport_{};  // last block transport (C2)
 

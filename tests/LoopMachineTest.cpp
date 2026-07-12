@@ -308,54 +308,84 @@ namespace lockstep
             CHECK(lp.state() == State::Recording, "#2: double-tap Record starts immediately");
         }
 
-        // C4: Free-Len varispeed — halving the project tempo halves the loop's
-        // playback rate, so an impulse loop wraps ~half as often.
-        auto countImpulseWraps = [&runP](double projectSpb) {
+        // S7: Free Len is a pitch-preserved length quantize (NOT varispeed). On
+        // record-close it rounds the recorded length UP to the next launch-quant
+        // multiple and streams the stretched loop live (a background bake makes it
+        // static — Stage 3). A take already on-grid needs no stretch (Baked).
+        using FitState = LoopMachine::FitState;
+        {
+            // Off-grid: record 1536 samples with a 1024-sample launch-quant period →
+            // the fit rounds up to 2048 and engages the streaming engine.
             SamplePool p;
             p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
             LoopMachine lp(p);
             lp.prepare(kSr, 512);
-            TransportInfo tr; tr.samplesPerBar = 1000.0; tr.running = false;  // free-run
+            TransportInfo tr; tr.samplesPerBar = 1024.0;
+            tr.launchQuantPeriodSamples = 1024.0; tr.running = false;
             lp.setTransport(tr);
 
             ParamFrame fr{ 1.0f, 0.0f, 1.0f };  // Free Len
-            // Record a 1024-sample loop with a single impulse at sample 0. Free Len
-            // would normally arm to the bar grid; record immediately here (transport
-            // is stopped for the free-run varispeed measurement that follows).
-            runP(lp, 512, 0.0f, Cmd::RecordCycle, fr, /*impulseAt*/ 0, /*immediate*/ true);
-            runP(lp, 512, 0.0f, Cmd::None, fr);
-            runP(lp, 1, 0.0f, Cmd::RecordCycle, fr);  // close → Playing (loopLen 1024)
+            runP(lp, 512, 0.5f, Cmd::RecordCycle, fr, /*impulseAt*/ -1, /*immediate*/ true);
+            runP(lp, 512, 0.5f, Cmd::None, fr);            // 1024
+            runP(lp, 512, 0.5f, Cmd::None, fr);            // 1536 recorded
+            runP(lp, 1, 0.0f, Cmd::RecordCycle, fr);       // close → Playing + engage fit
 
-            // Now set the project tempo and collect output, counting impulse wraps.
-            TransportInfo tp; tp.samplesPerBar = projectSpb; tp.running = false;
-            lp.setTransport(tp);
-            int wraps = 0;
-            float prev = 0.0f;
+            CHECK(lp.state() == State::Playing, "Free Len close → Playing");
+            CHECK(lp.fitState() == FitState::Streaming, "off-grid Free Len engages streaming");
+            CHECK(lp.fitTargetLengthSamples() == 2048,
+                  "fit rounds 1536 up to the 2048 launch-quant multiple (got "
+                  + juce::String(lp.fitTargetLengthSamples()) + ")");
+            CHECK(lp.loopLengthSamples() == 2048,
+                  "the reported loop length is the fitted window");
+
+            // The streamed loop is non-silent (the recorded ~0.5 DC stretches to ~0.5).
+            // Let the engine's onset latency clear, then measure.
             juce::MidiBuffer none;
-            for (int b = 0; b < 32; ++b)  // 32 * 512 = 16384 output samples
+            for (int b = 0; b < 6; ++b) runP(lp, 512, 0.0f, Cmd::None, fr);
+            float mag = 0.0f;
+            for (int b = 0; b < 4; ++b)
             {
-                juce::AudioBuffer<float> buf(2, 512);
-                buf.clear();  // no live input — the engine zeroes the input buffer
-                ParamFrame pp = fr;
-                lp.process(none, pp, buf);
-                for (int i = 0; i < 512; ++i)
-                {
-                    const float x = buf.getSample(0, i);
-                    if (x > 0.5f && prev <= 0.5f) ++wraps;
-                    prev = x;
-                }
+                auto out = runP(lp, 512, 0.0f, Cmd::None, fr);
+                mag = std::max(mag, out.getMagnitude(0, 512));
             }
-            return wraps;
-        };
-
+            CHECK(mag > 0.1f, "streaming fit produces audio (mag " + juce::String(mag) + ")");
+        }
         {
-            const int wraps1x = countImpulseWraps(1000.0);  // rate 1 → period ~1024
-            const int wraps2x = countImpulseWraps(2000.0);  // rate 0.5 → period ~2048
-            CHECK(wraps1x > 0 && wraps2x > 0, "Free Len: impulse loop wraps at both tempos");
-            const double ratio = static_cast<double>(wraps1x) / std::max(1, wraps2x);
-            CHECK(ratio > 1.5 && ratio < 2.6,
-                  "Free Len: halving tempo ~halves the wrap rate (ratio=" + juce::String(ratio) + ")");
+            // On-grid: record exactly 2048 with a 1024 period → no stretch (Baked).
+            SamplePool p;
+            p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LoopMachine lp(p);
+            lp.prepare(kSr, 512);
+            TransportInfo tr; tr.samplesPerBar = 1024.0;
+            tr.launchQuantPeriodSamples = 1024.0; tr.running = false;
+            lp.setTransport(tr);
+
+            ParamFrame fr{ 1.0f, 0.0f, 1.0f };  // Free Len
+            runP(lp, 512, 0.5f, Cmd::RecordCycle, fr, /*impulseAt*/ -1, /*immediate*/ true);
+            for (int b = 0; b < 3; ++b) runP(lp, 512, 0.5f, Cmd::None, fr);  // 2048 total
+            runP(lp, 1, 0.0f, Cmd::RecordCycle, fr);       // close → Playing
+
+            CHECK(lp.fitState() == FitState::Baked, "on-grid Free Len needs no stretch (Baked)");
+            CHECK(lp.loopLengthSamples() == 2048, "on-grid loop keeps its length");
+        }
+        {
+            // Free (not Free Len) never fits — it plays native, no engine.
+            SamplePool p;
+            p.addVolatile();
+            p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
+            LoopMachine lp(p);
+            lp.prepare(kSr, 512);
+            TransportInfo tr; tr.samplesPerBar = 1024.0;
+            tr.launchQuantPeriodSamples = 1024.0; tr.running = false;
+            lp.setTransport(tr);
+
+            ParamFrame fr{ 1.0f, 0.0f, 0.0f };  // Free
+            runP(lp, 512, 0.5f, Cmd::RecordCycle, fr, /*impulseAt*/ -1, /*immediate*/ true);
+            runP(lp, 512, 0.5f, Cmd::None, fr);
+            runP(lp, 1, 0.0f, Cmd::RecordCycle, fr);
+            CHECK(lp.fitState() == FitState::Off, "Free mode does not fit");
         }
 
         // C6: the seam SPLICE removes the click at a sharp head/tail seam.
@@ -995,21 +1025,26 @@ namespace lockstep
             CHECK(sync.defaultValue == 2.0f, "C5: loop_sync defaults to Sync (2)");
         }
 
-        // 9.28.2: loop reads above unity rate are bandlimited. A Free-Len loop of
-        // an 18 kHz tone played at rate 2 (tempo doubled after the take) images to
-        // 36 kHz; a Hermite read passes the 12 kHz fold-back at high level, the
-        // rate-aware polyphase attenuates the out-of-band source instead (the
-        // read-side twin of ResamplerTest's anti-aliasing case).
+        // 9.28.2: loop reads above unity rate are bandlimited. A Sync loop of an
+        // 18 kHz tone played at rate 2 (bar halved after the take, so grid length
+        // halves and the varispeed read rate doubles) images to 36 kHz; a Hermite
+        // read passes the 12 kHz fold-back at high level, the rate-aware polyphase
+        // attenuates the out-of-band source instead (the read-side twin of
+        // ResamplerTest's anti-aliasing case). Free Len no longer varispeeds (S7),
+        // so Sync is the varispeed vehicle now.
         {
             SamplePool p; p.addVolatile();
             p.prepareVolatile(kSr, 2, static_cast<int>(kSr));
             LoopMachine lp(p); lp.prepare(kSr, n);
-            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.running = false;
+            TransportInfo tr; tr.samplesPerBar = 1024.0; tr.barPpq = 4.0;
+            tr.running = true; tr.transportPhaseSamples = 0.0;
             lp.setTransport(tr);
-            ParamFrame fr{ 1.0f, 0.0f, 1.0f };  // Free Len
+            lp.setLoopGrid(16, 0.25);   // 4 quarters × (1024/4) = 1024-sample loop
+            ParamFrame fr{ 1.0f, 0.0f, 2.0f };  // Sync
 
             // Record exactly 1024 samples of 18 kHz (0.375 cyc/sample → 384 whole
-            // cycles per loop, so the seam is phase-continuous).
+            // cycles per loop, so the seam is phase-continuous). Sync auto-closes at
+            // the grid length (1024) = two 512 blocks.
             juce::MidiBuffer none;
             int phase = 0;
             auto toneBlock = [&](Cmd cmd) {
@@ -1029,25 +1064,28 @@ namespace lockstep
                 return b;
             };
             toneBlock(Cmd::RecordCycle);       // record 512
-            toneBlock(Cmd::None);              // record to 1024
-            toneBlock(Cmd::RecordCycle);       // close → Playing, loopLen 1024
+            toneBlock(Cmd::None);              // record to 1024 → auto-close → Playing
 
-            // Double the tempo: Free-Len rate slews to loopLen/tOut = 2. Let the
-            // 20 ms slew settle (~10 blocks), then measure.
-            TransportInfo fast = tr; fast.samplesPerBar = 512.0;
-            lp.setTransport(fast);
-            auto silent = [&]() {
+            // Halve the bar: Sync's grid length → 512, so the varispeed read rate is
+            // loopLen/tOut = 2. Phase-lock reads the position from the transport, so
+            // advance transportPhaseSamples each block to sweep the loop.
+            double phasePos = 0.0;
+            auto play = [&]() {
+                TransportInfo fast; fast.samplesPerBar = 512.0; fast.barPpq = 4.0;
+                fast.running = true; fast.transportPhaseSamples = phasePos;
+                lp.setTransport(fast);
+                phasePos += n;
                 juce::AudioBuffer<float> b(2, n);
                 b.clear();
                 ParamFrame pp = fr;
                 lp.process(none, pp, b);
                 return b;
             };
-            for (int i = 0; i < 10; ++i) silent();
+            for (int i = 0; i < 10; ++i) play();  // let the 20 ms rate slew settle
             double sumSq = 0.0; int count = 0;
             for (int i = 0; i < 8; ++i)
             {
-                auto out = silent();
+                auto out = play();
                 for (int s = 0; s < n; ++s)
                 {
                     const double x = out.getSample(0, s);
