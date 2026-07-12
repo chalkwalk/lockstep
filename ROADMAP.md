@@ -3023,6 +3023,44 @@ Docs land first per item; commit + tests per work item.
       longest tape, cursor); bar ticks + wall-clock ruler; per-tape end lugs, chosen
       highlighted; bars.beats + m:ss caption transport-driven). Window grows +22px.
 
+### Phase 11 play-test round 2 — Tape UX  *[in progress]*
+
+A second play-test surfaced the architecture intent: **one deck engine, three faces**
+— Record = 1-track (untouched this round), Loop = 4-track circular, **Tape = 4-track
+linear**. Docs-first per stage; commit + tests per work item; `deck_core` stays
+JUCE-free.
+
+- [x] **1 — Reel unit + Bits control.** Reel reads seconds (`Unit::Seconds`, was ms);
+      Bits runs `16i`↙→`32f`↗ default 32f, and a depth change **converts** the reel in
+      place (was a wipe), warning on a lossy 32f→16i downgrade.
+- [x] **2 — "Tiny loop" buzz.** A stopped-but-not-parked transport re-read the frozen
+      block; gated on `transport_.running`.
+- [x] **3 — Loop tape-FX release slew.** Softened the post-release catch-up
+      (`kTapeResyncSec` 0.06→0.18) so releasing ½-speed/reverse glides back.
+- [x] **4 — Tape follows the main transport.** Removed the tape's own Play/Stop; the
+      reel chases the song playhead and detaches for scrub/wind while parked (verb-2
+      PlayStop retired, console cells 1/2 dropped).
+- [x] **5 — Reel scrub widget.** SRC slot 0 renders a spinning tape reel while parked
+      (rock to jog); gives way to the Source picker when the song plays. Fixed the
+      Stage-4-orphaned jog gate (`tapeScrubEligible` = windable + parked).
+- [x] **6 — Tape 4-track.** The Tape becomes a full four-sub-track deck mirroring the
+      Loop: **6a** reel widened to the full deck width (lazy-committed, single-sub
+      byte-identical) + `subtrack_count`; **6b** per-sub `input_source_2/3/4` +
+      `IMultiInput`; **6c** per-sub level/pan/mute/solo mix + armed multi-sub punch
+      record (arm = source≠None) + whole-deck undo, generalised over the unity and
+      varispeed head paths; **6d** shared **TRACKS** page (ARM/MUTE/SOLO/SRC); **6e**
+      take-group promote (N WAVs + mix). One `Bits`/depth converts the whole deck.
+      → DESIGN §40.3.
+- [ ] **7 — Retroactive double-tap** (client-side, Loop + Tape). Durable-span edges
+      retro-stamp to tap 1; ephemeral verbs act at tap 2. Adds a Tape pre-roll ring.
+- [x] **8 — TRACKS discoverability + ROADMAP.** A single-sub deck shows a Nav hint
+      ("Raise Sub-tracks (SRC) to reach the TRACKS page") so the multi-track page is
+      findable; this round ticked.
+
+**Deferred:** re-back **Record** onto the deck medium as a 1-track linear form (it
+kept its original machinery this round). The stretch spike (old S6) + FreeLen
+pitch-preserved fit (old S7) remain deferred.
+
 ---
 
 ## Appendix — Legacy code → new id

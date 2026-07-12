@@ -2727,7 +2727,14 @@ namespace lockstep
         // Pages available: DECK always, TRACKS when the deck has > 1 sub-track.
         // (MARKS for the Tape face will append here.)
         const int pages = 1 + (processor_.looperSubTrackCount(t) > 1 ? 1 : 0);
-        if (pages <= 1) return false;  // nothing to page — let Nav do its usual thing
+        if (pages <= 1)
+        {
+            // Stage 8 discoverability: a single-sub deck has no TRACKS page, so Nav
+            // here would silently do nothing. Point at the way in (raise Sub-tracks
+            // on SRC) so the multi-track page is findable. Nav still does its usual job.
+            setStatus("Raise Sub-tracks (SRC) to reach the TRACKS page");
+            return false;  // nothing to page — let Nav do its usual thing
+        }
         uiState_.deckConsolePage =
             ((uiState_.deckConsolePage + delta) % pages + pages) % pages;
         refreshSurface();
