@@ -11,6 +11,25 @@ namespace lockstep
     {
         ParamSpec s;
         s.sectionIndex = kSrcSecIdx;
+
+        // Per-sub input source for subs 1..3 (Stage 6b, §40.3). Sub 0 uses
+        // kSlotInputSource (id "input_source"); these carry input_source_2/3/4.
+        // Default None so an extra sub is unassigned (and, under the 6c arming law,
+        // disarmed) until the user picks a source for it.
+        if (index >= kSlotSubSrcBase && index < kNumSlots)
+        {
+            const int sub = index - kSlotSubSrcBase + 1;  // 1..3
+            s.id = inputSourceSlotId(sub);                 // input_source_2/3/4
+            s.label = "T" + juce::String(sub + 1) + " Src";
+            s.minValue = 0.0f;
+            s.maxValue = kInputSourceMaxValue;
+            s.defaultValue = 0.0f;  // None
+            s.isStepped = true;
+            s.valueLabels = std::span<const char* const>(kInputSourceLabels.data(),
+                                                         kInputSourceLabels.size());
+            return s;
+        }
+
         switch (index)
         {
             case kSlotInputSource:
@@ -64,9 +83,13 @@ namespace lockstep
         }
     }
 
-    void TapeMachine::prepare(double sampleRate, int /*maxBlockSize*/)
+    void TapeMachine::prepare(double sampleRate, int maxBlockSize)
     {
         sampleRate_ = sampleRate > 0.0 ? sampleRate : 44100.0;
+        // IMultiInput (Stage 6b): the extra sub-track input buffers the processor
+        // fills from input_source_2/3/4. [0] is unused (sub 0 is the track buffer).
+        const int maxBlock = std::max(1, maxBlockSize);
+        for (auto& b : subInput_) { b.setSize(kChannelsPerSub, maxBlock, false, true, false); b.clear(); }
         setMediumSeconds(mediumSeconds_);
         reset();
     }

@@ -525,5 +525,33 @@ namespace lockstep
                       "Stage 6a: a widened deck still records/plays sub 0 unchanged");
             }
         }
+
+        // ── Stage 6b: per-sub input sources + IMultiInput plumbing ───────────────
+        // Subs 1..3 declare their own input_source_2/3/4 slots (default None), and
+        // the deck exposes IMultiInput so the processor can feed each sub its input.
+        {
+            TapeMachine t; t.prepare(kSr, n); t.setMediumSeconds(2.0);
+            for (int sub = 1; sub <= 3; ++sub)
+            {
+                const auto ss = t.paramSpec(4 + sub);   // kSlotSubSrcBase = 5 → slots 5,6,7
+                CHECK(juce::String(ss.id) == juce::String("input_source_") + juce::String(sub + 1),
+                      "Stage 6b: sub input source is input_source_2/3/4");
+                CHECK(feq(ss.defaultValue, 0.0f), "Stage 6b: an extra sub defaults to None");
+            }
+
+            // IMultiInput: numInputSubTracks tracks the deck width; each extra sub's
+            // buffer is writable and block-sized.
+            auto* mi = static_cast<IMultiInput*>(&t);
+            CHECK(mi->numInputSubTracks() == 1, "Stage 6b: single-sub tape = 1 input sub-track");
+            {
+                TransportInfo tr; tr.sampleRate = kSr; tr.running = true; t.setTransport(tr);
+                juce::AudioBuffer<float> b(2, n);
+                juce::MidiBuffer none; ParamFrame pf{ 1.0f, 0.0f, 0.0f, 1.0f, 3.0f, 0.0f, 0.0f, 0.0f };
+                t.process(none, pf, b);
+            }
+            CHECK(mi->numInputSubTracks() == 3, "Stage 6b: numInputSubTracks follows subtrack_count");
+            CHECK(mi->inputSubTrackBuffer(1).getNumSamples() >= n,
+                  "Stage 6b: extra-sub input buffer is block-sized");
+        }
     }
 }

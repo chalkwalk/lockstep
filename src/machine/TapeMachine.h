@@ -7,11 +7,13 @@
 #include "../deckcore/Medium.h"
 #include "ConsoleMode.h"
 #include "IMachine.h"
+#include "IMultiInput.h"
 #include "ITempoAware.h"
 #include "InputSource.h"
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -37,7 +39,7 @@ namespace lockstep
     // This is the first slice: record-along-timeline + playback + locate at unity
     // rate. Varispeed (medium-rate deviation via the heads), punch-as-a-layer,
     // markers, i16 depth, and the console are follow-ups.
-    class TapeMachine : public IMachine, public ITempoAware
+    class TapeMachine : public IMachine, public ITempoAware, public IMultiInput
     {
     public:
         void setTransport(const TransportInfo& t) noexcept override { transport_ = t; }
@@ -138,6 +140,18 @@ namespace lockstep
         // clamped 1..kMaxSubTracks); 1 = today's single-track tape.
         [[nodiscard]] int subTrackCount() const noexcept { return deck_.subTrackCount(); }
 
+        // IMultiInput (Stage 6b, §40.3): sub-track 0 is the ordinary track input (the
+        // `buffer` arg to process); sub-tracks 1..N-1 pull their own input_source_k
+        // into these machine-owned buffers, filled by the processor before process().
+        [[nodiscard]] int numInputSubTracks() const noexcept override
+        {
+            return deck_.subTrackCount();
+        }
+        [[nodiscard]] juce::AudioBuffer<float>& inputSubTrackBuffer(int sub) noexcept override
+        {
+            return subInput_[static_cast<std::size_t>(std::clamp(sub, 1, kMaxInputSubTracks - 1))];
+        }
+
         // Advisory (message thread / tests).
         [[nodiscard]] dc::DeckState state() const noexcept { return deck_.state(); }
         [[nodiscard]] bool recording() const noexcept { return deck_.state() == dc::DeckState::Recording; }
@@ -196,7 +210,14 @@ namespace lockstep
         static constexpr int kSlotMonitor = 2;       // Off | On (live-thru)
         static constexpr int kSlotMediumDepth = 3;   // F32 | I16 (§40.10)
         static constexpr int kSlotSubTrackCount = 4; // 1..4 deck sub-tracks (§40.3, Stage 6a)
-        static constexpr int kNumSlots = 5;
+        // Per-sub input source (Stage 6b, §40.3): sub 0 uses kSlotInputSource
+        // (id "input_source"); subs 1..3 get their own appended source slots
+        // (input_source_2/3/4) so each sub-track captures a distinct input.
+        // Appended after subtrack_count, default None, so a single-sub-track tape is
+        // byte-identical on disk and in the graph.
+        static constexpr int kSlotSubSrcBase = 5;
+        static constexpr int kNumSubSrcSlots = kMaxInputSubTracks - 1;  // subs 1..3
+        static constexpr int kNumSlots = kSlotSubSrcBase + kNumSubSrcSlots;  // 8
 
         // §40.3 deck width. The reel is allocated at the FULL deck width
         // (kNumPlanes channels = kMaxSubTracks stereo sub-tracks) and lazily
@@ -274,6 +295,12 @@ namespace lockstep
 
         std::array<dc::Store, kNumPlanes> planes_{};
         dc::Medium medium_;
+
+        // IMultiInput (Stage 6b, §40.3): extra sub-track input buffers (index 1..3;
+        // [0] unused — sub 0 is the track buffer). Sized in prepare(); the processor
+        // clears + fills them from input_source_2/3/4 each block, and process()
+        // records each armed sub from its own buffer (6c).
+        std::array<juce::AudioBuffer<float>, kMaxInputSubTracks> subInput_;
 
         // The deck state machine (§40.1): Idle/Playing/Recording/Stopped. Tape does
         // not overdub-at-wrap or close-at-length, so it uses a subset.
