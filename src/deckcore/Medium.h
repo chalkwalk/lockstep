@@ -123,8 +123,10 @@ namespace dc
         {
             Topology topology = Topology::Circular;
             double mediumRate = 48000.0;  // medium samples per second
+            // Width is the HOST's, not the core's (§40.11). These are defaults, not
+            // bounds: a host binds whatever N and C it wants (Lockstep binds 4 × 2).
             int numSubTracks = 1;
-            int channelsPerSubTrack = 2;  // the stereo engine boundary (§40.7)
+            int channelsPerSubTrack = 2;  // a stereo default; nothing here assumes it
             int capacitySamples = 0;      // per channel
         };
 

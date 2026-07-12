@@ -108,7 +108,7 @@ namespace lockstep
                 s.id = "subtrack_count";
                 s.label = "Tracks";
                 s.minValue = 1.0f;
-                s.maxValue = static_cast<float>(dc::kMaxSubTracks);  // 1..4 (§40.3)
+                s.maxValue = static_cast<float>(kMaxInputSubTracks);  // 1..4 (§40.3)
                 s.defaultValue = 1.0f;   // a single stereo sub-track — today's tape
                 s.isStepped = true;
                 return s;
@@ -222,9 +222,9 @@ namespace lockstep
         // addressing property, independent of stock, so it survives the swap.
         // Stage 6c: the convert spans every sub-track — one Bits/depth covers the
         // whole deck, so a multi-sub tape keeps all its sub-tracks across the flip.
-        std::array<int, dc::kMaxSubTracks> subUsed{};
-        std::array<juce::AudioBuffer<float>, dc::kMaxSubTracks> snapshot;
-        for (int sub = 0; sub < dc::kMaxSubTracks; ++sub)
+        std::array<int, kMaxInputSubTracks> subUsed{};
+        std::array<juce::AudioBuffer<float>, kMaxInputSubTracks> snapshot;
+        for (int sub = 0; sub < kMaxInputSubTracks; ++sub)
         {
             const int u = medium_.used(sub);
             subUsed[static_cast<std::size_t>(sub)] = u;
@@ -238,7 +238,7 @@ namespace lockstep
         depthI16_ = i16;
         allocateReel();                         // fresh stores at the new depth (used → 0)
 
-        for (int sub = 0; sub < dc::kMaxSubTracks; ++sub)
+        for (int sub = 0; sub < kMaxInputSubTracks; ++sub)
         {
             const int u = subUsed[static_cast<std::size_t>(sub)];
             if (u <= 0) continue;
@@ -254,7 +254,7 @@ namespace lockstep
     {
         const int cap = std::max(1, static_cast<int>(mediumSeconds_ * sampleRate_));
         reelCap_ = cap;
-        // §40.3 deck width: kNumPlanes = kMaxSubTracks stereo sub-tracks, allocated
+        // §40.3 deck width: kNumPlanes = kMaxInputSubTracks stereo sub-tracks, allocated
         // at full width and lazily committed (a 1-sub tape never touches subs 1..3).
         const auto n = static_cast<std::size_t>(cap) * kNumPlanes;
 
@@ -305,7 +305,7 @@ namespace lockstep
         dc::Medium::Config cfg;
         cfg.topology = dc::Topology::Linear;   // a reel, not a loop
         cfg.mediumRate = sampleRate_;          // 1× medium (§40.10)
-        cfg.numSubTracks = dc::kMaxSubTracks;  // §40.3: bound at full deck width
+        cfg.numSubTracks = kMaxInputSubTracks;  // §40.3: bound at full deck width
         cfg.channelsPerSubTrack = kChannelsPerSub;
         cfg.capacitySamples = cap;
         medium_.bindPlanes(cfg, planes_.data(), kNumPlanes);
@@ -364,7 +364,7 @@ namespace lockstep
                 {
                     // Stage 6c: restore exactly the sub-tracks the punch wrote (armed
                     // subs). An unarmed sub was never touched, so it is left alone.
-                    for (int sub = 0; sub < dc::kMaxSubTracks; ++sub)
+                    for (int sub = 0; sub < kMaxInputSubTracks; ++sub)
                     {
                         if (((undoArmedMask_ >> sub) & 1) == 0) continue;
                         for (int p = undoLo_; p <= undoHi_; ++p)
@@ -431,7 +431,7 @@ namespace lockstep
 
         // §40.3 deck width (Stage 6a): the live sub-track count follows the param.
         const int subCount = (params.size() > kSlotSubTrackCount)
-            ? std::clamp(static_cast<int>(std::lround(params[kSlotSubTrackCount])), 1, dc::kMaxSubTracks)
+            ? std::clamp(static_cast<int>(std::lround(params[kSlotSubTrackCount])), 1, kMaxInputSubTracks)
             : 1;
         deck_.setSubTrackCount(subCount);
 
@@ -662,8 +662,8 @@ namespace lockstep
         rh.setPosition(posStart);
         if (recording)
         {
-            std::array<dc::WriteHead, dc::kMaxSubTracks> wh{};
-            std::array<dc::EraseHead, dc::kMaxSubTracks> eh{};
+            std::array<dc::WriteHead, kMaxInputSubTracks> wh{};
+            std::array<dc::EraseHead, kMaxInputSubTracks> eh{};
             for (int sub = 0; sub < subCount; ++sub)
             {
                 if (((armedMask >> sub) & 1) == 0) continue;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/Sequence.h"  // kNumTracks
+#include "ChannelPolicy.h"     // kEngineChannels
 
 #include <array>
 #include <cmath>
@@ -39,11 +40,20 @@ namespace lockstep
     // the input_source enum exposes them as Ext1..Ext4. Only the first is enabled
     // by default. Captured into inputCapture_ channel-pairs [2*ext, 2*ext+1].
     inline constexpr int kNumExtInputs = 4;
+    // Channels per sub-track: a sub-track is a stereo pair, so this is the §40.7
+    // engine invariant, not a number of its own. Deck-medium widths derive from it.
+    inline constexpr int kDeckChannelsPerSubTrack = kEngineChannels;
+
     // The channel width of a full four-sub-track deck (§40.7): each sub-track is a
     // stereo pair, so four sub-tracks are eight channels held in one wide volatile
     // slot (§40.3). This is what a volatile slot must be *allocated* to cover; a
     // one-sub-track loop still captures only two.
-    inline constexpr int kMaxDeckChannels = 2 * kMaxInputSubTracks;
+    //
+    // These two — kMaxInputSubTracks and kEngineChannels — are the ONLY homes for
+    // the deck's width. `deck_core` declares neither (DESIGN §40.11): a dc::Deck is
+    // constructed at whatever capacity its host asks for, and dc::Medium takes both
+    // as runtime Config. Widening Lockstep's decks is an edit to this file alone.
+    inline constexpr int kMaxDeckChannels = kDeckChannelsPerSubTrack * kMaxInputSubTracks;
     inline constexpr std::array<const char* const, kMaxInputSubTracks> kInputSourceSlotIds = {
         "input_source", "input_source_2", "input_source_3", "input_source_4"
     };

@@ -358,7 +358,7 @@ namespace lockstep
         // backup and overdub layer are all sized to it, so a retro backfill and a
         // whole-deck undo reach every sub-track's pair; a single-sub loop touches
         // only pair 0.
-        static constexpr int kDeckChans = 2 * dc::kMaxSubTracks;
+        static constexpr int kDeckChans = kMaxDeckChannels;  // §40.11: width is ours, not the core's
 
         static int clampSub(int sub) noexcept
         {
@@ -464,7 +464,7 @@ namespace lockstep
         juce::AudioBuffer<float>* target_ = nullptr;  // pool pcm for targetSlot_ (this block)
 
         // The state machine, the pending quantized edge, and the sub-track table.
-        dc::Deck deck_;
+        dc::Deck deck_{ kMaxInputSubTracks };
         int loopLen_ = 0;
         // §40.3: the pool entry each sub-track was loaded from (-1 = recorded, not
         // loaded). FIT re-reads the source to stretch it to the window.

@@ -148,7 +148,7 @@ namespace lockstep
 
         // §40.3 deck width (Stage 6): a Tape is a 4-sub-track linear deck, like the
         // Loop. Advisory count of live sub-tracks (mirrors the subtrack_count param,
-        // clamped 1..kMaxSubTracks); 1 = today's single-track tape.
+        // clamped 1..kMaxInputSubTracks); 1 = today's single-track tape.
         [[nodiscard]] int subTrackCount() const noexcept { return deck_.subTrackCount(); }
         // Deck TRACKS-page state (§40.5, Stage 6c). Advisory (last processed block);
         // mute/solo mirror their params, armed mirrors the SRC auto-arm law.
@@ -178,7 +178,7 @@ namespace lockstep
         [[nodiscard]] int recordedSamples() const noexcept
         {
             int m = 0;
-            for (int sub = 0; sub < dc::kMaxSubTracks; ++sub) m = std::max(m, medium_.used(sub));
+            for (int sub = 0; sub < kMaxInputSubTracks; ++sub) m = std::max(m, medium_.used(sub));
             return m;
         }
         // Copy the recorded extent out for promotion (§40.8), reading through the
@@ -255,15 +255,17 @@ namespace lockstep
         static constexpr int kNumSlots = kSlotSubMixBase + kMaxInputSubTracks * kSubMixFields;  // 24
 
         // §40.3 deck width. The reel is allocated at the FULL deck width
-        // (kNumPlanes channels = kMaxSubTracks stereo sub-tracks) and lazily
+        // (kNumPlanes channels = kMaxInputSubTracks stereo sub-tracks) and lazily
         // committed, so a single-sub-track tape (subtrack_count default 1) costs the
         // higher sub-tracks only address space and reads/writes/mixes exactly as
         // before. One Bits/depth covers every plane. numSubTracks is bound at the
         // full width too, so raising subtrack_count never reallocates or loses a
         // sub-track's high-water mark — it just brings already-present planes into
         // the mix.
-        static constexpr int kChannelsPerSub = 2;
-        static constexpr int kNumPlanes = dc::kMaxSubTracks * kChannelsPerSub;  // 8
+        // Both derive from the Lockstep-side width constants (InputSource.h); the
+        // deck core declares no width of its own (§40.11).
+        static constexpr int kChannelsPerSub = kDeckChannelsPerSubTrack;  // 2
+        static constexpr int kNumPlanes = kMaxDeckChannels;               // 8
 
         static constexpr double kDefaultMediumSeconds = 300.0;  // 5 min (§40.3)
         static constexpr double kMinMediumSeconds = 1.0;
@@ -277,7 +279,7 @@ namespace lockstep
 
         static int clampSub(int sub) noexcept
         {
-            return std::clamp(sub, 0, dc::kMaxSubTracks - 1);
+            return std::clamp(sub, 0, kMaxInputSubTracks - 1);
         }
 
         void bindReel() noexcept;
@@ -361,7 +363,7 @@ namespace lockstep
 
         // The deck state machine (§40.1): Idle/Playing/Recording/Stopped. Tape does
         // not overdub-at-wrap or close-at-length, so it uses a subset.
-        dc::Deck deck_;
+        dc::Deck deck_{ kMaxInputSubTracks };
 
         // The marker lane (§40.4). Serialized with the deck (§40.8); the audio has
         // to be promoted, but the marks are metadata that always persist.

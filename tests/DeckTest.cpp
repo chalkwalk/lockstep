@@ -212,17 +212,39 @@ namespace lockstep
 
         // ── Sub-tracks: four, defaulting to one ──────────────────────────────
         {
-            dc::Deck d;
-            CHECK(d.subTrackCount() == 1, "a deck defaults to one sub-track");
+            // §40.11: the core declares no width. A deck is built at the capacity its
+            // host asks for — Lockstep's Loop and Tape ask for four.
+            dc::Deck d{ 4 };
+            CHECK(d.subTrackCapacity() == 4, "a deck is built at the host's capacity");
+            CHECK(d.subTrackCount() == 1, "and still defaults to one sub-track in use");
             CHECK(d.subTrack(0).armed, "which is armed");
             // §40.3: only sub 0 is armed by default — the rest are disarmed so a
             // multi-sub overdub targets sub 0 alone until the console arms others.
             CHECK(! d.subTrack(1).armed && ! d.subTrack(2).armed && ! d.subTrack(3).armed,
                   "sub-tracks 1-3 are disarmed by default");
             d.setSubTrackCount(9);
-            CHECK(d.subTrackCount() == dc::kMaxSubTracks, "and never exceeds four");
+            CHECK(d.subTrackCount() == 4, "and never exceeds its capacity");
             d.setSubTrackCount(0);
             CHECK(d.subTrackCount() == 1, "nor drops below one");
+        }
+
+        // §40.11: capacity is the host's to choose, and Record's choice is ONE — the
+        // linear 1-track face is a capacity-1 deck, not a 4-deck with three unused
+        // subs. A wider host (the mixer variant) is the same code at a bigger number.
+        {
+            dc::Deck one;  // the default: Record's shape
+            CHECK(one.subTrackCapacity() == 1, "a default deck is a 1-track deck");
+            one.setSubTrackCount(4);
+            CHECK(one.subTrackCount() == 1, "which cannot be widened from process()");
+            // Out-of-range subs clamp rather than run off the end — under the old
+            // fixed array this was unreachable; with runtime capacity it is not.
+            CHECK(one.subTrack(3).armed, "an out-of-range sub clamps into the deck");
+
+            dc::Deck wide{ 24 };
+            CHECK(wide.subTrackCapacity() == 24, "and a mixer-width deck just works");
+            wide.setSubTrackCount(24);
+            CHECK(wide.subTrackCount() == 24, "all 24 usable");
+            CHECK(! wide.subTrack(23).armed, "with only sub 0 armed by default");
         }
     }
 }

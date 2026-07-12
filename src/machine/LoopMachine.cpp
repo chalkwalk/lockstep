@@ -183,7 +183,7 @@ namespace lockstep
         // §40.3: the undo backup and the overdub layer are deck-medium-wide, not
         // pair-0 — a 4-sub-track overdub folds into all armed channel-pairs, and
         // whole-deck undo restores all of them. Sized to the widest possible deck
-        // (2 × kMaxSubTracks = kDeckChans); a single-track loop only ever touches
+        // (kMaxDeckChannels = kDeckChans); a single-track loop only ever touches
         // pair 0.
         backup_.setSize(kDeckChans, cap, false, true, false);
         backup_.clear();

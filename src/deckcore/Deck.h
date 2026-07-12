@@ -1,7 +1,7 @@
 #pragma once
 
-#include <array>
 #include <cstdint>
+#include <vector>
 
 namespace dc
 {
@@ -78,10 +78,11 @@ namespace dc
         }
     };
 
-    // A deck's per-sub-track state. Four sub-tracks, defaulting to one in use —
-    // a freshly loaded Record or Loop must behave exactly as it does today
-    // (§40.1), so depth is opt-in and costs an unused sub-track nothing under the
-    // medium's lazy commit.
+    // A deck's per-sub-track state. How MANY sub-tracks is the host's call, not
+    // the core's (§40.11) — Lockstep builds decks four wide and uses one by
+    // default, a mixing host may build them twenty-four wide, and Record is a
+    // capacity-1 deck. An unused sub-track costs nothing under the medium's lazy
+    // commit, so capacity is cheap and depth stays opt-in.
     struct SubTrack
     {
         // Overdub/punch target the ARMED sub-tracks. Sub 0 is armed by default
@@ -96,12 +97,18 @@ namespace dc
         int sourceTap = 0;   // index into the host's input_source enum (§27)
     };
 
-    inline constexpr int kMaxSubTracks = 4;
-
     class Deck
     {
     public:
-        Deck() noexcept { subs_[0].armed = true; }  // sub 0 armed by default (§40.3)
+        // Capacity is fixed at construction — on the message thread, where a deck
+        // face is built — so that NOTHING on the process path can allocate. The
+        // host picks the width (§40.11): Lockstep's Loop and Tape construct at
+        // kMaxInputSubTracks, Record takes the default and *is* the 1-track face.
+        explicit Deck(int capacity = 1)
+            : subs_(static_cast<std::size_t>(capacity < 1 ? 1 : capacity))
+        {
+            subs_[0].armed = true;  // sub 0 armed by default (§40.3)
+        }
 
         [[nodiscard]] DeckState state() const noexcept { return state_; }
         void setState(DeckState s) noexcept { state_ = s; }
@@ -114,19 +121,30 @@ namespace dc
 
         void cancelPending() noexcept { pendingAction_ = Pending::None; }
 
-        [[nodiscard]] int subTrackCount() const noexcept { return subTrackCount_; }
-        void setSubTrackCount(int n) noexcept
+        [[nodiscard]] int subTrackCapacity() const noexcept
         {
-            subTrackCount_ = n < 1 ? 1 : (n > kMaxSubTracks ? kMaxSubTracks : n);
+            return static_cast<int>(subs_.size());
         }
 
+        [[nodiscard]] int subTrackCount() const noexcept { return subTrackCount_; }
+
+        // Called from process(): clamps into [1, capacity], never allocates.
+        void setSubTrackCount(int n) noexcept
+        {
+            const int cap = subTrackCapacity();
+            subTrackCount_ = n < 1 ? 1 : (n > cap ? cap : n);
+        }
+
+        // Clamped, not raw-indexed. Under a fixed array an out-of-range sub was
+        // unreachable; with runtime capacity it is a live possibility (ask a
+        // capacity-1 Record deck for sub 2), so the core defends its own bound.
         [[nodiscard]] SubTrack& subTrack(int i) noexcept
         {
-            return subs_[static_cast<std::size_t>(i)];
+            return subs_[static_cast<std::size_t>(clampSub(i))];
         }
         [[nodiscard]] const SubTrack& subTrack(int i) const noexcept
         {
-            return subs_[static_cast<std::size_t>(i)];
+            return subs_[static_cast<std::size_t>(clampSub(i))];
         }
 
         // Apply a verb. `immediate` is the §25 universal override (a double-tap):
@@ -176,9 +194,15 @@ namespace dc
             CloseRecording    // quantized punch-out → Playing
         };
 
+        [[nodiscard]] int clampSub(int i) const noexcept
+        {
+            const int last = subTrackCapacity() - 1;
+            return i < 0 ? 0 : (i > last ? last : i);
+        }
+
         DeckState state_ = DeckState::Idle;
         Pending pendingAction_ = Pending::None;
         int subTrackCount_ = 1;
-        std::array<SubTrack, kMaxSubTracks> subs_{};
+        std::vector<SubTrack> subs_;
     };
 }
