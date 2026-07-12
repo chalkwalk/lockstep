@@ -147,6 +147,12 @@ namespace lockstep
         {
             return static_cast<FitState>(fitStateMirror_.load(std::memory_order_acquire));
         }
+        // What the fit covers. WholeDeck = the FreeLen record-close fit — every
+        // sub-track streams from the loop's own recorded PCM, extending its length to
+        // the grid. SingleSub = the FIT verb — one sub-track streams from a freshly
+        // loaded source stretched to the (unchanged) window, the others read their
+        // static PCM. Both ride the same engine + background bake. Add-only.
+        enum class FitScope : int { WholeDeck = 0, SingleSub };
         // The fitted (grid-aligned) length the fit targets, and the recorded source
         // length it stretches from (both 0 when no fit is set).
         [[nodiscard]] int fitTargetLengthSamples() const noexcept
@@ -176,9 +182,18 @@ namespace lockstep
         // parked, so target_/loopLen_/the engine are ours). Adopts only if the fit
         // is still Streaming and `forGeneration` still matches the live bake
         // generation — a superseding take/clear/length-edit has bumped it, and a
-        // stale bake must be dropped. Returns true when the swap happened.
+        // stale bake must be dropped. A WholeDeck bake resizes the whole slot to the
+        // fitted length; a SingleSub bake writes the stretched PCM into its sub-track
+        // pair only (the window is unchanged). Returns true when the swap happened.
         bool adoptBakedFit(const juce::AudioBuffer<float>& baked, int targetLen,
                            std::uint32_t forGeneration);
+        // engageSubFit — the FIT verb (§40.3). The source has already been loaded
+        // unstretched onto sub-track `sub`; this streams it stretched to the current
+        // window live (SingleSub scope) and bumps the bake generation so the
+        // background worker renders + adopts the stretched PCM into the sub's pair.
+        // Must be called inside withQuiescedEngine (starts the realtime engine).
+        void engageSubFit(int sub, const juce::AudioBuffer<float>& src, int srcLen,
+                          int window);
 
         // Message thread (chrome): the active beat-repeat rate index (0=1/16 … 3=1/2),
         // or -1 when beat-repeat is not held (S5). Lights the held console rate cell.
@@ -409,10 +424,14 @@ namespace lockstep
         [[nodiscard]] float mixSubTracks(int outCh, double pos, double readRate,
                                          int subCount) const;
         // S7: the streaming-fit read — the same per-sub level/pan/mute/solo mix as
-        // mixSubTracks, but the raw channel samples come from `fitScratch_` (the
-        // realtime stretch engine's output for this block, filled at block start)
-        // rather than a fractional read of `target_`. `sample` is the block index.
-        [[nodiscard]] float mixSubTracksStreamed(int outCh, int sample, int subCount) const;
+        // mixSubTracks, but a *streamed* sub-track's raw samples come from
+        // `fitScratch_` (the realtime stretch engine's output for this block, filled
+        // at block start) instead of a fractional read of `target_`. WholeDeck: every
+        // sub streams (pair `2*sub`). SingleSub: only `fitSub_` streams (pair 0 of
+        // fitScratch_); the others fall back to the static fractional read at `pos`.
+        // `sample` is the block index; `pos`/`readRate` drive the static fallback.
+        [[nodiscard]] float mixSubTracksStreamed(int outCh, int sample, double pos,
+                                                 double readRate, int subCount) const;
         // S7: engage the FreeLen pitch-preserved fit at record-close (FreeLen only).
         // Rounds loopLen_ up to the next launch-quant multiple; on a genuine stretch
         // it starts the realtime engine (Streaming) and requests a background bake,
@@ -535,9 +554,15 @@ namespace lockstep
         BungeeStretchEngine fitEngine_;
         LoopFitSource loopFitSource_{};
         FitState fitState_ = FitState::Off;     // audio-thread truth (mirror published)
-        int  fitSrcLen_ = 0;                    // recorded source length the fit reads
-        int  fitTargetLen_ = 0;                 // fitted (grid-aligned) output length
+        FitScope fitScope_ = FitScope::WholeDeck;  // what the active fit covers
+        int  fitSub_ = -1;                      // SingleSub: the streaming sub-track
+        int  fitSrcLen_ = 0;                    // source length the fit reads/stretches
+        int  fitTargetLen_ = 0;                 // fitted output length (window)
         juce::AudioBuffer<float> fitScratch_;   // engine output for this block (streaming)
+        // SingleSub: the full loaded source PCM the stream stretches from (the loop's
+        // own recorded PCM in target_ is truncated to the window, so the stream reads
+        // its own untruncated copy). Empty for WholeDeck (that reads target_).
+        juce::AudioBuffer<float> fitSrcBuf_;
         bool fitScratchFilled_ = false;         // did we fill fitScratch_ this block?
 
         // Lock-free SPSC command FIFO (message → audio). Capacity is generous: at most

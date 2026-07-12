@@ -603,13 +603,24 @@ namespace lockstep
         CHECK(s != nullptr && feq(s->pcm.getSample(2, 3000), 0.0f),
               "native load leaves sub 1 silent past its source (sample 3000)");
 
-        // FIT sub 1: the 2000-sample source stretches to the 4000 window → 0.5 fills
-        // it (a constant stretches to a constant).
-        CHECK(p.fitDeckSubTrack(0, 1), "FIT stretched sub 1 to the window");
+        // S7: FIT no longer blocks — it engages a streaming fit and defers the
+        // stretch to the background bake. Immediately after, the pool slot still
+        // holds the UNSTRETCHED load (silent past 2000): the stretch has not landed.
+        CHECK(p.fitDeckSubTrack(0, 1), "FIT engaged a streaming fit on sub 1");
+        const auto* s1 = p.samplePool().get(slot);
+        CHECK(s1 != nullptr && feq(s1->pcm.getSample(2, 3000), 0.0f),
+              "FIT does not block: the stretch is deferred (slot still unstretched)");
+
+        // Run the background bake inline (the editor timer's pollLoopBakes, done
+        // synchronously): the stretched 0.5 now fills the sub past 2000.
+        p.bakePendingLoopFitsSync();
         const auto* s2 = p.samplePool().get(slot);
         CHECK(s2 != nullptr && std::abs(s2->pcm.getSample(2, 3000) - 0.5f) < 0.1f,
-              "FIT filled sub 1 past 2000 (stretched, got "
+              "XFIT bake filled sub 1 past 2000 (stretched, got "
                   + juce::String(s2 ? s2->pcm.getSample(2, 3000) : 0.0f, 3) + ")");
+        // Sub 0 (the window-setter) is untouched by the single-sub FIT.
+        CHECK(s2 != nullptr && std::abs(s2->pcm.getSample(0, 3000) - 0.5f) < 0.1f,
+              "FIT left sub 0 untouched (still 0.5 at 3000)");
 
         longF.withFileExtension("wav").deleteFile();
         shortF.withFileExtension("wav").deleteFile();

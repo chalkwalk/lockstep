@@ -240,9 +240,12 @@ namespace lockstep
         // S7: drop any fit and its engine voice.
         if (fitState_ == FitState::Streaming) fitEngine_.reset();
         fitState_ = FitState::Off;
+        fitScope_ = FitScope::WholeDeck;
+        fitSub_ = -1;
         fitSrcLen_ = 0;
         fitTargetLen_ = 0;
         fitScratchFilled_ = false;
+        fitSrcBuf_.setSize(0, 0);
         fitStateMirror_.store(0, std::memory_order_release);
         fitTargetLenMirror_.store(0, std::memory_order_relaxed);
         fitSrcLenMirror_.store(0, std::memory_order_relaxed);
@@ -375,7 +378,11 @@ namespace lockstep
 
     int LoopMachine::LoopFitSource::read(float* dest, int ch, juce::int64 srcPos, int n)
     {
-        const auto* buf = owner != nullptr ? owner->target_ : nullptr;
+        // WholeDeck reads the loop's own recorded PCM (target_); SingleSub (the FIT
+        // verb) reads its untruncated source copy (fitSrcBuf_).
+        const bool sub = owner != nullptr && owner->fitScope_ == FitScope::SingleSub;
+        const auto* buf = owner == nullptr ? nullptr
+                                           : (sub ? &owner->fitSrcBuf_ : owner->target_);
         const int len = owner != nullptr ? owner->fitSrcLen_ : 0;
         const int chans = buf != nullptr ? buf->getNumChannels() : 0;
         const int useCh = std::min(ch, chans - 1);
@@ -395,9 +402,11 @@ namespace lockstep
 
     int LoopMachine::LoopFitSource::numChannels() const
     {
-        // The recorded deck width (2 per sub-track). engineChannels() clamps to the
-        // policy width so the engine and the read agree on the channel count.
-        const auto* buf = owner != nullptr ? owner->target_ : nullptr;
+        // WholeDeck reads the recorded deck width (2 per sub-track); SingleSub reads a
+        // stereo source. engineChannels() clamps to the policy width.
+        if (owner == nullptr) return 2;
+        const auto* buf = owner->fitScope_ == FitScope::SingleSub
+                              ? &owner->fitSrcBuf_ : owner->target_;
         return buf != nullptr ? engineChannels(buf->getNumChannels()) : 2;
     }
 
@@ -412,6 +421,8 @@ namespace lockstep
         // length rounds UP to the next launch-quant multiple, extend-only, and the
         // window is filled pitch-preserved.
         fitState_ = FitState::Off;
+        fitScope_ = FitScope::WholeDeck;
+        fitSub_ = -1;
         if (syncMode_ != 1 || loopLen_ <= 0 || target_ == nullptr) return;
 
         const double tol = kFitTolSec * sampleRate_;
@@ -447,13 +458,50 @@ namespace lockstep
         fitBakeGen_.fetch_add(1, std::memory_order_release);
     }
 
+    void LoopMachine::engageSubFit(int sub, const juce::AudioBuffer<float>& src,
+                                   int srcLen, int window)
+    {
+        cancelFit();  // clear any prior fit (also bumps the generation)
+        if (srcLen <= 0 || window <= 0) return;
+        fitScope_ = FitScope::SingleSub;
+        fitSub_ = clampSub(sub);
+        fitSrcLen_ = srcLen;
+        fitTargetLen_ = window;
+        // Keep an untruncated stereo copy of the source: target_'s pair holds it only
+        // up to the window, but the stretch reads the whole source.
+        fitSrcBuf_.setSize(2, srcLen, false, false, true);
+        fitSrcBuf_.clear();
+        const int sc = std::max(1, engineChannels(src.getNumChannels()));
+        for (int c = 0; c < 2; ++c)
+            fitSrcBuf_.copyFrom(c, 0, src, std::min(c, sc - 1), 0,
+                                std::min(srcLen, src.getNumSamples()));
+
+        const double ratio = static_cast<double>(window) / static_cast<double>(srcLen);
+        loopFitSource_.owner = this;
+        fitEngine_.start(&loopFitSource_, 0.0, ratio, 1.0);
+        fitEngine_.setLoop(0, srcLen);       // seamless looped stretched read
+        fitState_ = FitState::Streaming;
+        playPos_ = 0.0;
+        lastPos_ = 0.0;
+
+        fitTargetLenMirror_.store(fitTargetLen_, std::memory_order_relaxed);
+        fitSrcLenMirror_.store(fitSrcLen_, std::memory_order_relaxed);
+        fitStateMirror_.store(static_cast<int>(fitState_), std::memory_order_release);
+        // Bump AFTER the lengths so a processor observing the new generation reads
+        // consistent target/source lengths, then queues the bake.
+        fitBakeGen_.fetch_add(1, std::memory_order_release);
+    }
+
     void LoopMachine::cancelFit()
     {
         if (fitState_ == FitState::Streaming) fitEngine_.reset();
         fitState_ = FitState::Off;
+        fitScope_ = FitScope::WholeDeck;
+        fitSub_ = -1;
         fitSrcLen_ = 0;
         fitTargetLen_ = 0;
         fitScratchFilled_ = false;
+        fitSrcBuf_.setSize(0, 0);
         fitTargetLenMirror_.store(0, std::memory_order_relaxed);
         fitSrcLenMirror_.store(0, std::memory_order_relaxed);
         // Bump the generation so an in-flight background bake is superseded.
@@ -462,11 +510,25 @@ namespace lockstep
 
     bool LoopMachine::snapshotFitSource(juce::AudioBuffer<float>& dst) const
     {
-        // Read the source length off the published mirror (message thread); the
-        // recorded PCM behind it is stable while the fit streams (the take closed,
-        // and the streaming read path touches fitScratch_, not target_).
         const int srcLen = fitSrcLenMirror_.load(std::memory_order_acquire);
-        if (target_ == nullptr || srcLen <= 0) return false;
+        if (srcLen <= 0) return false;
+        if (fitScope_ == FitScope::SingleSub)
+        {
+            // The FIT verb stretches its own untruncated source copy (fitSrcBuf_),
+            // not target_ (that holds the loaded source truncated to the window).
+            const int nch = fitSrcBuf_.getNumChannels();
+            const int copyLen = std::min(srcLen, fitSrcBuf_.getNumSamples());
+            if (nch <= 0 || copyLen <= 0) return false;
+            dst.setSize(nch, srcLen, false, false, true);
+            dst.clear();
+            for (int ch = 0; ch < nch; ++ch)
+                dst.copyFrom(ch, 0, fitSrcBuf_, ch, 0, copyLen);
+            return true;
+        }
+        // WholeDeck: the recorded PCM behind the mirror is stable while the fit
+        // streams (the take closed, and the streaming read touches fitScratch_, not
+        // target_). Snapshot the whole recorded deck width.
+        if (target_ == nullptr) return false;
         const int nch = target_->getNumChannels();
         const int copyLen = std::min(srcLen, target_->getNumSamples());
         if (nch <= 0 || copyLen <= 0) return false;
@@ -484,61 +546,103 @@ namespace lockstep
         // has bumped the generation (and moved fitState_ off Streaming).
         if (forGeneration != fitBakeGen_.load(std::memory_order_acquire)) return false;
         if (fitState_ != FitState::Streaming) return false;
-        if (target_ == nullptr || targetLen <= 0 || targetLen > capacity_) return false;
+        if (targetLen <= 0) return false;
+        // Resolve the slot buffer from the pool: the FIT verb can engage a fit via
+        // loadSubTrack before the machine has ever process()'d, so the `target_`
+        // member may be stale/null. We run inside withQuiescedEngine, so reseating it
+        // is safe.
+        target_ = pool_.mutableVolatilePcm(targetSlot_);
+        if (target_ == nullptr) return false;
 
-        // Grow the slot to the fitted window (kept within the pre-reserved capacity,
-        // so no reallocation) and write the baked stretched PCM in, channel-for-
-        // channel across the whole recorded deck width.
-        const int nch = target_->getNumChannels();
-        target_->setSize(nch, targetLen, false, false, true);
-        const int copyCh = std::min(nch, baked.getNumChannels());
-        const int copyLen = std::min(targetLen, baked.getNumSamples());
-        for (int ch = 0; ch < nch; ++ch)
+        if (fitScope_ == FitScope::SingleSub)
         {
-            if (ch < copyCh) target_->copyFrom(ch, 0, baked, ch, 0, copyLen);
-            else             target_->clear(ch, 0, targetLen);
+            // Write the stretched source into the fitted sub-track's channel-pair
+            // only — the window (loopLen_) and every other sub-track are unchanged.
+            const int firstCh = 2 * fitSub_;
+            const int nch = target_->getNumChannels();
+            if (firstCh + 1 >= nch) return false;
+            const int bakedCh = std::max(1, baked.getNumChannels());
+            const int copyLen = std::min({ targetLen, loopLen_, baked.getNumSamples() });
+            for (int c = 0; c < 2; ++c)
+            {
+                target_->clear(firstCh + c, 0, loopLen_);
+                target_->copyFrom(firstCh + c, 0, baked, std::min(c, bakedCh - 1), 0, copyLen);
+            }
+        }
+        else
+        {
+            if (targetLen > capacity_) return false;
+            // Grow the slot to the fitted window (within the pre-reserved capacity,
+            // so no reallocation) and write the baked stretched PCM in across the
+            // whole recorded deck width.
+            const int nch = target_->getNumChannels();
+            target_->setSize(nch, targetLen, false, false, true);
+            const int copyCh = std::min(nch, baked.getNumChannels());
+            const int copyLen = std::min(targetLen, baked.getNumSamples());
+            for (int ch = 0; ch < nch; ++ch)
+            {
+                if (ch < copyCh) target_->copyFrom(ch, 0, baked, ch, 0, copyLen);
+                else             target_->clear(ch, 0, targetLen);
+            }
+            loopLen_ = targetLen;
+            // Refresh the loop's musical length now that it is grid-aligned.
+            const double spb = transport_.samplesPerBar;
+            pool_.setSourceBars(targetSlot_,
+                                spb > 0.0 ? static_cast<double>(loopLen_) / spb : 0.0);
         }
 
-        loopLen_ = targetLen;
-        // The stream advanced playPos_ at unity over this same fitted length, so the
-        // static read continues in phase; rate returns to native (targetOutputSamples
-        // is 0 for FreeLen). Retire the engine and mark the loop plain static PCM.
+        // The stream advanced playPos_ at unity over the fitted window, so the static
+        // read continues in phase; rate returns to native. Retire the engine and mark
+        // the loop plain static PCM.
         fitEngine_.reset();
         fitState_ = FitState::Baked;
+        fitScope_ = FitScope::WholeDeck;
+        fitSub_ = -1;
         fitScratchFilled_ = false;
-
-        // Refresh the loop's musical length now that it is grid-aligned.
-        const double spb = transport_.samplesPerBar;
-        pool_.setSourceBars(targetSlot_,
-                            spb > 0.0 ? static_cast<double>(loopLen_) / spb : 0.0);
+        fitSrcBuf_.setSize(0, 0);
 
         loopLenMirror_.store(loopLen_, std::memory_order_release);
         fitStateMirror_.store(static_cast<int>(fitState_), std::memory_order_release);
         return true;
     }
 
-    float LoopMachine::mixSubTracksStreamed(int outCh, int sample, int subCount) const
+    float LoopMachine::mixSubTracksStreamed(int outCh, int sample, double pos,
+                                            double readRate, int subCount) const
     {
         if (! fitScratchFilled_) return 0.0f;
-        // Same per-sub level/pan/mute/solo mix as mixSubTracks, but the raw channel
-        // samples come from the engine's stretched output (fitScratch_) for this
-        // block instead of a fractional read of target_.
+        // Same per-sub level/pan/mute/solo mix as mixSubTracks. A *streamed* sub reads
+        // the engine's stretched output (fitScratch_); a non-streamed sub (SingleSub's
+        // untouched sub-tracks) falls back to the static fractional read of target_.
         bool anySolo = false;
         for (int sub = 0; sub < subCount; ++sub)
             if (deck_.subTrack(sub).soloed) { anySolo = true; break; }
 
         const int scChans = fitScratch_.getNumChannels();
+        const int tChans = target_ != nullptr ? target_->getNumChannels() : 0;
         float acc = 0.0f;
         for (int sub = 0; sub < subCount; ++sub)
         {
             const auto& st = deck_.subTrack(sub);
             if (st.muted || (anySolo && !st.soloed)) continue;
-            const int rdCh = 2 * sub + outCh;
-            if (rdCh >= scChans) continue;
             const float panGain = (outCh == 0)
                 ? (st.pan <= 0.0f ? 1.0f : 1.0f - st.pan)
                 : (st.pan >= 0.0f ? 1.0f : 1.0f + st.pan);
-            acc += fitScratch_.getSample(rdCh, sample) * st.level * panGain;
+
+            const bool streamedSub = (fitScope_ == FitScope::WholeDeck) || (sub == fitSub_);
+            float raw = 0.0f;
+            if (streamedSub)
+            {
+                // WholeDeck: each sub owns pair 2*sub of the engine output. SingleSub:
+                // the engine produces one stereo stretch in pair 0.
+                const int rdCh = (fitScope_ == FitScope::WholeDeck ? 2 * sub : 0) + outCh;
+                if (rdCh < scChans) raw = fitScratch_.getSample(rdCh, sample);
+            }
+            else
+            {
+                const int rdCh = 2 * sub + outCh;
+                if (rdCh < tChans) raw = loopSample(rdCh, pos, readRate);
+            }
+            acc += raw * st.level * panGain;
         }
         return acc;
     }
@@ -1304,7 +1408,7 @@ namespace lockstep
                         // S7: while the fit streams, the loop output is the engine's
                         // stretched block, not a fractional read of the source.
                         if (tch && streaming && transportGates)
-                            loopOut = mixSubTracksStreamed(ch, i, subCount);
+                            loopOut = mixSubTracksStreamed(ch, i, pos, effRate_, subCount);
                         else if (tch && loopLen_ > 0 && transportGates)
                             loopOut = mixSubTracks(ch, pos, effRate_, subCount);
                         break;
@@ -1315,7 +1419,7 @@ namespace lockstep
                         // blocks and normal overdub resumes on the static PCM).
                         if (tch && streaming && transportGates)
                         {
-                            loopOut = mixSubTracksStreamed(ch, i, subCount);
+                            loopOut = mixSubTracksStreamed(ch, i, pos, effRate_, subCount);
                         }
                         else if (tch && loopLen_ > 0 && transportGates)
                         {

@@ -5733,18 +5733,19 @@ namespace lockstep
         const int srcIdx = lm->subSource(sub);
         const auto* src = samplePool_.get(srcIdx);
         if (src == nullptr || src->pcm.getNumSamples() <= 0) return false;
-
-        const double srcRate = src->sampleRate > 0.0 ? src->sampleRate : getSampleRate();
-        const double outRate = getSampleRate() > 0.0 ? getSampleRate() : srcRate;
-
-        // Render the source stretched to the window (message thread), then adopt it
-        // into the same window — loadSubTrack writes the pair and keeps provenance.
-        juce::AudioBuffer<float> fitted;
-        renderStretch(src->pcm, srcRate, L, outRate, fitted);
-
+        const int srcLen = src->pcm.getNumSamples();
         const int slot = lm->targetSlot();
+
+        // S7: FIT now streams instead of blocking. Load the source UNSTRETCHED onto
+        // the sub (immediate content + provenance), then engage a sub-scoped streaming
+        // fit so it sounds stretched-to-window at once; the editor timer's
+        // pollLoopBakes queues the background stretch, which adopts the stretched PCM
+        // into the sub's pair. No blocking render on the message thread.
         bool ok = false;
-        withQuiescedEngine([&] { ok = lm->loadSubTrack(sub, fitted, L, slot, srcIdx); });
+        withQuiescedEngine([&] {
+            ok = lm->loadSubTrack(sub, src->pcm, srcLen, slot, srcIdx);
+            if (ok) lm->engageSubFit(sub, src->pcm, srcLen, L);
+        });
         return ok;
     }
 
