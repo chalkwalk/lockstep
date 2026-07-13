@@ -812,7 +812,15 @@ namespace lockstep
 
         // D (stems): per-track post-fader/post-FX capture written alongside the
         // master take. When enabled, start/stopCapture also arm/flush a WAV per
-        // audio track (MIDI-out tracks produce no stem). DESIGN §22 / §27.
+        // audio track. DESIGN §41.3 / §27.
+        //
+        // 11.11 — the alignment invariant. Every track's recorder arms at capture
+        // start (Stub and MIDI-out included: a machine assigned mid-take must
+        // still produce a file that reaches back to the take's start), a top-up
+        // sweep keeps every stem exactly as long as the master, and stopCapture
+        // PRUNES the files of tracks that were never stemmable. What survives is
+        // therefore exactly the Master-routed terminals — "routing is the stem
+        // grouping" — with no arm-time snapshot to go stale.
         void setCaptureStems(bool on) noexcept { captureStems_ = on; }
         [[nodiscard]] bool captureStems() const noexcept { return captureStems_; }
         [[nodiscard]] bool isCapturingStems() const noexcept;
@@ -821,6 +829,14 @@ namespace lockstep
         // it to target a temp directory.
         bool startCaptureTo(const juce::File& masterFile);
         [[nodiscard]] std::int64_t stemSamplesWritten(int track) const noexcept;
+        // Would this track contribute a stem right now? (Message thread; the same
+        // predicate the audio thread latches during a take.) Non-Stub, non-MIDI-out,
+        // Master-routed; an unfed Route bus does not count.
+        [[nodiscard]] bool shouldStemTrack(int track) const;
+        // How many stems a take started now would keep — the arm-time preview (S1).
+        [[nodiscard]] int stemmableCount() const;
+        // How many tracks have been stemmable at any point during the running take.
+        [[nodiscard]] int stemsKeptCount() const noexcept;
 
         // MG.4: Sound Pool CRUD (message thread only).
         // saveTrackToSoundPool: snapshots the active Part's track state + sample index.
@@ -1709,14 +1725,27 @@ namespace lockstep
         // override, currently unbound.
         std::array<CaptureRecorder, kNumTracks> stemRecorders_;
         bool captureStems_ = true;
+        // 11.11: one writer thread shared by the master recorder and all stems —
+        // a take arms 17 streams, which must not be 17 threads. Outlives them
+        // (declared before nothing that owns a writer; disarmed in stopCapture).
+        std::unique_ptr<juce::TimeSliceThread> captureWriteThread_;
+        // 11.11: "was this track EVER stemmable during the running take?" Latched
+        // on the audio thread each block, read at close to decide which stem files
+        // to keep (the rest are pruned). Cleared at capture start.
+        std::array<std::atomic<bool>, kNumTracks> stemEverStemmable_{};
+        // 11.11: the audio-thread half of shouldStemTrack — same predicate, but it
+        // reuses the routing state the block already computed. `edges` is the
+        // block's routingEdges().
+        [[nodiscard]] bool stemmableNow(int track,
+                                        const std::array<int, kNumTracks>& edges) const noexcept;
+        // 11.11: the top-up sweep (audio thread) — pad every armed stem out to the
+        // master's sample count, so a block that skipped a track (floored mute
+        // ramp, MIDI-out, zero-length) cannot shorten its file. DESIGN §41.3.
+        void feedStems() noexcept;
         // A2: routing-rejection feedback (editor polls seq + reads reason/track).
         std::atomic<int> routeRejectReason_{ 0 };
         std::atomic<int> routeRejectTrack_{ -1 };
         std::atomic<std::uint32_t> routeRejectSeq_{ 0 };
-        // D: should track `t` produce a stem? Non-MIDI-out, non-stub, routed to
-        // Master (feeders fold into their bus; Off goes nowhere), and — for a
-        // router/Route — not an empty bus (no outside source and no inbound feeder).
-        [[nodiscard]] bool shouldStemTrack(int track) const;
 
         // Project-file state — message thread only.
         juce::MemoryBlock defaultStateBlob_;          // pristine state captured at construction

@@ -2639,6 +2639,140 @@ namespace lockstep
         tmpDir.deleteRecursively();
     }
 
+    // ── 11.11 stems: the alignment invariant ────────────────────────────────
+    // Read a WAV's length in samples (-1 when the file is absent/unreadable).
+    static juce::int64 wavLengthSamples(const juce::File& f)
+    {
+        if (!f.existsAsFile()) return -1;
+        juce::WavAudioFormat wav;
+        auto is = std::unique_ptr<juce::FileInputStream>(f.createInputStream());
+        if (!is) return -1;
+        std::unique_ptr<juce::AudioFormatReader> reader(wav.createReaderFor(is.get(), true));
+        if (!reader) return -1;
+        is.release();   // reader owns the stream
+        return reader->lengthInSamples;
+    }
+
+    // Peak magnitude over a sample range of a WAV (0 when absent/out of range).
+    static float wavPeakInRange(const juce::File& f, juce::int64 start, int numSamples)
+    {
+        if (!f.existsAsFile() || numSamples <= 0) return 0.0f;
+        juce::WavAudioFormat wav;
+        auto is = std::unique_ptr<juce::FileInputStream>(f.createInputStream());
+        if (!is) return 0.0f;
+        std::unique_ptr<juce::AudioFormatReader> reader(wav.createReaderFor(is.get(), true));
+        if (!reader) return 0.0f;
+        is.release();
+        if (start < 0 || start >= reader->lengthInSamples) return 0.0f;
+        const int n = static_cast<int>(
+            std::min<juce::int64>(numSamples, reader->lengthInSamples - start));
+        juce::AudioBuffer<float> buf(static_cast<int>(reader->numChannels), n);
+        reader->read(&buf, 0, n, start, true, true);
+        return buf.getMagnitude(0, n);
+    }
+
+    // 11.11 / DESIGN §41.3 — S12: a set improvised from a blank project must still
+    // come home with stems. The stem set is not knowable at arm (the machines are
+    // assigned while the tape rolls), so every track records and the never-stemmable
+    // files are pruned at close. A track that joins mid-take gets a full-length file
+    // whose head is silence — it stays sample-aligned with master.wav.
+    static void testStemsFromBlankProjectAssignedMidTake()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        const juce::File tmpDir = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                                      .getChildFile("lockstep_stem_blank_test");
+        tmpDir.deleteRecursively();
+        const juce::File master = tmpDir.getChildFile("master.wav");
+
+        // The empty project a from-nothing set starts from: every track a Stub.
+        // (This is what a saved project with no assigned tracks loads as; a
+        // default-constructed processor instead carries the 2.6 split, samplers
+        // on tracks 1-8.) Arming here used to record ZERO stems — the defining
+        // CUJ, improvise a set from nothing, came home with no stems at all.
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            proc.setTrackMachine(t, StubMachine::kMachineId);
+        CHECK(proc.stemmableCount() == 0, "empty project: nothing is stemmable at arm");
+        CHECK(proc.startCaptureTo(master), "capture arms on a blank project");
+
+        const int kSilentBlocks = 6;
+        for (int b = 0; b < kSilentBlocks; ++b)
+            renderBlockWithInput(h, 0.0f);
+        const juce::int64 headSamples =
+            static_cast<juce::int64>(kSilentBlocks) * EngineHarness::kBlockSize;
+
+        // Now bring a track in, mid-take: assign a Route passing the input bus.
+        installRoute(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        CHECK(proc.stemmableCount() == 1, "assigning a machine mid-take makes it stemmable");
+
+        for (int b = 0; b < 8; ++b)
+            renderBlockWithInput(h, 0.5f);
+
+        proc.stopCapture();
+
+        const juce::File stem0 = stemFileFor(master, 0);
+        const juce::int64 masterLen = wavLengthSamples(master);
+        CHECK(masterLen > 0, "master.wav was written");
+        CHECK(wavLengthSamples(stem0) == masterLen,
+              "mid-take stem is exactly as long as master.wav (silence-padded to the start)");
+        CHECK(wavPeakInRange(stem0, 0, static_cast<int>(headSamples)) < 1.0e-6f,
+              "the stem's pre-assignment head is silence, not a time shift");
+        CHECK(wavPeakInRange(stem0, headSamples, 4 * EngineHarness::kBlockSize) > 1.0e-4f,
+              "the stem carries audio once the track joins");
+        // Tracks that never became stemmable leave no file behind.
+        CHECK(!stemFileFor(master, 1).existsAsFile(), "never-assigned track is pruned at close");
+
+        tmpDir.deleteRecursively();
+    }
+
+    // 11.11 / DESIGN §41.3 — S13, the regression that motivated the invariant.
+    // Both track loops `continue` past a fully-faded muted track, which skipped the
+    // stem write: every skipped block SHORTENED that stem file, so everything after
+    // a mute was time-shifted against master.wav. The top-up sweep must keep the
+    // stem sample-exact regardless of mutes, and across the transport-stopped path.
+    static void testStemStaysAlignedAcrossMute()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        installRoute(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+
+        const juce::File tmpDir = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                                      .getChildFile("lockstep_stem_mute_test");
+        tmpDir.deleteRecursively();
+        const juce::File master = tmpDir.getChildFile("master.wav");
+
+        CHECK(proc.startCaptureTo(master), "capture arms");
+
+        for (int b = 0; b < 4; ++b)
+            renderBlockWithInput(h, 0.5f);
+
+        // Mute the track and hold it long enough for the declick ramp to floor —
+        // past that point the track loop skips the track entirely.
+        proc.setGlobalMute(0, true);
+        for (int b = 0; b < 24; ++b)
+            renderBlockWithInput(h, 0.5f);
+
+        // ...and take the transport-stopped path too (its loop has the same skip).
+        h.playHead().setPlaying(false);
+        for (int b = 0; b < 6; ++b)
+            renderBlockWithInput(h, 0.5f);
+        h.playHead().setPlaying(true);
+
+        proc.setGlobalMute(0, false);
+        for (int b = 0; b < 6; ++b)
+            renderBlockWithInput(h, 0.5f);
+
+        proc.stopCapture();
+
+        const juce::int64 masterLen = wavLengthSamples(master);
+        CHECK(masterLen > 0, "master.wav was written");
+        CHECK(wavLengthSamples(stemFileFor(master, 0)) == masterLen,
+              "a muted track's stem stays sample-exact with master.wav (no time shift)");
+
+        tmpDir.deleteRecursively();
+    }
+
     // Resolve a VA slot index from its stable param id (slot constants are
     // private; the id is the public contract).
     static int vaSlotById(const char* id)
@@ -4653,5 +4787,7 @@ namespace lockstep
         testRouteIsValidOutDestination();
         testRoutingDormantOnMachineSwap();
         testStemCaptureRouteDefined();
+        testStemsFromBlankProjectAssignedMidTake();
+        testStemStaysAlignedAcrossMute();
     }
 }

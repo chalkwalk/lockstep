@@ -2612,6 +2612,7 @@ namespace lockstep
                                    : masterPeak_.load(std::memory_order_relaxed),
                                std::memory_order_relaxed);
             captureRecorder_.writeBlock(mainOut, numBlockSamples);
+            feedStems();   // 11.11: stems end this block as long as the master
             cachePrevMaster(mainOut, numBlockSamples);
             return;
         }
@@ -3599,6 +3600,7 @@ namespace lockstep
                                : masterPeak_.load(std::memory_order_relaxed),
                            std::memory_order_relaxed);
         captureRecorder_.writeBlock(mainOut, numBlockSamples);
+        feedStems();   // 11.11: stems end this block as long as the master
         cachePrevMaster(mainOut, numBlockSamples);
 
         totalSamplesProcessed_ += numBlockSamples;
@@ -8017,19 +8019,33 @@ namespace lockstep
     {
         if (captureRecorder_.isCapturing())
             return false;   // already running
+
+        if (!captureWriteThread_)
+        {
+            captureWriteThread_ = std::make_unique<juce::TimeSliceThread>("capture writer");
+            captureWriteThread_->startThread(juce::Thread::Priority::low);
+        }
+
         const double sr = getSampleRate() > 0.0 ? getSampleRate() : 44100.0;
         const int numCh = std::max(1, getTotalNumOutputChannels());
-        if (!captureRecorder_.arm(masterFile, sr, numCh))
+        if (!captureRecorder_.arm(masterFile, sr, numCh, captureWriteThread_.get()))
             return false;
 
-        // D: arm a stem per non-empty Master-routed track (DESIGN §27). Buses are
-        // Master-routed and capture their feeders folded in; the feeders
-        // themselves route to a bus, so they are skipped (no double-count).
+        // 11.11: arm EVERY track's stem — Stub and MIDI-out included. The stem set
+        // is not knowable at arm (a from-blank set assigns its machines while the
+        // tape rolls), so we record all and prune at close; what a track "is" only
+        // has to be true for one block for its stem to be worth keeping. The files
+        // of tracks that never become stemmable are deleted in stopCapture, so
+        // "routing is the stem grouping" (DESIGN §41.3) still describes what
+        // survives on disk.
         if (captureStems_)
         {
             for (std::size_t t = 0; t < kNumTracks; ++t)
-                if (shouldStemTrack(static_cast<int>(t)))
-                    stemRecorders_[t].arm(stemFileFor(masterFile, static_cast<int>(t)), sr, numCh);
+            {
+                stemEverStemmable_[t].store(false, std::memory_order_relaxed);
+                stemRecorders_[t].arm(stemFileFor(masterFile, static_cast<int>(t)), sr, numCh,
+                                      captureWriteThread_.get());
+            }
         }
         return true;
     }
@@ -8037,15 +8053,24 @@ namespace lockstep
     bool LockstepProcessor::shouldStemTrack(int track) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        return stemmableNow(track, routingEdges());
+    }
+
+    // The one stem predicate (DESIGN §41.3). shouldStemTrack is the message-thread
+    // face; the audio thread calls this directly with the block's routing edges so
+    // it does no extra graph work. Non-MIDI-out, non-stub, routed to Master
+    // (feeders fold into their bus, Off goes nowhere), and — for a router/Route —
+    // not an empty bus (no outside source and no inbound feeder).
+    bool LockstepProcessor::stemmableNow(int track,
+                                         const std::array<int, kNumTracks>& edges) const noexcept
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
         const auto t = static_cast<std::size_t>(track);
         auto* m = machines_[t].get();
         if (m == nullptr || m->isMidiOut()) return false;
         if (std::string(m->machineId()) == StubMachine::kMachineId) return false;
-        // Only terminal (Master-routed) tracks are stems; feeders fold into their
-        // bus, Off contributes nothing.
         if (routeForTrack(track).route != Route::Master) return false;
-        // A router (Route) with no outside source and no inbound feeder is an empty
-        // bus — skip it rather than write a silent file.
+
         const int srcSlot = slotForId(track, kInputSourceSlotId);
         if (srcSlot >= 0)
         {
@@ -8054,7 +8079,6 @@ namespace lockstep
                                 ? bp[static_cast<std::size_t>(srcSlot)] : 0.0f;
             const bool hasSource = decodeInputSource(v).kind != InputSourceKind::None;
             bool hasFeeder = false;
-            const auto edges = routingEdges();
             for (std::size_t j = 0; j < kNumTracks; ++j)
                 if (edges[j] == track) { hasFeeder = true; break; }
             if (!hasSource && !hasFeeder) return false;
@@ -8062,12 +8086,60 @@ namespace lockstep
         return true;
     }
 
+    int LockstepProcessor::stemmableCount() const
+    {
+        const auto edges = routingEdges();
+        int n = 0;
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+            if (stemmableNow(static_cast<int>(t), edges)) ++n;
+        return n;
+    }
+
+    int LockstepProcessor::stemsKeptCount() const noexcept
+    {
+        int n = 0;
+        for (const auto& everStemmable : stemEverStemmable_)
+            if (everStemmable.load(std::memory_order_relaxed)) ++n;
+        return n;
+    }
+
+    // 11.11, the top-up sweep. Called on the audio thread right after the master is
+    // written, so every stem ends the block exactly as long as master.wav. This is
+    // what makes the alignment invariant hold through *any* skip in the track loops
+    // (a floored mute ramp, a MIDI-out track, a zero-length track) — including ones
+    // not yet written. Latches the stem predicate on the same pass.
+    void LockstepProcessor::feedStems() noexcept
+    {
+        // Costs nothing when no take is rolling — the common case by far.
+        // Costs nothing when no take is rolling — the common case by far.
+        if (!captureStems_ || !captureRecorder_.isCapturing()) return;
+        const std::int64_t target = captureRecorder_.samplesWritten();
+        const auto edges = routingEdges();
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            if (stemmableNow(static_cast<int>(t), edges))
+                stemEverStemmable_[t].store(true, std::memory_order_relaxed);
+            stemRecorders_[t].padTo(target);
+        }
+    }
+
     juce::RelativeTime LockstepProcessor::stopCapture()
     {
         const double sr = getSampleRate() > 0.0 ? getSampleRate() : 44100.0;
         const int64_t samples = captureRecorder_.disarm();
-        for (auto& sr_ : stemRecorders_)   // D: flush all stems on the same edge
-            sr_.disarm();
+
+        // 11.11 prune: keep the file of every track that was stemmable at any point
+        // in the take (it holds a full-length, master-aligned recording of what that
+        // track output); delete the rest — feeders folded into a bus, Off-routed,
+        // never-assigned, MIDI-out. The surviving set is exactly the Master-routed
+        // terminals, which is the promise "routing is the stem grouping" makes.
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            if (stemEverStemmable_[t].load(std::memory_order_relaxed))
+                stemRecorders_[t].disarm();
+            else
+                stemRecorders_[t].discardFile();
+        }
         return juce::RelativeTime::seconds(static_cast<double>(samples) / sr);
     }
 
