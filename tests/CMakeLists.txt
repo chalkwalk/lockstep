@@ -119,11 +119,13 @@ enable_testing()
 add_test(NAME SurfaceModelTest COMMAND lockstep_tests)
 
 # ---------------------------------------------------------------------------
-# DispatchSpike (9.12 Stage 5, throwaway): can the editor's dispatch be driven
-# headlessly? Separate binary so a crash here never breaks the main suite.
+# lockstep_dispatch_tests (9.12 Stage 5): the dispatch golden net. Drives a real
+# headless LockstepEditor, so it needs the editor + UI sources that the main test
+# binary deliberately stubs out (TestEditorStub). Kept a SEPARATE binary so the
+# fast core suite does not pay for compiling the UI.
 # ---------------------------------------------------------------------------
-add_executable(lockstep_dispatch_spike
-    DispatchSpike.cpp
+add_executable(lockstep_dispatch_tests
+    DispatchGoldenTest.cpp
     ../src/PluginEditorFactory.cpp   # the real createEditor() (not the test stub)
     ../src/PluginEditor.cpp
     ../src/ui/KeyButton.cpp
@@ -146,7 +148,7 @@ add_executable(lockstep_dispatch_spike
     ../src/ui/mode/ModalState.cpp
     ../src/ui/mode/LatchOps.cpp)
 
-target_link_libraries(lockstep_dispatch_spike PRIVATE
+target_link_libraries(lockstep_dispatch_tests PRIVATE
     lockstep_engine
     juce::juce_gui_extra
     juce::juce_gui_basics
@@ -155,5 +157,7 @@ target_link_libraries(lockstep_dispatch_spike PRIVATE
 
 # runDispatchLoopUntil() (used to deliver the SurfaceDispatcher's async frame) is
 # compiled out unless modal loops are permitted.
-target_compile_definitions(lockstep_dispatch_spike PRIVATE
-    JUCE_MODAL_LOOPS_PERMITTED=1)
+target_compile_definitions(lockstep_dispatch_tests PRIVATE
+    LOCKSTEP_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
+add_test(NAME DispatchGoldenTest COMMAND lockstep_dispatch_tests)
