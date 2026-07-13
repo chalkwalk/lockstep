@@ -17,10 +17,13 @@ priority order:
    mechanism had shipped but the *rule* had not — ~45 surface-changing edits still
    repainted the window and left controller LEDs stale — and now a build guard
    makes the violation impossible to reintroduce, so PRINCIPLES §22 describes code
-   rather than a target. What remains is `9.12` stages 5–8 (table-driven dispatch
-   migration — display already derives from the grammar; dispatch calls
-   `resolveBinding` exactly *once* in 2,079 lines, so the two halves of one grammar
-   are still hand-synced). Plan: `docs/dispatch-migration-plan.md`.
+   rather than a target. `9.12` **stage 5 is done** (2026-07-13): the dispatch
+   golden net exists, driven by a *headless editor* — 9.13's "unviable headless"
+   note was a misdiagnosis (a stack-local 47 MB processor, not component teardown),
+   and it had shaped the plan for this whole item. What remains is `9.12` stages
+   6–8, the migration itself: display already derives from the grammar, but
+   dispatch calls `resolveBinding` exactly *once* in 2,079 lines, so the two halves
+   of one grammar are still hand-synced. Plan: `docs/dispatch-migration-plan.md`.
 2. **Performance usability.** `5.3` Song/Scene management UI (names, colours,
    browser, Kit recall), `9.4` snapshot restore-semantics session, `6.4` Cue bus.
 
@@ -1974,9 +1977,27 @@ the grammar; grid picker cells share a common `paintGridCell*` renderer.
       blocks in `paintStepRows` migrated (machine, FX insert [preserves masterOnly
       dimming], master FX, generator hub, morph step). Complex modes with
       screen-residual text left as-is (§35.8.1). *(Stage 4 — 7e75fd8)*
-- [ ] **Stage 5 — Behavioural golden-test net.** `RecordingEffects`-driven
-      `tests/DispatchGoldenTest.cpp` captures current `dispatchDown`/`dispatchUp`
-      output across all families before any dispatch rewrite.
+- [x] **Stage 5 — Behavioural golden-test net.** *(2026-07-13.)* Done **in place**:
+      `tests/DispatchGoldenTest.cpp` (its own binary, `lockstep_dispatch_tests`)
+      drives a real **headless** `LockstepEditor` and records, for every row of
+      `kKeyBindings` (the matrix enumerates the grammar, so no family can be
+      forgotten), the UiState + processor fields each gesture changes — on **both
+      edges** (during the hold, and after release; a single post-tap snapshot
+      recorded "no change" for every held modifier and was nearly worthless).
+      107 rows. Verified by planting a real regression and watching it fail with
+      the field and edge named.
+      **9.13's "unviable headless (component-teardown segfault)" was a
+      misdiagnosis** — and it had shaped this whole item's plan. `LockstepProcessor`
+      embeds `Arrangement` (~47 MB), so a *stack-local* processor overflows the
+      stack in the enclosing function's **prologue**: the crash lands before the
+      function's first statement, presenting as "headless is impossible" instead of
+      the gotcha the project already documents. Heap-allocate it and dispatch runs.
+      **The extraction is therefore not a prerequisite** for the migration; if we
+      still want it, it is a cleanup the goldens now protect.
+      *Known blind spot:* the baseline is a fresh editor, so the net sees what a
+      gesture **sets**, not what it **clears** (a branch that only clears an
+      already-false flag has no delta). Widen the matrix with non-trivial prior
+      state as stages 6–8 touch those families.
 - [ ] **Stage 6 — New ActionIds + handlers.** Append-only ActionIds for latch,
       escape, restore pop/floor, rec-arm overdub, play-stop, step latch, nav
       unlock, overlay-entry opens. `CommandEffects` methods. Guard test.
@@ -1987,8 +2008,10 @@ the grammar; grid picker cells share a common `paintGridCell*` renderer.
       exhaustive (`-Werror=switch`, no `default:`); test that every ActionId is
       handled; remove `KeyBinding::hint` field.
 
-> **Natural ship point:** Stages 1–4 are landed. Stages 5–8 are the
-> dispatch rewrite — larger scope, separate branch if warranted.
+> **Natural ship point:** Stages 1–5 are landed (5 = the golden net). Stages 6–8
+> are the dispatch rewrite itself, now covered by the net: a family whose goldens
+> move is a bug found, and the golden diff is the review artifact. Re-blessing a
+> golden without reading the diff is the one way to make the net worthless.
 
 ### 9.13 — Redundancy / SSOT consolidation + switch hygiene  *[active]*
 
@@ -2006,8 +2029,13 @@ caused several recent bugs) and make silent `switch` fall-through a compile erro
 - [x] **Stage 5 — Remove dead mirrors** (`latch.anySteps`); document SurfaceModel
       label authority.
 - [x] **Stage 6 — Document state-ownership invariants** (DESIGN §4.7a).
-- [x] **Stage 7/8 — Unified modal read SSOT.** Editor-dispatch harness proved
-      unviable headless (component-teardown segfault); pivoted to a pure seam.
+- [x] **Stage 7/8 — Unified modal read SSOT.** Editor-dispatch harness was
+      *believed* unviable headless (component-teardown segfault); pivoted to a pure
+      seam. **Correction (2026-07-13, 9.12 st.5):** that diagnosis was wrong — the
+      segfault was a stack-local `LockstepProcessor` (embeds ~47 MB `Arrangement`)
+      overflowing the stack in the function prologue, not component teardown. A
+      headless editor harness works fine (`lockstep_dispatch_tests`). The pure seam
+      shipped here is still right on its own merits; only the stated reason was.
       `activeModal(ui)` (`src/ui/mode/ModalState.h`) is the one modal-priority
       query; inspector funnels through it; a drift test locks it to
       `resolveActiveLayer`. **Finding:** held-chords coexist with entered modes,

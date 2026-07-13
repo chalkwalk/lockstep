@@ -97,7 +97,34 @@ blocked by the same coupling the rewrite removes. Resolve it by **extracting
 first, mechanically** — a pure move is reviewable by eye and needs no golden net
 to be trusted, in a way that a logic rewrite never is.
 
-### Decision (2026-07-13): prove it, don't assume it
+### RESOLVED (2026-07-13): golden-testing in place works; the extraction is optional
+
+The attempt below succeeded on avenue (1): a heap-allocated processor + editor,
+constructed under `ScopedJuceInitialiser_GUI`, drives `dispatchDown`/`dispatchUp`
+headlessly and tears down clean. **9.13's segfault was a misdiagnosis** — nothing
+to do with component teardown. `LockstepProcessor` embeds `Arrangement` (~47 MB),
+so a *stack-local* processor overflows the stack in the enclosing function's
+**prologue**, and the crash lands before the function's first statement. That is
+why it looks like "headless is impossible" rather than the documented "never
+stack-construct the processor" gotcha. `std::make_unique` and it runs.
+
+**Stage 5 shipped** as `tests/DispatchGoldenTest.cpp` (`lockstep_dispatch_tests`):
+107 rows, enumerated from `kKeyBindings`, both edges recorded (down and up).
+Consequences:
+
+- The mechanical extraction below is **not a prerequisite** for anything. If we
+  still want it, it becomes a cleanup that the goldens protect — the opposite of
+  the leap of faith it would have been.
+- **Known blind spot:** the baseline is a fresh editor, so the net records what a
+  gesture **sets**, not what it **clears**. Removing a `clearSwingDismissed()` call
+  is invisible to it (the flag is already false). Widen the matrix with non-trivial
+  prior state for the families stages 6–8 touch.
+- Gotcha, cost an hour: `juce::File::replaceWithText` writes **CRLF** by default,
+  so the golden never compared equal to the LF text generated in memory while the
+  line-diff (which strips `\r`) reported no difference — a test that fails on
+  correct code with no explanation. Write goldens with an explicit `"\n"`.
+
+### Original decision (superseded above): prove it, don't assume it
 
 The extraction below is **not** approved on the strength of the argument above.
 9.13's "unviable headless" note is second-hand evidence, and the conclusion is
