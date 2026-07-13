@@ -20,10 +20,10 @@ priority order:
 2. **Performance usability.** `5.3` Song/Scene management UI (names, colours,
    browser, Kit recall), `9.4` snapshot restore-semantics session, `6.4` Cue bus.
 
-**Queued design session:** `11.10` — the capture-family CUJ pass. Record /
-Loop / Tape / Stream are individually clear but must become more than the sum
-of their parts, anchored to the core CUJ: **improvise a full live set and
-record it as stems**, then the studio and DAW variants of the same flow.
+**Capture-family CUJ session (`11.10`) — done 2026-07-12.** DESIGN §41 +
+README §5.23 landed; the follow-up work is `11.11` (dynamic stem set — the
+from-blank improvised set records zero stems today — plus arm preview + take
+sheet), which slots ahead of the usability arc: it completes the defining CUJ.
 
 **Recently shipped:** Phase 11 (the deck engine) is **complete** — core,
 tail (chase-locked Tape, i16 reel, §19 proxies, scrub/wind, multi-sub overdub),
@@ -3120,7 +3120,7 @@ already declares both numbers on its own side.
       **capacity 1 *is* the linear one-track face**, which is the honest test that the
       abstraction was right. Pure refactor: no behaviour change, suite green unchanged.
 
-### 11.10 — Capture-family CUJ design session  *[planned — queued 2026-07-12]*
+### 11.10 — Capture-family CUJ design session  *[shipped 2026-07-12]*
 
 Design-only (docs-first, like 9.4). Record / Loop / Tape / Stream are each
 self-explanatory; the session makes them **more than the sum of their parts**
@@ -3137,15 +3137,54 @@ principled, not dogmatic — where a fence collides with "make a complete set as
 stems", prefer adding the widget over making the user jump through hoops
 (bless with rationale, as with the SEED encoder and the fence-#1 tripwire).
 
-- [ ] Write the three CUJs as concrete walkthroughs (which machine, which
-      gesture, which output) against the shipped surface; mark every seam where
-      the flow stalls (e.g. loop → pool → stem, tape take vs stem export,
-      Stream's role on stage vs in studio).
-- [ ] Decide what "stems of a set" means precisely (per-track? per-take-group?
-      tape sub-tracks? relation to the 6.1 per-take stem export + 9.16 capture
-      deck) and name the one blessed path.
-- [ ] Output: DESIGN section (or §40 extension) + README workflow chapter +
-      follow-up ROADMAP items for the seams found.
+- [x] Write the three CUJs as concrete walkthroughs against the shipped
+      surface; mark every seam. Key discovery: per-track stems had already
+      SHIPPED (6.1 Workstream D) while DESIGN §31.1 still called them a
+      non-goal — the docs contradicted the product on the defining CUJ.
+      Twelve seams logged; the load-bearing one is S12 (arm-time-only stem
+      set → a from-blank improvised set records zero stems).
+- [x] "Stems of a set" decided: the capture deck's Master-routed terminal
+      tracks, **routing = the stem grouping** (Route bus = one stem, feeders
+      fold); stems dry-per-track, `master.wav` carries master inserts + send
+      returns (sends NOT separately captured — decision); hardware stems via
+      the return-channel recipe. Both stem paths blessed with roles: capture
+      deck = files-anywhere archive, Aux outs = timeline-locked DAW tracks.
+      Tape identity: flexible instrument (4-track, rehearsal mirror, archive
+      only if promoted); capture deck = the zero-thought archive.
+- [x] Output landed: **DESIGN §41** (family story, CUJs, stems contract,
+      fences) + stale §31.1/§32 capture text fixed; **README §5.23** workflow
+      chapter; follow-ups filed as **11.11**. Four extra CUJs adopted:
+      rehearsal & self-review, set-samples-itself, hybrid set (stems→Stream),
+      the morning after.
+
+### 11.11 — Stems completion: dynamic stem set, arm preview, take sheet  *[planned]*
+
+The three follow-ups the 11.10 session committed to (DESIGN §41.3). These make
+the defining CUJ (improvise from blank → stems) actually hold.
+
+- [ ] **Dynamic stem set (S12 — the gap).** `shouldStemTrack` re-evaluated on
+      the events that change it (machine assign, Out-route change, first
+      source/feeder on a Route) while capturing: a track that becomes stemmable
+      mid-take gets its file created then and **silence-padded back to take
+      start** (pad written async on the capture TimeSliceThread), so every stem
+      stays sample-aligned with `master.wav`. A track that stops being
+      stemmable keeps recording its (now silent/re-routed) output — files
+      record what tracks output; no file is ever abandoned mid-take. Test: arm
+      on a blank project, assign machines + play, stems appear padded + aligned.
+- [ ] **Arm-time stem preview (S1).** Arming announces the outcome in the
+      capture strip — "ARMED ▸ master + N stems"; the count live-updates while
+      armed (it is the same predicate the dynamic set uses).
+- [ ] **Take sheet (S4 / the morning after).** Each capture directory gains a
+      plain-text sheet: project, date, tempo root, and the launch log — bar +
+      wall-clock time of every Scene/Song launch during the take. Dumb like
+      Tape markers: places, never cues (NON-GOALS #1 tripwire applies).
+- [ ] **Verification rider (S6).** Confirm all four stereo Ext buses are
+      reachable standalone (device input → plugin-input mapping) — the studio
+      CUJ's return-channel recipe depends on it. (Host Aux port exposure is
+      already tracked under 6.4.)
+- [ ] *(Parked, not scheduled)*: the "External" master-insert placeholder —
+      declare a master slot as processed-outside so the captured master is dry
+      for DAW post-processing (DESIGN §41.3). Build only on real demand.
 
 ---
 
