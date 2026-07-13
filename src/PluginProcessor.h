@@ -23,6 +23,7 @@
 #include "io/CCMappingTable.h"
 #include "io/EditContext.h"
 #include "io/CaptureRecorder.h"
+#include "io/TakeSheet.h"
 #include "io/MidiClockReceiver.h"
 #include "io/MidiInput.h"
 #include "machine/IEffect.h"
@@ -1733,6 +1734,12 @@ namespace lockstep
         // on the audio thread each block, read at close to decide which stem files
         // to keep (the rest are pruned). Cleared at capture start.
         std::array<std::atomic<bool>, kNumTracks> stemEverStemmable_{};
+        // 11.11: Scene/Song launches during the take — stamped on the audio thread
+        // at the launch-apply site, drained into the take sheet at close. Dumb:
+        // places, never cues (DESIGN §41.3, NON-GOALS #1).
+        TakeEventLog takeLog_;
+        // Write the take sheet beside the take's WAVs. Message thread, at close.
+        void writeTakeSheet(const juce::File& masterFile, std::int64_t lengthSamples) const;
         // 11.11: the audio-thread half of shouldStemTrack — same predicate, but it
         // reuses the routing state the block already computed. `edges` is the
         // block's routingEdges().

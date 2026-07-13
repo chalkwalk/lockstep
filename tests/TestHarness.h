@@ -43,6 +43,7 @@ namespace lockstep
     void runLayerStackTests();     // 11.7b dc::LayerStack — overdub, undo, decay, punch
     void runSeamTests();           // C6 dc::spliceLoopEnd — the loop splice
     void runMarkerLaneTests();     // 11.4 dc::MarkerLane — navigation markers
+    void runTakeSheetTests();      // 11.11 the capture take sheet (DESIGN §41.1)
     void runTakePickerTests();     // 11.6 the 6/5 take-group picker rule
     void runDeckTests();           // 11.7b dc::Deck — state machine + quantized edges
     void runDeckAdapterTests();    // 11.2 deck_juce — buffer/transport glue

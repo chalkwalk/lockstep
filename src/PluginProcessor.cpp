@@ -2328,6 +2328,17 @@ namespace lockstep
                     if (auto* tape = dynamic_cast<TapeMachine*>(mm.get()))
                         if (tape->recording())
                             tape->dropMarkerAtPpq(markPpq);
+
+                // 11.11: the capture deck's sibling of that marker — log the launch
+                // to the take sheet (DESIGN §41.3). Same site, same rule: a place,
+                // never a cue. Wait-free push; the sheet is written at close.
+                if (captureRecorder_.isCapturing())
+                {
+                    const bool isSong = (stagedSwap_.kind == SwapKind::Song);
+                    takeLog_.push(captureRecorder_.samplesWritten(),
+                                  isSong ? TakeEvent::Kind::Song : TakeEvent::Kind::Scene,
+                                  isSong ? stagedSwap_.songTarget : stagedSwap_.sceneIdx);
+                }
             }
 
             // 9.17: apply any per-track Phrase deviations that reached their
@@ -8030,6 +8041,7 @@ namespace lockstep
         const int numCh = std::max(1, getTotalNumOutputChannels());
         if (!captureRecorder_.arm(masterFile, sr, numCh, captureWriteThread_.get()))
             return false;
+        takeLog_.clear();   // 11.11: this take's launch log starts empty
 
         // 11.11: arm EVERY track's stem — Stub and MIDI-out included. The stem set
         // is not knowable at arm (a from-blank set assigns its machines while the
@@ -8126,6 +8138,7 @@ namespace lockstep
     juce::RelativeTime LockstepProcessor::stopCapture()
     {
         const double sr = getSampleRate() > 0.0 ? getSampleRate() : 44100.0;
+        const juce::File masterFile = captureRecorder_.captureFile();
         const int64_t samples = captureRecorder_.disarm();
 
         // 11.11 prune: keep the file of every track that was stemmable at any point
@@ -8140,7 +8153,56 @@ namespace lockstep
             else
                 stemRecorders_[t].discardFile();
         }
+
+        // 11.11: the take sheet, written once the surviving stems are known.
+        if (masterFile != juce::File{})
+            writeTakeSheet(masterFile, samples);
+
         return juce::RelativeTime::seconds(static_cast<double>(samples) / sr);
+    }
+
+    // 11.11 / DESIGN §41.1 "the morning after": the audio is only half the handoff.
+    // The sheet says what the files cannot — which project, what tempo, which stems
+    // survived, and where the launches were. Places, never cues: nothing reads this
+    // back, and no Scene is ever fired by it (NON-GOALS #1).
+    void LockstepProcessor::writeTakeSheet(const juce::File& masterFile,
+                                           std::int64_t lengthSamples) const
+    {
+        TakeSheetInfo info;
+        info.projectName = currentProjectFile_.existsAsFile()
+                               ? currentProjectFile_.getFileNameWithoutExtension()
+                               : juce::String();
+        info.dateTime      = juce::Time::getCurrentTime().toString(true, true, false);
+        info.sampleRate    = getSampleRate() > 0.0 ? getSampleRate() : 44100.0;
+        info.bpm           = effectiveBpm();
+        info.lengthSamples = lengthSamples;
+        const auto ts      = effectiveTimeSig();
+        info.timeSigNum    = ts.numerator;
+        info.timeSigDen    = ts.denominator;
+
+        // Name each surviving stem by its file and the machine that made it, so the
+        // sheet reads as a track list rather than a directory listing.
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            if (!stemEverStemmable_[t].load(std::memory_order_relaxed)) continue;
+            const auto* m = machines_[t].get();
+            juce::String machineName;
+            if (m != nullptr)
+            {
+                const juce::String id{ m->machineId() };
+                for (int k = 0, n = numAvailableMachines(); k < n; ++k)
+                {
+                    const auto mi = availableMachineInfo(k);
+                    if (id == mi.id) { machineName = mi.displayName; break; }
+                }
+                if (machineName.isEmpty()) machineName = id;   // unknown/third-party
+            }
+            info.stems.push_back(stemFileFor(masterFile, static_cast<int>(t)).getFileName()
+                                 + "  " + machineName);
+        }
+
+        const juce::File sheet = masterFile.getParentDirectory().getChildFile("take-sheet.txt");
+        sheet.replaceWithText(formatTakeSheet(info, takeLog_.drain()));
     }
 
     bool LockstepProcessor::isCapturingStems() const noexcept

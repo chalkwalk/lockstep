@@ -2799,6 +2799,49 @@ namespace lockstep
         CHECK(proc.stemmableCount() == 1, "an Off-routed track adds no stem");
     }
 
+    // 11.11 (S4) — "the morning after": a Scene launched during a take is written
+    // into the take sheet beside the WAVs, so the performance can be navigated in a
+    // DAW without re-deriving it by ear. The entry is a PLACE — the sheet fires
+    // nothing (NON-GOALS #1); this test asserts it exists, not that it plays.
+    static void testTakeSheetLogsLaunches()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        installRoute(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        // Give scene 1 content so it is launchable (an empty scene is not).
+        proc.songAt(0).tracks[0].phrases[1].steps[0].trig = true;
+
+        const juce::File tmpDir = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                                      .getChildFile("lockstep_take_sheet_test");
+        tmpDir.deleteRecursively();
+        const juce::File master = tmpDir.getChildFile("master.wav");
+
+        CHECK(proc.startCaptureTo(master), "capture arms");
+        for (int b = 0; b < 4; ++b)
+            renderBlockWithInput(h, 0.5f);
+
+        // Launch a scene mid-take and run past its quantize boundary. The Set grid
+        // defaults to a bar, which at 48 kHz / 256 is ~375 blocks — the launch is
+        // deferred, exactly as PRINCIPLES §25 promises, so give it room to land.
+        proc.queueScene(1, false);
+        for (int b = 0; b < 500 && proc.activeSectionIdx() != 1; ++b)
+            renderBlockWithInput(h, 0.5f);
+        CHECK(proc.activeSectionIdx() == 1, "the scene launched during the take");
+
+        for (int b = 0; b < 4; ++b)
+            renderBlockWithInput(h, 0.5f);
+        proc.stopCapture();
+
+        const juce::File sheet = tmpDir.getChildFile("take-sheet.txt");
+        CHECK(sheet.existsAsFile(), "the take sheet is written beside the WAVs");
+        const juce::String text = sheet.loadFileAsString();
+        CHECK(text.contains("Scene 2"), "the launch is logged (scene 1, 1-based on the surface)");
+        CHECK(text.contains("track-01.wav"), "the kept stem is listed");
+        CHECK(text.contains("places, not cues"), "the sheet declares itself inert");
+
+        tmpDir.deleteRecursively();
+    }
+
     // Resolve a VA slot index from its stable param id (slot constants are
     // private; the id is the public contract).
     static int vaSlotById(const char* id)
@@ -4816,5 +4859,6 @@ namespace lockstep
         testStemsFromBlankProjectAssignedMidTake();
         testStemStaysAlignedAcrossMute();
         testStemmableCountTracksRouting();
+        testTakeSheetLogsLaunches();
     }
 }
