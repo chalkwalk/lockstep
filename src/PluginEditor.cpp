@@ -3611,6 +3611,36 @@ namespace lockstep
         return true;
     }
 
+    // 9.12 Stage 7b: route a verb press through the grammar. The table names the
+    // action (Copy / Paste / ScopedClear / BakeScene / ...) from the verb button plus
+    // the held modifiers, and handleAction delegates to the one verb implementation.
+    //
+    // Verbs resolve on the FULL held-modifier set — most-specific-wins — which is the
+    // exact opposite of the modifier family's bare-row rule (7a). That is not an
+    // inconsistency: a modifier press means "enter this scope" whatever else is down,
+    // while a verb press means *something different* under a held scope. The two
+    // families must not share a routing rule.
+    //
+    // The Func layer is already applied upstream: every input path runs the event
+    // through resolveLayer() first, so Func+Y arrives here as CB::Restore, not as
+    // VerbSnapshot-with-Func-held.
+    bool LockstepEditor::routeVerb(const ControllerEvent& ev)
+    {
+        const auto& row = resolveBinding(ev.button, ev.index, heldModsFromUiState(uiState_),
+                                         SurfaceLayer::Base);
+        auto ctx = commandContext();
+        const bool handled =
+            (row.action != ActionId::None)
+                ? commandCore_.handleAction(row.action, ev, ctx, *editorEffects_)
+                // No row for this scope+verb: fall back to the scope×verb matrix, so a
+                // gap in the table can never silently drop a verb that used to work.
+                : commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx,
+                                          *editorEffects_);
+        (void)handled;
+        refreshSurface();
+        return true;
+    }
+
     // 9.12 Stage 7a: the modifier family's effect. Every line below is MOVED from
     // the dispatchDown branches, not rewritten — the golden net is what proves that.
     // The per-scope differences are real and stay here (Func's escape gesture and
@@ -5421,12 +5451,7 @@ namespace lockstep
                 // the ordinary clipboard verbs again (freed for other uses).
                 // Scope held → grammar verb (Paste).
                 if (editMode_.primaryScope() != PS::None && editMode_.primaryScope() != PS::Func)
-                {
-                    auto ctx = commandContext();
-                    (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
-                    refreshSurface();
-                    return true;
-                }
+                    return routeVerb(ev);   // 9.12 st.7b: the table names the action
                 // Func+I (no non-trivial scope) = unqualified paste.
                 // Stamps the single captured layer; rejects when type is All.
                 if (editMode_.scopeState().func)
@@ -5524,12 +5549,7 @@ namespace lockstep
                 }
                 // Non-trivial scope → grammar verb (Clear scope contents).
                 if (editMode_.primaryScope() != PS::None && editMode_.primaryScope() != PS::Func)
-                {
-                    auto ctx = commandContext();
-                    (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
-                    refreshSurface();
-                    return true;
-                }
+                    return routeVerb(ev);   // 9.12 st.7b: the table names the action
                 // No scope: clear the active P-Lock slot if one is active.
                 {
                     auto& ctx = processor_.editContext();
@@ -5581,12 +5601,7 @@ namespace lockstep
                 }
                 // Scope held → grammar verb (e.g. copy).  No scope → arm recording.
                 if (editMode_.primaryScope() != PS::None && editMode_.primaryScope() != PS::Func)
-                {
-                    auto ctx = commandContext();
-                    (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
-                    refreshSurface();
-                    return true;
-                }
+                    return routeVerb(ev);   // 9.12 st.7b: the table names the action
                 // Func+U with no non-trivial scope = omni copy (capture all layers).
                 if (editMode_.scopeState().func && editMode_.primaryScope() == PS::Func)
                 {
@@ -5630,12 +5645,7 @@ namespace lockstep
                 }
                 // Non-trivial scope → scope-specific snapshot.
                 if (editMode_.primaryScope() != PS::None && editMode_.primaryScope() != PS::Func)
-                {
-                    auto ctx = commandContext();
-                    (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
-                    refreshSurface();
-                    return true;
-                }
+                    return routeVerb(ev);   // 9.12 st.7b: the table names the action
                 // No scope → Song-scope snapshot.
                 {
                     int ckTrk = 0;

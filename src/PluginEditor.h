@@ -622,6 +622,10 @@ namespace lockstep
         // Hold*Scope actions; the same code the imperative branches used to run.
         void enterScopeHold(ControllerButton cb);
 
+        // 9.12 Stage 7b: route a scoped verb press through the binding table.
+        // Always returns true (the press is consumed).
+        bool routeVerb(const ControllerEvent& ev);
+
         // MHZ.9.x: auto-release a transient mode's latch after its terminal action.
         // No-op when not latched; leaves physically-held (non-latched) mods alone.
         void releaseTransientLatch(ControllerButton cb);

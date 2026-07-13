@@ -185,7 +185,7 @@ namespace lockstep
 
     bool CommandCore::handleAction(ActionId action,
                                    const ControllerEvent& ev,
-                                   CommandContext&,
+                                   CommandContext& ctx,
                                    CommandEffects& fx)
     {
         using AId = ActionId;
@@ -198,6 +198,27 @@ namespace lockstep
             case AId::SceneMuteToggle:  fx.sceneMuteToggle(ev.index); return true;
             case AId::FluidMuteToggle:  fx.fluidMuteToggle(ev.index); return true;
             case AId::ToggleCapture:    fx.toggleCapture(); return true;
+
+            // ── 9.12 Stage 7b: the verb family ───────────────────────────────────
+            // The table decides WHAT the key means here (Copy / Paste / ScopedClear /
+            // BakeScene / MorphErase...); the held scope decides WHICH OPERAND, which
+            // is what DESIGN §13 has always said ("the compound qualifies the scope;
+            // it does not change what a verb means"). So every verb action delegates
+            // to the one existing implementation, verbs::* via handleVerb -- routing
+            // moves to the grammar, behaviour does NOT move, and there is no second
+            // copy of a verb to drift from the first.
+            case AId::VerbSnapshot:
+            case AId::VerbRecord:
+            case AId::VerbPlay:
+            case AId::VerbClear:
+            case AId::VerbDelete:
+            case AId::VerbCopy:
+            case AId::VerbPaste:
+            case AId::VerbScopedClear:
+            case AId::VerbBakeScene:
+            case AId::VerbMorphBake:
+            case AId::VerbMorphErase:
+                return handleVerb(ctx.editMode.primaryScope(), ev.button, ctx, fx);
 
             // ── 9.12 Stage 7a: the modifier family ───────────────────────────────
             case AId::HoldFuncScope:   fx.enterScope(CB::Func); return true;
