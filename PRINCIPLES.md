@@ -115,7 +115,13 @@ rejected. It runs **equally** as a standalone application and as a plugin
 inside a DAW; neither is the "real" Lockstep and the other a degraded
 fallback. The same surface, the same grammar, the same project — the only
 difference is who owns the transport, the clock, and the save file (the
-standalone owns its own; the DAW host owns those when embedded). Studio
+standalone owns its own; the DAW host owns those when embedded). That ownership
+difference has one visible consequence: **transport acts belong to the
+transport's owner.** Standalone exposes locate / wind / scrub (the deck's jog,
+the `<<`/`>>` cells) because Lockstep owns the playhead there; hosted, those
+same cells are absent and the host's playhead is the locate — suppressed
+cleanly, never half-working. "Equal homes" means neither host is degraded, not
+that both expose identical transport verbs (§25.1). Studio
 integration (host transport, MIDI-out, stem / WAV capture, resampling,
 project state serialisation) exists so that a performer can carry their
 stage flow into *either* host and produce stems for editing — not so that
@@ -369,6 +375,21 @@ engines that pick the notes or the pattern for you by rolling dice at edit
 time (Oxi's stochastic modes, Polyend's smart genre fills, Torso's generative
 voicing). Those we refuse; a clocked, repeatable generator we welcome, in the
 performable form that *"Reward mastery"* demands.
+
+**The SEED control is blessed, with its eyes open.** The melodic generator's
+seed encoder sits exactly on this line: turning it *is* browsing variations,
+and browsing is not far from rolling dice. It stays because the whole gesture
+is deterministic and inspectable — the same seed prints the same line every
+time, the print is ordinary hand-editable trigs, and nothing re-rolls behind
+the performer's back — so it is a **bounded variation-space browser**, not a
+stochastic engine (the Oxi/Torso failure is *edit-time dice you can't revisit*,
+not *a dial you can*). The honest caveat (§14): scanning seeds is not itself a
+practised skill. The mastery lives in the shaping controls around it (density,
+core bias, contour, octaves) and in editing the print; if seed-twiddling ever
+becomes the primary way the feature is used, that is the signal to redesign the
+shaping axes, not to add more seeds. This is deliberate non-dogmatism: the
+feature is in scope, so we ship the widget rather than make the user jump
+through hoops — and we record the tension instead of pretending it isn't there.
 
 ## 12. State refs, not state contents
 
@@ -826,6 +847,14 @@ audio thread reaches the UI by flagging the dirty signal on a discrete change,
 not by being polled. Adding a redraw source means answering one question — *is
 this a discrete event or a continuous animation?* — and wiring it to the matching
 half. (DESIGN §35.9.)
+
+> **Status (2026-07-12): this principle is a contract the code does not yet
+> satisfy.** The single invalidation channel is ROADMAP `9.15`, which is not
+> built — today ~50 synchronous `refreshSurface()` sites, several polling
+> timers, and the controllers' 30 Hz rebuild coexist. Until 9.15 lands, this
+> principle governs **new** code (no new polling timers, no new ad-hoc repaint
+> scheduling) and names the target the migration converges on. When 9.15 ships,
+> delete this note.
 
 ---
 
