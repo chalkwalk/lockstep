@@ -278,6 +278,12 @@ namespace lockstep
                 fx.transposeTrack(ctx.uiState.funcHeld ? -1 : -12);
                 return true;
 
+            // ── 9.12 Stage 7d: the section family ────────────────────────────────
+            case AId::SelectSection:      fx.selectSection(ev.index); return true;
+            case AId::SelectMetaSection:  fx.selectMetaSection(ev.index); return true;
+            case AId::OpenTrackFxPicker:  fx.openFxPicker(false); return true;
+            case AId::OpenMasterFxPicker: fx.openFxPicker(true); return true;
+
             case AId::MachineCopy:  return verbs::machine(CB::VerbRecord, ctx, fx);
             case AId::MachinePaste: return verbs::machine(CB::VerbPlay, ctx, fx);
             case AId::MachineInit:  return verbs::machine(CB::VerbClear, ctx, fx);

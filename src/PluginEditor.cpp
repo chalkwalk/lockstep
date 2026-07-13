@@ -250,6 +250,101 @@ namespace lockstep
             ed.keyboardArea_.nextPage();
         }
 
+        // ── 9.12 st.7d: the section family's effects ──────────────────────────
+        // Both TAP bodies below are MOVED verbatim out of dispatchDown. They stay one
+        // resolver deep (resolveSectionKey) because that resolver is already the single
+        // owner shared with the painter and the MZ — moving them here changes WHO calls
+        // them (the table, via handleAction), not what they do.
+        void selectSection(int index) override
+        {
+            using PS = EditMode::PrimaryScope;
+            const PS sectionScope = firstHeldSectionSuiteScope(ed.uiState_);
+
+            // Morph keeps its bespoke branch: it has no stack floor (the MZ writes the
+            // morph overlay while morphHeld), so a section press is a plain param nav.
+            if (sectionScope == PS::Morph)
+            {
+                ed.keyboardArea_.selectSection(index, /*trackScope*/ false);
+                return;
+            }
+
+            const int at = ed.keyboardArea_.getActiveTrack();
+            const SecOrigin floor = sectionFloorForScope(sectionScope);
+            // Held-step promotion (9.26): bare TRIG → per-step COND while a step is held.
+            const auto res = resolveSectionKey(ed.processor_, at, index, floor,
+                                               /*funcLayer*/ false, ed.uiState_.stepHeld);
+            if (!res.hasContent)
+                return;   // dim: nothing at/below the held floor owns this key
+
+            switch (res.action)
+            {
+                case SecAction::MetaSection:
+                    ed.keyboardArea_.selectMetaSection(res.metaIndex);   // Track DIV, Phrase LEN...
+                    return;
+                case SecAction::TimeSticky:
+                    applyTimeEntry(ed.uiState_);                          // Song/Scene + TRIG
+                    ed.refreshMetaBand();
+                    return;
+                case SecAction::ParamSection:
+                    break;   // machine/track param page — below
+            }
+
+            // 9.14 Stage 3 / Part 2: SRC tap while step(s) are held → NoteEdit for ALL
+            // held steps (dismisses any P-lock view). Reachable from a bare multi-hold,
+            // so the note editor edits every held step at once (Elektron flow).
+            if (index == IMachine::kSrcSecIdx && ed.processor_.editContext().isActiveForEditing())
+            {
+                const auto& held = ed.processor_.editContext().heldSteps();
+                const int primary = ed.processor_.editContext().heldStepIndex();
+                const int track = ed.processor_.editContext().heldTrackIndex();
+                ed.uiState_.noteEditSteps.clear();
+                ed.uiState_.noteEditSteps.insert(held.begin(), held.end());
+                ed.uiState_.noteEditStaged.clear();
+                if (track >= 0 && primary >= 0)
+                {
+                    const auto& st = ed.processor_.sequence()
+                                         .tracks[static_cast<std::size_t>(track)]
+                                         .steps[static_cast<std::size_t>(primary)];
+                    if (st.trigOverride.noteCount > 0)
+                        ed.uiState_.noteEditOctave = st.trigOverride.notes[0] / 12 - 1;
+                }
+                ed.uiState_.noteEditMode = true;
+                ed.uiState_.resetPLockClear();   // NoteEdit outranks the P-lock view
+                ed.refreshSurface();
+                return;
+            }
+
+            // Page the layer the resolver actually LANDED on: a Track winner routes the
+            // track-level view (P6); anything else uses the machine-preferring view. Keyed
+            // off the winner, not the held floor, so a key pages the layer it is coloured by.
+            ed.keyboardArea_.selectSection(index, res.winner == SecOrigin::Track);
+        }
+        void selectMetaSection(int index) override
+        {
+            // Func-layer section dispatch (9.22), through the same resolver so it agrees
+            // with the painter + MZ. sectionResolveMode owns the split (bare Func = the
+            // meta hierarchy; Func+Song = Set; Func+Track = Machine — 9.29).
+            // FX stays swallowed under Func: its picker is a HOLD gesture, and Func+FX
+            // was retired in 9.14 st.2.
+            if (index == LockstepProcessor::kFxSecIdx)
+                return;
+            const int at = ed.keyboardArea_.getActiveTrack();
+            const auto mode = sectionResolveMode(ed.uiState_);
+            const auto res = resolveSectionKey(ed.processor_, at, index, mode.floor,
+                                               mode.funcLayer, mode.stepHeld);
+            if (!res.hasContent)
+                return;   // dim under Func → swallow the press
+            switch (res.action)
+            {
+                case SecAction::MetaSection: ed.keyboardArea_.selectMetaSection(res.metaIndex); return;
+                case SecAction::TimeSticky:  applyTimeEntry(ed.uiState_); ed.refreshMetaBand(); return;
+                case SecAction::ParamSection:
+                    ed.keyboardArea_.selectSection(index, res.winner == SecOrigin::Track);
+                    return;
+            }
+        }
+        void openFxPicker(bool master) override { ed.openFxSectionPicker(master); }
+
         // ── 9.12 st.7c: the nav family's effects ──────────────────────────────
         // Every body below is MOVED from the NavUp/NavDown/NavLeft/NavRight cascades,
         // not rewritten. What changed is who DECIDES which one runs: the table, via
@@ -1485,15 +1580,16 @@ namespace lockstep
             }
         }
 
-        // 9.14: FX-section picker opens mid-hold (not on key-up) so it appears
-        // while held and stays open. Mirrors the generator-hub promotion above.
-        if (heldSectionIndex_ == LockstepProcessor::kFxSecIdx && !fxPickerFiredMidHold_)
+        // 9.12 st.7d: a section picker opens MID-HOLD (not on key-up) so it appears
+        // while the key is still down and stays open. ONE block for every picker now —
+        // the table decided which one at arm time, so adding a picker adds no code here.
+        if (sectionHoldAction_ != ActionId::None && !sectionHoldFired_)
         {
             const double nowMs = juce::Time::getMillisecondCounterHiRes();
-            if (gesture_.longPressElapsed(kFxSectionLongPressToken, nowMs))
+            if (gesture_.longPressElapsed(kSectionHoldToken, nowMs))
             {
-                fxPickerFiredMidHold_ = true;
-                openFxSectionPicker(fxSectionPickerWantsMaster_);
+                sectionHoldFired_ = true;
+                fireSectionHold();
             }
         }
 
@@ -1507,18 +1603,6 @@ namespace lockstep
             {
                 clearHoldFired_ = true;
                 fireDeleteHold();
-            }
-        }
-
-        // 9.29: the machine picker opens mid-hold too — same gesture shape as the FX
-        // picker it sits beside, so Track+hold(SRC) and Track+hold(FX) feel identical.
-        if (heldSectionIndex_ == IMachine::kSrcSecIdx && !machinePickerFiredMidHold_)
-        {
-            const double nowMs = juce::Time::getMillisecondCounterHiRes();
-            if (gesture_.longPressElapsed(kMachineSectionLongPressToken, nowMs))
-            {
-                machinePickerFiredMidHold_ = true;
-                openMachinePicker();
             }
         }
 
@@ -3841,21 +3925,6 @@ namespace lockstep
         refreshSurface();
     }
 
-    // Open the machine picker through the grammar (9.29): the table says Track +
-    // hold(SRC) = OpenMachinePicker, so dispatch ASKS it rather than setting the flag
-    // itself. The action's effect is openOverlay, which is the same door a controller
-    // comes through — one picker, one owner, two surfaces.
-    void LockstepEditor::openMachinePicker()
-    {
-        const ControllerEvent ev{ ControllerEvent::Type::ButtonDown,
-                                  ControllerButton::Section, IMachine::kSrcSecIdx, 0 };
-        const auto& row = resolveBinding(ev.button, ev.index, heldModsFromUiState(uiState_),
-                                         SurfaceLayer::Base, Gesture::Hold);
-        if (row.action != ActionId::OpenMachinePicker) return;
-        auto ctx = commandContext();
-        (void)commandCore_.handleAction(row.action, ev, ctx, *editorEffects_);
-    }
-
     // The Clear key's TAP behaviour — moved verbatim out of dispatchDown when delete
     // took the hold rail (9.29). Two callers now: an immediate press where no delete
     // hold is possible (no scope, Trig, Morph, Machine), and the short-hold resolution
@@ -3948,6 +4017,37 @@ namespace lockstep
         (void)commandCore_.handleAction(row->action, ev, ctx, *editorEffects_);
         refreshSurface();
         return true;
+    }
+
+    // 9.12 Stage 7d: route a section press through the grammar.
+    //
+    // Sections are keyed on CB::Section in the table even when the Func layer has
+    // renamed the button to CB::MetaSection: the Func rows (kModFunc) ARE the meta
+    // hierarchy, so one row set serves both. Passing ev.button would find no rows and
+    // silently drop every Func+section press.
+    bool LockstepEditor::routeSection(const ControllerEvent& ev)
+    {
+        const auto& row = resolveBinding(ControllerButton::Section, ev.index,
+                                         heldModsFromUiState(uiState_), SurfaceLayer::Base);
+        if (row.action == ActionId::None)
+            return true;   // no row: inert here, and swallowing is the answer
+        auto ctx = commandContext();
+        (void)commandCore_.handleAction(row.action, ev, ctx, *editorEffects_);
+        refreshSurface();
+        return true;
+    }
+
+    // Fire the section HOLD armed on key-down (the picker rail). The action was decided
+    // by the table at arm time and stored, so the mid-hold timer and the key-up fallback
+    // cannot disagree about which picker they are opening.
+    void LockstepEditor::fireSectionHold()
+    {
+        if (sectionHoldAction_ == ActionId::None) return;
+        const ControllerEvent ev{ ControllerEvent::Type::ButtonDown,
+                                  ControllerButton::Section, heldSectionIndex_, 0 };
+        auto ctx = commandContext();
+        (void)commandCore_.handleAction(sectionHoldAction_, ev, ctx, *editorEffects_);
+        refreshSurface();
     }
 
     bool LockstepEditor::routeVerb(const ControllerEvent& ev)
@@ -4452,51 +4552,44 @@ namespace lockstep
                     if (r == OverlayResult::Exited)   refreshMetaBand();
                 }
 
-                // Hold-gating for FX section (section 5 = canonical FX). The picker
-                // is scope-gated (9.14): FX inserts are track-scoped, master FX is
-                // Song-scoped, so the picker only arms under those scopes:
-                //   Track + tap  → track FX params;  Track + hold → track FX picker
-                //   Song  + tap  → master FX params; Song  + hold → master FX picker
-                //   (bare FX = plain params nav; Scene/Phrase = dim, no FX)
-                // Arm before the sectionScope dispatch so the held scope picks target.
-                if (ev.index == LockstepProcessor::kFxSecIdx
-                    && (sectionScope == PS::Track || sectionScope == PS::Song))
+                // ── 9.12 st.7d: does this key have a HOLD here? ASK THE TABLE ─────
+                // The arm used to be two hardcoded blocks — `index == kFxSecIdx &&
+                // (scope == Track || scope == Song)`, then `index == kSrcSecIdx && scope
+                // == Track` — each restating a rule the binding table already carries.
+                // That is the exact duplication this migration exists to remove, and it
+                // is why every new picker needed a new if. Now: one query, and a picker
+                // is added by adding a ROW.
+                //
+                // The rule the rows encode (9.14 / §13.9): *<scope> + hold(<section>) =
+                // choose what fills that section, at that scope.* Track+FX = track
+                // inserts, Song+FX = master, Track+SRC = the machine.
                 {
-                    gesture_.armLongPress(kFxSectionLongPressToken,
-                                          juce::Time::getMillisecondCounterHiRes());
-                    fxSectionPickerWantsMaster_ = (sectionScope == PS::Song);
-                    if (heldSectionRawCode_ < 0)
+                    const auto& hold = resolveBinding(CB::Section, ev.index,
+                                                      heldModsFromUiState(uiState_),
+                                                      SurfaceLayer::Base, Gesture::Hold);
+                    if (hold.action != ActionId::None)
                     {
-                        heldSectionRawCode_ = rawCode;
-                        heldSectionIndex_ = ev.index;
-                        editMode_.setSectionHeld(true);
+                        sectionHoldAction_ = hold.action;
+                        sectionHoldFired_ = false;
+                        fxSectionPickerWantsMaster_ =
+                            (hold.action == ActionId::OpenMasterFxPicker);
+                        gesture_.armLongPress(kSectionHoldToken,
+                                              juce::Time::getMillisecondCounterHiRes());
+                        if (heldSectionRawCode_ < 0)
+                        {
+                            heldSectionRawCode_ = rawCode;
+                            heldSectionIndex_ = ev.index;
+                            editMode_.setSectionHeld(true);
+                        }
+                        return true;  // deferred: the timer fires the hold, key-up the tap
                     }
-                    return true;  // action deferred to key-up
-                }
-
-                // 9.29: machine picker. Same rule as the FX pickers above — <scope> +
-                // hold(<section>) = choose what fills that section, at that scope —
-                // so SRC under the Track scope picks the machine this track runs.
-                // Track-scoped, because WHICH engine a channel runs is a property of
-                // the track; the Machine scope (Func+Track) owns the sound, not the
-                // choice. A bare SRC hold is the OnDemand console (below): the scope
-                // gate is the whole separation.
-                if (ev.index == IMachine::kSrcSecIdx && sectionScope == PS::Track)
-                {
-                    gesture_.armLongPress(kMachineSectionLongPressToken,
-                                          juce::Time::getMillisecondCounterHiRes());
-                    if (heldSectionRawCode_ < 0)
-                    {
-                        heldSectionRawCode_ = rawCode;
-                        heldSectionIndex_ = ev.index;
-                        editMode_.setSectionHeld(true);
-                    }
-                    return true;  // action deferred to key-up (or the mid-hold timer)
                 }
 
                 // 7b: OnDemand machine console. A bare long-press of the machine's
-                // console-owning section key opens/closes the console; a tap still
-                // pages that section's params. Armed here, resolved on key-up.
+                // console-owning section key opens/closes the console; a tap still pages
+                // that section's params. NOT a table row: which key owns the console is a
+                // property of the MACHINE, not of the modifiers, so the table cannot see
+                // it. Armed here, resolved on key-up.
                 if (sectionScope == PS::None)
                 {
                     const int at = keyboardArea_.getActiveTrack();
@@ -4516,127 +4609,23 @@ namespace lockstep
                     }
                 }
 
-                // Item 7: one resolver drives the section-key dispatch. Morph keeps
-                // its bespoke branch — it has no stack floor (the MZ writes the morph
-                // overlay while morphHeld, so a section press is a plain param nav).
-                // FX (index 5) never reaches here under Track/Song (armed + returned
-                // above); bare/Scene/Phrase + FX fall through to the resolver.
-                if (sectionScope == PS::Morph)
-                {
-                    keyboardArea_.selectSection(ev.index, /*trackScope*/ false);
-                    if (heldSectionRawCode_ < 0)
-                    {
-                        heldSectionRawCode_ = rawCode;
-                        heldSectionIndex_ = ev.index;
-                        editMode_.setSectionHeld(true);
-                    }
-                    return true;
-                }
-
-                const int atSec = keyboardArea_.getActiveTrack();
-                const SecOrigin secFloor = sectionFloorForScope(sectionScope);
-                // Held-step promotion (9.26): bare TRIG → per-step COND while a
-                // step is held (the resolver gates it to the primary layer).
-                const auto secRes = resolveSectionKey(processor_, atSec, ev.index,
-                                                      secFloor, /*funcLayer*/ false,
-                                                      uiState_.stepHeld);
-                if (!secRes.hasContent)
-                    return true;  // dim: nothing at/below the held floor owns this key
-
-                switch (secRes.action)
-                {
-                    case SecAction::MetaSection:
-                        // Track DIV (3), Phrase LEN (4), Song master FX (5), etc.
-                        keyboardArea_.selectMetaSection(secRes.metaIndex);
-                        return true;
-                    case SecAction::TimeSticky:
-                        // Song+TRIG or Scene+TRIG: toggle TIME sticky (DESIGN §4.8).
-                        applyTimeEntry(uiState_);
-                        refreshMetaBand();
-                        return true;
-                    case SecAction::ParamSection:
-                        break;  // machine/track param page — handled below
-                }
-
-                // 9.14 Stage 3 / Part 2: SRC (section 1) tap while step(s) are held
-                // → enter NoteEdit for ALL held steps (dismisses any P-lock view).
-                // Reachable from a bare multi-hold, not just the inspector, so the
-                // note editor edits every held step at once (Elektron flow).
-                if (ev.index == 1 && processor_.editContext().isActiveForEditing())
-                {
-                    const auto& held = processor_.editContext().heldSteps();
-                    const int primary = processor_.editContext().heldStepIndex();
-                    const int track = processor_.editContext().heldTrackIndex();
-                    uiState_.noteEditSteps.clear();
-                    uiState_.noteEditSteps.insert(held.begin(), held.end());
-                    uiState_.noteEditStaged.clear();
-                    if (track >= 0 && primary >= 0)
-                    {
-                        const auto& s = processor_.sequence()
-                                            .tracks[static_cast<std::size_t>(track)]
-                                            .steps[static_cast<std::size_t>(primary)];
-                        if (s.trigOverride.noteCount > 0)
-                            uiState_.noteEditOctave = s.trigOverride.notes[0] / 12 - 1;
-                    }
-                    uiState_.noteEditMode = true;
-                    uiState_.resetPLockClear();  // dismiss P-lock view; NoteEdit takes priority
-                    refreshSurface();
-                    return true;
-                }
-
-                // KeyboardArea gates on machine slot availability. Page the layer
-                // the resolver actually landed on: a Track *winner* (the param
-                // page fell to a track-DSP block) routes the track-level view (P6);
-                // any other winner (machine params, incl. a scope hold that fell up
-                // to the machine filter) uses the machine-preferring view. Keys off
-                // the resolved winner, not the held floor, so Phrase+FILTER etc. page
-                // the same layer they are coloured by.
-                keyboardArea_.selectSection(ev.index, secRes.winner == SecOrigin::Track);
-                // Track section key hold for Section-scope verb dispatch (MD.3).
+                // The TAP. Section-key hold tracking for Section-scope verb dispatch
+                // (MD.3) is bookkeeping, so it is hoisted out of the branches that used
+                // to each repeat it.
                 if (heldSectionRawCode_ < 0)
                 {
                     heldSectionRawCode_ = rawCode;
                     heldSectionIndex_ = ev.index;
                     editMode_.setSectionHeld(true);
                 }
-                return true;
+                return routeSection(ev);
             }
 
             case ControllerButton::MetaSection: {
-                // Func-layer section dispatch (9.22), unified through the resolver so
-                // it agrees with the painter + MZ. sectionResolveMode owns the split:
-                //   • bare Func      → meta hierarchy (COND/NOTE + the Func+7 TRSP
-                //                      shortcut); AMP/MOD dim → swallowed.
-                //   • Func+Song      → Global scope (primary, floor = Global):
-                //                      FILTER→TRSP, TRIG→Song TIME (nearest), SRC/AMP/
-                //                      MOD fall up to the machine param page.
-                // FX (idx 5) is still swallowed under Func: its picker is a *hold*
-                // gesture (Track/Song + hold-FX), and Func+FX / Func+Song+FX are
-                // retired (9.14 Stage 2). Density/Vel entry live on the generator hub.
-                if (ev.index == LockstepProcessor::kFxSecIdx)
-                    return true;
-                const int at = keyboardArea_.getActiveTrack();
-                const auto mode = sectionResolveMode(uiState_);
-                const auto res = resolveSectionKey(processor_, at, ev.index,
-                                                   mode.floor, mode.funcLayer,
-                                                   mode.stepHeld);
-                if (!res.hasContent)
-                    return true;  // dim under Func → swallow the press
-                switch (res.action)
-                {
-                    case SecAction::MetaSection:
-                        keyboardArea_.selectMetaSection(res.metaIndex);
-                        return true;
-                    case SecAction::TimeSticky:
-                        applyTimeEntry(uiState_);
-                        refreshMetaBand();
-                        return true;
-                    case SecAction::ParamSection:
-                        keyboardArea_.selectSection(ev.index,
-                                                    res.winner == SecOrigin::Track);
-                        return true;
-                }
-                return true;
+                // The Func layer renames the button (Section → MetaSection) so dispatch
+                // can tell the layers apart, but the TABLE keys sections on CB::Section
+                // under kModFunc — one key, one row set. routeSection resolves there.
+                return routeSection(ev);
             }
 
             case ControllerButton::Step: {
@@ -6204,87 +6193,76 @@ namespace lockstep
 
             case CB::Section:
             case CB::MetaSection: {
-                // Resolve FX-section tap-vs-hold (armed on key-down for section 5).
+                // ── 9.12 st.7d: resolve the section tap-vs-hold ───────────────────
+                // One block for every picker. The action was decided BY THE TABLE at arm
+                // time (sectionHoldAction_), so the three ways a hold can end — fired by
+                // the timer, released just past threshold, released early (a tap) —
+                // cannot disagree about which picker they were opening.
                 bool suppressFxPickerClose = false;
-                if (heldSectionIndex_ == LockstepProcessor::kFxSecIdx)
+                if (sectionHoldAction_ != ActionId::None)
                 {
                     using LPR = GestureRecognizer::LongPressResult;
                     const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (fxPickerFiredMidHold_)
+                    const bool trackFx = (sectionHoldAction_ == ActionId::OpenTrackFxPicker);
+
+                    if (sectionHoldFired_)
                     {
-                        // Picker already opened during the hold (timer path). Consume
-                        // the arm and keep it open; the track picker (funcFxHeld) must
-                        // survive the funcFxHeld=false cleanup below. Only preserve it
-                        // if still open — selecting an effect while holding closes it,
-                        // and releasing must not re-open it.
+                        // Picker already opened during the hold (timer path). Consume the
+                        // arm and keep it open; the TRACK FX picker (funcFxHeld) must
+                        // survive the funcFxHeld=false cleanup below — but only if it is
+                        // still open: choosing an effect while holding closes it, and the
+                        // release must not re-open it.
                         gesture_.cancelLongPress();
-                        if (!fxSectionPickerWantsMaster_ && uiState_.funcFxHeld)
+                        if (trackFx && uiState_.funcFxHeld)
                             suppressFxPickerClose = true;
                     }
-                    else switch (gesture_.checkLongPress(kFxSectionLongPressToken, now))
+                    else switch (gesture_.checkLongPress(kSectionHoldToken, now))
                     {
                         case LPR::ShortHold:
-                            // Tap while the picker is already open: cycle the target
-                            // slot (no re-hold needed — the old re-hold-to-cycle was
-                            // the pain point). Otherwise navigate to FX params.
+                            // A TAP on a key that also carries a hold. For the FX key the
+                            // tap cycles the picker's target slot while it is open (the old
+                            // re-hold-to-cycle was the pain point); otherwise it is an
+                            // ordinary section nav, which is the grammar's own tap row.
                             if (fxSectionPickerWantsMaster_ && uiState_.masterFxPickerOpen)
                             {
                                 cycleFxPickerSlot(/*master=*/true);
                             }
-                            else if (!fxSectionPickerWantsMaster_ && uiState_.funcFxHeld)
+                            else if (trackFx && uiState_.funcFxHeld)
                             {
                                 cycleFxPickerSlot(/*master=*/false);
-                                suppressFxPickerClose = true;  // keep picker open past cleanup
+                                suppressFxPickerClose = true;   // keep it open past cleanup
                             }
                             else if (fxSectionPickerWantsMaster_)
                             {
-                                if (uiState_.masterSection == 5)
+                                if (uiState_.masterSection == LockstepProcessor::kFxSecIdx)
                                     uiState_.masterFxInsertSlot =
                                         nextLoadedMasterUnit(uiState_.masterFxInsertSlot);
                                 else
                                     uiState_.masterFxInsertSlot = firstLoadedMasterUnit();
-                                keyboardArea_.selectMetaSection(5, /*toggle=*/false);
+                                keyboardArea_.selectMetaSection(LockstepProcessor::kFxSecIdx,
+                                                                /*toggle=*/false);
                                 refreshMetaBand();
                             }
                             else
                             {
-                                keyboardArea_.selectSection(LockstepProcessor::kFxSecIdx);
+                                // The tap row, through the grammar (7d): Track+tap(SRC)
+                                // pages SRC, Track+tap(FX) pages the FX params.
+                                const ControllerEvent tap{ ControllerEvent::Type::ButtonDown,
+                                                           CB::Section, heldSectionIndex_, 0 };
+                                routeSection(tap);
                             }
                             break;
                         case LPR::LongHold:
-                            // Fallback: released just past threshold before the timer
-                            // ticked. Open the picker now (same as the mid-hold path).
-                            openFxSectionPicker(fxSectionPickerWantsMaster_);
-                            if (!fxSectionPickerWantsMaster_)
-                                suppressFxPickerClose = true;  // keep funcFxHeld past cleanup
+                            // Released just past the threshold, before the timer ticked.
+                            fireSectionHold();
+                            if (trackFx)
+                                suppressFxPickerClose = true;   // keep funcFxHeld past cleanup
                             break;
                         case LPR::NotArmed:
                             break;
                     }
-                }
-                // 9.29: resolve the SRC tap-vs-hold under the Track scope. The picker
-                // is sticky once open (it survives the key-up, like the FX picker), so
-                // key-up only has to answer "was this a tap?" — and a tap pages SRC.
-                if (heldSectionIndex_ == IMachine::kSrcSecIdx)
-                {
-                    using LPR = GestureRecognizer::LongPressResult;
-                    const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (machinePickerFiredMidHold_)
-                    {
-                        gesture_.cancelLongPress();   // picker already open: consume the arm
-                    }
-                    else switch (gesture_.checkLongPress(kMachineSectionLongPressToken, now))
-                    {
-                        case LPR::ShortHold:
-                            keyboardArea_.selectSection(IMachine::kSrcSecIdx);
-                            break;
-                        case LPR::LongHold:
-                            // Released just past threshold before the timer ticked.
-                            openMachinePicker();
-                            break;
-                        case LPR::NotArmed:
-                            break;
-                    }
+                    sectionHoldAction_ = ActionId::None;
+                    sectionHoldFired_ = false;
                 }
 
                 // 7b: resolve a deferred machine-console section press.
@@ -6308,8 +6286,6 @@ namespace lockstep
                 }
                 heldSectionRawCode_ = -1;
                 heldSectionIndex_ = -1;
-                fxPickerFiredMidHold_ = false;
-                machinePickerFiredMidHold_ = false;
                 uiState_.funcSrcHeld = false;
                 if (!uiState_.funcHeld)
                     uiState_.funcFxHeld = false;

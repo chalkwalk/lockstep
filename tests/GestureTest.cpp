@@ -686,6 +686,52 @@ namespace lockstep
         }
     }
 
+    // -------------------------------------------------------------------------
+    // 9.12 st.7d — the section family. Tap navigates; HOLD chooses what fills the
+    // section, at the held scope (9.14 / §13.9). The hold is timing-based, so the
+    // golden cannot see it; the table's answer and the effect it fires are pinned here.
+
+    static void scenario_sectionHoldRowsAreScopeGated()
+    {
+        // The picker a section hold opens is the TABLE's call, not an index check.
+        CHECK(resolveBinding(CB::Section, 5, kModTrack, SurfaceLayer::Base, Gesture::Hold).action
+                  == ActionId::OpenTrackFxPicker, "Track + hold(FX) = track FX picker");
+        CHECK(resolveBinding(CB::Section, 5, kModSong, SurfaceLayer::Base, Gesture::Hold).action
+                  == ActionId::OpenMasterFxPicker, "Song + hold(FX) = master FX picker");
+        CHECK(resolveBinding(CB::Section, 1, kModTrack, SurfaceLayer::Base, Gesture::Hold).action
+                  == ActionId::OpenMachinePicker, "Track + hold(SRC) = machine picker");
+        // Bare holds carry NO picker: an unscoped hold of SRC is the OnDemand machine
+        // console, and the scope gate is the only thing keeping the two apart.
+        CHECK(resolveBinding(CB::Section, 1, kModNone, SurfaceLayer::Base, Gesture::Hold).action
+                  == ActionId::None, "bare hold(SRC) opens no picker (that hold is the console)");
+        CHECK(resolveBinding(CB::Section, 5, kModNone, SurfaceLayer::Base, Gesture::Hold).action
+                  == ActionId::None, "bare hold(FX) opens no picker");
+    }
+
+    static void scenario_sectionActionsMapToEffects()
+    {
+        {
+            GestureFixture f;
+            CHECK(f.action(ActionId::SelectSection, CB::Section, 3), "tap is wired");
+            CHECK(f.effects.sectionSelects == std::vector<int>{ 3 }, "tap navigates that section");
+        }
+        {
+            GestureFixture f;
+            CHECK(f.action(ActionId::SelectMetaSection, CB::Section, 2), "Func-layer tap is wired");
+            CHECK(f.effects.metaSectionSelects == std::vector<int>{ 2 }, "meta tap navigates");
+        }
+        {
+            GestureFixture f;
+            CHECK(f.action(ActionId::OpenTrackFxPicker, CB::Section, 5), "track picker wired");
+            CHECK(f.effects.fxPickerOpens == std::vector<bool>{ false }, "opens the TRACK picker");
+        }
+        {
+            GestureFixture f;
+            CHECK(f.action(ActionId::OpenMasterFxPicker, CB::Section, 5), "master picker wired");
+            CHECK(f.effects.fxPickerOpens == std::vector<bool>{ true }, "opens the MASTER picker");
+        }
+    }
+
     void runGestureTests()
     {
         scenario_trigCopy();
@@ -727,6 +773,8 @@ namespace lockstep
         scenario_deleteHoldInertWithoutDeletableScope();
         scenario_trigFuncClearKeepsTrig();
         scenario_navActionsMapToEffects();
+        scenario_sectionHoldRowsAreScopeGated();
+        scenario_sectionActionsMapToEffects();
         scenario_transposeQualifiedByFunc();
     }
 }

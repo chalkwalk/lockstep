@@ -99,8 +99,10 @@ namespace lockstep
     // at 1000+btn, step indices 0..63, or GestureRecognizer::kNavRightUnlock).
     static constexpr int kRestoreLongPressToken = 5000;
 
-    // Token for the FX-section long-press (tap = navigate, hold = open picker).
-    static constexpr int kFxSectionLongPressToken = 6000;
+    // Token for a section-key long-press (tap = navigate, hold = open the picker the
+    // TABLE names for that key + scope: FX inserts, master FX, the machine — 9.12 st.7d).
+    // One token, because it is one gesture; which picker it opens is the binding's call.
+    static constexpr int kSectionHoldToken = 6000;
 
     // Token for a long-press on the *loaded* FX-picker catalogue cell (tap =
     // bypass, long-press = remove the effect from the targeted slot).
@@ -115,12 +117,6 @@ namespace lockstep
     // qualifier when Func+Track became the Machine scope; the gesture axis is the
     // better home anyway — the destructive verb should cost the deliberate gesture.
     static constexpr int kDeleteHoldToken = 6004;
-
-    // Token for the SRC-section long-press under the Track scope (9.29): tap =
-    // navigate SRC pages, hold = open the machine picker. Distinct from the console
-    // token above, which is the BARE hold of the same key on an OnDemand machine —
-    // the scope gate is what keeps the two gestures apart, so they cannot share.
-    static constexpr int kMachineSectionLongPressToken = 6003;
 
     // Token for the CAPTURE cell (tape deck): tap / double-tap / long-press all
     // resolve on this one token (double-tap and long-press use independent state

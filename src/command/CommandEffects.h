@@ -100,6 +100,13 @@ namespace lockstep
         virtual void cycleInputMode(int delta) = 0;    // Track+Nav: PLAY / CHROM / LEVELS
         virtual void morphPole(int pole) = 0;          // Morph+Nav: force A (1) or B (2) edits
         virtual void transposeTrack(int semitones) = 0;  // Phrase+Nav: transpose the phrase
+
+        // ── 9.12 Stage 7d: the section family ────────────────────────────────
+        // A section TAP navigates (the scope stack decides to what); a section HOLD
+        // chooses what fills that section, at the held scope (9.14 / §13.9).
+        virtual void selectSection(int index) = 0;      // tap, primary layer
+        virtual void selectMetaSection(int index) = 0;  // tap, Func layer
+        virtual void openFxPicker(bool master) = 0;     // Track/Song + hold(FX)
         virtual void openGeneratorHub() = 0;                  // TapTempo hold
         virtual void setTrigGridMode(TrigGridMode mode) = 0;  // retrig / sound-pool pickers
     };

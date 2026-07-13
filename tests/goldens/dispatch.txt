@@ -378,6 +378,7 @@ L22 | Track+Section idx=1 | action=10
 L22 | Track+Section idx=5 | action=11
     down swingDismissed: false -> true
     down trackHeld: false -> true
+    up   masterSection: -1 -> 5
 
 L22 | Song+Section idx=5 | action=12
     down songHeld: false -> true

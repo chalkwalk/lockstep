@@ -75,6 +75,16 @@ namespace lockstep::test
         void morphPole(int p) override { navCalls.emplace_back("morphPole", p); }
         void transposeTrack(int s) override { navCalls.emplace_back("transpose", s); }
 
+        // 9.12 st.7d: the section family. Recorded so a test can assert that a TAP
+        // navigates and a HOLD opens the picker the table names -- the two halves of the
+        // one gesture the section keys carry.
+        std::vector<int> sectionSelects;
+        std::vector<int> metaSectionSelects;
+        std::vector<bool> fxPickerOpens;   // true = master
+        void selectSection(int i) override { sectionSelects.push_back(i); }
+        void selectMetaSection(int i) override { metaSectionSelects.push_back(i); }
+        void openFxPicker(bool master) override { fxPickerOpens.push_back(master); }
+
         void executeConfirm(ConfirmKind k, int t) override { confirmsExecuted.push_back({ k, t }); }
         void globalMuteToggle(int t) override { globalMuteTracks.push_back(t); }
         void soloToggle(int t) override { soloTracks.push_back(t); }

@@ -30,11 +30,9 @@ namespace
     const std::set<ActionId> kNotYetMigrated = {
         // (the eight Hold*Scope actions migrated in Stage 7a)
         ActionId::HoldSceneMuteView,
-        ActionId::OpenTrackFxPicker,
-        ActionId::OpenMasterFxPicker, ActionId::FocusGlobal,
+        ActionId::FocusGlobal,
         ActionId::TapTempo,          ActionId::MetronomeToggle,
-        // (the nav family migrated in Stage 7c)
-        ActionId::SelectSection,     ActionId::SelectMetaSection,
+        // (the nav family migrated in Stage 7c; the section family in Stage 7d)
         // (the verb family migrated in Stage 7b; Confirm/Cancel stay imperative --
         //  they are intercepted by handleDown's pending-confirm gate, not by an action)
         ActionId::VerbConfirm,       ActionId::VerbCancel,

@@ -241,8 +241,11 @@ namespace lockstep
         int heldSectionRawCode_ = -1;
         int heldSectionIndex_ = -1;  // section index (0-5) while key held; -1 = none
         bool fxSectionPickerWantsMaster_ = false; // captured at Section-5 key-down
-        bool fxPickerFiredMidHold_ = false;       // picker opened during the hold (not on key-up)
-        bool machinePickerFiredMidHold_ = false;  // 9.29: Track+hold(SRC) opened the machine picker
+        // 9.12 st.7d: the section hold, as the TABLE resolved it at arm time. One pair
+        // of fields for every picker — the old per-picker "firedMidHold" bools were the
+        // shape that made each new picker cost another if in three places.
+        ActionId sectionHoldAction_ = ActionId::None;
+        bool sectionHoldFired_ = false;           // the hold already fired (timer path)
         bool clearHoldArmed_ = false;             // 9.29: Clear pressed under a deletable scope
         bool clearHoldFired_ = false;             // 9.29: the delete already fired mid-hold
         bool stepInspectorFiredMidHold_ = false;  // Part 2: StepInspector opened via long-press this hold
@@ -634,14 +637,15 @@ namespace lockstep
         // 9.12 Stage 7b: route a scoped verb press through the binding table.
         // Always returns true (the press is consumed).
         bool routeVerb(const ControllerEvent& ev);
-        bool routeNav(const ControllerEvent& ev);   // 9.12 st.7c: the nav family
+        bool routeNav(const ControllerEvent& ev);      // 9.12 st.7c: the nav family
+        bool routeSection(const ControllerEvent& ev);  // 9.12 st.7d: the section family
+        void fireSectionHold();
 
         // 9.29: the Clear key's tap/hold split. Tap = clear the scope's contents;
         // hold = delete the entity it owns (deleteHoldCapable gates which scopes have
         // one). clearVerbTap is the old dispatchDown body, moved intact.
         [[nodiscard]] bool deleteHoldCapable() const;
         void fireDeleteHold();
-        void openMachinePicker();   // 9.29: Track + hold(SRC), routed through the table
         bool clearVerbTap(const ControllerEvent& ev);
 
         // MHZ.9.x: auto-release a transient mode's latch after its terminal action.
