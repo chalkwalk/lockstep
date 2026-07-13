@@ -33,6 +33,7 @@
 #include "../src/command/KeyBindings.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "../src/ui/mode/GestureRecognizer.h"
 #include <cstdio>
 #include <map>
 #include <memory>
@@ -43,9 +44,31 @@ namespace lockstep
     // private to production code.
     struct DispatchProbe
     {
-        static bool down(LockstepEditor& ed, ControllerEvent ev) { return ed.dispatchDown(ev, 0); }
-        static void up(LockstepEditor& ed, ControllerEvent ev) { ed.dispatchUp(ev, 0); }
+        // FIDELITY (7b). Every real input path -- QWERTY, mouse, controller -- runs
+        // the raw event through resolveLayer() BEFORE dispatch (ButtonLayers.h says
+        // so in its first line). The first version of this probe called dispatchDown
+        // directly and skipped it, so `Func+Y` never became CB::Restore and the
+        // golden recorded RESTORE as "pushes a second checkpoint" -- a path the
+        // product never takes. A net that models a different input path than the
+        // instrument is worse than no net: it is green about fiction.
+        static ControllerEvent layered(const LockstepEditor& ed, ControllerEvent raw)
+        {
+            const UiState& u = ed.uiState_;
+            const LayerContext lctx{ u.funcHeld,
+                                     u.trackHeld || u.latch.track,
+                                     u.muteHeld || u.latch.mute };
+            return resolveLayer(raw, lctx);
+        }
+        static bool down(LockstepEditor& ed, ControllerEvent ev)
+        {
+            return ed.dispatchDown(layered(ed, ev), 0);
+        }
+        static void up(LockstepEditor& ed, ControllerEvent ev)
+        {
+            ed.dispatchUp(layered(ed, ev), 0);
+        }
         static const UiState& ui(const LockstepEditor& ed) { return ed.uiState_; }
+        static const Clipboard& clip(const LockstepEditor& ed) { return ed.clipboard_; }
     };
 }
 
@@ -233,6 +256,44 @@ namespace
         return d;
     }
 
+    // ── 7b: what a VERB actually does ────────────────────────────────────────
+    // The UiState digest above is blind to the entire verb family. `Track+Record`
+    // is COPY TRACK, and the copy lands in the clipboard; `Clear` rewrites the
+    // phrase; `Snapshot` pushes a checkpoint. None of that is UiState, so the
+    // golden recorded a scoped verb as "the modifier went down" and nothing else --
+    // it would have stayed green through any breakage of copy/paste/clear/snapshot.
+    // A net that cannot see the family it is about to protect is decoration.
+    Digest verbDigest(const LockstepEditor& ed, const LockstepProcessor& p)
+    {
+        Digest d;
+        const auto& c = DispatchProbe::clip(ed);
+        put(d, "clip.type", static_cast<int>(c.type));
+        put(d, "clip.stepEntries", static_cast<int>(c.stepEntries.size()));
+        put(d, "clip.sectionSlots", static_cast<int>(c.sectionSlots.size()));
+
+        const int ft = p.focusTrack();
+        put(d, "ckpt.Song", p.checkpointDepth(CheckpointScope::Song, ft));
+        put(d, "ckpt.Track", p.checkpointDepth(CheckpointScope::Track, ft));
+        put(d, "ckpt.Scene", p.checkpointDepth(CheckpointScope::Scene, ft));
+        put(d, "ckpt.Phrase", p.checkpointDepth(CheckpointScope::Phrase, ft));
+
+        // Sequence content: a trig census per track, so Clear / Paste / init are
+        // visible as content changes rather than as nothing at all.
+        juce::String trigs;
+        const auto& seq = p.sequence();
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+        {
+            int n = 0;
+            const auto& trk = seq.tracks[t];
+            for (int s = 0; s < trk.length && s < kMaxStepsPerTrack; ++s)
+                if (trk.steps[static_cast<std::size_t>(s)].trig)
+                    ++n;
+            trigs += juce::String(n) + ",";
+        }
+        d["seq.trigsPerTrack"] = trigs;
+        return d;
+    }
+
     // ---------------------------------------------------------------------------
     // A fresh editor per case: gestures mutate state, so cases must not contaminate
     // each other. Heap, always (see the Arrangement note at the top).
@@ -246,12 +307,28 @@ namespace
         {
             proc = std::make_unique<LockstepProcessor>();
             proc->setRateAndBufferSizeDetails(44100.0, 512);
+
+            // PRIOR STATE (7b). A blank project makes destructive verbs invisible:
+            // Clear on an empty phrase changes nothing, so the golden would record
+            // "no observable state change" and stay green even if Clear stopped
+            // working. Seed trigs so Clear/Paste/Init have something to destroy.
+            auto& seq = proc->sequence();
+            for (std::size_t t = 0; t < 4; ++t)
+                for (int s = 0; s < 16; s += 4)
+                    seq.tracks[t].steps[static_cast<std::size_t>(s)].trig = true;
+
             editor = std::make_unique<LockstepEditor>(*proc);
             editor->setSize(1400, 900);
         }
         ~Rig() { editor.reset(); }   // editor before processor: it holds a reference
 
-        Digest snap() const { return digest(DispatchProbe::ui(*editor), *proc); }
+        Digest snap() const
+        {
+            Digest d = digest(DispatchProbe::ui(*editor), *proc);
+            for (auto& [k, v] : verbDigest(*editor, *proc))
+                d[k] = v;
+            return d;
+        }
     };
 
     juce::String renderCase(const KeyBinding& row, const Digest& base)
@@ -313,6 +390,64 @@ namespace
             line << "    (no observable state change)\n";
         return line;
     }
+
+    // ── Scripted scenarios (7b) ──────────────────────────────────────────────
+    // The row matrix fires ONE gesture on a fresh rig, which structurally cannot
+    // see a verb that depends on history. Paste is the clearest case: with an empty
+    // clipboard it is a no-op, so `Track+Play` (PASTE TRACK) recorded "no observable
+    // state change" -- the net would have stayed green if paste stopped working
+    // entirely. These scripts give the verbs the history they need.
+    struct Press
+    {
+        std::vector<CB> mods;
+        CB button;
+        int index = -1;
+    };
+
+    juce::String renderScenario(const char* name, const std::vector<Press>& script,
+                                const Digest& base)
+    {
+        Rig rig;
+        bool first = true;
+        for (const auto& p : script)
+        {
+            // GestureRecognizer reads the wall clock, and a script fires in
+            // microseconds -- so pressing the same modifier twice (copy, then paste)
+            // looks like a DOUBLE-TAP and silently LATCHES the scope. That is a
+            // harness artifact masquerading as behaviour: the first run of these
+            // scenarios recorded `latch.phrase: false -> true` and I nearly believed
+            // it. Space the steps past the 350 ms window so a script is a sequence of
+            // deliberate presses, which is what a human does.
+            if (!first)
+                juce::Thread::sleep(static_cast<int>(GestureRecognizer::kDoubleTapMs) + 60);
+            first = false;
+
+            for (CB m : p.mods)
+                (void)DispatchProbe::down(*rig.editor, CE{ CE::Type::ButtonDown, m, 0, 0 });
+            (void)DispatchProbe::down(*rig.editor,
+                                      CE{ CE::Type::ButtonDown, p.button, p.index, 0 });
+            DispatchProbe::up(*rig.editor, CE{ CE::Type::ButtonUp, p.button, p.index, 0 });
+            for (auto it = p.mods.rbegin(); it != p.mods.rend(); ++it)
+                DispatchProbe::up(*rig.editor, CE{ CE::Type::ButtonUp, *it, 0, 0 });
+        }
+
+        const Digest after = rig.snap();
+        juce::String line;
+        line << "SCENARIO " << name << "\n";
+        int changes = 0;
+        for (const auto& [k, v] : after)
+        {
+            const auto b = base.find(k);
+            if (b != base.end() && b->second == v)
+                continue;
+            line << "    " << k << ": " << (b == base.end() ? juce::String("<new>") : b->second)
+                 << " -> " << v << "\n";
+            ++changes;
+        }
+        if (changes == 0)
+            line << "    (no observable state change)\n";
+        return line;
+    }
 }   // namespace
 
 void runDispatchGoldenTests(int& failed)
@@ -327,6 +462,35 @@ void runDispatchGoldenTests(int& failed)
 
     for (const auto& row : kKeyBindings)
         out << renderCase(row, base) << "\n";
+
+    // Verbs that need history. SelectTrack moves focus, so a copy-then-paste lands
+    // on a DIFFERENT track and the trig census shows the paste arriving.
+    out << "\n# Scenarios: verbs whose effect depends on prior state.\n\n";
+    out << renderScenario("copy track 0 -> paste onto track 5",
+                          { { { CB::TrackScope }, CB::VerbRecord },      // COPY TRACK
+                            { {}, CB::SelectTrack, 5 },                  // focus track 5
+                            { { CB::TrackScope }, CB::VerbPlay } },      // PASTE TRACK
+                          base)
+        << "\n";
+    out << renderScenario("copy phrase -> paste phrase onto track 5",
+                          { { { CB::PhraseScope }, CB::VerbRecord },
+                            { {}, CB::SelectTrack, 5 },
+                            { { CB::PhraseScope }, CB::VerbPlay } },
+                          base)
+        << "\n";
+    out << renderScenario("snapshot, then restore (Func+Snapshot pops it)",
+                          { { {}, CB::VerbSnapshot },
+                            { { CB::Func }, CB::VerbSnapshot } },
+                          base)
+        << "\n";
+    out << renderScenario("clear track (arms confirm), then confirm",
+                          { { { CB::TrackScope }, CB::VerbClear },
+                            { {}, CB::VerbConfirm } },
+                          base)
+        << "\n";
+    out << renderScenario("double snapshot deepens the stack",
+                          { { {}, CB::VerbSnapshot }, { {}, CB::VerbSnapshot } }, base)
+        << "\n";
 
     const juce::File golden { juce::String(LOCKSTEP_TEST_DIR) + "/goldens/dispatch.txt" };
 
