@@ -107,6 +107,12 @@ namespace lockstep
         virtual void selectSection(int index) = 0;      // tap, primary layer
         virtual void selectMetaSection(int index) = 0;  // tap, Func layer
         virtual void openFxPicker(bool master) = 0;     // Track/Song + hold(FX)
+
+        // ── 9.12 Stage 7e ────────────────────────────────────────────────────
+        // QUANT: zero the microOffsets of whatever the current scope names — the held
+        // step(s), the focused track, or every track (Phrase). The scope cascade is the
+        // effect's, because "which steps" is engine + EditContext state, not modifiers.
+        virtual void quantizeHeld() = 0;
         virtual void openGeneratorHub() = 0;                  // TapTempo hold
         virtual void setTrigGridMode(TrigGridMode mode) = 0;  // retrig / sound-pool pickers
     };

@@ -637,9 +637,13 @@ namespace lockstep
         // 9.12 Stage 7b: route a scoped verb press through the binding table.
         // Always returns true (the press is consumed).
         bool routeVerb(const ControllerEvent& ev);
+        [[nodiscard]] SurfaceLayer activeLayer() const;
+        bool routeLayered(const ControllerEvent& ev);  // resolve on the active layer, else Base
         bool routeNav(const ControllerEvent& ev);      // 9.12 st.7c: the nav family
+        bool routeConfirm(const ControllerEvent& ev);  // 9.12 st.7e: the P key
         bool routeSection(const ControllerEvent& ev);  // 9.12 st.7d: the section family
         void fireSectionHold();
+        void fireGesture(ControllerButton btn, int index, Gesture g);  // 9.12 st.7f
 
         // 9.29: the Clear key's tap/hold split. Tap = clear the scope's contents;
         // hold = delete the entity it owns (deleteHoldCapable gates which scopes have

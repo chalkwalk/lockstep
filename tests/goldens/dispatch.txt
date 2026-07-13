@@ -310,12 +310,12 @@ L22 | Scene+VerbClear idx=-1 | action=39
     down sceneHeld: false -> true
     down swingDismissed: false -> true
 
-L22 | Track+VerbConfirm idx=-1 | action=40
+L22 | Track+VerbConfirm idx=-1 | action=52
     down ckpt.Track: 0 -> 1
     down swingDismissed: false -> true
     down trackHeld: false -> true
 
-L22 | Phrase+VerbConfirm idx=-1 | action=40
+L22 | Phrase+VerbConfirm idx=-1 | action=52
     down ckpt.Phrase: 0 -> 1
     down phraseScopeHeld: false -> true
 
@@ -323,6 +323,9 @@ L22 | Func+VerbConfirm idx=-1 | action=41
     down funcHeld: false -> true
 
 L22 | VerbConfirm idx=-1 | action=40
+    (no observable state change)
+
+L10 | VerbConfirm idx=-1 | action=52
     (no observable state change)
 
 L0 | Func+VerbConfirm idx=-1 | action=41

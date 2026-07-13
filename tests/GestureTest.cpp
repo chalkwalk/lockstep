@@ -732,6 +732,55 @@ namespace lockstep
         }
     }
 
+    // -------------------------------------------------------------------------
+    // 9.12 st.7e/7f — confirm/quantize and transport.
+
+    static void scenario_quantizeRowsAndEffect()
+    {
+        // The P key's rows SAID VerbConfirm while LABELLED "QUANT". The label was the
+        // honest half; the action is QuantizeHeld and dispatch now agrees with the frame.
+        CHECK(resolveBinding(CB::VerbConfirm, -1, kModTrack, SurfaceLayer::Base).action
+                  == ActionId::QuantizeHeld, "Track+P = QUANT");
+        CHECK(resolveBinding(CB::VerbConfirm, -1, kModPhrase, SurfaceLayer::Base).action
+                  == ActionId::QuantizeHeld, "Phrase+P = QUANT");
+        // A held step is not a modifier, so the step-scoped quantize is a LAYER row --
+        // which is what finally lets the key frame advertise it during a step hold.
+        CHECK(resolveBinding(CB::VerbConfirm, -1, kModNone, SurfaceLayer::StepInspector).action
+                  == ActionId::QuantizeHeld, "P while holding a step = QUANT (layer row)");
+        CHECK(resolveBinding(CB::VerbConfirm, -1, kModNone, SurfaceLayer::Base).action
+                  == ActionId::VerbConfirm, "bare P is still the confirm verb");
+        CHECK(resolveBinding(CB::VerbConfirm, -1, kModFunc, SurfaceLayer::Base).action
+                  == ActionId::VerbCancel, "Func+P = CANCEL");
+
+        GestureFixture f;
+        CHECK(f.action(ActionId::QuantizeHeld, CB::VerbConfirm), "QUANT is wired");
+        CHECK(f.effects.quantizes == 1, "QUANT fires exactly once");
+    }
+
+    static void scenario_transportActionsMapToEffects()
+    {
+        using TA = CommandEffects::TransportAction;
+        {
+            GestureFixture f;
+            CHECK(f.action(ActionId::TapTempo, CB::TapTempo), "TAP TEMPO is wired");
+            CHECK(f.effects.transportActions == std::vector<TA>{ TA::TapTempo },
+                  "the tap routes to the ONE transport path (not a second copy)");
+        }
+        {
+            GestureFixture f;
+            CHECK(f.action(ActionId::MetronomeToggle, CB::MetronomeToggle), "metronome is wired");
+            CHECK(f.effects.transportActions == std::vector<TA>{ TA::Metronome },
+                  "metronome routes to the transport");
+        }
+        // The TAP key carries both: tap = tempo, hold = the generator hub. Firing the
+        // tempo on PRESS would make every hub entry also nudge the tempo, which is why
+        // the tap resolves on release.
+        CHECK(resolveBinding(CB::TapTempo, -1, kModNone, SurfaceLayer::Base, Gesture::Hold).action
+                  == ActionId::OpenGeneratorHub, "TAP + hold = GEN HUB");
+        CHECK(resolveBinding(CB::TapTempo, -1, kModNone, SurfaceLayer::Base, Gesture::Tap).action
+                  == ActionId::TapTempo, "TAP + tap = TAP TEMPO");
+    }
+
     void runGestureTests()
     {
         scenario_trigCopy();
@@ -775,6 +824,8 @@ namespace lockstep
         scenario_navActionsMapToEffects();
         scenario_sectionHoldRowsAreScopeGated();
         scenario_sectionActionsMapToEffects();
+        scenario_quantizeRowsAndEffect();
+        scenario_transportActionsMapToEffects();
         scenario_transposeQualifiedByFunc();
     }
 }

@@ -202,13 +202,21 @@ namespace lockstep
           Gesture::Hold, false },
 
         // ── VerbConfirm / CONFIRM (key P) ─────────────────────────────────────────
-        // Scope+P = QUANT (zero microOffset on scope). No hint: holding Func over
-        // Track/Phrase+P still resolves to QUANT (scope wins the popcount tiebreak),
-        // so there is no distinct Func-overlay to preview.
-        { CB::VerbConfirm, -1, kModTrack,  SL::Base, AId::VerbConfirm, u8"QUANT", u8"", CS::Resting },
-        { CB::VerbConfirm, -1, kModPhrase, SL::Base, AId::VerbConfirm, u8"QUANT", u8"", CS::Resting },
+        // Scope+P = QUANT (zero microOffset on the scope's steps). 7e: the rows said
+        // AId::VerbConfirm while LABELLED "QUANT" -- the label was the honest half. The
+        // action is QuantizeHeld, and the dispatch now agrees with the frame.
+        // No hint: Func over Track/Phrase+P still resolves to QUANT (the scope wins the
+        // popcount tiebreak), so there is no distinct Func-overlay to preview.
+        { CB::VerbConfirm, -1, kModTrack,  SL::Base, AId::QuantizeHeld, u8"QUANT", u8"", CS::Resting },
+        { CB::VerbConfirm, -1, kModPhrase, SL::Base, AId::QuantizeHeld, u8"QUANT", u8"", CS::Resting },
         { CB::VerbConfirm, -1, kModFunc,   SL::Base, AId::VerbCancel,  u8"CANCEL", u8"", CS::Resting },
         { CB::VerbConfirm, -1, kModNone,   SL::Base, AId::VerbConfirm, u8"CONFIRM", u8"CANCEL", CS::Resting },
+        // A held step is not a modifier, so the step-scoped quantize (bare P while
+        // holding step(s) = quantize THOSE steps) could never be a Base row -- which is
+        // why it lived as the first branch of an if-cascade and the key frame never
+        // advertised it. It is a LAYER: while a step is held the grid is the inspector,
+        // and P reads QUANT.
+        { CB::VerbConfirm, -1, kModNone, SL::StepInspector, AId::QuantizeHeld, u8"QUANT", u8"", CS::Resting },
 
         // ── PendingConfirm layer — P key shows live CONFIRM (green) / CANCEL (red) ──
         { CB::VerbConfirm, -1, kModFunc, SL::PendingConfirm, AId::VerbCancel, u8"CANCEL", u8"", CS::ConfirmNo },

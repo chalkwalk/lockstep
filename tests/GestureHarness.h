@@ -84,6 +84,8 @@ namespace lockstep::test
         void selectSection(int i) override { sectionSelects.push_back(i); }
         void selectMetaSection(int i) override { metaSectionSelects.push_back(i); }
         void openFxPicker(bool master) override { fxPickerOpens.push_back(master); }
+        int quantizes = 0;
+        void quantizeHeld() override { ++quantizes; }
 
         void executeConfirm(ConfirmKind k, int t) override { confirmsExecuted.push_back({ k, t }); }
         void globalMuteToggle(int t) override { globalMuteTracks.push_back(t); }

@@ -278,6 +278,24 @@ namespace lockstep
                 fx.transposeTrack(ctx.uiState.funcHeld ? -1 : -12);
                 return true;
 
+            // ── 9.12 Stage 7e: confirm / quantize ────────────────────────────────
+            // QUANT is the one verb on P that is not a confirm at all: it zeroes the
+            // microOffsets of whatever the scope names (held steps, the track, or every
+            // track under Phrase). The cascade lives in the effect, unchanged.
+            case AId::QuantizeHeld:  fx.quantizeHeld(); return true;
+            // Confirm / Cancel with nothing pending: the plain verb (a pending prompt is
+            // intercepted by handleDown long before this, and never reaches an action).
+            case AId::VerbConfirm:
+            case AId::VerbCancel:
+                return handleVerb(ctx.editMode.primaryScope(), CB::VerbConfirm, ctx, fx);
+
+            // ── 9.12 Stage 7f: transport ─────────────────────────────────────────
+            // Both already have a home in handleDown's button switch (a controller may
+            // send them as buttons); wiring the ACTIONS points the QWERTY path at the
+            // same effect, so the two surfaces cannot drift.
+            case AId::TapTempo:        fx.transport(TA::TapTempo); return true;
+            case AId::MetronomeToggle: fx.transport(TA::Metronome); return true;
+
             // ── 9.12 Stage 7d: the section family ────────────────────────────────
             case AId::SelectSection:      fx.selectSection(ev.index); return true;
             case AId::SelectMetaSection:  fx.selectMetaSection(ev.index); return true;

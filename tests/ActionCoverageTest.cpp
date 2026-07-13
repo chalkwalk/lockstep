@@ -29,22 +29,27 @@ namespace
     // wire the action instead; the list is debt, not an escape hatch.
     const std::set<ActionId> kNotYetMigrated = {
         // (the eight Hold*Scope actions migrated in Stage 7a)
-        ActionId::HoldSceneMuteView,
-        ActionId::FocusGlobal,
-        ActionId::TapTempo,          ActionId::MetronomeToggle,
-        // (the nav family migrated in Stage 7c; the section family in Stage 7d)
-        // (the verb family migrated in Stage 7b; Confirm/Cancel stay imperative --
-        //  they are intercepted by handleDown's pending-confirm gate, not by an action)
+        // (7a modifiers, 7b verbs, 7c nav, 7d sections, 7e confirm/quantize,
+        //  7f transport -- all migrated. What is left is NOT debt: every entry below is
+        //  an action handleAction correctly DECLINES, and Stage 8 turns this list into
+        //  an exhaustive switch that says so in code rather than in a set.)
+
+        // Confirm / Cancel: routed through handleAction (7e), but they DELEGATE to the
+        // scope x verb matrix, which declines them in every scope -- a pending prompt is
+        // intercepted by handleDown long before an action is ever resolved. "Unhandled"
+        // is the correct answer here, not a hole.
         ActionId::VerbConfirm,       ActionId::VerbCancel,
-        ActionId::QuantizeHeld,
-        // Display-only rows: they exist so the key's frame can advertise the
-        // gesture; the transport owns the behaviour (see KeyBindings.h).
+
+        // Display-only rows. They exist so a key's FRAME can advertise a gesture whose
+        // behaviour is owned elsewhere:
+        //   TransportTrackCut/MasterCut -- the Play key's multi-tap, owned by the transport.
+        //   HoldSceneMuteView           -- Scene+Mute is a VIEW, derived from held state.
+        //   HoldMachineScope / FocusGlobal -- the compound scopes (9.29). A modifier press
+        //     always resolves on its BARE row (7a: "enter this scope" whatever else is
+        //     held), so the compound row advertises, and enterScopeHold sets the state.
         ActionId::TransportTrackCut, ActionId::TransportMasterCut,
-        // Display-only compound-scope rows (9.29): Func+Track = Machine, Func+Song =
-        // Set. A modifier press always resolves on its BARE row (Stage 7a) -- "enter
-        // this scope" whatever else is held -- so these rows advertise the compound on
-        // the key frame; the scope state itself is set by enterScopeHold.
-        ActionId::HoldMachineScope,
+        ActionId::HoldSceneMuteView,
+        ActionId::HoldMachineScope,  ActionId::FocusGlobal,
     };
 }   // namespace
 

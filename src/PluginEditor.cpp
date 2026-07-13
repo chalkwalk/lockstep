@@ -250,6 +250,50 @@ namespace lockstep
             ed.keyboardArea_.nextPage();
         }
 
+        // ── 9.12 st.7e: QUANT ─────────────────────────────────────────────────
+        // Moved verbatim out of the VerbConfirm cascade. The three targets are a scope
+        // cascade the table cannot express, because the first of them is a HELD STEP:
+        // Trig (held steps) → those steps; Track → the whole track; Phrase → all tracks.
+        void quantizeHeld() override
+        {
+            using PS = EditMode::PrimaryScope;
+            const auto scope = ed.editMode_.primaryScope();
+            const auto& heldSteps = ed.processor_.editContext().heldSteps();
+
+            if (!heldSteps.empty())
+            {
+                const int t = ed.keyboardArea_.getActiveTrack();
+                if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
+                ed.processor_.snapshot(CheckpointScope::Track, t);
+                auto& trk = ed.processor_.sequence().tracks[static_cast<std::size_t>(t)];
+                for (const int si : heldSteps)
+                    if (si >= 0 && si < kMaxStepsPerTrack)
+                        trk.steps[static_cast<std::size_t>(si)].microOffset = 0.0f;
+            }
+            else if (scope == PS::Track)
+            {
+                const int t = ed.keyboardArea_.getActiveTrack();
+                if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
+                ed.processor_.snapshot(CheckpointScope::Track, t);
+                for (auto& st : ed.processor_.sequence().tracks[static_cast<std::size_t>(t)].steps)
+                    st.microOffset = 0.0f;
+            }
+            else if (scope == PS::Phrase)
+            {
+                int ckTrk = 0;
+                ed.processor_.snapshot(ed.ckScope(ckTrk), ckTrk);
+                for (auto& trk : ed.processor_.sequence().tracks)
+                    for (auto& st : trk.steps)
+                        st.microOffset = 0.0f;
+            }
+            else
+            {
+                return;   // no quantizable scope
+            }
+            ed.setStatus(status::quantized());
+            ed.refreshSurface();
+        }
+
         // ── 9.12 st.7d: the section family's effects ──────────────────────────
         // Both TAP bodies below are MOVED verbatim out of dispatchDown. They stay one
         // resolver deep (resolveSectionKey) because that resolver is already the single
@@ -1575,8 +1619,10 @@ namespace lockstep
             const double nowMs = juce::Time::getMillisecondCounterHiRes();
             if (nowMs - tapTempoArmMs_ >= GestureRecognizer::kLongPressMs)
             {
-                uiState_.generatorHubHeld = true;
-                refreshSurface();   // the hub re-skins the step grid: controllers too
+                // 9.12 st.7f: the table already says TAP + hold = GEN HUB. Fire the row,
+                // don't set the flag: the hub re-skins the step grid, so a controller
+                // must be able to open it through the same door (PRINCIPLES §19).
+                fireGesture(ControllerButton::TapTempo, -1, Gesture::Hold);
             }
         }
 
@@ -3995,7 +4041,8 @@ namespace lockstep
     // and declaring it as rows is what lets the key frame say OCT± while the mode is
     // up. Layer rows are additive, so a miss falls back to Base rather than dropping
     // the key: every other nav gesture means the same thing in every layer.
-    bool LockstepEditor::routeNav(const ControllerEvent& ev)
+    // The step grid's active layer, as both the painter and dispatch see it.
+    SurfaceLayer LockstepEditor::activeLayer() const
     {
         const int at = keyboardArea_.getActiveTrack();
         const auto inputMode = (at >= 0)
@@ -4004,7 +4051,16 @@ namespace lockstep
         const LayerFacts facts{ inputMode, at,
                                 at >= 0 && processor_.isLooperTrack(at),
                                 processor_.trackConsoleMode(at) };
-        const auto layer = resolveActiveLayer(uiState_, processor_.editContext(), facts);
+        return resolveActiveLayer(uiState_, processor_.editContext(), facts);
+    }
+
+    // Resolve a key on the ACTIVE layer, falling back to Base. Layer rows are additive:
+    // a key means the same thing in every layer unless a layer says otherwise (the
+    // octave pair inside NoteEdit/CHROMATIC, QUANT inside the step inspector), so a
+    // miss must fall back rather than drop the press.
+    bool LockstepEditor::routeLayered(const ControllerEvent& ev)
+    {
+        const auto layer = activeLayer();
         const auto mods = heldModsFromUiState(uiState_);
 
         const KeyBinding* row = &resolveBinding(ev.button, ev.index, mods, layer);
@@ -4018,6 +4074,12 @@ namespace lockstep
         refreshSurface();
         return true;
     }
+
+    bool LockstepEditor::routeNav(const ControllerEvent& ev) { return routeLayered(ev); }
+
+    // 9.12 st.7e: the P key. Same layered routing — QUANT under a scope OR a held step,
+    // the confirm verb bare, cancel under Func.
+    bool LockstepEditor::routeConfirm(const ControllerEvent& ev) { return routeLayered(ev); }
 
     // 9.12 Stage 7d: route a section press through the grammar.
     //
@@ -4035,6 +4097,21 @@ namespace lockstep
         (void)commandCore_.handleAction(row.action, ev, ctx, *editorEffects_);
         refreshSurface();
         return true;
+    }
+
+    // Fire whatever the table says a (button, index, gesture) means right now. The
+    // gesture axis (tap / hold / double-tap) is resolved by the CALLER — it owns the
+    // timing — but WHICH action a gesture carries stays the binding's call, so a hold
+    // and a tap on the same key cannot drift apart in two different code paths.
+    void LockstepEditor::fireGesture(ControllerButton btn, int index, Gesture g)
+    {
+        const auto& row = resolveBinding(btn, index, heldModsFromUiState(uiState_),
+                                         SurfaceLayer::Base, g);
+        if (row.action == ActionId::None) return;
+        const ControllerEvent ev{ ControllerEvent::Type::ButtonDown, btn, index, 0 };
+        auto ctx = commandContext();
+        (void)commandCore_.handleAction(row.action, ev, ctx, *editorEffects_);
+        refreshSurface();
     }
 
     // Fire the section HOLD armed on key-down (the picker rail). The action was decided
@@ -5757,7 +5834,6 @@ namespace lockstep
             }
 
             case ControllerButton::VerbConfirm: {
-                using PS = EditMode::PrimaryScope;
                 const bool funcHeld = editMode_.scopeState().func;
 
                 // 9.24 S16: Confirm on a convolution FX-picker slot opens the pool
@@ -5838,74 +5914,15 @@ namespace lockstep
                 // Note: when confirm is pending, CommandCore::handleDown intercepts VerbConfirm
                 // before this point and calls executeConfirm / status::cancelled() directly.
 
-                // No pending confirm. Bare Yes (no Func) = Quantize or snapshot/confirm verb.
-                if (!funcHeld)
-                {
-                    // Quantize verb (DESIGN §19.3): scope + No zeros microOffset values.
-                    // Trig (held steps) → those steps; Track → whole track; Phrase → all tracks.
-                    // Bare No (no scope) falls through to snapshot/confirm.
-                    const auto qScope = editMode_.primaryScope();
-                    const auto& qCtx = processor_.editContext();
-                    const auto& heldSteps = qCtx.heldSteps();
-
-                    if (!heldSteps.empty())
-                    {
-                        const int t = keyboardArea_.getActiveTrack();
-                        if (t >= 0 && t < static_cast<int>(kNumTracks))
-                        {
-                            processor_.snapshot(CheckpointScope::Track, t);
-                            auto& trk = processor_.sequence().tracks[static_cast<std::size_t>(t)];
-                            for (int si : heldSteps)
-                                if (si >= 0 && si < kMaxStepsPerTrack)
-                                    trk.steps[static_cast<std::size_t>(si)].microOffset = 0.0f;
-                            setStatus(status::quantized());
-                            refreshSurface();
-                            return true;
-                        }
-                    }
-                    else if (qScope == PS::Track)
-                    {
-                        const int t = keyboardArea_.getActiveTrack();
-                        if (t >= 0 && t < static_cast<int>(kNumTracks))
-                        {
-                            processor_.snapshot(CheckpointScope::Track, t);
-                            for (auto& s : processor_.sequence().tracks[static_cast<std::size_t>(t)].steps)
-                                s.microOffset = 0.0f;
-                            setStatus(status::quantized());
-                            refreshSurface();
-                            return true;
-                        }
-                    }
-                    else if (qScope == PS::Phrase)
-                    {
-                        int ckTrk = 0;
-                        processor_.snapshot(ckScope(ckTrk), ckTrk);
-                        for (auto& trk : processor_.sequence().tracks)
-                            for (auto& s : trk.steps)
-                                s.microOffset = 0.0f;
-                        setStatus(status::quantized());
-                        refreshSurface();
-                        return true;
-                    }
-
-                    // Bare No (no scope held): snapshot/confirm verb.
-                    refreshSurface();
-                    {
-                        auto ctx = commandContext();
-                        (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
-                    }
-                    refreshSurface();
-                    return true;
-                }
-
-                // Func+P = Cancel. A pending prompt is intercepted earlier by CommandCore;
-                // with nothing pending, cancel is a no-op. Restore lives solely on Func+Y —
-                // the legacy Func+P restore overload was removed (DESIGN §13.6).
-                {
-                    auto ctx = commandContext();
-                    (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
-                }
-                return true;
+                // 9.12 st.7e: everything below the modal intercepts is grammar. The table
+                // decides: scope+P = QUANT, bare P = the confirm verb, Func+P = cancel.
+                // (A PENDING confirm never reaches here — CommandCore::handleDown
+                // intercepts VerbConfirm far upstream and executes or cancels it.)
+                //
+                // Resolved on the ACTIVE LAYER, because the step-scoped quantize is a
+                // layer, not a modifier: while a step is held the grid is the inspector,
+                // and P means "quantize the held step(s)".
+                return routeConfirm(ev);
             }
 
             case ControllerButton::Snapshot:
@@ -6715,11 +6732,15 @@ namespace lockstep
                 break;
 
             case CB::TapTempo:
+                // 9.12 st.7f: TAP resolves on RELEASE, because the same key's HOLD opens
+                // the generator hub — firing the tempo on press would make every hub
+                // entry also nudge the tempo. Releasing out of the hub closes it and
+                // taps nothing; a short press is the tap row.
                 tapTempoPhysHeld_ = false;
                 if (uiState_.generatorHubHeld)
                     uiState_.resetGeneratorHub();
                 else
-                    handleTapTempo();
+                    fireGesture(CB::TapTempo, -1, Gesture::Tap);
                 refreshSurface();
                 break;
 
