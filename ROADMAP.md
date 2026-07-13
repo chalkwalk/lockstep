@@ -2042,7 +2042,17 @@ the grammar; grid picker cells share a common `paintGridCell*` renderer.
         Per-scope differences stay in the effect (Func's escape + step-latch, Track's
         Control-All, Scene's re-sync-when-Track-held — an early return, not a
         compound, Morph's MZ hand-off): a modifier press is not one uniform thing.
-  - [ ] **7b — verbs.** *Pre-work done (2026-07-13); routing not yet migrated.*
+  - [x] **7b — verbs.** *(2026-07-13.)* Routed through the table via `routeVerb()`;
+        goldens unchanged. Coverage 32 → **43 wired, 30 pending**. Behaviour does not
+        move: every verb action delegates to the one existing implementation
+        (`verbs::*` via `handleVerb`), so routing joins the grammar without creating a
+        second copy of a verb to drift from the first. Confirm/Cancel stay imperative
+        (intercepted by `handleDown`'s pending-confirm gate, not dispatched as actions).
+        **Verbs resolve on the FULL held-mod set (most-specific-wins) — the exact
+        opposite of 7a's bare-row rule.** Not an inconsistency: a modifier press means
+        "enter this scope" whatever else is down; a verb press means something
+        *different* under a held scope. The two families must not share a routing rule.
+        *Pre-work (the reason this was safe):*
         Checked what the net pinned for verbs before rewriting them: **almost
         nothing.** `Track+VerbRecord` *is* "copy track", and the golden recorded only
         that the Track modifier went down — the clipboard, the checkpoint stack and
