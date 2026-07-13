@@ -1167,12 +1167,12 @@ functional block 8 wide preserves the 16-step grid and the six
 canonical sections unchanged.
 
 ```
- MODIFIERS    │  FUNCTIONAL BLOCK                                 keys
+ MODIFIERS    │  FUNCTIONAL BLOCK                                  keys
  [Func][Track]│ [TAP ][ ^  ][TRIG][SRC ][FILTER][AMP ][MOD ][ FX ]  1 2 3 4 5 6 7 8 9 0
- [Phr ][Scn ]│ [ <  ][ v  ][ >  ][Yes ][REC ][PLY ][STP ][ No ]  Q W E R T Y U I O P
+ [Phr ][Scn ] │ [ <  ][ v  ][ >  ][SNAP][REC ][PLAY][CLR ][CNFM]    Q W E R T Y U I O P
  ─────────────┼──────────────────────────────────────────────────
- [Scn ][Mstr ]│ [ steps 0 - 7 ]                                   A S D F G H J K L ;
- [Mute][Fill ]│ [ steps 8 - 15 ]                                  Z X C V B N M , . /
+ [Mrph][Song] │ [ steps 0 - 7 ]                                     A S D F G H J K L ;
+ [Mute][Fill] │ [ steps 8 - 15 ]                                    Z X C V B N M , . /
 ```
 
 (The two left columns in each row hold the cluster; the next two
