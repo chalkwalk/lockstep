@@ -189,6 +189,8 @@ namespace lockstep
                                    CommandEffects& fx)
     {
         using AId = ActionId;
+        using TA = CommandEffects::TransportAction;
+        using CB = ControllerButton;
         switch (action)
         {
             case AId::GlobalMuteToggle: fx.globalMuteToggle(ev.index); return true;
@@ -196,6 +198,34 @@ namespace lockstep
             case AId::SceneMuteToggle:  fx.sceneMuteToggle(ev.index); return true;
             case AId::FluidMuteToggle:  fx.fluidMuteToggle(ev.index); return true;
             case AId::ToggleCapture:    fx.toggleCapture(); return true;
+
+            // ── 9.12 Stage 6: the gesture-axis actions ───────────────────────────
+            // Wired here first, still unreached from dispatch: stages 7-8 point each
+            // family at handleAction and delete its imperative branch, one at a time,
+            // with the golden net proving the behaviour did not move.
+            case AId::LatchTrackScope:  fx.latchModifier(CB::TrackScope); return true;
+            case AId::LatchPhraseScope: fx.latchModifier(CB::PhraseScope); return true;
+            case AId::LatchSceneScope:  fx.latchModifier(CB::SceneScope); return true;
+            case AId::LatchMorphScope:  fx.latchModifier(CB::MorphScope); return true;
+            case AId::LatchSongScope:   fx.latchModifier(CB::SongScope); return true;
+            case AId::LatchMuteScope:   fx.latchModifier(CB::MuteScope); return true;
+            case AId::LatchFillScope:   fx.latchModifier(CB::FillScope); return true;
+
+            case AId::FuncEscape:       fx.escapeOverlay(); return true;
+            case AId::VerbRestore:      fx.restorePop(); return true;
+            case AId::RestoreFloor:     fx.restoreFloor(); return true;
+
+            case AId::RecordArmToggle:  fx.transport(TA::RecArm); return true;
+            case AId::RecordArmOverdub: fx.recordArmOverdub(); return true;
+            case AId::PlayStopToggle:   fx.transport(TA::Play); return true;   // same path as CB::PlayStop
+            case AId::PlayStopReset:    fx.transport(TA::StopReset); return true;
+
+            case AId::StepLatch:        fx.stepLatch(ev.index); return true;
+            case AId::NavPageUnlock:    fx.navPageUnlock(); return true;
+            case AId::OpenGeneratorHub: fx.openGeneratorHub(); return true;
+            case AId::OpenRetrigPicker: fx.setTrigGridMode(TrigGridMode::Retrig); return true;
+            case AId::OpenSoundPool:    fx.setTrigGridMode(TrigGridMode::SoundPool); return true;
+
             default:                    return false;
         }
     }

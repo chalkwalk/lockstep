@@ -173,6 +173,79 @@ namespace lockstep
                 ed.captureController_.onTap(ed.processor_.clock().inPluginPlaying()));
         }
 
+        // ── 9.12 Stage 6 ─────────────────────────────────────────────────────
+        // Each of these delegates to the SAME editor code its imperative branch in
+        // dispatchDown/dispatchUp calls today, so the branch and the action share one
+        // implementation. Stages 7-8 delete the branches; nothing here changes then,
+        // which is what makes the golden net's "behaviour did not move" claim mean
+        // something.
+        void latchModifier(ControllerButton cb) override { ed.setModifierLatch(cb, true); }
+
+        void escapeOverlay() override
+        {
+            // Func double-tap: leave whatever Func-layer mode is up. FuncReskin owns
+            // the unified exit for the five picker/editor modes; the overlay family
+            // exits through ModeReducer.
+            if (activeFuncReskin(ed.uiState_) != FuncReskin::None)
+            {
+                exitFuncReskin(ed.uiState_);
+            }
+            else
+            {
+                const Overlay ov = activeOverlay(ed.uiState_);
+                if (ov != Overlay::None)
+                    lockstep::escapeOverlay(ed.uiState_, ov);
+            }
+            ed.refreshSurface();
+        }
+
+        void restorePop() override
+        {
+            int ckTrk = 0;
+            const CheckpointScope scp = ed.ckScope(ckTrk);
+            (void)ed.processor_.restoreOne(scp, ckTrk);
+            ed.refreshSurface();
+        }
+
+        void restoreFloor() override
+        {
+            int ckTrk = 0;
+            const CheckpointScope scp = ed.ckScope(ckTrk);
+            ed.processor_.restoreToFloor(scp, ckTrk);
+            ed.refreshSurface();
+        }
+
+        void recordArmOverdub() override
+        {
+            auto& clk = ed.processor_.clock();
+            clk.setRecordArmed(true);      // overdub implies armed
+            clk.setOverdubArmed(true);
+            ed.refreshSurface();
+        }
+
+        // Latches every held step, not the one whose index arrived: the gesture is
+        // "free my fingers", and the branch it replaces has always latched the whole
+        // held set. Same helper the branch calls.
+        void stepLatch(int) override { (void)ed.latchHeldSteps(); }
+
+        void navPageUnlock() override
+        {
+            ed.keyboardArea_.unlockScrollPastEnd();
+            ed.keyboardArea_.nextPage();
+        }
+
+        void openGeneratorHub() override
+        {
+            ed.uiState_.generatorHubHeld = true;
+            ed.refreshSurface();
+        }
+
+        void setTrigGridMode(TrigGridMode mode) override
+        {
+            ed.uiState_.trigGridMode = mode;
+            ed.refreshSurface();
+        }
+
         void sceneFloorPaste() override
         {
             auto& cl = ed.clipboard_;
@@ -3516,6 +3589,27 @@ namespace lockstep
         }
     }
 
+    // W7: latch every PHYSICALLY held step so the finger is free (release no longer
+    // ends the edit). No trig mutation — a purely virtual hold. Only fires when
+    // nothing is latched yet, so a later double-tap-Func still escapes.
+    // One implementation, two callers: the Func-down branch in dispatchDown and the
+    // StepLatch action's effect (9.12 Stage 6). Returns true if it latched (the
+    // caller then consumes the event).
+    bool LockstepEditor::latchHeldSteps()
+    {
+        if (heldStepKeys_.empty() || processor_.editContext().hasAnyLatchedStep())
+            return false;
+
+        auto& ctx = processor_.editContext();
+        for (const auto& [code, idx] : heldStepKeys_)
+            ctx.setLatched(idx);
+        setStatus(uiState_.pLockClearMode
+            ? "P-LOCK LATCHED - tap cells to clear, double-tap Func to apply"
+            : "STEPS LATCHED - edit hands-free, double-tap Func to release");
+        refreshSurface();
+        return true;
+    }
+
     // -------------------------------------------------------------------------
     // MHZ.9.x: per-modifier tap router.
     // Single tap on a latched modifier unlatches it; double-tap toggles latch.
@@ -3732,18 +3826,8 @@ namespace lockstep
                 // from the inspector (Part 2): a bare multi-hold latches too, keeping
                 // every held step editable hands-free; the long-press inspector adds
                 // the tap-to-clear slot flow on top.
-                if (!heldStepKeys_.empty()
-                    && !processor_.editContext().hasAnyLatchedStep())
-                {
-                    auto& ctx = processor_.editContext();
-                    for (const auto& [code, idx] : heldStepKeys_)
-                        ctx.setLatched(idx);
-                    setStatus(uiState_.pLockClearMode
-                        ? "P-LOCK LATCHED - tap cells to clear, double-tap Func to apply"
-                        : "STEPS LATCHED - edit hands-free, double-tap Func to release");
-                    refreshSurface();
+                if (latchHeldSteps())
                     return true;   // consume: no funcHeld, no Chance band
-                }
                 uiState_.funcHeld = true;
                 // Func+Track is the machine/Kit picker gesture (§4.7.2) — entering
                 // the compound re-skins the step grid to machine names directly.

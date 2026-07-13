@@ -614,6 +614,10 @@ namespace lockstep
         // Single tap on an already-latched modifier unlatches it; double-tap toggles latch.
         void handleModifierTap(ControllerButton cb, bool currentlyLatched);
 
+        // W7 step latch (9.12 Stage 6): one implementation shared by the Func-down
+        // branch and the StepLatch action. True if it latched (caller consumes).
+        bool latchHeldSteps();
+
         // MHZ.9.x: auto-release a transient mode's latch after its terminal action.
         // No-op when not latched; leaves physically-held (non-latched) mods alone.
         void releaseTransientLatch(ControllerButton cb);

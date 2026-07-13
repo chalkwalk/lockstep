@@ -115,6 +115,12 @@ namespace lockstep
         OpenRetrigPicker,    // step-grid: open retrig/ratchet picker
         OpenSoundPool,       // step-grid: open sound-pool picker
         PlayStopToggle,      // PlayStop (key 0) tap: play/stop toggle
+
+        // Sentinel — keep last. Lets the Stage 6 guard test enumerate every action
+        // and assert each one is either handled by CommandCore::handleAction or
+        // explicitly listed as not-yet-migrated, so a new ActionId cannot be added
+        // and silently left unwired. Add new actions ABOVE this line.
+        Count
     };
 
     // -------------------------------------------------------------------------

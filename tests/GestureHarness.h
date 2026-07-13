@@ -64,6 +64,27 @@ namespace lockstep::test
         int captureToggles = 0;
         void toggleCapture() override { ++captureToggles; }
 
+        // 9.12 Stage 6 — the gesture-axis effects.
+        std::vector<ControllerButton> latchedModifiers;
+        int escapes = 0;
+        int restorePops = 0;
+        int restoreFloors = 0;
+        int overdubArms = 0;
+        int stepLatches = 0;
+        int navPageUnlocks = 0;
+        int generatorHubOpens = 0;
+        std::vector<TrigGridMode> trigGridModes;
+
+        void latchModifier(ControllerButton cb) override { latchedModifiers.push_back(cb); }
+        void escapeOverlay() override { ++escapes; }
+        void restorePop() override { ++restorePops; }
+        void restoreFloor() override { ++restoreFloors; }
+        void recordArmOverdub() override { ++overdubArms; }
+        void stepLatch(int) override { ++stepLatches; }
+        void navPageUnlock() override { ++navPageUnlocks; }
+        void openGeneratorHub() override { ++generatorHubOpens; }
+        void setTrigGridMode(TrigGridMode m) override { trigGridModes.push_back(m); }
+
         void reset()
         {
             statuses.clear();
