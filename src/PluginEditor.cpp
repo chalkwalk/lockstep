@@ -1466,6 +1466,48 @@ namespace lockstep
     // Persistent part is small (REC + elapsed); the filename/path fades in only
     // at arm / record-start (captureDetailUntilMs_) and persists while just-saved,
     // so it never occludes the meter during the performance.
+    // 9.30 st.3: the Sg:Sc identity, painted in the transport band. It is a READOUT,
+    // not a control — the old header grew a dashboard precisely by giving every readout
+    // a Label component and then hand-placing it at an absolute x.
+    void LockstepEditor::paintTransportBand(juce::Graphics& g)
+    {
+        if (songSceneRegion_.isEmpty()) return;
+
+        const int sg = processor_.activePieceIdx() + 1;
+        const int sc = processor_.activeSectionIdx() + 1;
+
+        g.setColour(juce::Colour(0xFF1A1E26u));
+        g.fillRoundedRectangle(songSceneRegion_.toFloat(), 3.0f);
+        g.setColour(juce::Colour(0xFF9AB0C8u));
+        g.setFont(juce::Font(juce::FontOptions(11.0f)).boldened());
+        g.drawText("Sg " + juce::String(sg) + " : Sc " + juce::String(sc),
+                   songSceneRegion_, juce::Justification::centred);
+    }
+
+    // 9.30 st.4: the controller-connection indicator, in the rail that is actually
+    // about "what am I plugged into". This kills the bottom banner — status number six.
+    void LockstepEditor::paintProjectRail(juce::Graphics& g)
+    {
+        if (controllerIndicatorRegion_.isEmpty()) return;
+
+        juce::String text;
+        if (controllerPorts_.isOpen()) text = "X-TOUCH MINI";
+        if (push1Ports_.isOpen())      text = text.isEmpty() ? "PUSH 1" : text + " + PUSH 1";
+
+        const bool any = text.isNotEmpty();
+        g.setColour(any ? juce::Colour(0xFF2A7A50u) : juce::Colour(0xFF2A2E38u));
+        const auto dot = juce::Rectangle<float>(
+            static_cast<float>(controllerIndicatorRegion_.getX()),
+            controllerIndicatorRegion_.toFloat().getCentreY() - 3.0f, 6.0f, 6.0f);
+        g.fillEllipse(dot);
+
+        g.setColour(any ? juce::Colour(0xFF80C8A0u) : juce::Colour(0xFF6A6E78u));
+        g.setFont(juce::Font(juce::FontOptions(10.0f)));
+        g.drawText(any ? text : juce::String("no controller"),
+                   controllerIndicatorRegion_.withTrimmedLeft(12),
+                   juce::Justification::centredLeft, true);
+    }
+
     void LockstepEditor::paintCaptureStrip(juce::Graphics& g)
     {
         using Phase = CaptureController::Phase;
@@ -1525,19 +1567,29 @@ namespace lockstep
         const juce::String text = (showDetail && detail.isNotEmpty())
                                       ? head + "   " + detail : head;
 
-        g.setFont(juce::Font(juce::FontOptions(11.0f)).boldened());
-        // Width: long detail (path) may overflow leftward over the meter — that is
-        // the accepted brief occlusion; compact REC stays in the right margin.
-        const int textW = showDetail ? (getWidth() - 30) : (kCaptureBannerW - 18);
-        const int x0 = getWidth() - textW - 4;
+        // 9.30 st.3: this indicator now lives in the TRANSPORT band, not on the master
+        // VU strip. It is the highest-stakes status in the core CUJ (a live set going to
+        // stems), and it was sitting in peripheral vision on the one element the eye
+        // treats as decoration. It now sits beside the Play button that starts the take.
+        if (captureIndicatorRegion_.isEmpty()) return;
 
-        const float cy = static_cast<float>(kMasterStripH) * 0.5f;
+        g.setFont(juce::Font(juce::FontOptions(11.0f)).boldened());
+        // The detail (filename / folder path) is longer than the indicator: let it
+        // overflow LEFTWARD across the band. That is a deliberate, brief occlusion of a
+        // readout — never of a control (§42.3's rule, applied here too).
+        auto area = captureIndicatorRegion_;
+        if (showDetail)
+            area = area.withLeft(transportBandRegion_.getX() + 200).withTrimmedRight(0);
+
+        g.setColour(juce::Colour(0xFF14181Fu));
+        g.fillRoundedRectangle(area.toFloat(), 3.0f);
+
         g.setColour(dot);
-        g.fillEllipse(static_cast<float>(x0), cy - 4.0f, 8.0f, 8.0f);
+        g.fillEllipse(static_cast<float>(area.getX() + 4),
+                      area.toFloat().getCentreY() - 4.0f, 8.0f, 8.0f);
 
         g.setColour(juce::Colours::white);
-        g.drawText(text, x0 + 12, 0, textW - 12, kMasterStripH,
-                   juce::Justification::centredLeft);
+        g.drawText(text, area.withTrimmedLeft(16), juce::Justification::centredLeft, true);
     }
 
     // Folder path for the SAVED banner: project-relative when a project is open,
@@ -1888,15 +1940,28 @@ namespace lockstep
                 repaint(masterChromeRegion_);
                 repaint(trackRowChromeRegion_);
             }
+            // 9.30 st.3: the capture indicator moved to the transport band, so its
+            // scoped repaint must move with it — a pulsing dot in a region nobody
+            // invalidates is a dot that does not pulse (PRINCIPLES §22: the region and
+            // the pixels are one decision).
+            if (captureController_.phase() != CaptureController::Phase::Idle)
+                repaint(transportBandRegion_);   // chrome only: the capture indicator animates
         }
 
         // Update the scope-coloured tempo + time-sig readout.
         {
             const auto effTs = processor_.effectiveTimeSig();
             const double effBpm = processor_.effectiveBpm();
+            // 9.30 st.3: the KEY joins the time readout. It is a time-group fact — the
+            // other thing that is true of every note you are about to play — and it was
+            // displayed NOWHERE in the chrome, despite Phase 10 building a whole
+            // key-signature hierarchy behind it.
+            const juce::String keyName{ juce::CharPointer_UTF8(
+                classicalName(processor_.effectiveKeySig()).c_str()) };
             const juce::String readout =
                 juce::String(static_cast<int>(std::round(effBpm))) + " BPM  "
-                + juce::String(effTs.numerator) + "/" + juce::String(effTs.denominator);
+                + juce::String(effTs.numerator) + "/" + juce::String(effTs.denominator)
+                + "  " + keyName;
             // Colour by the scope that currently owns the resolved tempo:
             // Scene owns if scene has tempo, Song owns if song has, else global (Song colour).
             const auto& sc = processor_.section();
@@ -2296,6 +2361,8 @@ namespace lockstep
         // ---- Master section (persistent — must precede the held-context early
         // return, else it vanishes at rest): dB VU meter + capture banner ----
         paintMasterMeter(g);
+        paintProjectRail(g);
+        paintTransportBand(g);
         paintCaptureStrip(g);
 
         // 9.30 §42.3: the confirm pop-over. Drawn OVER the children, extending down out
@@ -6604,33 +6671,58 @@ namespace lockstep
         // Cache the master-strip chrome region for the scoped meter repaint.
         masterChromeRegion_ = { 0, 0, getWidth(), kMasterStripH };
 
-        // Header row: transport | sync mode box | channel mode | display mode | pool button
-        auto header = bounds.removeFromTop(36);
-        transport_.setBounds(header.removeFromLeft(200).reduced(4));
-        syncModeBox_.setBounds(header.removeFromLeft(80).reduced(4));
-        channelModeBox_.setBounds(header.removeFromLeft(90).reduced(4));
-        displayModeBtn_.setBounds(header.removeFromLeft(46).reduced(4));
-        poolBtn_.setBounds(header.removeFromRight(80).reduced(4));
-        soundBankBtn_.setBounds(header.removeFromRight(60).reduced(4));
-
-        // 9.11: consolidated info row — tempo/time-sig + project file bar on one line.
-        // Frees the ~26px that used to be the separate fileBar row for the inspector.
+        // ── 9.30 st.4: THE PROJECT RAIL (cold) ────────────────────────────────
+        // One row, and it is the top row because it is the row you look at LEAST: file
+        // ops, the sound library, and the per-session plumbing (sync mode, channel mode,
+        // grid display). The old header mixed these with Play/Rec — three usage
+        // frequencies in one strip, which is how a header becomes a junk drawer.
         {
-            auto infoRow = bounds.removeFromTop(28);
-            // Standalone fileBar sits on the right side of the row; tempo fills left.
+            auto rail = bounds.removeFromTop(kProjectRailH);
+            projectRailRegion_ = rail;
+
             if (fileBar_)
-            {
-                fileBar_->setBounds(infoRow.removeFromRight(210).reduced(2, 1));
-                tempoReadout_.setBounds(infoRow.reduced(8, 2));
-            }
-            else
-            {
-                tempoReadout_.setBounds(infoRow.reduced(8, 2));
-            }
+                fileBar_->setBounds(rail.removeFromLeft(210).reduced(2, 1));
+
+            // Right-hand end: the library, then the session plumbing.
+            poolBtn_.setBounds(rail.removeFromRight(80).reduced(3));
+            soundBankBtn_.setBounds(rail.removeFromRight(60).reduced(3));
+            displayModeBtn_.setBounds(rail.removeFromRight(46).reduced(3));
+            channelModeBox_.setBounds(rail.removeFromRight(90).reduced(3));
+            syncModeBox_.setBounds(rail.removeFromRight(80).reduced(3));
+
+            // What is left in the middle is where the controller-connection indicator
+            // is painted (paintProjectRail) — the bottom banner's job, brought up into
+            // the row that is actually about "what am I plugged into".
+            controllerIndicatorRegion_ = rail.reduced(6, 3);
         }
+
+        // ── 9.30 st.3: THE TRANSPORT + TIME BLOCK (hot) ───────────────────────
+        // One band answering "where am I, and what is playing" in a single glance.
+        // Time used to be shredded across three non-adjacent places: the transport
+        // buttons here, the BPM readout in an "info row" below, and the timeline ruler
+        // below THAT — with a file bar in between. They are one concern; they are now
+        // one block, with the ruler fused directly beneath it.
+        {
+            auto band = bounds.removeFromTop(kTransportBandH);
+            transportBandRegion_ = band;
+
+            transport_.setBounds(band.removeFromLeft(200).reduced(4));
+
+            // Capture / rec-arm indicator, hard right: the highest-stakes status in the
+            // core CUJ (live set -> stems). It used to be a banner on the master VU
+            // strip — peripheral vision, on the one element the eye treats as decoration.
+            captureIndicatorRegion_ = band.removeFromRight(150).reduced(4, 6);
+
+            // Sg:Sc identity, then the time readout (BPM · time-sig · key-sig) fill the
+            // middle. Both are painted (paintTransportBand), not components: they are
+            // readouts, and a Label per readout was how the old header grew a dashboard.
+            songSceneRegion_ = band.removeFromRight(90).reduced(4, 6);
+            tempoReadout_.setBounds(band.reduced(8, 4));
+        }
+
         // S8 (§40.6): the timeline strip is PERMANENT (display-only chrome, fence #5) —
-        // the window carries a fixed extra 22 px for it, so you can leave the tape face
-        // and still watch the recording time advance.
+        // the window carries a fixed extra 22 px for it. FUSED to the transport band
+        // above it (9.30 st.3): the ruler is the same question those buttons answer.
         timelineStrip_.setVisible(true);
         timelineStrip_.setBounds(bounds.removeFromTop(22));  // matches the +22 window
 

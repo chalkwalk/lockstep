@@ -277,6 +277,8 @@ namespace lockstep
         juce::File captureLastFile_;            // last/active take, for discard + reveal
         void runCaptureOut(const CaptureController::Out& out);  // execute a controller decision
         void paintCaptureStrip(juce::Graphics& g);
+        void paintTransportBand(juce::Graphics& g);   // 9.30 st.3: Sg:Sc readout
+        void paintProjectRail(juce::Graphics& g);     // 9.30 st.4: controller indicator
         void paintMasterMeter(juce::Graphics& g);   // dB VU meter (peak-hold + clip + labels)
         [[nodiscard]] juce::String captureFolderDisplayPath() const;  // ~-relative path for SAVED
         // 11.11 (S1): "master + N stems" / "master only" — what this take will keep.
@@ -462,6 +464,16 @@ namespace lockstep
         // editor (otherwise the entire grid/keyboard/MZ repaints 30×/sec — the
         // idle-CPU / fan culprit). Recomputed in resized().
         juce::Rectangle<int> masterChromeRegion_;
+        // 9.30 st.3/st.4 — the two reordered chrome bands and the readouts painted in
+        // them. Heights are named, because "36" and "28" scattered through resized()
+        // was how the bands stopped meaning anything.
+        static constexpr int kProjectRailH = 26;    // cold: file ops / library / session
+        static constexpr int kTransportBandH = 36;  // hot: play/rec + time + Sg:Sc + capture
+        juce::Rectangle<int> projectRailRegion_;
+        juce::Rectangle<int> transportBandRegion_;
+        juce::Rectangle<int> controllerIndicatorRegion_;
+        juce::Rectangle<int> captureIndicatorRegion_;
+        juce::Rectangle<int> songSceneRegion_;
         // 9.30: the confirm pop-over's screen region (the STATUS lane, extended down
         // over the MZ's top edge). Cached in resized() so the repaint can be scoped.
         juce::Rectangle<int> confirmPopoverRegion_;
