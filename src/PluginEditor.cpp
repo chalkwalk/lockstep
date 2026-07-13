@@ -87,6 +87,20 @@ namespace lockstep
             ed.processor_.setTrackMachine(track, id);
             ed.refreshSurface();
         }
+        void machineParams(int track, const std::vector<float>& params) override
+        {
+            // writeParam is the single owner of a param write (it routes base-vs-P-Lock
+            // and runs the machine's own hooks — sample_id opens a reader, slice params
+            // recompute). Pasting a sound therefore behaves exactly as if the user had
+            // dialled every slot by hand, which is the only way it can be correct for
+            // every machine without this code knowing what a machine is.
+            const int n = std::min(static_cast<int>(params.size()),
+                                   ed.processor_.numParams(track));
+            for (int s = 0; s < n; ++s)
+                ed.processor_.writeParam(track, s, params[static_cast<std::size_t>(s)]);
+            ed.keyboardArea_.syncToActiveTrack();
+            ed.refreshSurface();
+        }
         void openOverlay(OverlayId id, int param) override
         {
             switch (id)
@@ -463,6 +477,10 @@ namespace lockstep
         [[nodiscard]] SectionInfo section(int track, int idx) const override
         {
             return p.section(track, idx);
+        }
+        [[nodiscard]] float baseParam(int track, int slot) const override
+        {
+            return p.baseParamValue(track, slot);
         }
         [[nodiscard]] const char* machineId(int track) const override
         {
@@ -1357,6 +1375,19 @@ namespace lockstep
             {
                 fxPickerFiredMidHold_ = true;
                 openFxSectionPicker(fxSectionPickerWantsMaster_);
+            }
+        }
+
+        // 9.29: the deletion picker opens mid-hold, so the user sees "DELETE WHICH
+        // TRACK?" while the key is still down rather than after letting go — the hold
+        // announces itself, which is what makes it safe to put a destructive verb on.
+        if (clearHoldArmed_ && !clearHoldFired_)
+        {
+            const double nowMs = juce::Time::getMillisecondCounterHiRes();
+            if (gesture_.longPressElapsed(kDeleteHoldToken, nowMs))
+            {
+                clearHoldFired_ = true;
+                fireDeleteHold();
             }
         }
 
@@ -3637,6 +3668,95 @@ namespace lockstep
     // The Func layer is already applied upstream: every input path runs the event
     // through resolveLayer() first, so Func+Y arrives here as CB::Restore, not as
     // VerbSnapshot-with-Func-held.
+    // 9.29: is a HOLD of the Clear key a delete here? Only under a scope that OWNS a
+    // deletable entity (Track / Phrase / Scene). The Machine scope is excluded on
+    // purpose: Machine+Clear is INIT, and a compound scope cannot be qualified by the
+    // key that formed it (Machine IS Func+Track), so its Clear has to be the tap.
+    bool LockstepEditor::deleteHoldCapable() const
+    {
+        using PS = EditMode::PrimaryScope;
+        if (uiState_.machineScopeHeld) return false;
+        const PS scope = editMode_.primaryScope();
+        return scope == PS::Track || scope == PS::Phrase || scope == PS::Scene;
+    }
+
+    // Fire the delete (the hold rail of the Clear key). Resolved through the table on
+    // the Hold gesture, so WHICH entity dies is the binding's call, not this code's.
+    void LockstepEditor::fireDeleteHold()
+    {
+        const auto& row = resolveBinding(ControllerButton::VerbClear, -1,
+                                         heldModsFromUiState(uiState_),
+                                         SurfaceLayer::Base, Gesture::Hold);
+        if (row.action == ActionId::None) return;
+        const ControllerEvent ev{ ControllerEvent::Type::ButtonDown,
+                                  ControllerButton::VerbClear, -1, 0 };
+        auto ctx = commandContext();
+        (void)commandCore_.handleAction(row.action, ev, ctx, *editorEffects_);
+        refreshSurface();
+    }
+
+    // The Clear key's TAP behaviour — moved verbatim out of dispatchDown when delete
+    // took the hold rail (9.29). Two callers now: an immediate press where no delete
+    // hold is possible (no scope, Trig, Morph, Machine), and the short-hold resolution
+    // on key-up where one was.
+    bool LockstepEditor::clearVerbTap(const ControllerEvent& ev)
+    {
+        using PS = EditMode::PrimaryScope;
+        // S3: looper ERASE moved to the always-on console; Track+Clear is the
+        // ordinary clipboard/scope verb again.
+        // Hold scope + Clear reverts that scope's hierarchical override to inherit
+        // (§13 hold-scope+Clear convention). Intercept before cancel-queued-scene
+        // and PANIC so that Clear is contextual while a band is open.
+        {
+            // Swing: hold-scope + Clear zeros the swing delta at the held scope.
+            // TIME page: revert is per-control (dial to floor); no Clear chord needed.
+            const MetaBand activeBand = resolveMetaBand(uiState_);
+            if (activeBand == MetaBand::Swing)
+            {
+                const int swScope = swingScopeFor(uiState_);
+                if (swScope == 1)
+                    processor_.setSwingSongAll(0.0f);
+                else if (swScope == 2)
+                    processor_.setSwingSceneAll(0.0f);
+                else if (swScope == 3)
+                    processor_.setSwingSongTrack(uiState_.activeTrack, 0.0f);
+                refreshMetaBand();
+                refreshSurface();
+                return true;
+            }
+        }
+        // Scene scope held → cancel queued scene.
+        if (uiState_.sceneHeld)
+        {
+            processor_.cancelQueuedScene();
+            refreshSurface();
+            return true;
+        }
+        // Phrase scope → cancel queued scene.
+        if (uiState_.phraseScopeHeld)
+        {
+            processor_.cancelQueuedScene();
+            uiState_.phraseScopeUsed = true;
+            refreshSurface();
+            return true;
+        }
+        // Non-trivial scope → grammar verb (Clear scope contents).
+        if (editMode_.primaryScope() != PS::None && editMode_.primaryScope() != PS::Func)
+            return routeVerb(ev);   // 9.12 st.7b: the table names the action
+        // No scope: clear the active P-Lock slot if one is active.
+        {
+            auto& ctx = processor_.editContext();
+            if (ctx.isActiveForEditing() && ctx.activeSlot() >= 0)
+            {
+                processor_.clearParam(ctx.heldTrackIndex(),
+                                      ctx.heldStepIndex(),
+                                      ctx.activeSlot());
+                ctx.markParamWritten();
+            }
+        }
+        return true;
+    }
+
     bool LockstepEditor::routeVerb(const ControllerEvent& ev)
     {
         const auto& row = resolveBinding(ev.button, ev.index, heldModsFromUiState(uiState_),
@@ -5545,61 +5665,24 @@ namespace lockstep
             }
 
             case ControllerButton::VerbClear: {
-                using PS = EditMode::PrimaryScope;
-                // S3: looper ERASE moved to the always-on console; Track+Clear is the
-                // ordinary clipboard/scope verb again.
-                // Hold scope + Clear reverts that scope's hierarchical override to inherit
-                // (§13 hold-scope+Clear convention). Intercept before cancel-queued-scene
-                // and PANIC so that Clear is contextual while a band is open.
+                // 9.29: DELETE is a HOLD of Clear under a deletable scope (Track /
+                // Phrase / Scene). Tap still clears that scope's contents. Armed here
+                // and resolved on key-up (the timer fires it mid-hold so the picker
+                // appears while the key is still down), which is the same shape the FX
+                // and machine section pickers use. The Machine scope is excluded: under
+                // Func+Track, Clear is INIT and stays a tap.
+                if (deleteHoldCapable())
                 {
-                    // Swing: hold-scope + Clear zeros the swing delta at the held scope.
-                    // TIME page: revert is per-control (dial to floor); no Clear chord needed.
-                    const MetaBand activeBand = resolveMetaBand(uiState_);
-                    if (activeBand == MetaBand::Swing)
-                    {
-                        const int swScope = swingScopeFor(uiState_);
-                        if (swScope == 1)
-                            processor_.setSwingSongAll(0.0f);
-                        else if (swScope == 2)
-                            processor_.setSwingSceneAll(0.0f);
-                        else if (swScope == 3)
-                            processor_.setSwingSongTrack(uiState_.activeTrack, 0.0f);
-                        refreshMetaBand();
-                        refreshSurface();
-                        return true;
-                    }
+                    gesture_.armLongPress(kDeleteHoldToken,
+                                          juce::Time::getMillisecondCounterHiRes());
+                    clearHoldArmed_ = true;
+                    clearHoldFired_ = false;
+                    return true;   // deferred
                 }
-                // Scene scope held → cancel queued scene.
-                if (uiState_.sceneHeld)
-                {
-                    processor_.cancelQueuedScene();
-                    refreshSurface();
-                    return true;
-                }
-                // Phrase scope → cancel queued scene.
-                if (uiState_.phraseScopeHeld)
-                {
-                    processor_.cancelQueuedScene();
-                    uiState_.phraseScopeUsed = true;
-                    refreshSurface();
-                    return true;
-                }
-                // Non-trivial scope → grammar verb (Clear scope contents).
-                if (editMode_.primaryScope() != PS::None && editMode_.primaryScope() != PS::Func)
-                    return routeVerb(ev);   // 9.12 st.7b: the table names the action
-                // No scope: clear the active P-Lock slot if one is active.
-                {
-                    auto& ctx = processor_.editContext();
-                    if (ctx.isActiveForEditing() && ctx.activeSlot() >= 0)
-                    {
-                        processor_.clearParam(ctx.heldTrackIndex(),
-                                              ctx.heldStepIndex(),
-                                              ctx.activeSlot());
-                        ctx.markParamWritten();
-                    }
-                }
-                return true;
+                return clearVerbTap(ev);
             }
+
+            // (the Clear key's TAP behaviour moved verbatim into clearVerbTap, below)
 
             // ControllerButton::VerbDelete — migrated to CommandCore::handleDown (8.24 Stage 7)
             // ControllerButton::VerbPanic — migrated to CommandCore::handleDown (8.11 A4.6)
@@ -6594,12 +6677,44 @@ namespace lockstep
                 break;
             }
 
+            // 9.29: the Clear key resolves tap-vs-hold on release. A hold that already
+            // fired mid-timer just consumes its arm; a short hold runs the tap
+            // behaviour it deferred; a long hold that beat the timer fires here.
+            case CB::VerbClear: {
+                fxPickerStepUp(ev.index);   // (kept from the group below)
+                if (clearHoldArmed_)
+                {
+                    using LPR = GestureRecognizer::LongPressResult;
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    if (clearHoldFired_)
+                    {
+                        gesture_.cancelLongPress();
+                    }
+                    else switch (gesture_.checkLongPress(kDeleteHoldToken, now))
+                    {
+                        case LPR::ShortHold: {
+                            const ControllerEvent down{ ControllerEvent::Type::ButtonDown,
+                                                        CB::VerbClear, ev.index, 0 };
+                            (void)clearVerbTap(down);
+                            break;
+                        }
+                        case LPR::LongHold:
+                            fireDeleteHold();
+                            break;
+                        case LPR::NotArmed:
+                            break;
+                    }
+                    clearHoldArmed_ = false;
+                    clearHoldFired_ = false;
+                }
+                break;
+            }
+
             // These buttons act on key-down; their key-up is a no-op. They must NOT
             // fall through into the TapTempo body below — doing so made releasing any
             // of them (notably SelectTrack) register a tap-tempo tap, so changing
             // tracks set the BPM from the inter-change interval.
             case CB::VerbStopLegacy:
-            case CB::VerbClear:
             case CB::VerbDelete:
             case CB::VerbPanic:
             case CB::Snapshot:

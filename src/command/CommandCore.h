@@ -37,5 +37,11 @@ namespace lockstep
                                         const ControllerEvent& ev,
                                         CommandContext& ctx,
                                         CommandEffects& fx);
+
+    private:
+    // The delete verb (9.29): arms the deletion picker for the held scope, or erases
+    // the morph map under Morph. One owner, two callers — the ActionId::VerbDelete
+    // that the hold row resolves to, and the CB::VerbDelete a controller may send.
+        [[nodiscard]] bool deleteVerb(CommandContext& ctx, CommandEffects& fx);
     };
 }

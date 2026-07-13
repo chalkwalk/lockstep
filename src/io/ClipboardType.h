@@ -19,5 +19,10 @@ namespace lockstep
         Pattern,  // entire pattern
         Scene,    // scene floor + all track phrases (DESIGN §23.3)
         All,      // omni grab: full live stack; unqualified paste requires scope
+        // 9.29: the SOUND only -- machine id + its param set (no steps, no routing).
+        // Appended, not inserted: the values are not serialised today, but the CPY
+        // badge and every clipboard check reads them by value, and renumbering a live
+        // enum to save a line is how a silent mis-paste gets born.
+        Machine,
     };
 }

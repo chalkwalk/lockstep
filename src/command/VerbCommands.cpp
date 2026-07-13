@@ -353,4 +353,59 @@ namespace lockstep::verbs
         }
         return true;
     }
+
+    // 9.29 -- the Machine scope. Track owns identity; Machine owns the sound. These
+    // verbs therefore move the machine's ID + its param set and nothing else: paste a
+    // sound onto a track and the track keeps its mute, level, routing, phrase and
+    // steps. That split is the whole reason the scope exists.
+    bool machine(ControllerButton verb, CommandContext& ctx, CommandEffects& fx)
+    {
+        using CB = ControllerButton;
+        const int at = ctx.uiState.activeTrack;
+        if (at < 0 || at >= static_cast<int>(kNumTracks)) return false;
+
+        if (verb == CB::VerbRecord)
+        {
+            const int n = ctx.catalog.numParams(at);
+            ctx.clipboard.clipMachineId = ctx.catalog.machineId(at);
+            ctx.clipboard.clipMachineParams.clear();
+            ctx.clipboard.clipMachineParams.reserve(static_cast<std::size_t>(n));
+            for (int s = 0; s < n; ++s)
+                ctx.clipboard.clipMachineParams.push_back(ctx.catalog.baseParam(at, s));
+            ctx.clipboard.type = ClipboardType::Machine;
+            fx.status(status::copiedSound(ctx.clipboard.clipMachineId));
+            return true;
+        }
+
+        if (verb == CB::VerbPlay)
+        {
+            if (ctx.clipboard.type != ClipboardType::Machine
+                || ctx.clipboard.clipMachineId.empty())
+            {
+                fx.status(status::noSoundCopied());
+                return true;
+            }
+            // Load the engine first when the target runs a different one -- assigning
+            // resets the params to that machine's defaults, so it has to happen BEFORE
+            // the copied values land or they would be wiped by their own paste.
+            if (ctx.clipboard.clipMachineId != ctx.catalog.machineId(at))
+                fx.machineAssign(at, ctx.clipboard.clipMachineId.c_str());
+            fx.machineParams(at, ctx.clipboard.clipMachineParams);
+            fx.status(status::pastedSound(at, ctx.clipboard.clipMachineId));
+            fx.releaseLatch(CB::TrackScope);
+            return true;
+        }
+
+        if (verb == CB::VerbClear)
+        {
+            // Init = re-assign the same machine: setTrackMachine rebuilds it and resets
+            // baseParams to the schema defaults, which is exactly "init" and keeps one
+            // owner for what a default IS (the ParamSpec).
+            const juce::String id = ctx.catalog.machineId(at);
+            fx.machineAssign(at, ctx.catalog.machineId(at));
+            fx.status(status::initedMachine(at, id));
+            return true;
+        }
+        return false;
+    }
 }

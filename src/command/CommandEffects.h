@@ -37,6 +37,12 @@ namespace lockstep
         virtual void requestRepaint() = 0;
         virtual void transport(TransportAction action) = 0;
         virtual void machineAssign(int track, const char* id) = 0;
+        // 9.29: write a whole param set onto a track's BASE layer (Machine+Play).
+        // Routed through the processor's single param-write owner, so sample refs,
+        // slice recomputes and APVTS sync all happen exactly as if the user had
+        // turned every encoder by hand. Values past the machine's slot count are
+        // ignored -- a paste onto a smaller schema fills what it can.
+        virtual void machineParams(int track, const std::vector<float>& params) = 0;
         virtual void openOverlay(OverlayId id, int param = 0) = 0;
         virtual void crossfader(float value) = 0;
     // Auto-release a transient modifier latch after its terminal action.

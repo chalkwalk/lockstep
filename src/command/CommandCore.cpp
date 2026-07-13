@@ -105,44 +105,53 @@ namespace lockstep
                 fx.transport(TA::TapTempo);
                 return true;
 
-            case CB::VerbDelete: {
-                using PS = EditMode::PrimaryScope;
-                const PS scope = ctx.editMode.primaryScope();
-                if (scope == PS::Morph)
-                {
-                    fx.morphErase(ctx.uiState.activeTrack);
-                    fx.status(status::morphErased());
-                    fx.requestRepaint();
-                    return true;
-                }
-                juce::String entityName;
-                DeleteScope delScope = DeleteScope::None;
-                if (scope == PS::Track)
-                {
-                    delScope = DeleteScope::Track;
-                    entityName = "TRACK";
-                }
-                else if (scope == PS::Phrase)
-                {
-                    delScope = DeleteScope::Phrase;
-                    entityName = "PHRASE";
-                }
-                else if (scope == PS::Scene)
-                {
-                    delScope = DeleteScope::Scene;
-                    entityName = "SCENE";
-                }
-                else return false;  // no picker for this scope (e.g. Song)
-
-                ctx.uiState.deletePicker.scope = delScope;
-                fx.status(status::deleteWhich(entityName));
-                fx.requestRepaint();
-                return true;
-            }
+            case CB::VerbDelete:
+                return deleteVerb(ctx, fx);
 
             default:
                 return false;
         }
+    }
+
+    // 9.29: the delete verb, one owner, two callers. It used to live inline in the
+    // CB::VerbDelete case, which the Func layer produced by rewriting Clear. Delete is
+    // now a HOLD on Clear under a scope (the Machine scope took Func+Track+Clear), so
+    // it arrives as ActionId::VerbDelete from the table -- but CB::VerbDelete is still
+    // a legal logical button a controller may send, and both must mean the same thing.
+    bool CommandCore::deleteVerb(CommandContext& ctx, CommandEffects& fx)
+    {
+        using PS = EditMode::PrimaryScope;
+        const PS scope = ctx.editMode.primaryScope();
+        if (scope == PS::Morph)
+        {
+            fx.morphErase(ctx.uiState.activeTrack);
+            fx.status(status::morphErased());
+            fx.requestRepaint();
+            return true;
+        }
+        juce::String entityName;
+        DeleteScope delScope = DeleteScope::None;
+        if (scope == PS::Track)
+        {
+            delScope = DeleteScope::Track;
+            entityName = "TRACK";
+        }
+        else if (scope == PS::Phrase)
+        {
+            delScope = DeleteScope::Phrase;
+            entityName = "PHRASE";
+        }
+        else if (scope == PS::Scene)
+        {
+            delScope = DeleteScope::Scene;
+            entityName = "SCENE";
+        }
+        else return false;  // no picker for this scope (e.g. Song)
+
+        ctx.uiState.deletePicker.scope = delScope;
+        fx.status(status::deleteWhich(entityName));
+        fx.requestRepaint();
+        return true;
     }
 
     bool CommandCore::handleUp(const ControllerEvent& ev,
@@ -211,7 +220,6 @@ namespace lockstep
             case AId::VerbRecord:
             case AId::VerbPlay:
             case AId::VerbClear:
-            case AId::VerbDelete:
             case AId::VerbCopy:
             case AId::VerbPaste:
             case AId::VerbScopedClear:
@@ -219,6 +227,21 @@ namespace lockstep
             case AId::VerbMorphBake:
             case AId::VerbMorphErase:
                 return handleVerb(ctx.editMode.primaryScope(), ev.button, ctx, fx);
+
+            // Delete is the one verb that does NOT delegate by button: it is reached by
+            // HOLDING Clear (9.29), so the button under the finger says "clear" while
+            // the gesture says "delete". The action is the truth; ev.button is not.
+            case AId::VerbDelete:
+                return deleteVerb(ctx, fx);
+
+            // ── 9.29: the Machine scope's verbs ──────────────────────────────────
+            // The table already knows the operand (the row requires Func+Track), so
+            // these do not consult primaryScope -- EditMode has no Machine value and
+            // does not need one. The compound scope lives in the binding, which is
+            // exactly where 9.12 says an operand belongs.
+            case AId::MachineCopy:  return verbs::machine(CB::VerbRecord, ctx, fx);
+            case AId::MachinePaste: return verbs::machine(CB::VerbPlay, ctx, fx);
+            case AId::MachineInit:  return verbs::machine(CB::VerbClear, ctx, fx);
 
             // ── 9.12 Stage 7a: the modifier family ───────────────────────────────
             case AId::HoldFuncScope:   fx.enterScope(CB::Func); return true;

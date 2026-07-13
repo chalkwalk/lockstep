@@ -110,6 +110,12 @@ namespace lockstep
     // page that section's params, long-press = open/close the OnDemand console, 7b).
     static constexpr int kMachineConsoleLongPressToken = 6002;
 
+    // Token for the DELETE hold (9.29): scope + tap(Clear) clears that scope's
+    // contents, scope + HOLD(Clear) deletes the entity. Delete left the Func
+    // qualifier when Func+Track became the Machine scope; the gesture axis is the
+    // better home anyway — the destructive verb should cost the deliberate gesture.
+    static constexpr int kDeleteHoldToken = 6004;
+
     // Token for the SRC-section long-press under the Track scope (9.29): tap =
     // navigate SRC pages, hold = open the machine picker. Distinct from the console
     // token above, which is the BARE hold of the same key on an OnDemand machine —

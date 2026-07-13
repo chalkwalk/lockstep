@@ -36,6 +36,12 @@ namespace lockstep::test
             transportActions.push_back(a);
         }
         void machineAssign(int t, const char* id) override { machineAssigns.push_back(std::to_string(t) + ":" + id); }
+        // 9.29: Machine+Play pastes a whole param set through here.
+        std::vector<std::pair<int, std::vector<float>>> machineParamWrites;
+        void machineParams(int t, const std::vector<float>& p) override
+        {
+            machineParamWrites.emplace_back(t, p);
+        }
         void openOverlay(OverlayId id, int p) override { overlays.push_back({ id, p }); }
         void crossfader(float v) override { crossfaders.push_back(v); }
         void releaseLatch(ControllerButton) override {}
@@ -104,13 +110,25 @@ namespace lockstep::test
         }
     };
 
-    // Minimal IMachineCatalog implementation for gesture tests.
+    // Minimal IMachineCatalog implementation for gesture tests. The param fields are
+    // settable so a test can give a track a schema + values (9.29: the Machine scope's
+    // copy verb reads the sound through the catalog).
     struct FakeMachineCatalog final : IMachineCatalog
     {
-        [[nodiscard]] int numParams(int) const override { return 0; }
+        int params = 0;                         // slot count reported for every track
+        std::vector<float> base;                // base values, indexed by slot
+        std::string id = "lockstep.sample.v1";  // machine id reported for every track
+
+        [[nodiscard]] int numParams(int) const override { return params; }
         [[nodiscard]] ParamSpec paramSpec(int, int) const override { return {}; }
         [[nodiscard]] SectionInfo section(int, int) const override { return {}; }
-        [[nodiscard]] const char* machineId(int) const override { return "lockstep.sample.v1"; }
+        [[nodiscard]] const char* machineId(int) const override { return id.c_str(); }
+        [[nodiscard]] float baseParam(int, int slot) const override
+        {
+            return (slot >= 0 && slot < static_cast<int>(base.size()))
+                       ? base[static_cast<std::size_t>(slot)]
+                       : 0.0f;
+        }
     };
 
     // GestureFixture: wires real core model objects + FakeMachineCatalog into

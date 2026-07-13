@@ -401,11 +401,16 @@ namespace lockstep
             CHECK(b.action == AId::HoldSceneMuteView, "MuteScope+Scene resolves to HoldSceneMuteView");
             CHECK((b.requiredMods & kModScene) != 0, "MuteScope+Scene row includes Scene bit");
         }
-        // VerbClear under Phrase → VerbDelete or VerbScopeClear with Phrase bit.
+        // VerbClear under Phrase: the TAP clears (9.29 -- delete moved to the hold).
         {
             const auto& b = resolveBinding(CB::VerbClear, -1, kModPhrase | kModFunc, SL::Base);
-            CHECK(b.action == AId::VerbDelete, "VerbClear+Phrase+Func → VerbDelete");
-            CHECK((b.requiredMods & kModPhrase) != 0, "VerbClear+Phrase+Func row includes Phrase bit");
+            CHECK(b.action == AId::VerbScopedClear, "VerbClear+Phrase+Func → scoped CLEAR");
+            CHECK((b.requiredMods & kModPhrase) != 0, "VerbClear+Phrase row includes Phrase bit");
+        }
+        // ...and the HOLD deletes, which is where DEL lives now.
+        {
+            const auto& b = resolveBinding(CB::VerbClear, -1, kModPhrase, SL::Base, Gesture::Hold);
+            CHECK(b.action == AId::VerbDelete, "VerbClear+Phrase, HELD → VerbDelete");
         }
     }
 

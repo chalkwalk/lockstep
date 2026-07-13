@@ -500,6 +500,135 @@ namespace lockstep
         CHECK(f.effects.confirmsExecuted[0].target == 5, "correct target");
     }
 
+
+    // -------------------------------------------------------------------------
+    // 9.29 — the Machine scope. Track owns identity, Machine owns the sound: these
+    // verbs must move the machine + its params and nothing else.
+
+    static void scenario_machineCopyPaste()
+    {
+        GestureFixture f;
+        f.uiState.activeTrack = 2;
+        f.catalog.params = 3;
+        f.catalog.base = { 0.25f, 0.5f, 0.75f };
+        f.catalog.id = "lockstep.fm.v1";
+
+        CHECK(f.action(ActionId::MachineCopy, CB::VerbRecord), "Machine+Rec handled");
+        CHECK(f.clipboard.type == ClipboardType::Machine, "clipboard types the SOUND");
+        CHECK(f.clipboard.clipMachineId == "lockstep.fm.v1", "machine id captured");
+        CHECK(f.clipboard.clipMachineParams.size() == 3, "all three slots captured");
+        CHECK(f.clipboard.clipMachineParams[2] == 0.75f, "param values captured from the catalog");
+
+        // Paste onto a track running a DIFFERENT machine: the engine must be loaded
+        // first, or the assign would reset the params we are about to write.
+        f.uiState.activeTrack = 5;
+        f.catalog.id = "lockstep.sample.v1";
+        CHECK(f.action(ActionId::MachinePaste, CB::VerbPlay), "Machine+Play handled");
+        CHECK(f.effects.machineAssigns.size() == 1, "target machine loaded");
+        CHECK(f.effects.machineAssigns[0] == "5:lockstep.fm.v1", "loaded onto the focused track");
+        CHECK(f.effects.machineParamWrites.size() == 1, "params written once");
+        CHECK(f.effects.machineParamWrites[0].first == 5, "written to the focused track");
+        CHECK(f.effects.machineParamWrites[0].second.size() == 3, "whole param set written");
+    }
+
+    static void scenario_machinePasteSameMachineDoesNotReload()
+    {
+        GestureFixture f;
+        f.catalog.params = 2;
+        f.catalog.base = { 0.1f, 0.2f };
+        CHECK(f.action(ActionId::MachineCopy, CB::VerbRecord), "copy handled");
+        CHECK(f.action(ActionId::MachinePaste, CB::VerbPlay), "paste handled");
+        CHECK(f.effects.machineAssigns.empty(),
+              "same machine → no reload (a needless rebuild would drop voices)");
+        CHECK(f.effects.machineParamWrites.size() == 1, "params still written");
+    }
+
+    static void scenario_machinePasteRejectsForeignClipboard()
+    {
+        GestureFixture f;
+        f.clipboard.type = ClipboardType::Track;   // a track copy is not a sound
+        CHECK(f.action(ActionId::MachinePaste, CB::VerbPlay), "handled (reports, not silent)");
+        CHECK(f.effects.machineAssigns.empty(), "no machine loaded from a track clipboard");
+        CHECK(f.effects.machineParamWrites.empty(), "no params written from a track clipboard");
+    }
+
+    static void scenario_machineInit()
+    {
+        GestureFixture f;
+        f.uiState.activeTrack = 1;
+        f.catalog.id = "lockstep.drum.v1";
+        CHECK(f.action(ActionId::MachineInit, CB::VerbClear), "Machine+Clear handled");
+        CHECK(f.effects.machineAssigns.size() == 1, "init re-assigns the machine");
+        CHECK(f.effects.machineAssigns[0] == "1:lockstep.drum.v1",
+              "init reloads the SAME machine (setTrackMachine resets params to defaults)");
+    }
+
+    // -------------------------------------------------------------------------
+    // 9.29 — DELETE moved to the hold rail. The golden net drives taps only, so the
+    // hold is proven here: the action the hold row resolves to must arm the picker
+    // for the held scope, and must decline where no entity exists to delete.
+
+    static void scenario_deleteHoldArmsPickerPerScope()
+    {
+        struct Case { const char* name; ControllerButton mod; DeleteScope expect; };
+        const Case cases[] = {
+            { "Track", CB::TrackScope, DeleteScope::Track },
+            { "Phrase", CB::PhraseScope, DeleteScope::Phrase },
+            { "Scene", CB::SceneScope, DeleteScope::Scene },
+        };
+        for (const auto& c : cases)
+        {
+            GestureFixture f;
+            f.editMode.onScopeEvent({ T::ButtonDown, c.mod, 0, 0 });
+            CHECK(f.action(ActionId::VerbDelete, CB::VerbClear),
+                  juce::String(c.name) + " + hold(Clear) is handled");
+            CHECK(f.uiState.deletePicker.active(),
+                  juce::String(c.name) + " + hold(Clear) arms the deletion picker");
+            CHECK(f.uiState.deletePicker.scope == c.expect,
+                  juce::String(c.name) + " picker targets its own entity");
+        }
+    }
+
+    static void scenario_deleteHoldInertWithoutDeletableScope()
+    {
+        {
+            GestureFixture f;   // Song owns no deletable entity
+            f.editMode.onScopeEvent({ T::ButtonDown, CB::SongScope, 0, 0 });
+            CHECK(!f.action(ActionId::VerbDelete, CB::VerbClear), "Song+hold(Clear) declines");
+            CHECK(!f.uiState.deletePicker.active(), "no picker armed under Song");
+        }
+        {
+            GestureFixture f;   // no scope at all
+            CHECK(!f.action(ActionId::VerbDelete, CB::VerbClear), "bare hold(Clear) declines");
+            CHECK(!f.uiState.deletePicker.active(), "no picker armed with no scope");
+        }
+    }
+
+    // Trig + Func + Clear = clear the P-Locks, keep the trig. Documented in README and
+    // DESIGN, but DEAD until 9.29: the Func layer rewrote Clear to VerbDelete before
+    // verbs::trig could read the Func flag, and nothing handled VerbDelete under a step
+    // hold. Retiring that remap revives it -- this test is the proof, and the guard.
+    static void scenario_trigFuncClearKeepsTrig()
+    {
+        GestureFixture f;
+        auto& s4 = f.track(0).steps[4];
+        s4.trig = true;
+        s4.condition.probabilityPercent = 60;
+        s4.overrides.set(2, 0.9f);
+        f.holdStep(0, 4);
+
+        // The Func layer must NOT rewrite the button any more.
+        const ControllerEvent raw{ T::ButtonDown, CB::VerbClear, -1, 0 };
+        const auto routed = resolveLayer(raw, LayerContext{ /*func*/ true, false, false });
+        CHECK(routed.button == CB::VerbClear, "Func+Clear stays Clear (no VerbDelete remap)");
+
+        f.uiState.funcHeld = true;
+        f.editMode.onScopeEvent({ T::ButtonDown, CB::Func, 0, 0 });
+        CHECK(f.verb(PS::Trig, CB::VerbClear), "Trig+Func+Clear handled");
+        CHECK(f.track(0).steps[4].trig, "the trig SURVIVES (this is the whole point)");
+        CHECK(!f.track(0).steps[4].overrides.has(2), "the P-Lock is cleared");
+    }
+
     void runGestureTests()
     {
         scenario_trigCopy();
@@ -533,5 +662,12 @@ namespace lockstep
         scenario_confirmFuncNeverCancels();
         scenario_confirmFuncPCancels();
         scenario_confirmYesExecutes();
+        scenario_machineCopyPaste();
+        scenario_machinePasteSameMachineDoesNotReload();
+        scenario_machinePasteRejectsForeignClipboard();
+        scenario_machineInit();
+        scenario_deleteHoldArmsPickerPerScope();
+        scenario_deleteHoldInertWithoutDeletableScope();
+        scenario_trigFuncClearKeepsTrig();
     }
 }

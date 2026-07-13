@@ -108,7 +108,10 @@ namespace lockstep
         checkKey("Y-func", code('Y'), true, false, false, B::Restore, -1);
         checkKey("U-func", code('U'), true, false, false, B::VerbRecord, -1); // VerbRecord kept (omni copy)
         checkKey("I-func", code('I'), true, false, false, B::VerbPlay, -1); // falls through to primary
-        checkKey("O-func", code('O'), true, false, false, B::VerbDelete, -1);
+        // 9.29: Func+O is no longer rewritten to VerbDelete. Delete is scope+hold(O);
+        // Func stays a QUALIFIER over Clear, which is what makes Trig+Func+O (clear the
+        // P-Locks, keep the trig) reachable -- the remap used to eat it.
+        checkKey("O-func", code('O'), true, false, false, B::VerbClear, -1);
         checkKey("P-func", code('P'), true, false, false, B::VerbConfirm, -1);
 
         // 9.10: Func+3 remap to MetronomeToggle removed; metronome moved to TIME band field 2.

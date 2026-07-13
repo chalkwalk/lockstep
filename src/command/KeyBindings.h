@@ -123,6 +123,12 @@ namespace lockstep
         // advertise the scope on the key frame, not to carry its effect.
         HoldMachineScope,
 
+        // 9.29: the Machine scope's verbs. No new keys and no new verbs -- the
+        // grammar yields them the moment the operand exists (DESIGN §13.9).
+        MachineCopy,         // Machine+Record: copy the sound (machine id + params)
+        MachinePaste,        // Machine+Play:   paste it onto the focused track
+        MachineInit,         // Machine+Clear:  reset the machine to its defaults
+
         // Sentinel — keep last. Lets the Stage 6 guard test enumerate every action
         // and assert each one is either handled by CommandCore::handleAction or
         // explicitly listed as not-yet-migrated, so a new ActionId cannot be added

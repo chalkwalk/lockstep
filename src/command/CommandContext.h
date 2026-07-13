@@ -23,6 +23,10 @@ namespace lockstep
         virtual ParamSpec paramSpec(int track, int slot) const = 0;
         virtual SectionInfo section(int track, int idx) const = 0;
         virtual const char* machineId(int track) const = 0;
+        // 9.29: the track's current BASE value for a slot (no step override applied).
+        // The Machine scope's copy verb reads the sound through here rather than
+        // reaching into the sequence, so verbs::machine stays pure and testable.
+        virtual float baseParam(int track, int slot) const = 0;
     };
 
   // All model references CommandCore handlers operate on.

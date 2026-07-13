@@ -237,6 +237,8 @@ namespace lockstep
         bool fxSectionPickerWantsMaster_ = false; // captured at Section-5 key-down
         bool fxPickerFiredMidHold_ = false;       // picker opened during the hold (not on key-up)
         bool machinePickerFiredMidHold_ = false;  // 9.29: Track+hold(SRC) opened the machine picker
+        bool clearHoldArmed_ = false;             // 9.29: Clear pressed under a deletable scope
+        bool clearHoldFired_ = false;             // 9.29: the delete already fired mid-hold
         bool stepInspectorFiredMidHold_ = false;  // Part 2: StepInspector opened via long-press this hold
         bool fxPickerRemoveArmed_ = false;        // loaded-cell press deferred to key-up
         bool fxPickerRemoveMaster_ = false;       // which picker the armed press targets
@@ -626,6 +628,13 @@ namespace lockstep
         // 9.12 Stage 7b: route a scoped verb press through the binding table.
         // Always returns true (the press is consumed).
         bool routeVerb(const ControllerEvent& ev);
+
+        // 9.29: the Clear key's tap/hold split. Tap = clear the scope's contents;
+        // hold = delete the entity it owns (deleteHoldCapable gates which scopes have
+        // one). clearVerbTap is the old dispatchDown body, moved intact.
+        [[nodiscard]] bool deleteHoldCapable() const;
+        void fireDeleteHold();
+        bool clearVerbTap(const ControllerEvent& ev);
 
         // MHZ.9.x: auto-release a transient mode's latch after its terminal action.
         // No-op when not latched; leaves physically-held (non-latched) mods alone.

@@ -152,13 +152,19 @@ namespace lockstep
         CHECK(resolve(CB::VerbPlay, kModScene) == AId::VerbPlay, "Scene+I = PLAY (no PASTE row; bare is inert in dispatch)");
         CHECK(resolve(CB::VerbPlay, kModScene | kModFunc) == AId::VerbPaste, "Func+Scene+I = PASTE");
 
-        // O: CLEAR / DEL. Scope+Func = DEL (Track/Phrase/Scene). Morph = BAKE; Morph+Func = ERASE.
+        // O: CLEAR on the tap, DELETE on the HOLD (9.29). Func no longer turns Clear
+        // into Delete -- Func+Track is the Machine scope, and its Clear is INIT.
         CHECK(resolve(CB::VerbClear, kModNone) == AId::VerbClear, "O bare = CLEAR");
-        CHECK(resolve(CB::VerbClear, kModFunc) == AId::VerbDelete, "Func+O = DEL");
+        CHECK(resolve(CB::VerbClear, kModFunc) == AId::VerbClear,
+              "Func+O = CLEAR (Func qualifies the clear; it is not a delete)");
         CHECK(resolve(CB::VerbClear, kModTrack) == AId::VerbScopedClear, "Track+O = CLEAR");
-        CHECK(resolve(CB::VerbClear, kModTrack | kModFunc) == AId::VerbDelete, "Func+Track+O = DEL");
-        CHECK(resolve(CB::VerbClear, kModPhrase | kModFunc) == AId::VerbDelete, "Func+Phrase+O = DEL");
-        CHECK(resolve(CB::VerbClear, kModScene | kModFunc) == AId::VerbDelete, "Func+Scene+O = DEL");
+        CHECK(resolve(CB::VerbClear, kModTrack | kModFunc) == AId::MachineInit,
+              "Machine (Func+Track) + O = INIT the sound");
+        CHECK(resolveHold(CB::VerbClear, kModTrack) == AId::VerbDelete, "Track+hold O = DEL TRACK");
+        CHECK(resolveHold(CB::VerbClear, kModPhrase) == AId::VerbDelete, "Phrase+hold O = DEL PHRASE");
+        CHECK(resolveHold(CB::VerbClear, kModScene) == AId::VerbDelete, "Scene+hold O = DEL SCENE");
+        CHECK(resolveHold(CB::VerbClear, kModSong) != AId::VerbDelete,
+              "Song+hold O = no delete (Song owns no deletable entity)");
         CHECK(resolve(CB::VerbClear, kModMorph) == AId::VerbMorphBake, "Morph+O = BAKE");
         CHECK(resolve(CB::VerbClear, kModMorph | kModFunc) == AId::VerbMorphErase, "Func+Morph+O = ERASE");
 

@@ -134,20 +134,42 @@ namespace lockstep
         { CB::VerbPlay, -1, kModNone, SL::Base, AId::VerbPlay, u8"PLAY", u8"", CS::Resting },
 
         // ── VerbClear / CLEAR (key O) ─────────────────────────────────────────
-        // Func+Scope+Clear = DEL for Track/Phrase/Scene (not Song/Morph).
-        // Morph+Func+Clear = ERASE (morph erase, not generic delete).
-        // Song+Func+Clear is inert — no Song-delete exists; Song row wins the tiebreak.
-        { CB::VerbClear, -1, kModPhrase | kModFunc, SL::Base, AId::VerbDelete, u8"DEL", u8"", CS::FuncHeld },
-        { CB::VerbClear, -1, kModTrack | kModFunc, SL::Base, AId::VerbDelete, u8"DEL", u8"", CS::FuncHeld },
-        { CB::VerbClear, -1, kModScene | kModFunc, SL::Base, AId::VerbDelete, u8"DEL", u8"", CS::FuncHeld },
+        // 9.29: DELETE moved off the Func qualifier onto the GESTURE axis. Func+Track
+        // is the Machine scope now, so Func+Track+Clear cannot also mean "delete the
+        // track" -- and the tap/hold split is the better home anyway: tap = clear the
+        // scope's contents (recoverable), HOLD = delete the entity (picker + confirm).
+        // The destructive verb costs the deliberate gesture.
+        //   Machine (Func+Track) + Clear = INIT the sound (the compound wins on popcount).
+        //   Morph+Func+Clear = ERASE (morph erase, not a generic delete).
+        //   Song hosts no deletable entity: no hold row, so Song+hold(Clear) is inert.
+        { CB::VerbClear, -1, kModTrack | kModFunc, SL::Base, AId::MachineInit, u8"INIT", u8"", CS::FuncHeld },
         { CB::VerbClear, -1, kModMorph | kModFunc, SL::Base, AId::VerbMorphErase, u8"ERASE", u8"", CS::FuncHeld },
-        { CB::VerbClear, -1, kModFunc, SL::Base, AId::VerbDelete, u8"DEL", u8"", CS::Resting },
-        { CB::VerbClear, -1, kModTrack, SL::Base, AId::VerbScopedClear, u8"CLEAR", u8"DEL", CS::Resting },
-        { CB::VerbClear, -1, kModPhrase, SL::Base, AId::VerbScopedClear, u8"CLEAR", u8"DEL", CS::Resting },
-        { CB::VerbClear, -1, kModScene, SL::Base, AId::VerbScopedClear, u8"CLEAR", u8"DEL", CS::Resting },
+        // Hints are the Func-variant preview (the universal hint rule): Track's Func
+        // variant is the Machine scope's INIT; Phrase/Scene have no Func variant any
+        // more (their delete moved to the hold rail, which deriveSlots reads from the
+        // Gesture::Hold rows below), so their hint is empty.
+        // Promoted (like the bare REC tap over its RESET hold): at equal specificity
+        // deriveSlots' fallback would let the HOLD row take the big primary slot, so
+        // the key would shout DEL TRACK while the finger is resting on a scope. The
+        // common act keeps the primary; the destructive one sits on the secondary rail.
+        { CB::VerbClear, -1, kModTrack, SL::Base, AId::VerbScopedClear, u8"CLEAR", u8"INIT", CS::Resting,
+          Gesture::Tap, true },
+        { CB::VerbClear, -1, kModPhrase, SL::Base, AId::VerbScopedClear, u8"CLEAR", u8"", CS::Resting,
+          Gesture::Tap, true },
+        { CB::VerbClear, -1, kModScene, SL::Base, AId::VerbScopedClear, u8"CLEAR", u8"", CS::Resting,
+          Gesture::Tap, true },
         { CB::VerbClear, -1, kModMorph, SL::Base, AId::VerbMorphBake, u8"BAKE", u8"ERASE", CS::Resting },
         { CB::VerbClear, -1, kModSong, SL::Base, AId::VerbScopedClear, u8"PANIC", u8"", CS::Resting },
-        { CB::VerbClear, -1, kModNone, SL::Base, AId::VerbClear, u8"CLEAR", u8"DEL", CS::Resting },
+        { CB::VerbClear, -1, kModNone, SL::Base, AId::VerbClear, u8"CLEAR", u8"", CS::Resting },
+
+        // The delete family, on the hold rail (9.29). One row per deletable scope --
+        // the entity a scope owns is the entity its hold deletes.
+        { CB::VerbClear, -1, kModTrack, SL::Base, AId::VerbDelete, u8"DEL TRACK", u8"", CS::Resting,
+          Gesture::Hold, false },
+        { CB::VerbClear, -1, kModPhrase, SL::Base, AId::VerbDelete, u8"DEL PHRASE", u8"", CS::Resting,
+          Gesture::Hold, false },
+        { CB::VerbClear, -1, kModScene, SL::Base, AId::VerbDelete, u8"DEL SCENE", u8"", CS::Resting,
+          Gesture::Hold, false },
 
         // ── VerbConfirm / CONFIRM (key P) ─────────────────────────────────────────
         // Scope+P = QUANT (zero microOffset on scope). No hint: holding Func over

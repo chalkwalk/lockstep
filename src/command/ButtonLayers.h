@@ -50,7 +50,14 @@ namespace lockstep
         { ControllerButton::Section, LayerRemap::Layer::Func, ControllerButton::MetaSection },
         // Func+3 → MetronomeToggle remap removed (9.10): metronome moved to TIME band field 2.
         { ControllerButton::VerbSnapshot, LayerRemap::Layer::Func, ControllerButton::Restore },
-        { ControllerButton::VerbClear, LayerRemap::Layer::Func, ControllerButton::VerbDelete },
+        // Func+VerbClear -> VerbDelete retired (9.29). Delete lives on the gesture
+        // axis now (scope + HOLD Clear), because Func+Track is the Machine scope and
+        // could not also be "delete the track". Func over Clear is a qualifier again,
+        // not a replacement -- which is what makes Trig+Func+Clear (clear the P-Locks,
+        // keep the trig) reachable: this remap used to rewrite the button before
+        // verbs::trig could read the Func flag, so that documented gesture was dead.
+        // CB::VerbDelete still exists as a logical button (controllers may send it;
+        // the hold row resolves to ActionId::VerbDelete) -- it just has no QWERTY key.
     };
 
     // Resolve any layer remap for the incoming event.

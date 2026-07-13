@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <string>
 #include <vector>
 #include <utility>
 
@@ -47,6 +48,13 @@ namespace lockstep
 
         // Track scope (MD.4): full track copy.
         Track clipTrack;
+
+        // Machine scope (9.29): the SOUND -- which engine, and its base params.
+        // Deliberately not a Track copy: Track owns identity (routing, mute, phrase
+        // assignment), Machine owns the sound, and pasting a sound must not drag the
+        // channel's identity across with it.
+        std::string clipMachineId;
+        std::vector<float> clipMachineParams;
 
         // Pattern scope (MD.5): sequence + pattern mutes (partRef NOT included).
         Sequence clipSequence;

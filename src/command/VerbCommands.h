@@ -43,4 +43,12 @@ namespace lockstep::verbs
     [[nodiscard]] bool section(ControllerButton verb,
                                CommandContext& ctx,
                                CommandEffects& fx);
+
+  // 9.29 — the Machine scope (Func+Track). Track owns identity, Machine owns the
+  // sound, so these act on the machine's param set only: no steps, no length, no
+  // routing. Record = copy, Play = paste (loading the machine first if the target
+  // runs a different one), Clear = init to the machine's own defaults.
+    [[nodiscard]] bool machine(ControllerButton verb,
+                               CommandContext& ctx,
+                               CommandEffects& fx);
 }

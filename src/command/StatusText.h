@@ -142,6 +142,21 @@ namespace lockstep::status
 
     // ---- clipboard / paste flow ---------------------------------------------
 
+    // 9.29 -- the Machine scope's verbs (the sound, not the channel).
+    inline juce::String copiedSound(const juce::String& machineId)
+    {
+        return "Copied sound (" + machineId + ")";
+    }
+    inline juce::String pastedSound(int track, const juce::String& machineId)
+    {
+        return "Pasted sound (" + machineId + ") to track " + juce::String(track + 1);
+    }
+    inline juce::String initedMachine(int track, const juce::String& machineId)
+    {
+        return "Init " + machineId + " on track " + juce::String(track + 1);
+    }
+    inline juce::String noSoundCopied() { return "No sound copied"; }
+
     inline juce::String nothingCopied() { return "Nothing copied"; }
     inline juce::String pastePickScope() { return "Paste: pick a scope"; }
 
