@@ -2105,9 +2105,9 @@ cluster in the left two columns of the 10×4 QWERTY layout (see §5.5,
 | `Phrase` | `Q` (col 1) | Phrase selection (§4.7/§16): `Phrase + step` = unison/set-global (focused musician un-deviates and joins; others kept); `Track + Phrase + step` = deviate the focused musician. To clear all deviations, re-launch the active Scene or use `Func + Scene + step` (§16). | Verb, step key, `Track`. |
 | `Morph` | `A` (col 1) | Morph assignment; `Morph + ^/v` picks endpoint A/B (§17.5). | Nav, encoder, `Song`, `Fill`. |
 | `Mute` | `Z` (col 1) | Live global mute layer (hold and tap many); `Scene + Mute + step` = per-scene mute. | Track/step keys, `Scene`. |
-| `Track` | `2` (col 2) | One or more track slots; none selected = Control-All. `Func+Track` activates the machine/Kit picker via step-cell re-skin. | Verb, encoder, or a col-1 modifier. |
+| `Track` | `2` (col 2) | One or more track slots; none selected = Control-All. `Func+Track` = the **Machine** scope — the unkeyed rung *inside* Track (§13.9). | Verb, encoder, or a col-1 modifier. |
 | `Scene` | `W` (col 2) | Scene launch + commit/revert (§16): `Scene + step` on a *different* Scene = carry overlay; on the *active* Scene = revert to floor; on an *empty* slot = create a **baked copy** (current effective layout, deviations included). `Func + Scene + step` = **baseline** (existing Scene → floor-only launch; *empty* slot → create a fresh default/empty Scene). `Scene + Clear` = revert active Scene; `Scene + Record` = **commit-and-bake** (confirm-gated): folds global-pattern + mask into the floor and bakes per-track deviations into home-row phrase content (§16, §23.3). *(Undeviated duplication lives on the clipboard, not a create chord — `Mute + Scene + step` is reserved for scene-mute; §23.3.)* | Verb, step key, `Track`. |
-| `Song` | `S` (col 2) | Song select: `Song + step` queues a Song change (§16). `Func+Song` = Global/project params (incl. master-bus / FX focus, §32.3). | Verb, step key, section key, `Morph`. |
+| `Song` | `S` (col 2) | Song select: `Song + step` queues a Song change (§16). `Func+Song` = the **Set** scope (Global/project params, incl. master-bus / FX focus, §32.3) — the unkeyed rung *above* Song (§13.9). | Verb, step key, section key, `Morph`. |
 | `Fill` | `X` (col 2) | "While I'm holding this, fill conditions evaluate true." | Step keys; (no verb needed — it's the state itself). |
 | `Trig` (hold a step) | `D–;` / `C–/` | The held step(s); multi-step hold is allowed. | Verb, encoder, or note key. |
 | Section key | `5–0` | The held section's slots. | Verb, scope modifier (scope-section matrix, §6.1.2). |
@@ -2796,6 +2796,93 @@ While the inspector is open (single held step):
 
 Everything an inspector edits is per-step override data resolved by
 Override-ELSE-Base (§7); nothing here is a new resolution layer.
+
+### 13.9 Scopes, defaults, and the two unkeyed rungs (`Machine`, `Set`)
+
+**The unqualified press is a default, not a scope** (PRINCIPLES §2). Holding
+nothing does not mean "no operand" — it means *the operand you almost always want
+for that key category*:
+
+| Key category, nothing held | Default operand |
+|---|---|
+| Section key (`5`–`0`) | the focused track's **machine** (`section()` reads its schema) |
+| Verb key | the **Song** |
+| `Mute` + step, step keys | the focused track / the held step |
+
+That is deliberate: the cheapest gesture serves the commonest act (§15). But
+because the default was never *declared*, one operand had no name at all — the
+**machine**. Section keys have always edited it, yet no modifier could say it, so
+no verb could act on it. The visible symptom: **you could not copy, paste, or init
+a sound** on an instrument positioned between an Octatrack and a Digitakt. The
+grammar was not missing a feature; it was missing an *operand*.
+
+**The two unkeyed rungs.** There are two operand axes — arrangement
+(`Set > Song > Scene > Phrase`) and channel (`Track > Machine`). The cluster has
+keys for `Song`, `Scene`, `Phrase`, `Track`. Exactly two rungs have no key:
+
+| Compound | Scope | Rung |
+|---|---|---|
+| `Func + Track` | **Machine** | *inside* Track |
+| `Func + Song` | **Set** (Global) | *above* Song |
+
+`Func` reaches the missing neighbour, and there is no third such compound because
+every other rung already has a key: `Func+Phrase` and `Func+Scene` are **reserved
+and inert** (PRINCIPLES §17), not spare capacity. This is what keeps `Func` a
+qualifier — it names an operand the surface could not otherwise say, and never
+opens an editor.
+
+**What each of Track and Machine owns.** The split is *identity vs sound*:
+
+- **`Track`** — which machine this channel runs, its mute / level / pan / routing,
+  its input mode, its phrase assignment. The channel.
+- **`Machine`** — the machine's parameters: the sound itself. The engine.
+
+**Verbs finally reach the machine.** No new verbs, no new keys — the existing
+grammar yields the whole set the moment the operand exists:
+
+| Gesture | Meaning |
+|---|---|
+| `Machine + Record` (= `Func+Track+Record`) | **Copy** the sound (the machine's full param set) |
+| `Machine + Play` | **Paste** it onto the focused track |
+| `Machine + Clear` | **Init** the machine to its defaults |
+| `Machine + Func + Clear` | **Delete** (confirm-gated, §13.2) |
+| `Machine + Snapshot` | *deliberately unbound* — see below |
+
+`Machine + Snapshot` reads as "save a preset", and a preset **library** (store,
+name, browse, recall) is a subsystem, not a free consequence of the grammar.
+Copy / paste / init are pure param-set operations and cost nothing; the preset
+store is deferred rather than smuggled in on the back of a chord. The cell stays
+reserved and inert until it is designed on its own terms.
+
+**Choosing the machine stays on `Track`.** *Which* engine a channel runs is a
+property of the **track** — the machine does not yet exist to be its own operand —
+so the picker follows the rule already established for FX (§13, 9.14):
+
+> **`<scope>` + hold(`<section>`) = choose what fills that section, at that scope.**
+
+| Gesture | Picker |
+|---|---|
+| `Track` + hold(`SRC`) | which machine this track runs |
+| `Track` + hold(`FX`) | track insert effects (`PICK FX`) |
+| `Song` + hold(`FX`) | master effects (`PICK MASTER FX`) |
+
+Tap a section = navigate its pages; **hold** it = choose what fills it. The picker
+is scope-gated, so the hold-rail label only appears under the scope where it fires.
+(Bare hold of a section key is *not* free: an OnDemand machine console opens by
+long-pressing its `consoleSectionIndex()` key, which defaults to `SRC` — §36. The
+scope gate is what keeps these from colliding.)
+
+**Latching a compound scope.** Scopes latch on double-tap (§13.7) but `Func` never
+latches, so a compound scope could not be held hands-free — and `Machine` is
+exactly the scope you want hands-free, because sound design is a two-handed
+activity measured in minutes, not a chord you hold. The rule:
+
+> **`Func` held + double-tap the scope key = latch the compound scope.** The latch
+> survives releasing `Func`.
+
+It applies to the only two compound scopes, `Machine` and `Set`, and costs no key.
+It is the first latch that outlives a key that was part of entering it — stated
+here because that is the one genuinely new thing in this section.
 
 ## 14. Signal Path and Post-Machine FILTER / CHANNEL / ENVELOPE
 

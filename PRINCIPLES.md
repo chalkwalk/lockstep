@@ -107,6 +107,28 @@ surprising action. This is the half of "no exceptions" that faces the learner: a
 user who has learned the pieces can derive the whole, and is never punished for a
 reasonable guess. Surprise is the tax orthogonality refuses to charge.
 
+**Unqualified is a default, not a scope.** Pressing a key with nothing held does
+not mean "no operand" — it means *the operand you almost always want for that key
+category*: a section key edits the **machine**, a bare verb acts on the **Song**, a
+mute targets the focused track. That is deliberate (the cheapest gesture must
+serve the commonest act, §15) — but it has to be **declared**, because an
+undeclared default is indistinguishable from an ambiguity, and it *hides operands*.
+The machine scope existed for years with no name, no key, and no verbs; the cost
+was invisible until you notice that nothing on the surface could copy, paste, or
+init a sound. The verbs had no way to say "the machine". A default that cannot be
+named is a scope you have lost.
+
+**`Func` reaches the unkeyed rung.** Lockstep has two operand axes — arrangement
+(`Set > Song > Scene > Phrase`) and channel (`Track > Machine`). The cluster has
+keys for `Song`, `Scene`, `Phrase`, and `Track`, so exactly two rungs have no key
+of their own: **`Set`** (above `Song`) and **`Machine`** (inside `Track`). `Func`
+on a scope key reaches that missing neighbour — `Func+Song` = Set, `Func+Track` =
+Machine — and there is no third such compound, because every other rung already
+has a key. `Func+Phrase` and `Func+Scene` are therefore **reserved and inert**
+(§17), not "free for a future feature". This is what keeps `Func` a *qualifier*: it
+names an operand the surface could not otherwise say, and it never opens an editor
+or invents a meaning of its own.
+
 ## 3. Performance is the goal; standalone and DAW are equal homes
 
 Lockstep is a live instrument, and performance ergonomics shape every

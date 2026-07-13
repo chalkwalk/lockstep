@@ -24,8 +24,14 @@ priority order:
    6–8, the migration itself: display already derives from the grammar, but
    dispatch calls `resolveBinding` exactly *once* in 2,079 lines, so the two halves
    of one grammar are still hand-synced. Plan: `docs/dispatch-migration-plan.md`.
-2. **Performance usability.** `5.3` Song/Scene management UI (names, colours,
-   browser, Kit recall), `9.4` snapshot restore-semantics session, `6.4` Cue bus.
+2. **Grammar.** `9.29` — the **Machine scope**. Fell out of the 9.12 st.7a
+   migration: section keys have always edited the machine, but no modifier could
+   *say* "machine", so no verb could act on one (you cannot copy, paste or init a
+   sound). Names the operand, and completes the `Func` rule (`Func` reaches the two
+   unkeyed rungs: `Machine` inside Track, `Set` above Song).
+3. **Performance usability.** `5.3` Song/Scene management UI (names, colours,
+   browser, Kit recall — "Kit" is retired as a term by `9.29`), `9.4` snapshot
+   restore-semantics session, `6.4` Cue bus.
 
 **Capture arc closed 2026-07-12.** `11.10` (the CUJ session — DESIGN §41 +
 README §5.23) and `11.11` (the stems completion) are both shipped: stem
@@ -2839,6 +2845,47 @@ commit each, each with tests.
       twin of `read()` (the scatter path already wraps), plus tests pinning the
       previously untested corners: zero rate, negative rate, and seam
       continuity on a circular read.
+
+### 9.29 — The Machine scope (naming the operand the grammar lost)  *[planned]*
+
+Fell out of the 9.12 Stage 7a migration: `Func+Track` opened the machine picker,
+making it the **only** place a scope modifier opens an editor — which is why the
+modifier family needed a bare-row special case to stop the compound swallowing the
+hold. Pulling that thread found something bigger. Section keys have always edited
+the **machine** (`section()` reads `machines_[track]`'s schema), but no modifier
+could *say* "machine", so no verb could act on one: **you cannot copy, paste, or
+init a sound.** The grammar was not missing a feature, it was missing an
+**operand**. Docs: PRINCIPLES §2, DESIGN §13.9.
+
+- [ ] **Stage 0 — Docs.** *(done)* PRINCIPLES §2 (unqualified is a *declared
+      default*, not a scope; `Func` reaches the unkeyed rung). DESIGN §13.9 (the
+      Machine/Set scopes, the identity-vs-sound split, the picker rule, the
+      compound-scope latch).
+- [ ] **Stage 1 — `Func+Track` = Machine scope.** Retire `OpenMachinePicker` from
+      the `TrackScope` row; `funcTrackHeld` stops meaning "picker open" and becomes
+      the scope hold. New `SurfaceLayer` + scope colour + banner (`layerBanner`'s
+      exhaustive switch will refuse to build until it is wired). `Func+Song` is
+      relabelled **Set** — same behaviour, honest name.
+- [ ] **Stage 2 — Picker moves to the section.** `Track` + hold(`SRC`) = choose the
+      machine, exactly parallel to the existing `Track`+hold(`FX`) / `Song`+hold(`FX`)
+      rows (9.14's rule: *tap = navigate, hold = picker, scope-gated*). Bare
+      hold(`SRC`) stays the OnDemand machine console (`consoleSectionIndex()`
+      defaults to SRC) — the scope gate is what keeps them apart.
+- [ ] **Stage 3 — Verbs on the machine.** `Machine+Record` = copy sound,
+      `Machine+Play` = paste, `Machine+Clear` = init. No new verbs, no new keys —
+      the grammar yields them once the operand exists. `Machine+Snapshot` stays
+      **reserved and inert**: it reads as "save a preset", and a preset *library* is
+      a subsystem, not a free consequence of a chord. Deferred deliberately, not
+      smuggled in.
+- [ ] **Stage 4 — Compound-scope latch.** `Func` + double-tap a scope key latches
+      the compound (`Machine`, `Set`); the latch survives releasing `Func`. Needed
+      because `Func` never latches and sound design is minutes-long, not a held
+      chord. The first latch that outlives a key used to enter it — the one new UX
+      primitive here.
+- [ ] **Stage 5 — Fallout.** Kill the 7a bare-row special case if nothing else
+      leans on it (no modifier row will carry a compound action any more); `KIT` is
+      retired as a term. Golden net re-blessed **with the diff read** — the machine
+      picker moving is exactly the kind of change it exists to show.
 
 ---
 
