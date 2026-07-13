@@ -848,13 +848,15 @@ not by being polled. Adding a redraw source means answering one question — *is
 this a discrete event or a continuous animation?* — and wiring it to the matching
 half. (DESIGN §35.9.)
 
-> **Status (2026-07-12): this principle is a contract the code does not yet
-> satisfy.** The single invalidation channel is ROADMAP `9.15`, which is not
-> built — today ~50 synchronous `refreshSurface()` sites, several polling
-> timers, and the controllers' 30 Hz rebuild coexist. Until 9.15 lands, this
-> principle governs **new** code (no new polling timers, no new ad-hoc repaint
-> scheduling) and names the target the migration converges on. When 9.15 ships,
-> delete this note.
+> **Enforced, not remembered (2026-07-13, ROADMAP `9.15`).** The channel exists
+> (`SurfaceDispatcher` → one `renderSurfaceFrame()`), and the rule is now checked
+> by the build: `tests/SurfaceInvalidationGuardTest.cpp` scans the surface-owning
+> sources and **fails** on any `repaint()` that neither sits in a sanctioned frame
+> producer nor carries an explicit `// chrome only: <reason>` marker. So the two
+> ways to redraw are now the two ways to *say what you mean* — invalidate the
+> surface, or state on the line that these pixels carry no cell state. The
+> historical failure mode (a surface-changing edit repaints the window, the LEDs
+> silently keep the old value) can no longer be introduced by forgetting.
 
 ---
 

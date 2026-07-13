@@ -5685,7 +5685,22 @@ A message-thread `SurfaceDispatcher` (a `juce::AsyncUpdater`) owned by
 
 `refreshSurface()` survives as a thin alias for `invalidate()`, so the existing
 call sites keep compiling and now feed the one channel. No component schedules
-its own `repaint()` for shared state.
+its own `repaint()` for shared state — including `KeyboardArea`, which owns no
+invalidation of its own: its state-changing setters (active track, page, section,
+display mode, mouse release) call `markSurfaceDirty()`, an injected callback the
+editor wires to `refreshSurface()`. A component that repaints *itself* on shared
+state redraws the window and leaves every connected controller's LEDs stale, and
+because the screen looks right, the bug is invisible where you are looking.
+
+**Enforcement (9.15 Stage 5).** The rule is checked by the build, not by memory:
+`tests/SurfaceInvalidationGuardTest.cpp` scans the surface-owning sources
+(`PluginEditor.cpp`, `KeyboardArea.{h,cpp}`) and fails on any `repaint()` that is
+neither inside a sanctioned frame producer (`renderSurfaceFrame`,
+`onPlayheadVBlank`, `markSurfaceDirty`) nor annotated `// chrome only: <reason>`.
+The marker is the escape hatch **and** the documentation: it is a one-line claim,
+reviewable in the diff, that the pixels being redrawn (status line,
+missing-sample banner, capture-strip clock, file-drag overlay, the track-button
+header) carry no cell state and therefore cannot appear on a controller.
 
 #### 35.9.2 Audio → UI bridge (discrete)
 

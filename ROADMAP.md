@@ -13,10 +13,14 @@ expressible within those principles and within the existing scope+verb grammar
 **Active focus (set at the 2026-07-12 alignment review):** two arcs, in
 priority order:
 
-1. **Structural debt.** Finish `9.12` stages 5–8 (table-driven dispatch
-   migration — display already derives from the grammar; dispatch must too) and
-   build `9.15` (unified surface invalidation) so PRINCIPLES §22 describes code
-   that exists rather than a target.
+1. **Structural debt.** `9.15` is **done** (2026-07-13): its Stage 5 found the
+   mechanism had shipped but the *rule* had not — ~45 surface-changing edits still
+   repainted the window and left controller LEDs stale — and now a build guard
+   makes the violation impossible to reintroduce, so PRINCIPLES §22 describes code
+   rather than a target. What remains is `9.12` stages 5–8 (table-driven dispatch
+   migration — display already derives from the grammar; dispatch calls
+   `resolveBinding` exactly *once* in 2,079 lines, so the two halves of one grammar
+   are still hand-synced). Plan: `docs/dispatch-migration-plan.md`.
 2. **Performance usability.** `5.3` Song/Scene management UI (names, colours,
    browser, Kit recall), `9.4` snapshot restore-semantics session, `6.4` Cue bus.
 
@@ -2066,7 +2070,7 @@ tap = navigate/toggle** (PRINCIPLES §5). Docs-first.
 > hold-step inspector + SRC; `Func+step` (P-Lock clear mode) → inspector tap-to-clear;
 > `Func+FX` / `Func+Song+FX` (effect pickers) → hold-FX / `Song`+hold-FX.
 
-### 9.15 — Unified surface invalidation (events redraw, the clock only animates)  *[active]*
+### 9.15 — Unified surface invalidation (events redraw, the clock only animates)  *[shipped]*
 
 Recent draw fixes papered over missing redraws with per-mode "repaint every
 tick" timers (e.g. the MZ `StepPosition` `area_.repaint()`, `4817f57`). The
@@ -2139,6 +2143,26 @@ continuous animations. Docs-first.
       Surviving timers: the one always-on editor timer, the display vblank, and
       the 1 Hz controller-hotplug poll. MZ + pool timers self-suspend to their
       transient states (CC-learn / overlay-visible).
+- [x] **Stage 5 — Enforce the channel (the mechanism was built; the rule wasn't).**
+      Stages 1–4 built the one channel but left "use it" a convention, and an audit
+      found the convention broken in ~45 places: `KeyboardArea` self-repainted on
+      *surface-changing* state (active track, page, section, display mode, mouse
+      release), and `dispatchDown`/`dispatchUp` carried 29 bare `repaint()` calls on
+      state that is visible on a controller (holding Track/Mute scope, running a
+      verb, cancelling a queued scene, taking a snapshot, arming CONFIRM). Each
+      redrew the *window* and left a connected controller's LEDs stale until an
+      unrelated event happened to invalidate — invisible on screen, which is why it
+      survived. Fixes: `KeyboardArea` loses the right to self-repaint (an injected
+      `onSurfaceDirty` → `markSurfaceDirty()` routes every state edit through the
+      channel); the surface-changing editor sites now `refreshSurface()`; the
+      genuinely chrome-only sites (status line, missing-sample banner, capture
+      strip, file-drag overlay, track-button header) keep a bare `repaint()` **and
+      state why** on the line. **Guard:** `tests/SurfaceInvalidationGuardTest.cpp`
+      scans the surface-owning sources and fails the build on any `repaint()` that
+      is neither in a frame producer nor marked `// chrome only: <reason>` —
+      verified by planting a violation and watching it go red. Also deleted a
+      comment that explained a repaint as compensating for "the KeyboardArea timer",
+      which Stage 3 removed. PRINCIPLES §22 is now descriptive.
 
 ### 9.16 — Performance capture: the tape deck  *[shipped]*
 The 8.26 blind WAV toggle became a visible, transport-aware "separate
