@@ -69,6 +69,9 @@ namespace lockstep
         }
         static const UiState& ui(const LockstepEditor& ed) { return ed.uiState_; }
         static const Clipboard& clip(const LockstepEditor& ed) { return ed.clipboard_; }
+        // 7c: the step page lives in KeyboardArea, not UiState, so a UiState-only
+        // digest recorded every page-nav gesture as "(no observable state change)".
+        static int page(const LockstepEditor& ed) { return ed.keyboardArea_.currentPage(); }
     };
 }
 
@@ -292,6 +295,27 @@ namespace
             trigs += juce::String(n) + ",";
         }
         d["seq.trigsPerTrack"] = trigs;
+
+        // 7c widening. The census above counts trigs; ROTATE moves them without
+        // changing the count, so the net recorded `Func+Left` as doing NOTHING. The
+        // nav family is full of state this digest could not see -- the step PAGE lives
+        // in KeyboardArea, the octave in UiState.noteEditOctave (already caught), the
+        // pattern LENGTH in the Track. A net that cannot see the family it is about to
+        // protect is decoration, so widen BEFORE migrating, not after.
+        juce::String pattern;   // trig positions on the focused track, as a bitmap
+        {
+            const auto& trk = seq.tracks[static_cast<std::size_t>(p.focusTrack())];
+            for (int st = 0; st < trk.length && st < kMaxStepsPerTrack; ++st)
+                pattern += trk.steps[static_cast<std::size_t>(st)].trig ? "x" : ".";
+        }
+        d["seq.focusPattern"] = pattern;
+
+        juce::String lengths;
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+            lengths += juce::String(seq.tracks[t].length) + ",";
+        d["seq.trackLength"] = lengths;
+
+        put(d, "kbd.page", DispatchProbe::page(ed));
         return d;
     }
 
@@ -487,6 +511,34 @@ void runDispatchGoldenTests(int& failed)
     out << renderScenario("clear track (arms confirm), then confirm",
                           { { { CB::TrackScope }, CB::VerbClear },
                             { {}, CB::VerbConfirm } },
+                          base)
+        << "\n";
+    // 7c: page navigation is invisible on a 16-step track -- there is only one page,
+    // so prev/next clamp and the digest sees nothing. Grow the pattern to 32 steps
+    // first (Func+Up), THEN page: this is the only scenario in the net where kbd.page
+    // can move at all, and without it the whole page family migrates uncovered.
+    // (A scenario prints the delta from the baseline to its END state, so
+    // right-right-left would net back to page 0 and look like nothing happened --
+    // paging clamps at the last page. Two rights on a 2-page pattern land on page 1.)
+    out << renderScenario("grow to 2 pages, then page right (clamps at the last page)",
+                          { { { CB::Func }, CB::NavUp },
+                            { {}, CB::NavRight },
+                            { {}, CB::NavRight } },
+                          base)
+        << "\n";
+    out << renderScenario("grow to 2 pages, page right, then page back left",
+                          { { { CB::Func }, CB::NavUp },
+                            { {}, CB::NavRight },
+                            { {}, CB::NavLeft } },
+                          base)
+        << "\n";
+    // Rotate is content motion with NO change in trig count -- the census-only digest
+    // recorded it as nothing at all. Two rotations left then one right must land one
+    // step off where they started.
+    out << renderScenario("rotate left twice, right once",
+                          { { { CB::Func }, CB::NavLeft },
+                            { { CB::Func }, CB::NavLeft },
+                            { { CB::Func }, CB::NavRight } },
                           base)
         << "\n";
     out << renderScenario("double snapshot deepens the stack",

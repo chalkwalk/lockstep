@@ -85,6 +85,8 @@ L22 | Func+Morph+NavUp idx=-1 | action=22
 
 L22 | Func+NavUp idx=-1 | action=22
     down funcHeld: false -> true
+    down seq.focusPattern: x...x...x...x... -> x...x...x...x...x...x...x...x...
+    down seq.trackLength: 16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16, -> 32,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,
     down seq.trigsPerTrack: 4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0, -> 8,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,
 
 L22 | Track+NavUp idx=-1 | action=26
@@ -105,11 +107,13 @@ L22 | NavUp idx=-1 | action=16
 L22 | Func+Track+NavLeft idx=-1 | action=28
     down funcHeld: false -> true
     down machineScopeHeld: false -> true
+    down seq.focusPattern: x...x...x...x... -> ...x...x...x...x
     down swingDismissed: false -> true
     down trackHeld: false -> true
 
 L22 | Func+NavLeft idx=-1 | action=24
     down funcHeld: false -> true
+    down seq.focusPattern: x...x...x...x... -> ...x...x...x...x
 
 L22 | Track+NavLeft idx=-1 | action=28
     down swingDismissed: false -> true
@@ -133,6 +137,8 @@ L22 | Func+Morph+NavDown idx=-1 | action=23
 
 L22 | Func+NavDown idx=-1 | action=23
     down funcHeld: false -> true
+    down seq.focusPattern: x...x...x...x... -> x...x...
+    down seq.trackLength: 16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16, -> 8,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,
     down seq.trigsPerTrack: 4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0, -> 2,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,
 
 L22 | Track+NavDown idx=-1 | action=27
@@ -151,11 +157,13 @@ L22 | NavDown idx=-1 | action=21
 L22 | Func+Track+NavRight idx=-1 | action=29
     down funcHeld: false -> true
     down machineScopeHeld: false -> true
+    down seq.focusPattern: x...x...x...x... -> .x...x...x...x..
     down swingDismissed: false -> true
     down trackHeld: false -> true
 
 L22 | Func+NavRight idx=-1 | action=25
     down funcHeld: false -> true
+    down seq.focusPattern: x...x...x...x... -> .x...x...x...x..
 
 L22 | Track+NavRight idx=-1 | action=29
     down swingDismissed: false -> true
@@ -170,6 +178,7 @@ L22 | Scene+VerbSnapshot idx=-1 | action=40
 
 L22 | Func+VerbSnapshot idx=-1 | action=35
     down funcHeld: false -> true
+    up   seq.focusPattern: x...x...x...x... -> ................
     up   seq.trigsPerTrack: 4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0, -> 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
 L22 | VerbSnapshot idx=-1 | action=34
@@ -425,6 +434,7 @@ L22 | VerbRecord idx=-1 | action=62
 
 L22 | Func+VerbSnapshot idx=-1 | action=67
     down funcHeld: false -> true
+    up   seq.focusPattern: x...x...x...x... -> ................
     up   seq.trigsPerTrack: 4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0, -> 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
 L22 | NavRight idx=-1 | action=68
@@ -453,6 +463,7 @@ SCENARIO copy phrase -> paste phrase onto track 5
     activeTrack: 0 -> 5
     clip.type: 0 -> 4
     proc.focusTrack: 0 -> 5
+    seq.focusPattern: x...x...x...x... -> ................
     trackSection: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,
 
 SCENARIO snapshot, then restore (Func+Snapshot pops it)
@@ -460,7 +471,22 @@ SCENARIO snapshot, then restore (Func+Snapshot pops it)
 
 SCENARIO clear track (arms confirm), then confirm
     ckpt.Track: 0 -> 1
+    seq.focusPattern: x...x...x...x... -> ................
     seq.trigsPerTrack: 4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0, -> 0,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,
+
+SCENARIO grow to 2 pages, then page right (clamps at the last page)
+    kbd.page: 0 -> 1
+    seq.focusPattern: x...x...x...x... -> x...x...x...x...x...x...x...x...
+    seq.trackLength: 16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16, -> 32,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,
+    seq.trigsPerTrack: 4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0, -> 8,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,
+
+SCENARIO grow to 2 pages, page right, then page back left
+    seq.focusPattern: x...x...x...x... -> x...x...x...x...x...x...x...x...
+    seq.trackLength: 16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16, -> 32,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,
+    seq.trigsPerTrack: 4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0, -> 8,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,
+
+SCENARIO rotate left twice, right once
+    seq.focusPattern: x...x...x...x... -> ...x...x...x...x
 
 SCENARIO double snapshot deepens the stack
     ckpt.Song: 0 -> 2
