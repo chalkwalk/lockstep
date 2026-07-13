@@ -4622,8 +4622,11 @@ standalone-only):
 - **Host transport / tempo follow** — existing; the sequencer locks to the host
   clock in Locked sync mode.
 - **Live stem capture via Aux outs.** Route buses/tracks to Aux outputs and
-  record them onto DAW tracks in real time — the blessed, host-native answer to
-  "stem export" (it supersedes a bespoke offline stem-export path).
+  record them onto DAW tracks in real time — the host-native stem path when you
+  want stems as timeline-locked DAW tracks for further processing. It is one of
+  two first-class stem paths, not the only one: the capture deck's always-on
+  per-track stems (§41.3) work identically hosted and standalone. §41.2 states
+  the roles.
 - **APVTS parameter automation** from the host.
 
 ## 32. Insert and Master Effects
@@ -4890,18 +4893,22 @@ subdirectory when a project is open; otherwise in
 and a `juce::AudioFormatWriter::ThreadedWriter` (lock-free ring buffer).
 `arm()` and `disarm()` run on the message thread; the audio thread only
 touches an `std::atomic<bool> capturing_` gate and the ring-buffer write.
-The recorder is shaped to hold N streams so that per-track stem export can
-be added later by arming additional streams — no redesign needed. Per-track
-taps are not added now; today exactly one stream (the master bus) is active.
 
 **Status chrome:** arming shows `REC <filename>` in the status band;
 disarming shows `Captured m:ss -> <filename>`. Failure (unwritable
 directory) shows a single error status and leaves capture unarmed — the
 audio thread never panics.
 
-**Non-goal (explicit):** multi-track stem export (one file per track +
-master). The recorder shape accommodates it, but no per-track taps are
-wired and no UI for stem selection is planned at this milestone.
+**Per-track stems (shipped — 6.1 Workstream D; supersedes the "multi-track
+stem export is a non-goal" note that stood here).** Alongside `master.wav`,
+every take writes `track-NN.wav` for each stemmable track — non-Stub,
+non-MIDI-out, **Master-routed** (`shouldStemTrack`); a Route bus with neither
+source nor feeder is skipped rather than writing a silent file. The tap is
+post-fader, post-FX, pre-sum (`stemRecorders_[i]`), so **routing is the stem
+grouping**: tracks routed into a Route bus fold into that bus's stem and get
+no file of their own. Stems are always on — a take is a tape of a
+performance, and the stems are part of the tape. Semantics, limits, and the
+dynamic-stem-set follow-up are specified in §41.3.
 
 ## 33. 3.1 — The 10×4 Surface Revamp (amended by 3.2)
 
@@ -7592,3 +7599,135 @@ while the other sub-tracks read their static PCM, and hands the same worker the
 same bake — which writes the stretched result into that sub-track's channel-pair
 alone. One fit mechanism, two scopes: the whole deck (FreeLen record-close,
 extending the loop's length) and a single sub-track (FIT, filling a fixed window).
+
+## 41. The Capture Family — CUJs and the stems contract
+
+*(Output of the 11.10 design session, 2026-07-12. This section is the "more
+than the sum of its parts" story for Record / Loop / Tape / Stream / the
+capture deck / the Aux outs — six capture-adjacent devices that each make
+sense alone but must compose into one instrument. The CUJs here are the
+yardstick for every future capture feature: a proposal that serves none of
+them is decoration.)*
+
+### 41.1 The core CUJs
+
+The product's defining flow, in priority order (the tie-breaker when capture
+features compete):
+
+1. **Improvise a full live set and leave with stems.** One arm gesture before
+   the first note; perform; walk away with `master.wav` + per-stem WAVs,
+   grouped the way the set was routed.
+2. **The studio replication** — the same flow with more planning: prepped
+   Sets/Songs/Scenes, hardware returned through Ext inputs, multiple takes.
+3. **The same flow inside a DAW** — host transport/tempo, MIDI-out driving
+   plugins, stems delivered either as files (capture deck) or as
+   timeline-locked DAW tracks (Aux outs).
+
+Four named workflows sit on top (adopted in the same session):
+
+- **Rehearsal & self-review.** The Tape as the practice mirror: record a
+  run-through along the timeline, wind back, listen, punch a better pass,
+  undo — iterate without leaving the instrument or opening a DAW.
+- **The set that samples itself.** Mid-performance: Loop a passage (or grab it
+  with Record), promote, slice / stretch / re-pitch, and redeploy it later in
+  the same set. The classic resampling identity, named as a first-class flow.
+- **The hybrid set.** Stream plays long-form beds — very often *a previous
+  set's stems* — under live sequencing. This closes the loop that makes the
+  family compound: capture → stems → Stream → perform → capture again. The
+  instrument eats its own output.
+- **The morning after.** The handoff itself: the capture directory must let a
+  DAW session start frictionlessly — predictable names, one directory per
+  take, and (follow-up, §41.3) a take sheet carrying tempo and the
+  scene-launch cue times.
+
+### 41.2 Six devices, six roles
+
+| Device | Medium | Role in the family |
+|---|---|---|
+| **Record** | linear reel, overwritten per trig | *grab* — a volatile sample to process now |
+| **Loop** | circular, layered | *build* — a looping part, live |
+| **Tape** | linear, layered, on the project timeline | *the 4-track* — takes you punch into, layer, and arrange Portastudio-style; rehearsal mirror; **an archive only if you promote** |
+| **Stream** | disk, read-only | *bring long material back* — beds, backing, last set's stems |
+| **Capture deck** | disk, unbounded, write-only | *the archive* — "record my performance without me having to think about it"; always master + stems |
+| **Aux outs** | host buses | *the DAW spigot* — stems as timeline-locked host tracks, for processing or capture in the DAW |
+
+Two deliberate contrasts carry the teaching:
+
+- **Tape vs capture deck.** Both are "a tape of what happened," but the Tape
+  is an *instrument* — bounded RAM reel, punch/undo, scrub, promote-or-lose —
+  and flexible by intent: it can be a layering device, a rehearsal mirror, a
+  4-track arranging surface, or (if you promote) an archive. The capture deck
+  is *infrastructure*: zero-thought, unbounded, always-stems, never an
+  instrument. The doc teaches "Tape when you'll play with it; capture when
+  you must not lose it," and never forces the choice — running both at once
+  is normal.
+- **Capture deck vs Aux outs.** Same stems, two delivery shapes: the capture
+  deck writes files identically everywhere (up to one stem per Master-routed
+  track; starts at arm time, so hosted takes need manual alignment in the
+  DAW); the Aux outs deliver up to Master + 6 stereo buses as live host
+  tracks, sample-locked to the host timeline. Files-anywhere vs
+  host-native-and-aligned; both first-class (this supersedes the older
+  "Aux is the one blessed stem path" note in §31.1).
+
+The Tape's "simple arrangement" role is inside fence #1's tripwire
+(NON-GOALS): arranging *audio takes by overdubbing and punching* is
+performance recording — the Portastudio, not the sequencer. The strip stays
+read-only and nothing is ever scheduled by position.
+
+### 41.3 The stems contract
+
+What a capture take guarantees (shipped behaviour plus the two decided
+follow-ups):
+
+- **The stem set = the Master-routed terminal tracks.** Non-Stub, non-MIDI-out
+  tracks whose `Out` is Master each get `track-NN.wav`; a Route bus is one
+  stem with its feeders folded in (**routing is the stem grouping** — the mix
+  you performed is the grouping you get); feeders and Off-routed tracks get no
+  file; an unfed Route bus is skipped rather than writing silence.
+- **Stems are dry-per-track; `master.wav` carries the glue.** The stem tap is
+  post-fader post-FX per track, *before* the master sum — so master inserts
+  and the send returns appear only in `master.wav`, and stems do **not** sum
+  to the master when sends or master inserts are active. This is a decision,
+  not an accident (2026-07-12): the stems exist for post-processing, the
+  master is the performance document, and a separate sends stem earns nothing
+  a DAW can't re-create better. *(Parked idea, same session: an "External"
+  master-insert placeholder — load it in a slot to declare "this processing
+  happens outside," bypassing internally so the captured master is dry for
+  DAW post-processing. Build only if the demand is real.)*
+- **External hardware stems through a return track.** A MIDI-out track never
+  stems (it makes no audio). The recipe is a **return channel**: the
+  hardware's audio enters an Ext input, a Thru/Static/Route track carries it,
+  and that track is the stem. The README workflow chapter teaches this
+  pattern; it is the answer, not a workaround.
+- **The stem set must be dynamic** *(follow-up 11.11 — the current gap)*.
+  Today `shouldStemTrack` is evaluated **once, at arm** — so a from-blank
+  improvised set (Stub tracks at arm) records *zero* stems, and a track
+  brought in mid-set never gets a file. The contract to build: when a track
+  first becomes stemmable mid-take, its stem file is created then and
+  **silence-padded back to the take start**, so every stem stays
+  sample-aligned to `master.wav`; a track that stops being stemmable keeps
+  its file (it simply records what the track outputs). Re-routing mid-take
+  therefore moves audio between stems exactly as it moves audio between
+  buses — files record what tracks output, and the honest redundancy is the
+  correct semantics.
+- **Arm-time visibility** *(follow-up 11.11)*: arming names its outcome —
+  "REC ▸ N stems + master" — so the grouping is read before the take, not
+  discovered the morning after.
+- **The take sheet** *(follow-up 11.11)*: each capture directory gains a
+  plain-text sheet — project name, date, tempo root, and the launch log
+  (wall-clock + bar time of every Scene/Song launch during the take; the
+  capture-deck sibling of the Tape's markers, and like them **dumb**: places,
+  never cues). This is what makes "the morning after" frictionless.
+
+### 41.4 What this section fences
+
+- No offline "export stems" render. Stems are recorded live because the
+  performance is the product; an offline bounce of a *performance* is a
+  contradiction (and the DAW already owns offline rendering of *material*).
+- No in-app take browser. One directory per take, predictable names — the
+  file manager and the DAW are the browser. (Revisit only if the morning-after
+  CUJ proves this wrong in practice.)
+- No second archive device. The Tape may *serve* as an archive via promote,
+  but archival guarantees (unbounded, always-stems, zero-thought) belong to
+  the capture deck alone; proposals to grow the Tape toward disk-unbounded
+  re-open §40.3, not this section.
