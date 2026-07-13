@@ -239,6 +239,13 @@ namespace lockstep
             // these do not consult primaryScope -- EditMode has no Machine value and
             // does not need one. The compound scope lives in the binding, which is
             // exactly where 9.12 says an operand belongs.
+            // The picker is an overlay, so it goes through the overlay effect rather
+            // than the editor poking UiState — which is what lets a controller open it
+            // too (PRINCIPLES §19: one model, two surfaces).
+            case AId::OpenMachinePicker:
+                fx.openOverlay(CommandEffects::OverlayId::MachinePicker, 1);
+                return true;
+
             case AId::MachineCopy:  return verbs::machine(CB::VerbRecord, ctx, fx);
             case AId::MachinePaste: return verbs::machine(CB::VerbPlay, ctx, fx);
             case AId::MachineInit:  return verbs::machine(CB::VerbClear, ctx, fx);

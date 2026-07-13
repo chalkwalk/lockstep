@@ -30,7 +30,7 @@ namespace
     const std::set<ActionId> kNotYetMigrated = {
         // (the eight Hold*Scope actions migrated in Stage 7a)
         ActionId::HoldSceneMuteView,
-        ActionId::OpenMachinePicker, ActionId::OpenTrackFxPicker,
+        ActionId::OpenTrackFxPicker,
         ActionId::OpenMasterFxPicker, ActionId::FocusGlobal,
         ActionId::TapTempo,          ActionId::MetronomeToggle,
         ActionId::NavTrackUp,        ActionId::NavTrackDown,

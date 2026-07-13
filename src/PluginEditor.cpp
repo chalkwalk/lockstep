@@ -1400,8 +1400,7 @@ namespace lockstep
             if (gesture_.longPressElapsed(kMachineSectionLongPressToken, nowMs))
             {
                 machinePickerFiredMidHold_ = true;
-                uiState_.machinePickerOpen = true;
-                refreshSurface();   // the picker re-skins the step grid: controllers too
+                openMachinePicker();
             }
         }
 
@@ -3722,6 +3721,21 @@ namespace lockstep
         auto ctx = commandContext();
         (void)commandCore_.handleAction(row.action, ev, ctx, *editorEffects_);
         refreshSurface();
+    }
+
+    // Open the machine picker through the grammar (9.29): the table says Track +
+    // hold(SRC) = OpenMachinePicker, so dispatch ASKS it rather than setting the flag
+    // itself. The action's effect is openOverlay, which is the same door a controller
+    // comes through — one picker, one owner, two surfaces.
+    void LockstepEditor::openMachinePicker()
+    {
+        const ControllerEvent ev{ ControllerEvent::Type::ButtonDown,
+                                  ControllerButton::Section, IMachine::kSrcSecIdx, 0 };
+        const auto& row = resolveBinding(ev.button, ev.index, heldModsFromUiState(uiState_),
+                                         SurfaceLayer::Base, Gesture::Hold);
+        if (row.action != ActionId::OpenMachinePicker) return;
+        auto ctx = commandContext();
+        (void)commandCore_.handleAction(row.action, ev, ctx, *editorEffects_);
     }
 
     // The Clear key's TAP behaviour — moved verbatim out of dispatchDown when delete
@@ -6318,8 +6332,7 @@ namespace lockstep
                             break;
                         case LPR::LongHold:
                             // Released just past threshold before the timer ticked.
-                            uiState_.machinePickerOpen = true;
-                            refreshSurface();
+                            openMachinePicker();
                             break;
                         case LPR::NotArmed:
                             break;

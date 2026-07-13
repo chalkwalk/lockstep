@@ -24,11 +24,15 @@ priority order:
    6–8, the migration itself: display already derives from the grammar, but
    dispatch calls `resolveBinding` exactly *once* in 2,079 lines, so the two halves
    of one grammar are still hand-synced. Plan: `docs/dispatch-migration-plan.md`.
-2. **Grammar.** `9.29` — the **Machine scope**. Fell out of the 9.12 st.7a
-   migration: section keys have always edited the machine, but no modifier could
-   *say* "machine", so no verb could act on one (you cannot copy, paste or init a
-   sound). Names the operand, and completes the `Func` rule (`Func` reaches the two
-   unkeyed rungs: `Machine` inside Track, `Set` above Song).
+2. **Grammar.** `9.29` — the **Machine scope** — **shipped 2026-07-13**. Section keys
+   had always edited the machine, but no modifier could *say* "machine", so no verb
+   could act on one. `Func` now reaches both unkeyed rungs (`Machine` inside Track,
+   `Set` above Song), the machine picker moved to `Track`+hold(`SRC`) with the FX
+   pickers, and the verbs reached the sound (copy / paste / init). Two knock-ons:
+   **delete moved to the gesture axis** (`scope`+hold(`Clear`)) because `Machine` *is*
+   `Func+Track` and one chord cannot be two things — which incidentally revived
+   `Trig+Func+Clear` (clear P-Locks, keep the trig), dead since the Func layer began
+   rewriting `Clear`→`VerbDelete`.
 3. **Performance usability.** `5.3` Song/Scene management UI (names, colours,
    browser, Kit recall — "Kit" is retired as a term by `9.29`), `9.4` snapshot
    restore-semantics session, `6.4` Cue bus, `9.30` chrome regroup (three bands,
@@ -2881,46 +2885,78 @@ commit each, each with tests.
       previously untested corners: zero rate, negative rate, and seam
       continuity on a circular read.
 
-### 9.29 — The Machine scope (naming the operand the grammar lost)  *[planned]*
+### 9.29 — The Machine scope (naming the operand the grammar lost)  *[SHIPPED 2026-07-13]*
 
 Fell out of the 9.12 Stage 7a migration: `Func+Track` opened the machine picker,
 making it the **only** place a scope modifier opens an editor — which is why the
 modifier family needed a bare-row special case to stop the compound swallowing the
 hold. Pulling that thread found something bigger. Section keys have always edited
 the **machine** (`section()` reads `machines_[track]`'s schema), but no modifier
-could *say* "machine", so no verb could act on one: **you cannot copy, paste, or
+could *say* "machine", so no verb could act on one: **you could not copy, paste, or
 init a sound.** The grammar was not missing a feature, it was missing an
 **operand**. Docs: PRINCIPLES §2, DESIGN §13.9.
 
-- [ ] **Stage 0 — Docs.** *(done)* PRINCIPLES §2 (unqualified is a *declared
-      default*, not a scope; `Func` reaches the unkeyed rung). DESIGN §13.9 (the
-      Machine/Set scopes, the identity-vs-sound split, the picker rule, the
-      compound-scope latch).
-- [ ] **Stage 1 — `Func+Track` = Machine scope.** Retire `OpenMachinePicker` from
-      the `TrackScope` row; `funcTrackHeld` stops meaning "picker open" and becomes
-      the scope hold. New `SurfaceLayer` + scope colour + banner (`layerBanner`'s
-      exhaustive switch will refuse to build until it is wired). `Func+Song` is
-      relabelled **Set** — same behaviour, honest name.
-- [ ] **Stage 2 — Picker moves to the section.** `Track` + hold(`SRC`) = choose the
-      machine, exactly parallel to the existing `Track`+hold(`FX`) / `Song`+hold(`FX`)
-      rows (9.14's rule: *tap = navigate, hold = picker, scope-gated*). Bare
-      hold(`SRC`) stays the OnDemand machine console (`consoleSectionIndex()`
-      defaults to SRC) — the scope gate is what keeps them apart.
-- [ ] **Stage 3 — Verbs on the machine.** `Machine+Record` = copy sound,
-      `Machine+Play` = paste, `Machine+Clear` = init. No new verbs, no new keys —
-      the grammar yields them once the operand exists. `Machine+Snapshot` stays
-      **reserved and inert**: it reads as "save a preset", and a preset *library* is
-      a subsystem, not a free consequence of a chord. Deferred deliberately, not
-      smuggled in.
-- [ ] **Stage 4 — Compound-scope latch.** `Func` + double-tap a scope key latches
-      the compound (`Machine`, `Set`); the latch survives releasing `Func`. Needed
-      because `Func` never latches and sound design is minutes-long, not a held
-      chord. The first latch that outlives a key used to enter it — the one new UX
-      primitive here.
-- [ ] **Stage 5 — Fallout.** Kill the 7a bare-row special case if nothing else
-      leans on it (no modifier row will carry a compound action any more); `KIT` is
-      retired as a term. Golden net re-blessed **with the diff read** — the machine
-      picker moving is exactly the kind of change it exists to show.
+- [x] **Stage 0 — Docs.** PRINCIPLES §2 (unqualified is a *declared default*, not a
+      scope; `Func` reaches the unkeyed rung). DESIGN §13.9 (the Machine/Set scopes,
+      the identity-vs-sound split, the picker rule, the compound-scope latch).
+- [x] **Stage 1 — `Func+Track` = Machine scope.** `sectionResolveMode()` promotes it
+      to `floor=Machine` on the **primary** layer, exactly as `Func+Song` promotes to
+      Set/Global — so the section keys resolve to the machine's own param pages
+      instead of falling back to the Func meta hierarchy (COND/NOTE/TRSP). That
+      fall-back was the visible symptom: *"the section area shows the Func context,
+      not the machine context"*. One resolver serves the painter, the section bar and
+      dispatch, so all three moved together. `Func+Song` relabelled **SET**.
+      *Deviation from plan:* **no new `SurfaceLayer`.* SurfaceLayer is the *step-grid*
+      layer, and the Machine scope does not re-skin the grid (Track is still held, so
+      the grid is still the track selector). A layer that rendered identically to
+      `ScopeSelector` would be a lie in the one table that must not lie. The scope
+      announces itself through the **banner** instead (`layerBanner`'s ScopeSelector
+      case) and the inspector's HELD region.
+- [x] **Stage 2 — Picker moves to the section.** `Track` + hold(`SRC`) = choose the
+      machine, exactly parallel to `Track`+hold(`FX`) / `Song`+hold(`FX`) (9.14's
+      rule: *tap = navigate, hold = picker, scope-gated*). Bare hold(`SRC`) is
+      untouched — it is the OnDemand machine console, and the scope gate is the whole
+      separation. `funcTrackHeld` (which was doing two jobs) split into
+      `machineScopeHeld` + `machinePickerOpen`.
+- [x] **Stage 3 — Verbs on the machine.** `Machine+Record` = copy sound,
+      `Machine+Play` = paste, `Machine+Clear` = init. `Machine+Snapshot` stays
+      **reserved and inert** (a preset *library* is a subsystem, not a free
+      consequence of a chord).
+      **The grammar change this forced:** `Machine` **is** `Func+Track`, so
+      `Func+Track+Clear` could not be both "delete the track" and "init the machine",
+      and DESIGN's `Machine + Func + Clear` row was never expressible (a compound
+      scope cannot be qualified by the key that formed it). **Delete therefore moved
+      off the `Func` qualifier and onto the gesture axis, uniformly**:
+      `scope + tap(Clear)` = clear the contents, `scope + hold(Clear)` = delete the
+      entity. The destructive verb now costs the deliberate gesture, and — the real
+      prize — **`Trig+Func+Clear` (clear the P-Locks, keep the trig) works again**: it
+      was dead code, because the Func layer rewrote `Clear`→`VerbDelete` before
+      `verbs::trig` could ever read the Func flag, while both README and DESIGN
+      documented it as working.
+- [x] **Stage 4 — Compound-scope latch.** `Func` + double-tap a scope key latches the
+      compound (`Machine`, `Set`); the latch **survives releasing `Func`** — the first
+      latch that outlives a key used to enter it. `Func` is held *virtually* while it
+      stands, which is load-bearing: the binding table resolves Machine's verbs from
+      `kModFunc|kModTrack`, so a latch that did not hold Func virtually would give you
+      working section keys and dead verbs. Rule lives in `LatchOps::compoundLatchFor`
+      (pure, unit-tested); `physHeld_.func` lets the latch owner tell a real key from a
+      virtual one.
+- [x] **Stage 5 — Fallout.** The machine picker now dispatches **through the table**
+      (`OpenMachinePicker` → `fx.openOverlay`), one action off the 9.12 burn-down list.
+      `KIT` retired as a user-facing term (README glossary). Golden net re-blessed with
+      the diff read — `Func+Track` = action 10 → 74, `Func+Track+Clear` = 39 → 77, the
+      three `Func+scope+Clear` delete scenarios gone, scoped clear now resolving on
+      key-**up** (the tap/hold deferral).
+      *Deviation from plan:* the **7a bare-row special case stays.** It was written as
+      a workaround for the picker, but it encodes a real rule — *a modifier press means
+      "enter this scope" whatever else is held* — and the compound rows
+      (`HoldMachineScope`, `FocusGlobal`) are display-only precisely because of it.
+      Removing it would make the hold depend on those rows *staying* unwired, which is
+      a trap for the next person.
+      *Known gap (9.12 st.7d):* the picker holds are still **armed** by hardcoded index
+      checks (`ev.index == kSrcSecIdx && scope == Track`), like the FX pickers. The
+      general form — *ask the table whether a Hold row exists for this (button, index,
+      mods)* — belongs to the section-family migration, not here.
 
 ### 9.30 — Chrome regroup: one concern per band, one status organ  *[planned]*
 

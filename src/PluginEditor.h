@@ -640,6 +640,7 @@ namespace lockstep
         // one). clearVerbTap is the old dispatchDown body, moved intact.
         [[nodiscard]] bool deleteHoldCapable() const;
         void fireDeleteHold();
+        void openMachinePicker();   // 9.29: Track + hold(SRC), routed through the table
         bool clearVerbTap(const ControllerEvent& ev);
 
         // MHZ.9.x: auto-release a transient mode's latch after its terminal action.
