@@ -7699,25 +7699,55 @@ follow-ups):
   hardware's audio enters an Ext input, a Thru/Static/Route track carries it,
   and that track is the stem. The README workflow chapter teaches this
   pattern; it is the answer, not a workaround.
-- **The stem set must be dynamic** *(follow-up 11.11 — the current gap)*.
-  Today `shouldStemTrack` is evaluated **once, at arm** — so a from-blank
-  improvised set (Stub tracks at arm) records *zero* stems, and a track
-  brought in mid-set never gets a file. The contract to build: when a track
-  first becomes stemmable mid-take, its stem file is created then and
-  **silence-padded back to the take start**, so every stem stays
-  sample-aligned to `master.wav`; a track that stops being stemmable keeps
-  its file (it simply records what the track outputs). Re-routing mid-take
-  therefore moves audio between stems exactly as it moves audio between
-  buses — files record what tracks output, and the honest redundancy is the
-  correct semantics.
-- **Arm-time visibility** *(follow-up 11.11)*: arming names its outcome —
-  "REC ▸ N stems + master" — so the grouping is read before the take, not
-  discovered the morning after.
-- **The take sheet** *(follow-up 11.11)*: each capture directory gains a
-  plain-text sheet — project name, date, tempo root, and the launch log
-  (wall-clock + bar time of every Scene/Song launch during the take; the
+- **Alignment is an invariant, not a feature** *(11.11)*. **After every
+  processed block, every stem file holds exactly as many samples as
+  `master.wav`.** This is stated as an invariant because two shipped defects
+  were both *violations* of it, and both were invisible:
+  - *The arm-time stem set.* `shouldStemTrack` was evaluated once, at arm, so
+    a from-blank improvised set (Stub tracks at arm) recorded **zero** stems,
+    and a track brought in mid-set never got a file.
+  - *The skip-path shortfall.* Both track loops `continue` past a fully-faded
+    muted track (and a MIDI-out track, and a zero-length one), which skipped
+    the per-track stem write. Every skipped block **shortened that stem file**,
+    so muting a track — the most ordinary performance action there is —
+    silently time-shifted everything after the mute in that stem relative to
+    the master.
+
+  Auditing every skip path would leave the next one to be forgotten
+  (PRINCIPLES §20), so alignment is enforced centrally instead:
+
+  1. **Record all, decide later.** Every track's stem recorder is armed at
+     capture start — Stub and MIDI-out tracks included, because a machine
+     assigned mid-take must produce a file that reaches back to the take's
+     start.
+  2. **One top-up sweep.** Immediately after the master is written, each stem
+     that wrote fewer samples this take is padded with silence up to the
+     master's count. The sweep is bounded (a block at most), allocation-free,
+     and it repairs *any* skip path — including ones not yet written.
+  3. **Prune at finalise.** The audio thread latches whether a track was *ever*
+     stemmable during the take; on close, the files of tracks that never were
+     (feeders folded into a bus, Off-routed, never-assigned, MIDI-out) are
+     deleted. This is what preserves "routing is the stem grouping": the
+     surviving files are exactly the Master-routed terminals.
+
+  A track stemmable for *any* part of the take keeps a full-length, aligned
+  file. Re-routing mid-take therefore moves audio between stems exactly as it
+  moves audio between buses — files record what tracks output, and that honest
+  redundancy is the correct semantics. The cost is writing (and then deleting)
+  some silent files; it buys an invariant no future skip path can break.
+- **Arm-time visibility** *(11.11)*: arming names its outcome —
+  "ARMED ▸ master + N stems" — so the grouping is read before the take, not
+  discovered the morning after. The count is live while recording (it is the
+  same predicate the prune latches).
+- **The take sheet** *(11.11)*: each capture directory gains a plain-text
+  sheet — project name, date, sample rate, tempo root, the stems it kept, and
+  the launch log (the time of every Scene/Song launch during the take; the
   capture-deck sibling of the Tape's markers, and like them **dumb**: places,
-  never cues). This is what makes "the morning after" frictionless.
+  never cues). This is what makes "the morning after" frictionless. Launch
+  events are stamped on the audio thread into a fixed-size ring at the same
+  site the Tape drops its markers (§40.4) and drained to text at close, so the
+  sheet costs the audio thread one bounded push and dies with a discarded take
+  by construction.
 
 ### 41.4 What this section fences
 

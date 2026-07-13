@@ -3157,31 +3157,59 @@ stems", prefer adding the widget over making the user jump through hoops
       rehearsal & self-review, set-samples-itself, hybrid set (stems→Stream),
       the morning after.
 
-### 11.11 — Stems completion: dynamic stem set, arm preview, take sheet  *[planned]*
+### 11.11 — Stems completion: the alignment invariant, arm preview, take sheet  *[active]*
 
-The three follow-ups the 11.10 session committed to (DESIGN §41.3). These make
-the defining CUJ (improvise from blank → stems) actually hold.
+The follow-ups the 11.10 session committed to (DESIGN §41.3), plus the shipped
+defect planning uncovered. These make the defining CUJ (improvise from blank →
+stems) actually hold — and make the stems it produces *trustworthy*.
 
-- [ ] **Dynamic stem set (S12 — the gap).** `shouldStemTrack` re-evaluated on
-      the events that change it (machine assign, Out-route change, first
-      source/feeder on a Route) while capturing: a track that becomes stemmable
-      mid-take gets its file created then and **silence-padded back to take
-      start** (pad written async on the capture TimeSliceThread), so every stem
-      stays sample-aligned with `master.wav`. A track that stops being
-      stemmable keeps recording its (now silent/re-routed) output — files
-      record what tracks output; no file is ever abandoned mid-take. Test: arm
-      on a blank project, assign machines + play, stems appear padded + aligned.
-- [ ] **Arm-time stem preview (S1).** Arming announces the outcome in the
-      capture strip — "ARMED ▸ master + N stems"; the count live-updates while
-      armed (it is the same predicate the dynamic set uses).
-- [ ] **Take sheet (S4 / the morning after).** Each capture directory gains a
-      plain-text sheet: project, date, tempo root, and the launch log — bar +
-      wall-clock time of every Scene/Song launch during the take. Dumb like
-      Tape markers: places, never cues (NON-GOALS #1 tripwire applies).
-- [ ] **Verification rider (S6).** Confirm all four stereo Ext buses are
-      reachable standalone (device input → plugin-input mapping) — the studio
-      CUJ's return-channel recipe depends on it. (Host Aux port exposure is
-      already tracked under 6.4.)
+> **Design pivoted during planning (2026-07-12).** The session's sketch was
+> "late-arm a stem, silence-pad it back to take start." Planning found a
+> **second, shipped defect** that the sketch would not have caught:
+>
+> - **S13 — the skip-path shortfall.** Both track loops `continue` past a
+>   fully-faded muted track (`PluginProcessor.cpp` ~2803 running, ~2502 idle;
+>   also MIDI-out and `divPpq<=0`), which skips the stem write at
+>   `processTrackChain` (~1181). Every skipped block **shortens that stem
+>   file** — so muting a track mid-take (the most common performance action)
+>   time-shifts everything after the mute in that stem against `master.wav`.
+>   Shipped stems are already misaligned; nobody would have noticed until the
+>   morning after.
+>
+> Auditing skip paths would leave the next one to be forgotten (§20), so
+> alignment becomes a **central invariant**: *after every block, every stem
+> file holds exactly as many samples as `master.wav`.* Record-all → top-up
+> sweep → prune at close (DESIGN §41.3). This fixes S12 and S13 with one
+> mechanism and needs no late-arm race.
+
+- [ ] **Stage 1 — the alignment invariant (S12 + S13).** Arm **all 16** stem
+      recorders at capture start (Stub + MIDI-out included — a machine assigned
+      mid-take must yield a file reaching back to the start). After each master
+      `writeBlock`, a bounded, allocation-free **top-up sweep** pads any stem
+      that wrote fewer samples than the master. The audio thread latches
+      "was ever stemmable"; `stopCapture()` **prunes** the files of tracks that
+      never were (feeders, Off, never-assigned, MIDI-out) — so *routing is the
+      stem grouping* survives unchanged. One shared `TimeSliceThread` for
+      master + stems (17 always-armed recorders must not be 17 threads).
+      Tests: from-blank capture → assign mid-take → aligned padded stem;
+      **mute-alignment regression** (stem length == master length, sample-exact,
+      across a floored mute ramp and the idle path); feeder-fold prune.
+- [ ] **Stage 2 — Arm-time stem preview (S1).** Arming announces the outcome in
+      the capture strip — "ARMED ▸ master + N stems"; the count live-updates
+      while recording (same predicate the prune latches).
+- [ ] **Stage 3 — Take sheet (S4 / the morning after).** Each capture directory
+      gains a plain-text sheet: project, date, sample rate, tempo root, the
+      stems it kept, and the launch log — the time of every Scene/Song launch
+      during the take. Events are stamped on the audio thread into a fixed-size
+      ring at the same site the Tape drops its markers (§40.4) and drained to
+      text at close, so a discarded take takes its sheet with it. Dumb like Tape
+      markers: places, never cues (NON-GOALS #1 tripwire applies).
+- [ ] **Stage 4 — Verification rider (S6) + docs close.** Confirm how many of
+      the four stereo Ext buses are reachable **standalone** (`In` is enabled by
+      default, `In 2–4` are declared disabled — the studio CUJ's return-channel
+      recipe depends on the answer); record the finding in DESIGN §41.3 + README
+      §5.23 rather than implying all four work. Remove README's "known gap"
+      callout. (Host Aux port exposure stays tracked under 6.4.)
 - [ ] *(Parked, not scheduled)*: the "External" master-insert placeholder —
       declare a master slot as processed-outside so the captured master is dry
       for DAW post-processing (DESIGN §41.3). Build only on real demand.
