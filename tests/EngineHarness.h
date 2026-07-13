@@ -10,6 +10,7 @@
 // advances ppqPosition by blockSize / (sampleRate * 60 / bpm) per block.
 
 #include "../src/PluginProcessor.h"
+#include <algorithm>
 #include <cmath>
 #include <memory>
 
@@ -100,7 +101,20 @@ namespace lockstep
             // of which SyncMode the APVTS defaults to (Locked mode uses
             // hostPlaying(), other modes use inPluginPlaying()).
             processor_->clock().setInPluginPlaying(true);
-            buffer_.setSize(2, kBlockSize, false, true, false);
+            // A host hands processBlock a buffer with max(totalIn, totalOut)
+            // channels — every bus, not just the main pair. Since 11.12 enabled
+            // the Cue/Aux/Send outputs and Ext2-4 inputs by default, that is 20
+            // channels, and a 2-channel buffer here would send getBusBuffer()
+            // walking off the end. Size it from the processor, so the harness
+            // tracks the bus layout instead of assuming one.
+            buffer_.setSize(numHostChannels(), kBlockSize, false, true, false);
+        }
+
+        // The channel count a host would allocate for processBlock.
+        [[nodiscard]] int numHostChannels() const
+        {
+            return std::max(2, std::max(processor_->getTotalNumInputChannels(),
+                                        processor_->getTotalNumOutputChannels()));
         }
 
         ~EngineHarness()

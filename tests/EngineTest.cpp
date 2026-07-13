@@ -2131,8 +2131,11 @@ namespace lockstep
     // measure genuine routing rather than a settling transient).
     static float renderBlockWithInput(EngineHarness& h, float inputLevel)
     {
-        juce::AudioBuffer<float> buf(2, EngineHarness::kBlockSize);
-        for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+        // Host-shaped buffer (every bus — see EngineHarness::numHostChannels); the
+        // test tone goes on the first pair, which is the Ext1 input bus.
+        juce::AudioBuffer<float> buf(h.numHostChannels(), EngineHarness::kBlockSize);
+        buf.clear();
+        for (int ch = 0; ch < std::min(2, buf.getNumChannels()); ++ch)
             for (int n = 0; n < buf.getNumSamples(); ++n)
                 buf.setSample(ch, n, (n % 2 == 0) ? inputLevel : -inputLevel);
         juce::MidiBuffer midi;
@@ -2500,12 +2503,21 @@ namespace lockstep
         installMachine(proc, 2, AnalogMachine::kMachineId);                                     // synth
 
         const auto cands = proc.validOutTargets(0);
-        CHECK(cands.size() == 3, "Off + Master + the one valid bus");
+        // 11.12: every Aux bus is enabled by default, so all six are offered as
+        // destinations (Off + Master + 6 Aux + the one Route bus). Before, the Aux
+        // entries only appeared once a host opted the bus in — which no host we
+        // tested actually distinguished.
+        CHECK(cands.size() == static_cast<std::size_t>(3 + kNumAuxBuses),
+              "Off + Master + every enabled Aux + the one valid bus");
         CHECK(std::lround(cands[0]) == 0, "Off offered first");
         CHECK(std::lround(cands[1]) == 1, "Master offered second");
-        CHECK(decodeOutputDest(cands[2]).kind == OutputDestKind::Track
-                  && decodeOutputDest(cands[2]).track == 1,
+        // Order: Off, Master, the track buses, then the Aux buses.
+        const auto trackTarget = cands[2];
+        CHECK(decodeOutputDest(trackTarget).kind == OutputDestKind::Track
+                  && decodeOutputDest(trackTarget).track == 1,
               "the Route bus (Trk2) is the only track target");
+        CHECK(decodeOutputDest(cands.back()).kind == OutputDestKind::Aux,
+              "the Aux buses are offered after it");
         for (const float c : cands)
         {
             const auto sel = decodeOutputDest(c);
@@ -3598,10 +3610,15 @@ namespace lockstep
         // overflows the stack if constructed as a local (see EngineHarness).
         auto procPtr = std::make_unique<LockstepProcessor>();
         auto& proc = *procPtr;
-        // Enable Aux 1 (host output bus index 2: 0=Master, 1=Cue, 2=Aux1).
+        // 11.12: every bus is enabled by default, so Aux 1 needs no opt-in. The
+        // last Aux is DISABLED here on purpose — the fold-to-Master path below is
+        // the behaviour a host that drops a port must still get right.
+        constexpr int kFoldAux = kNumAuxBuses - 1;              // the disabled one
+        constexpr int kFoldAuxBus = 2 + kFoldAux;              // 0=Master, 1=Cue, 2+=Aux
         auto layout = proc.getBusesLayout();
-        layout.outputBuses.set(2, juce::AudioChannelSet::stereo());
-        CHECK(proc.setBusesLayout(layout), "aux: host can enable the Aux 1 bus");
+        layout.outputBuses.set(kFoldAuxBus, juce::AudioChannelSet::disabled());
+        CHECK(proc.setBusesLayout(layout), "aux: a host may still disable a bus");
+        CHECK(proc.getBus(false, 2)->isEnabled(), "aux: Aux 1 is enabled by default");
 
         StubPlayHead ph(120.0, 48000.0, 256);
         proc.setPlayHead(&ph);
@@ -3615,8 +3632,11 @@ namespace lockstep
         s0.trigOverride.hasGate = true;
         s0.trigOverride.gateValue = MusicalGate::G1_8;
 
-        const int totalOut = proc.getTotalNumOutputChannels();  // main 2 + Aux1 2
-        CHECK(totalOut >= 4, "aux: main + Aux1 expose >= 4 output channels");
+        const int totalOut = proc.getTotalNumOutputChannels();
+        CHECK(totalOut >= 4, "aux: main + Aux expose >= 4 output channels");
+        // Derive the Aux 1 channel from the layout rather than assuming it — with
+        // every bus enabled it no longer sits right after Master.
+        const int aux1Ch = proc.getChannelIndexInProcessBlockBuffer(false, 2, 0);
         juce::AudioBuffer<float> buf(totalOut, 256);
         juce::MidiBuffer midi;
 
@@ -3636,16 +3656,16 @@ namespace lockstep
         // Route track 0 → Aux 1 (enabled): audio on the Aux bus, silent at Master.
         proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Aux, 0);
         float masterMag = 0.0f, auxMag = 0.0f;
-        renderPeaks(0, 2, masterMag, auxMag);
+        renderPeaks(0, aux1Ch, masterMag, auxMag);
         CHECK(auxMag > 1e-4f, "aux: a track routed to Aux 1 lands on the Aux bus");
         CHECK(masterMag < 1e-4f, "aux: an Aux-routed track is absent from Master");
 
-        // Route track 0 → Aux 4 (bus index 5, disabled): folds to Master.
+        // Route track 0 → the Aux this host disabled: folds to Master, never silence.
         proc.reset();
-        proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Aux, 3);
+        proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Aux, kFoldAux);
         float masterMag2 = 0.0f, ignore = 0.0f;
         renderPeaks(0, -1, masterMag2, ignore);
-        CHECK(masterMag2 > 1e-4f, "aux: a disabled-Aux route folds to Master");
+        CHECK(masterMag2 > 1e-4f, "aux: a route to a host-disabled Aux folds to Master");
 
         proc.releaseResources();
     }
@@ -3660,11 +3680,8 @@ namespace lockstep
         {
             auto procPtr = std::make_unique<LockstepProcessor>();
             auto& proc = *procPtr;
-            // Enable Send A (host output bus index kSendBusBase); leave Cue/Aux/SendB off.
-            auto layout = proc.getBusesLayout();
-            layout.outputBuses.set(kSendBusBase, juce::AudioChannelSet::stereo());
-            CHECK(proc.setBusesLayout(layout), "external: host can enable the Send A bus");
-            CHECK(proc.sendBusEnabled(0), "external: Send A reports enabled");
+            // 11.12: Send A is enabled by default — no host opt-in needed.
+            CHECK(proc.sendBusEnabled(0), "external: Send A is enabled by default");
 
             StubPlayHead ph(120.0, 48000.0, 256);
             proc.setPlayHead(&ph);
@@ -3682,8 +3699,11 @@ namespace lockstep
             proc.setMasterSend(0, kExternalSendId);
             CHECK(proc.masterSendId(0) == kExternalSendId, "external: effectId stored");
 
-            const int totalOut = proc.getTotalNumOutputChannels();  // main 2 + Send A 2
+            const int totalOut = proc.getTotalNumOutputChannels();
             CHECK(totalOut >= 4, "external: main + Send A expose >= 4 channels");
+            // Send A's channel comes from the layout — with every bus enabled it is
+            // no longer the pair straight after Master.
+            const int sendACh = proc.getChannelIndexInProcessBlockBuffer(false, kSendBusBase, 0);
             juce::AudioBuffer<float> buf(totalOut, 256);
             juce::MidiBuffer midi;
             float masterMag = 0.0f, sendMag = 0.0f;
@@ -3692,7 +3712,7 @@ namespace lockstep
                 buf.clear(); midi.clear();
                 proc.processBlock(buf, midi);
                 masterMag = std::max(masterMag, buf.getMagnitude(0, 0, 256));
-                sendMag   = std::max(sendMag,   buf.getMagnitude(2, 0, 256));
+                sendMag   = std::max(sendMag,   buf.getMagnitude(sendACh, 0, 256));
                 ph.advance();
             }
             CHECK(sendMag > 1e-4f, "external: send tap lands on the Send A bus");
@@ -3702,10 +3722,15 @@ namespace lockstep
         }
 
         // --- Bus disabled: the tap is dropped, never folded to Master. ---
+        // Send A ships enabled (11.12), so a host must disable it for us to test
+        // the drop path — which is still real: a host CAN drop the port.
         {
             auto procPtr = std::make_unique<LockstepProcessor>();
             auto& proc = *procPtr;
-            CHECK(!proc.sendBusEnabled(0), "external: Send A disabled by default");
+            auto layout = proc.getBusesLayout();
+            layout.outputBuses.set(kSendBusBase, juce::AudioChannelSet::disabled());
+            CHECK(proc.setBusesLayout(layout), "external: a host may disable Send A");
+            CHECK(!proc.sendBusEnabled(0), "external: Send A reports disabled");
 
             StubPlayHead ph(120.0, 48000.0, 256);
             proc.setPlayHead(&ph);

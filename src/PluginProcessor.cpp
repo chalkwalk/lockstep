@@ -52,27 +52,36 @@ namespace lockstep
                 // stereo buses, non-main declared DISABLED by default so the host
                 // opts in. The port list is fixed at build time — JUCE builds the
                 // CLAP/VST3 ports from these, and dynamic rescan is a host lottery.
+                // 11.12: every bus is ENABLED by default. The old design declared
+                // the non-main buses disabled so a host would "opt in" — but in a
+                // real DAW that flag made no observable difference (the host shows
+                // and wires the ports either way), while it *did* cost us: nothing
+                // in the standalone could enable an input bus, so a standalone rig
+                // could only ever take one stereo hardware return. Bus enable/disable
+                // plumbing is complication with no payer; the ports are simply here.
+                // A host or device that ignores the extra ports loses nothing (an
+                // unconnected Aux is silence; a missing device input reads as zeros).
                 auto props = BusesProperties()
                     .withInput("In", juce::AudioChannelSet::stereo(), true);
-                // S3: three more stereo external inputs (Ext2..Ext4). Disabled by
-                // default so a host opts in, matching the output complement below;
-                // standalone maps device channels across ENABLED input buses in
-                // order, so Ext1 alone fills unless the user enables more.
+                // Four stereo external inputs (Ext1..Ext4) — one per hardware return.
+                // Standalone maps device channels across the enabled input buses in
+                // order, so an 8-in interface now fills all four (DESIGN §41.3's
+                // return-channel recipe, four returns, four stems).
                 for (int e = 1; e < kNumExtInputs; ++e)
                     props = props.withInput("In " + juce::String(e + 1),
-                                            juce::AudioChannelSet::stereo(), false);
+                                            juce::AudioChannelSet::stereo(), true);
                 props = props
                     .withOutput("Master", juce::AudioChannelSet::stereo(), true)
-                    .withOutput("Cue", juce::AudioChannelSet::stereo(), false);
+                    .withOutput("Cue", juce::AudioChannelSet::stereo(), true);
                 for (int a = 0; a < kNumAuxBuses; ++a)
                     props = props.withOutput("Aux " + juce::String(a + 1),
-                                             juce::AudioChannelSet::stereo(), false);
+                                             juce::AudioChannelSet::stereo(), true);
                 // Item 5: static external send buses (bus index kSendBusBase + s),
-                // driven by the "External" send-FX. Disabled by default like Aux.
+                // driven by the "External" send-FX.
                 static const char* const kSendBusNames[kNumSendBuses] = { "Send A", "Send B" };
                 for (int s = 0; s < kNumSendBuses; ++s)
                     props = props.withOutput(kSendBusNames[s],
-                                             juce::AudioChannelSet::stereo(), false);
+                                             juce::AudioChannelSet::stereo(), true);
                 return props;
             }
         };
@@ -8038,7 +8047,14 @@ namespace lockstep
         }
 
         const double sr = getSampleRate() > 0.0 ? getSampleRate() : 44100.0;
-        const int numCh = std::max(1, getTotalNumOutputChannels());
+        // The capture streams are the MAIN bus (master.wav) and the per-track
+        // buffers (stems) — both stereo. Sizing them from getTotalNumOutputChannels()
+        // was a latent out-of-bounds read: the moment a host enables Cue/Aux/Send
+        // buses the total grows to 20, while `mainOut` (getBusBuffer(.., 0)) and
+        // trackBuffers_ still hold 2 channels — so the writer would walk 20 channel
+        // pointers off the end of a 2-pointer array. It only stayed benign because
+        // every extra bus used to be disabled by default (11.12 enables them).
+        const int numCh = std::max(1, getMainBusNumOutputChannels());
         if (!captureRecorder_.arm(masterFile, sr, numCh, captureWriteThread_.get()))
             return false;
         takeLog_.clear();   // 11.11: this take's launch log starts empty
