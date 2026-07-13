@@ -24,6 +24,7 @@
 #include "ui/SurfaceModel.h"
 #include "ui/UITheme.h"
 #include "ui/mode/ModeReducer.h"
+#include "ui/mode/LatchOps.h"
 #include <algorithm>
 
 // D2: dirty-guard hook requires access to StandaloneFilterWindow (standalone target only).
@@ -3359,6 +3360,17 @@ namespace lockstep
         if (prevLatch.fill && !physHeld_.fill)
             dispatchUp({ T::ButtonUp, CB::FillScope });
 
+        // 9.29: a latched COMPOUND scope (Machine / Set) was holding Func virtually.
+        // Escape must end that too — the latch is the only thing that was keeping the
+        // Func layer up, and it is gone now. Guarded on the physical key so escaping
+        // while Func is genuinely down does not yank the layer out from under it.
+        if (prevLatch.compound && !physHeld_.func)
+        {
+            uiState_.funcHeld = false;
+            uiState_.machineScopeHeld = false;
+            editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
+        }
+
         // Release latched steps (keep them in heldStepKeys_ if still physically held).
         auto& ctx = processor_.editContext();
         const bool hadLatchedSteps = ctx.hasAnyLatchedStep();
@@ -3593,6 +3605,23 @@ namespace lockstep
             }
         }
 
+        // 9.29: latching Track or Song while Func is held latches the COMPOUND scope
+        // (Machine / Set) — Func stays virtually held until the scope is unlatched, so
+        // the compound survives releasing the key that entered it. Computed here, at
+        // the single latch owner, so a latch can never disagree with the scope it is
+        // supposed to be holding. Any other latch (or an unlatch) drops it: a compound
+        // qualifies exactly one col-2 scope, never two, and never nothing.
+        uiState_.latch.compound = compoundLatchFor(cb, uiState_.funcHeld, set);
+        if (!uiState_.latch.compound && !physHeld_.func)
+        {
+            // The compound is gone and Func is not physically down: the virtual Func
+            // hold it was maintaining must end with it, or a stale funcHeld would
+            // silently re-skin every section key.
+            uiState_.funcHeld = false;
+            uiState_.machineScopeHeld = false;
+            editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
+        }
+
         switch (cb)
         {
             case CB::PhraseScope: uiState_.latch.phrase = set; break;
@@ -3795,6 +3824,7 @@ namespace lockstep
                     // the tap-to-clear slot flow on top.
                     if (latchHeldSteps())
                         return;   // consume: no funcHeld, no Chance band
+                    physHeld_.func = true;
                     uiState_.funcHeld = true;
                     // 9.29 / §13.9: Func+Track = the Machine scope. Either press order
                     // enters it (Func over a held Track here; Track under a held Func
@@ -6057,11 +6087,24 @@ namespace lockstep
         switch (ev.button)
         {
             case CB::Func:
+                physHeld_.func = false;
                 // MD.7/MD.8: apply deferred pattern mute toggles atomically on Func release.
                 for (const int t : deferredPatternMutes_)
                     processor_.togglePatternMute(t);
                 deferredPatternMutes_.clear();
                 uiState_.pendingPatternMuteToggle.fill(false);
+
+                // 9.29: a LATCHED compound scope (Machine / Set) survives this release.
+                // Func is the only modifier that cannot latch on its own, so the latch
+                // on Track/Song carries it: while latch.compound is set, funcHeld stays
+                // virtually true and the release ends here. Everything below — exiting
+                // the Func re-skins, dropping the scope, restoring the MZ band — is the
+                // teardown of a Func layer that is, in this case, still standing.
+                if (uiState_.latch.compound)
+                {
+                    refreshSurface();
+                    break;
+                }
                 uiState_.funcHeld = false;
                 // Commit staged edits before exiting (these call processor_ and cannot
                 // live inside the pure exitFuncReskin helper).
@@ -6115,7 +6158,10 @@ namespace lockstep
             // unique side effects run here when xxxHeld was cleared (i.e. !xxxHeld).
             case CB::TrackScope:
                 physHeld_.track = false;
-                uiState_.machineScopeHeld = false;   // 9.29: half the compound left
+                // 9.29: half the compound left — unless the compound itself is latched,
+                // in which case both halves are virtually held and the scope stands.
+                if (!uiState_.latch.compound)
+                    uiState_.machineScopeHeld = false;
                 if (!uiState_.trackHeld)  // cleared by handleUp → not latched
                 {
                     processor_.setControlAllActive(false);  // MD.10

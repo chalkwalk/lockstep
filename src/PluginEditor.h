@@ -147,6 +147,12 @@ namespace lockstep
             bool song = false;
             bool fill = false;
             bool cue = false;
+            // 9.29: Func is not latchable on its own, but the COMPOUND latch
+            // (Machine / Set) holds it virtually — so the latch owner has to be able
+            // to ask whether the key is actually down before it drops that virtual
+            // hold. Without this, unlatching Machine while Func is still physically
+            // held would clear funcHeld under the user's own finger.
+            bool func = false;
         } physHeld_;
 
         // Tap tempo: rolling window of up to 5 tap timestamps (ms, high-res).

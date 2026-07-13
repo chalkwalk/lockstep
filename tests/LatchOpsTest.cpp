@@ -218,6 +218,36 @@ namespace lockstep
 
     // ─────────────────────────────────────────────────────────────────────────
 
+    // ── 9.29: the compound-scope latch ────────────────────────────────────────
+    // Func + double-tap Track/Song latches the COMPOUND scope (Machine / Set), and it
+    // outlives the Func key. Every other latch, and every unlatch, must clear it --
+    // otherwise a stale compound would keep Func virtually held and silently re-skin
+    // every section key long after the user moved on.
+    static void testCompoundLatchOnlyOnTrackOrSongUnderFunc()
+    {
+        CHECK(compoundLatchFor(CB::TrackScope, /*func*/ true, /*set*/ true),
+              "Func + latch Track → the MACHINE compound latches");
+        CHECK(compoundLatchFor(CB::SongScope, true, true),
+              "Func + latch Song → the SET compound latches");
+        CHECK(!compoundLatchFor(CB::TrackScope, /*func*/ false, true),
+              "latching Track without Func is a plain Track latch, not a compound");
+        CHECK(!compoundLatchFor(CB::SceneScope, true, true),
+              "Func+Scene forms no compound (reserved and inert — there is no third rung)");
+        CHECK(!compoundLatchFor(CB::PhraseScope, true, true),
+              "Func+Phrase forms no compound");
+        CHECK(!compoundLatchFor(CB::MuteScope, true, true), "Func+Mute forms no compound");
+        CHECK(!compoundLatchFor(CB::MorphScope, true, true), "Func+Morph forms no compound");
+        CHECK(!compoundLatchFor(CB::FillScope, true, true), "Func+Fill forms no compound");
+    }
+
+    static void testCompoundLatchClearedByUnlatch()
+    {
+        CHECK(!compoundLatchFor(CB::TrackScope, true, /*set*/ false),
+              "unlatching Track drops the compound even with Func still down");
+        CHECK(!compoundLatchFor(CB::SongScope, true, false), "unlatching Song drops the compound");
+    }
+
+
     void runLatchOpsTests()
     {
         testLatchColumnCol1();
@@ -234,6 +264,8 @@ namespace lockstep
         testClearCol2ExceptSong();
         testClearCol2ExceptFill();
         testClearNotLatchableIsNoop();
+        testCompoundLatchOnlyOnTrackOrSongUnderFunc();
+        testCompoundLatchClearedByUnlatch();
         testAnyViaLatchBoolFor();
         testAnyAfterClearColumnExcept();
     }

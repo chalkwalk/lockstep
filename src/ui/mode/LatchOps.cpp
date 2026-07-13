@@ -60,4 +60,10 @@ namespace lockstep
         // col == -1: not latchable — no-op.
     }
 
+    bool compoundLatchFor(ControllerButton cb, bool funcHeld, bool set) noexcept
+    {
+        const bool compoundable = (cb == CB::TrackScope || cb == CB::SongScope);
+        return set && compoundable && funcHeld;
+    }
+
 } // namespace lockstep

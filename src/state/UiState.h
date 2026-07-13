@@ -92,6 +92,16 @@ namespace lockstep
         bool song = false;
         bool fill = false;
 
+        // 9.29 — the compound-scope latch. True when the col-2 latch above was
+        // engaged with Func held, i.e. the latched scope is one of the two COMPOUND
+        // scopes: Machine (Func+Track) or Set (Func+Song). It makes Func virtually
+        // held for as long as the scope stays latched, which is what lets the compound
+        // outlive the Func key that entered it — the one latch that does, and the only
+        // way a compound scope can be hands-free (Func itself never latches, and sound
+        // design is measured in minutes, not in a held chord). DESIGN §13.9.
+        // Never set alone: it qualifies whichever of track/song is latched.
+        bool compound = false;
+
         [[nodiscard]] bool any() const noexcept
         {
             return phrase || morph || mute || track || scene || song || fill;
