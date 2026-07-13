@@ -74,6 +74,16 @@ stating:
   day a marker recalls a scene, we have shipped the session view we refused
   twice.
 
+  **Erosion tripwire (added 2026-07-12).** The timeline chrome has grown by
+  individually-justified steps — permanent strip, wall-clock ruler, locate,
+  wind/scrub, take-groups — and each was fine. So the *next* line is named in
+  advance, to be tripped over rather than re-litigated: the strip stays
+  **read-only** (you never click it; everything you *do* lives on console
+  cells and encoders), and **nothing is ever scheduled *by* position** — no
+  event, launch, or state change keyed to "when the playhead reaches X"
+  (PRINCIPLES §25.1: position carries no state). Recording, winding, and
+  reading the past are in scope; a timeline that *performs* is the fence.
+
 - **Faders / extra axes on a controller you already own (#6)** — fence #6
   rejects *designing the grammar around* an axis the eventual hardware can't
   honestly provide (MPE, per-pad pressure, tilt, a wall of per-track faders).
@@ -115,7 +125,13 @@ are **not** non-goals, listed here only to forestall confusion:
   deterministic generator under *Pragmatic determinism*). The earlier
   probability-scaling Chance band is retired.
 - **Granular synthesis** (Roland Aira P-6, and our own Tonverk lineage) is
-  **in**, as a machine module (DESIGN §29), not catalogue bloat.
+  **in**, as a specialised third-party machine (DESIGN §29), not catalogue bloat.
+- **The melodic generator's SEED encoder** (10.7) was measured against fence #2
+  and **blessed with rationale** (2026-07-12): it is a bounded, deterministic,
+  *revisitable* variation browser — same seed, same line, printed as ordinary
+  editable trigs — not edit-time dice. The §14 caveat is recorded in
+  PRINCIPLES §11: if seed-scanning ever becomes the primary use, redesign the
+  shaping axes rather than grow the seed space.
 
 **One home for the generators.** Euclidean, Density, and the live velocity
 overlay are all *deterministic generators* (PRINCIPLES §11), and the 9.x
