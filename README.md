@@ -335,7 +335,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Step inspector** | **Hold a step** — the grid re-skins showing the step's P-Locks (packed, orange cells = set slots). Tap a cell to stage it for removal; tap again to cancel; release the held step to commit. To reach the held step's *own* cell (which sits under your finger), press **Func** while holding to **latch** the inspector hands-free, then tap freely and **double-tap Func** to apply. Tap **SRC** while holding to enter note-edit for that step. `←`/`→` while holding **bubble-swaps** the step with its neighbour (the held focus follows, so repeated presses keep moving it). `Func+←`/`Func+→` while holding **nudges micro-time** ±5% of step length. Release all to commit; the trig toggle is suppressed when any edit occurred. |
 | **P-Lock clear gestures** | `Trig + Func + Clear` (`Trig + 1 + O`) clears every P-Lock on the held step(s), leaving trig and condition intact. `Trig + (active MZ slot) + Clear` clears only that one slot. `Trig + (section key) + Clear` clears just that section's overrides on the held step(s); since **SRC** owns the note payload, `Trig + SRC + Clear` clears note / velocity / gate overrides only, leaving trig and P-Locks intact. The hint band shows these gestures automatically when a step with P-Locks or note overrides is held. |
 | **NoteSelection bias** | Per-track bias for chord-note spread when the machine voice count is smaller than the step's note count. `TopBias` (default) includes top + bottom and fills from the top; `BottomBias` fills from the bottom. Set in the TRIG meta-section, slot 3 (Bias = TOP / BOT). |
-| **Func+Track machine/Kit picker** | Hold Func (1) + Track (2) — the Track key relabels to KIT; step cells show available machine names. Press a step to assign that machine to the focused track. |
+| **Func+Track machine picker** | Hold Func (1) + Track (2) — the Track key relabels to MACHINE; step cells show available machine names. Press a step to assign that machine to the focused track. |
 
 ---
 
@@ -1357,7 +1357,7 @@ Stage E / 7.5 and has shipped — see *Phrase-length authoring* below.)
   it for removal; press again to cancel. Release Func to commit all
   staged removals.
 - **Func+Track machine/Kit picker.** Hold Func (1) and Track (2) —
-  Track relabels to KIT; step cells show available machine names.
+  Track relabels to MACHINE; step cells show available machine names.
   Press a step to assign that machine to the focused track. Release
   Func or Track to exit.
 
@@ -2056,7 +2056,7 @@ Track (2)
 ├─ + Scene           → re-sync the focused track to the active scene — §5.14
 ├─ + TRIG → kit divider (DIV meta) — §5.8
 ├─ + (held) → shows song-track delta swing in band (SwTrk + (D)) — §5.8
-└─ Func + Track      → machine / Kit picker (Track→KIT; press a step to assign) — §5.5
+└─ Func + Track      → machine picker (Track→MACHINE; press a step to assign) — §5.5
 ```
 
 Links: [§5.5](#55-track-selection-and-focus) ·

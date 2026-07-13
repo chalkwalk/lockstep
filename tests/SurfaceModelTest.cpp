@@ -752,7 +752,7 @@ namespace lockstep
 
         // Modifier scope key (Track, modifiers[1]): hold-to-scope, no phantom tap.
         // primary = bare "TRACK"; tap rail suppressed (tap/hold share HoldTrackScope);
-        // dbl = LATCH; func variant = KIT.
+        // dbl = LATCH; func variant = MACHINE.
         {
             const auto& c = model.modifiers[1];
             const auto hold = resolveBinding(CB::TrackScope, -1, kModNone, SL::Base, Gesture::Hold);
@@ -762,7 +762,7 @@ namespace lockstep
             CHECK(c.tapLabel.isEmpty(), "Track: tapLabel empty (no phantom tap action)");
             CHECK(c.holdLabel.isEmpty(), "Track: holdLabel empty (hold is primary)");
             CHECK(c.doubleTapLabel == juce::String(dbl.primary), "Track: doubleTapLabel=LATCH");
-            CHECK(c.funcHint == juce::String(u8"KIT"), "Track: funcHint=KIT");
+            CHECK(c.funcHint == juce::String(u8"MACHINE"), "Track: funcHint=MACHINE");
         }
 
         // Held-modifier context promotion: with Func held, a key's primary must show

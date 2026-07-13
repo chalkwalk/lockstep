@@ -28,8 +28,8 @@ namespace lockstep
         { CB::Func, -1, kModNone, SL::Base, AId::HoldFuncScope, u8"FUNC", u8"", CS::Resting },
 
         // ── Track modifier (key 2) ──────────────────────────────────────────
-        { CB::TrackScope, -1, kModFunc, SL::Base, AId::OpenMachinePicker, u8"KIT", u8"", CS::FuncHeld },
-        { CB::TrackScope, -1, kModNone, SL::Base, AId::HoldTrackScope, u8"TRACK", u8"KIT", CS::Resting },
+        { CB::TrackScope, -1, kModFunc, SL::Base, AId::OpenMachinePicker, u8"MACHINE", u8"", CS::FuncHeld },
+        { CB::TrackScope, -1, kModNone, SL::Base, AId::HoldTrackScope, u8"TRACK", u8"MACHINE", CS::Resting },
 
         // ── Phrase scope (key Q) ─────────────────────────────────────────────
         { CB::PhraseScope, -1, kModNone, SL::Base, AId::HoldPhraseScope, u8"PHRASE", u8"", CS::Resting },

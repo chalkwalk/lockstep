@@ -366,7 +366,7 @@ namespace lockstep
                          ui.trackHeld, ui.latch.track,
                          kScopeTrack, kScopeTrackDim,
                          hasCompound && ui.trackHeld);
-            // Table-driven label: "TRACK" bare, "KIT" when Func held.
+            // Table-driven label: "TRACK" bare, "MACHINE" when Func held.
             {
                 const auto& r = resolveBinding(ControllerButton::TrackScope, -1, heldMods, SurfaceLayer::Base);
                 c.primary = juce::String(r.primary);

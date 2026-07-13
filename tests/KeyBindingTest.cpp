@@ -59,7 +59,7 @@ namespace lockstep
     {
         CHECK(resolve(CB::Func, kModNone) == AId::HoldFuncScope, "Func bare");
         CHECK(resolve(CB::TrackScope, kModNone) == AId::HoldTrackScope, "Track bare");
-        CHECK(resolve(CB::TrackScope, kModFunc) == AId::OpenMachinePicker, "Func+Track = KIT");
+        CHECK(resolve(CB::TrackScope, kModFunc) == AId::OpenMachinePicker, "Func+Track = MACHINE");
         CHECK(resolve(CB::PhraseScope, kModNone) == AId::HoldPhraseScope, "Phrase bare");
         CHECK(resolve(CB::SceneScope, kModNone) == AId::HoldSceneScope, "Scene bare");
         CHECK(resolve(CB::MorphScope, kModNone) == AId::HoldMorphScope, "Morph bare");
