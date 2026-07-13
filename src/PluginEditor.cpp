@@ -1912,10 +1912,36 @@ namespace lockstep
             tempoReadout_.setText(readout, juce::dontSendNotification);
         }
 
-        // 9.11: refresh inspector bar with current context.
-        inspectorBar_.setModel(buildInspectorModel(
-            uiState_, processor_.editContext(), processor_,
-            lastFocusedButton_, lastFocusedIndex_));
+        // 9.11 + 9.30: refresh the inspector, including the STATUS lane. The toast and
+        // the missing-sample count are the only status inputs the model cannot derive
+        // from UiState — everything else in the lane is STATE, read straight from it,
+        // which is exactly why an armed confirm can no longer fade out from under the
+        // user (§42.2). Rebuilt every tick: the lane IS the state, rendered.
+        {
+            StatusInput si;
+            si.toast = statusMessage_;
+            si.toastAgeMs = juce::Time::getMillisecondCounter() - statusSetMs_;
+            si.toastDurationMs = kStatusDurationMs;
+            si.missingSamples = missingSampleBanner_;
+            inspectorBar_.setModel(buildInspectorModel(
+                uiState_, processor_.editContext(), processor_,
+                lastFocusedButton_, lastFocusedIndex_, si));
+
+            // The pop-over is painted by the editor (it extends out of the child's
+            // bounds, over the MZ), so the editor must repaint when it appears or
+            // disappears. Edge-triggered: no repaint while it merely persists.
+            const bool confirmUp =
+                inspectorBar_.model().statusKind == StatusKind::Confirm;
+            if (confirmUp != confirmPopoverUp_)
+            {
+                confirmPopoverUp_ = confirmUp;
+                repaint(confirmPopoverRegion_);   // chrome only: the confirm pop-over carries no cell state
+            }
+            else if (confirmUp)
+            {
+                repaint(confirmPopoverRegion_);   // chrome only: re-derived every frame, by design (§42.2)
+            }
+        }
 
         // S8 (§40.6): the timeline strip is ALWAYS on — its row is permanent, so no
         // appear/disappear relayout. Rebuild the model each tick (cheap) so the
@@ -2263,6 +2289,13 @@ namespace lockstep
         // return, else it vanishes at rest): dB VU meter + capture banner ----
         paintMasterMeter(g);
         paintCaptureStrip(g);
+
+        // 9.30 §42.3: the confirm pop-over. Drawn OVER the children, extending down out
+        // of the STATUS lane and across the top of the MZ. It occludes on purpose --
+        // while a confirm is pending every key either confirms or cancels it, so nothing
+        // under it is a live target, and a destructive decision must never be made by
+        // accident because we did not spot the message.
+        InspectorBar::paintConfirmPopover(g, confirmPopoverRegion_, inspectorBar_.model());
         // Per-track trig (left, cyan) + MIDI-CC (right, magenta) activity dots.
         for (std::size_t i = 0; i < kNumTracks; ++i)
         {
@@ -2581,13 +2614,11 @@ namespace lockstep
                     }
                 }
 
-                // Transient CPC status always uses the nav lane — flash even without active gesture.
-                {
-                    const auto navLocal = keyboardArea_.navAreaBounds();
-                    const auto navInEditor = navLocal.translated(
-                        keyboardArea_.getX(), keyboardArea_.getY());
-                    paintStatus(g, navInEditor);
-                }
+                // (9.30 st.1: the status toast left the nav strip. It lived in the
+                //  busiest pixels on the surface — right beside the animating
+                //  mini-sequencer — which is a large part of why it was missed. It is now
+                //  the STATUS lane of the inspector, next to the hands and next to what
+                //  it describes, and the mini-seq is back to one job.)
 
                 if (ctx.isEmpty()) return;   // nothing held — preview is blank
 
@@ -6899,17 +6930,19 @@ namespace lockstep
                 tempoReadout_.setBounds(infoRow.reduced(8, 2));
             }
         }
-        // Inspector bar row — always-on 4-region context strip.
-        inspectorRow_ = bounds.removeFromTop(26);
-        inspectorBar_.setBounds(inspectorRow_);
-        bounds.removeFromTop(2);
-
-        // S8 (§40.6): the timeline strip sits just below the inspector and is now
-        // PERMANENT (display-only chrome, fence #5) — the window carries a fixed
-        // extra 22 px for it, so you can leave the tape face and still watch the
-        // recording time advance. Slightly taller than before to fit the two rulers.
+        // S8 (§40.6): the timeline strip is PERMANENT (display-only chrome, fence #5) —
+        // the window carries a fixed extra 22 px for it, so you can leave the tape face
+        // and still watch the recording time advance.
         timelineStrip_.setVisible(true);
         timelineStrip_.setBounds(bounds.removeFromTop(22));  // matches the +22 window
+
+        // 9.30 st.1: the inspector moves DIRECTLY ABOVE THE MZ, because it is the MZ's
+        // caption — its EDIT region says where the knobs are about to write, and its
+        // STATUS lane says what the last key did. Both belong beside the hands, not up
+        // in the chrome. Row 1 = the four regions; row 2 = the full-width STATUS lane.
+        inspectorRow_ = bounds.removeFromTop(InspectorBar::kHeight);
+        inspectorBar_.setBounds(inspectorRow_);
+        bounds.removeFromTop(2);
 
         // MHX.5: encoder band (MZ 4x2) + vertical crossfader to its right.
         static constexpr int kMZHeight = 160; // MHX 4x2 MZ (two rows of 4 slots)
@@ -6922,6 +6955,20 @@ namespace lockstep
             crossfader_.setBounds(faderArea);
             manipulationZone_.setBounds(mzStrip);
         }
+
+        // 9.30 §42.3: the confirm pop-over grows DOWNWARD out of the STATUS lane at
+        // double height, over the MZ's top edge. Cached here so the repaint is scoped
+        // and the paint has one source of truth for where it goes.
+        //
+        // THE OCCLUSION RULE: this zone may only ever cover DISPLAY, never an
+        // interactive control. It is safe today because a pending confirm makes every
+        // key a confirm-or-cancel (§13.2), so nothing beneath it is a live target. If a
+        // future layout puts a control here, the CONTROL moves — the pop-over does not
+        // shrink, or a destructive prompt becomes missable again.
+        confirmPopoverRegion_ = { inspectorRow_.getX(),
+                                  inspectorRow_.getBottom() - InspectorBar::kStatusLaneH,
+                                  inspectorRow_.getWidth(),
+                                  InspectorBar::kStatusLaneH * 3 };
 
         // Remaining region, laid out top->bottom: track row, mute/solo row,
         // section bar, function bar, step grid.
@@ -7050,35 +7097,12 @@ namespace lockstep
         refreshSurface();
     }
 
-    void LockstepEditor::paintStatus(juce::Graphics& g, juce::Rectangle<int> area)
-    {
-        const auto elapsed = juce::Time::getMillisecondCounter() - statusSetMs_;
-        const bool toastUp = !statusMessage_.isEmpty() && elapsed <= kStatusDurationMs;
-        if (toastUp)
-        {
-            const float alpha = juce::jlimit(0.0f, 1.0f,
-                                             1.0f - static_cast<float>(elapsed) / static_cast<float>(kStatusDurationMs));
-            g.setColour(juce::Colour(0xFF1E2028u).withAlpha(alpha));
-            g.fillRoundedRectangle(area.toFloat(), 3.0f);
-            g.setColour(juce::Colour(0xFF80FFB0u).withAlpha(alpha));
-            g.drawText(statusMessage_, area.reduced(4, 0), juce::Justification::centredLeft, true);
-            return;
-        }
-
-        // C3: with no toast up, a persistent amber banner keeps missing samples
-        // visible until they are relinked (the fading toast alone was easy to miss).
-        if (missingSampleBanner_ > 0)
-        {
-            g.setColour(juce::Colour(0xFF3A2A12u));
-            g.fillRoundedRectangle(area.toFloat(), 3.0f);
-            g.setColour(juce::Colour(0xFFFFA032u));
-            const juce::String msg = juce::String(missingSampleBanner_)
-                + (missingSampleBanner_ == 1 ? " sample missing" : " samples missing")
-                + " - Manage to relink";
-            g.drawText(msg, area.reduced(4, 0), juce::Justification::centredLeft, true);
-        }
-    }
-
+    // (9.30 st.1: paintStatus is GONE. The toast and the missing-samples banner were
+    //  two renderers in the nav strip, each deciding for itself when to show -- the
+    //  banner literally said "shown only when no toast is up". They are now two KINDS
+    //  in one lane, and the precedence between them is a property of the taxonomy
+    //  (§42.2), not of whichever painter happened to run first. setStatus still records
+    //  the toast; the model reads it.)
 
     // -------------------------------------------------------------------------
     // Checkpoint scope helper

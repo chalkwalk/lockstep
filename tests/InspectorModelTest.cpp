@@ -193,6 +193,103 @@ namespace lockstep
         CHECK(m.edit.containsIgnoreCase("step 3"), "held step 2 → 'step 3'");
     }
 
+    // ─── 9.30: the STATUS lane and the taxonomy ───────────────────────────────
+    //
+    // These are the tests the old code could not have had, because the old code did not
+    // know there was a rule. THE RULE: anything that changes what the next key press
+    // does is STATE, and must render for as long as it is armed (§42.2).
+
+    static void testConfirmIsStateNotEvent()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ec;
+        UiState ui;
+        ui.confirm = { ConfirmKind::DeleteTrack, 2 };
+
+        // The killer case: a confirm is armed, and the toast that announced it has LONG
+        // since expired. The old surface showed nothing at all here -- zero pixels
+        // saying the next P destroys track 3 -- while the arming was still fully live.
+        StatusInput si;
+        si.toast = "Delete which TRACK?";
+        si.toastAgeMs = 99999;          // the toast is long dead
+        si.missingSamples = 0;
+
+        const auto m = buildInspectorModel(ui, ec, proc, ControllerButton::None, -1, si);
+
+        CHECK(m.statusKind == StatusKind::Confirm,
+              "an armed confirm is a CONFIRM (a State), whatever the toast is doing");
+        CHECK(m.statusAlpha == 1.0f, "it does NOT fade -- a State never fades");
+        CHECK(m.confirmPrompt.contains("TRACK 3"),
+              "the prompt is derived from the STATE (kind + target), not from a stale message");
+        CHECK(m.confirmActions.contains("CONFIRM") && m.confirmActions.contains("CANCEL"),
+              "both exits are stated: the user must be able to answer without guessing");
+    }
+
+    static void testStateOutranksToast()
+    {
+        EngineHarness h;
+        EditContext ec;
+        UiState ui;
+        ui.deletePicker.scope = DeleteScope::Track;   // armed, waiting for a target
+
+        StatusInput si;
+        si.toast = "Copied phrase 3";                 // a FRESH toast
+        si.toastAgeMs = 0;
+
+        const auto m = buildInspectorModel(ui, ec, h.processor(), ControllerButton::None, -1, si);
+        CHECK(m.statusKind == StatusKind::State,
+              "an armed picker outranks even a brand-new toast: a fading event must never "
+              "hide something waiting for the next key");
+        CHECK(m.status.containsIgnoreCase("WHICH TRACK"), "and it says what it is waiting for");
+    }
+
+    static void testEventFadesAndExpires()
+    {
+        EngineHarness h;
+        EditContext ec;
+        UiState ui;
+
+        StatusInput si;
+        si.toast = "Quantized";
+        si.toastDurationMs = 1000;
+
+        si.toastAgeMs = 0;
+        auto m = buildInspectorModel(ui, ec, h.processor(), ControllerButton::None, -1, si);
+        CHECK(m.statusKind == StatusKind::Event && m.statusAlpha == 1.0f, "a fresh toast is opaque");
+
+        si.toastAgeMs = 500;
+        m = buildInspectorModel(ui, ec, h.processor(), ControllerButton::None, -1, si);
+        CHECK(m.statusKind == StatusKind::Event && m.statusAlpha > 0.4f && m.statusAlpha < 0.6f,
+              "an Event fades -- it is the ONE kind that may");
+
+        si.toastAgeMs = 2000;
+        m = buildInspectorModel(ui, ec, h.processor(), ControllerButton::None, -1, si);
+        CHECK(m.statusKind == StatusKind::None, "and then it is gone");
+    }
+
+    static void testAlertSurvivesTheToast()
+    {
+        EngineHarness h;
+        EditContext ec;
+        UiState ui;
+
+        StatusInput si;
+        si.missingSamples = 3;
+        si.toast = "Copied track 1";
+        si.toastAgeMs = 0;
+
+        auto m = buildInspectorModel(ui, ec, h.processor(), ControllerButton::None, -1, si);
+        CHECK(m.statusKind == StatusKind::Event, "the newest news shows first");
+
+        // ...and the alert is still there underneath, because an Alert is not consumed
+        // by being covered: it lives until the CONDITION clears.
+        si.toastAgeMs = 99999;
+        m = buildInspectorModel(ui, ec, h.processor(), ControllerButton::None, -1, si);
+        CHECK(m.statusKind == StatusKind::Alert, "when the toast dies the alert is still there");
+        CHECK(m.status.contains("3 samples missing"), "and still counting");
+    }
+
     // ─── entry point ──────────────────────────────────────────────────────────
 
     void runInspectorModelTests()
@@ -202,6 +299,10 @@ namespace lockstep
         testHeldRegionModifiers();
         testOverlayRegion();
         testEditRegionHeldStep();
+        testConfirmIsStateNotEvent();
+        testStateOutranksToast();
+        testEventFadesAndExpires();
+        testAlertSurvivesTheToast();
 
         juce::Logger::writeToLog("Completed tests in InspectorModel / 9.11 context inspector");
     }

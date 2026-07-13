@@ -462,6 +462,10 @@ namespace lockstep
         // editor (otherwise the entire grid/keyboard/MZ repaints 30×/sec — the
         // idle-CPU / fan culprit). Recomputed in resized().
         juce::Rectangle<int> masterChromeRegion_;
+        // 9.30: the confirm pop-over's screen region (the STATUS lane, extended down
+        // over the MZ's top edge). Cached in resized() so the repaint can be scoped.
+        juce::Rectangle<int> confirmPopoverRegion_;
+        bool confirmPopoverUp_ = false;
         juce::Rectangle<int> trackRowChromeRegion_;
 
         // Master VU strip height (px), drawn at the very top edge in
@@ -506,7 +510,6 @@ namespace lockstep
         // Route a Track+verb to the focused Loop's state machine (DESIGN §29.2).
         // cmd matches LoopMachine::Cmd (1=RecordCycle, 2=PlayStop, 3=Clear).
         void routeLooperVerb(int cmd, bool immediate = false);
-        void paintStatus(juce::Graphics& g, juce::Rectangle<int> area);
 
         // Capture the current live scene (effective floor + track phrases) into
         // clipboard_.scene. Sets clipboard_.type = Scene.

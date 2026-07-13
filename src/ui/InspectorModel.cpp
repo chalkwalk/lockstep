@@ -187,19 +187,102 @@ namespace lockstep
         return summary.trimEnd();
     }
 
+    // ── STATUS lane (9.30 §42.2) ──────────────────────────────────────────────
+
+    juce::String confirmPromptFor(ConfirmKind kind, int target) noexcept
+    {
+        // Derived from the STATE, not from a message captured at arm time. The old
+        // prompt was a string handed to a fading toast; if the toast expired, the text
+        // was gone while the arming lived on. Here the text cannot outlive -- or
+        // under-live -- the state it describes: it IS the state, rendered.
+        const juce::String n = juce::String(target + 1);
+        switch (kind)
+        {
+            case ConfirmKind::DeleteTrack:         return "DELETE TRACK " + n + "?";
+            case ConfirmKind::DeletePhrase:        return "DELETE PHRASE?";
+            case ConfirmKind::DeleteScene:         return "DELETE SCENE " + n + "?";
+            case ConfirmKind::BakeScene:           return "BAKE live deviations into the scene?";
+            case ConfirmKind::CreateScene:         return "CREATE SCENE " + n + "?";
+            case ConfirmKind::CreateBaselineScene: return "CREATE BASELINE SCENE " + n + "?";
+            case ConfirmKind::PasteScene:          return "PASTE OVER SCENE " + n + "?";
+            case ConfirmKind::ClearTrack:          return "CLEAR TRACK " + n + " (this phrase)?";
+            case ConfirmKind::ClearTrackAll:       return "CLEAR TRACK " + n + " (ALL phrases)?";
+            case ConfirmKind::ClearPhrase:         return "CLEAR PHRASE (all tracks)?";
+            case ConfirmKind::None:                break;
+        }
+        return {};
+    }
+
+    // Precedence IS the taxonomy: State outranks Alert outranks Event. A fading toast
+    // must never be able to hide something that is armed and waiting for the next key.
+    static void buildStatusLane(InspectorModel& m, const UiState& ui,
+                                const StatusInput& si) noexcept
+    {
+        // 1. STATE — an armed confirm. Rendered as the pop-over (§42.3).
+        if (ui.confirm.pending())
+        {
+            m.statusKind = StatusKind::Confirm;
+            m.confirmPrompt = confirmPromptFor(ui.confirm.kind, ui.confirm.target);
+            m.confirmActions = u8"[P] CONFIRM        [any other key] CANCEL";
+            m.status = m.confirmPrompt;   // the lane text, for controller displays
+            return;
+        }
+
+        // 2. STATE — the deletion picker is armed and waiting for a target.
+        if (ui.deletePicker.active())
+        {
+            m.statusKind = StatusKind::State;
+            switch (ui.deletePicker.scope)
+            {
+                case DeleteScope::Track:  m.status = u8"DELETE WHICH TRACK? — tap a track"; break;
+                case DeleteScope::Phrase: m.status = u8"DELETE WHICH PHRASE? — tap a step"; break;
+                case DeleteScope::Scene:  m.status = u8"DELETE WHICH SCENE? — tap a step"; break;
+                case DeleteScope::None:   break;
+            }
+            return;
+        }
+
+        // 3. EVENT — a toast, while it lives. Below state, above nothing.
+        if (si.toast.isNotEmpty() && si.toastAgeMs <= si.toastDurationMs)
+        {
+            m.statusKind = StatusKind::Event;
+            m.status = si.toast;
+            m.statusAlpha = juce::jlimit(0.0f, 1.0f,
+                                         1.0f - static_cast<float>(si.toastAgeMs)
+                                                    / static_cast<float>(si.toastDurationMs));
+            return;
+        }
+
+        // 4. ALERT — persistent until the condition clears. Outlives every toast, so it
+        //    is checked after them only because a toast is the more recent news; it
+        //    reappears the moment the toast expires (it never actually went away).
+        if (si.missingSamples > 0)
+        {
+            m.statusKind = StatusKind::Alert;
+            m.status = juce::String(si.missingSamples)
+                       + (si.missingSamples == 1 ? " sample missing" : " samples missing")
+                       + " - Manage to relink";
+            return;
+        }
+
+        m.statusKind = StatusKind::None;
+    }
+
     // ── Public builder ────────────────────────────────────────────────────────
 
     InspectorModel buildInspectorModel(const UiState& ui,
                                        const EditContext& ec,
                                        const LockstepProcessor& proc,
                                        ControllerButton focusedButton,
-                                       int focusedIndex) noexcept
+                                       int focusedIndex,
+                                       const StatusInput& si) noexcept
     {
         InspectorModel m;
         m.key     = buildKeyRegion(focusedButton, focusedIndex);
         m.held    = buildHeldRegion(ui, proc);
         m.overlay = buildOverlayRegion(ui, proc);
         m.edit    = buildEditRegion(ui, ec, proc);
+        buildStatusLane(m, ui, si);
         return m;
     }
 
