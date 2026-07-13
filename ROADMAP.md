@@ -2042,7 +2042,30 @@ the grammar; grid picker cells share a common `paintGridCell*` renderer.
         Per-scope differences stay in the effect (Func's escape + step-latch, Track's
         Control-All, Scene's re-sync-when-Track-held — an early return, not a
         compound, Morph's MZ hand-off): a modifier press is not one uniform thing.
-  - [ ] 7b–7f — verbs, nav, sections, steps, transport.
+  - [ ] **7b — verbs.** *Pre-work done (2026-07-13); routing not yet migrated.*
+        Checked what the net pinned for verbs before rewriting them: **almost
+        nothing.** `Track+VerbRecord` *is* "copy track", and the golden recorded only
+        that the Track modifier went down — the clipboard, the checkpoint stack and
+        the phrase content were not in the digest, so the net would have stayed green
+        through a total breakage of copy/paste/clear/snapshot. Fixed in three ways,
+        each of which changed what the golden says is true:
+        (i) **wider digest** — clipboard, per-scope checkpoint depth, per-track trig
+        census; (ii) **prior state + scripted scenarios** — a blank project makes
+        destructive verbs invisible, and a one-gesture-per-row matrix *structurally*
+        cannot see PASTE (empty clipboard ⇒ no-op), so the rig seeds trigs and five
+        scripts supply the history (copy→paste, snapshot→restore, clear→confirm);
+        (iii) **fidelity** — every real input path runs `resolveLayer()` *before*
+        dispatch (`ButtonLayers.h`, first line) and the probe skipped it, so `Func+Y`
+        never became `CB::Restore` and the golden recorded RESTORE as *"pushes a
+        second checkpoint"*. **Every Func-layer row was fiction.** A net that models a
+        different input path than the instrument is worse than no net — it is green
+        about fiction.
+        *Design note for the migration itself:* `ButtonLayers` already does the
+        Func-layer remap at the **event** level (`Func+Y → CB::Restore`), so verbs
+        need most-specific-wins for *scope* qualification only — the mirror image of
+        7a's bare-row rule, and the reason the two families must not share a routing
+        rule.
+  - [ ] 7c–7f — nav, sections, steps, transport.
 - [ ] **Stage 8 — Exhaustiveness guard + cleanup.** `handleAction` switch
       exhaustive (`-Werror=switch`, no `default:`); test that every ActionId is
       handled; remove `KeyBinding::hint` field.
