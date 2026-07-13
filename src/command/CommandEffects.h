@@ -88,6 +88,18 @@ namespace lockstep
         //  the same behaviour is the drift this stage exists to prevent.)
         virtual void stepLatch(int step) = 0;                 // Step dbl-tap: latch the hold
         virtual void navPageUnlock() = 0;                     // NavRight dbl-tap
+
+        // ── 9.12 Stage 7c: the nav family ────────────────────────────────────
+        // delta is +1 / -1 throughout: up/right are positive, down/left negative,
+        // so one sign convention covers all four keys and the pairs cannot drift.
+        virtual void navFocusTrack(int delta) = 0;     // bare Nav up/down: change focus
+        virtual void navPage(int delta) = 0;           // bare Nav left/right: page the grid
+        virtual void navOctave(int delta) = 0;         // Nav left/right in NoteEdit / CHROMATIC
+        virtual void trackLengthScale(int delta) = 0;  // Func+Nav up/down: x2 / /2 (looper-aware)
+        virtual void rotateSteps(int delta) = 0;       // Func+Nav left/right: rotate the pattern
+        virtual void cycleInputMode(int delta) = 0;    // Track+Nav: PLAY / CHROM / LEVELS
+        virtual void morphPole(int pole) = 0;          // Morph+Nav: force A (1) or B (2) edits
+        virtual void transposeTrack(int semitones) = 0;  // Phrase+Nav: transpose the phrase
         virtual void openGeneratorHub() = 0;                  // TapTempo hold
         virtual void setTrigGridMode(TrigGridMode mode) = 0;  // retrig / sound-pool pickers
     };

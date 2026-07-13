@@ -62,6 +62,19 @@ namespace lockstep::test
         std::vector<int> sceneMuteTracks;
         std::vector<int> fluidMuteTracks;
 
+        // 9.12 st.7c: the nav family. Recorded as (action, delta) pairs so a test can
+        // assert WHICH nav effect fired and in which direction -- the sign convention is
+        // the thing most likely to get flipped in a migration.
+        std::vector<std::pair<juce::String, int>> navCalls;
+        void navFocusTrack(int d) override { navCalls.emplace_back("focusTrack", d); }
+        void navPage(int d) override { navCalls.emplace_back("page", d); }
+        void navOctave(int d) override { navCalls.emplace_back("octave", d); }
+        void trackLengthScale(int d) override { navCalls.emplace_back("length", d); }
+        void rotateSteps(int d) override { navCalls.emplace_back("rotate", d); }
+        void cycleInputMode(int d) override { navCalls.emplace_back("inputMode", d); }
+        void morphPole(int p) override { navCalls.emplace_back("morphPole", p); }
+        void transposeTrack(int s) override { navCalls.emplace_back("transpose", s); }
+
         void executeConfirm(ConfirmKind k, int t) override { confirmsExecuted.push_back({ k, t }); }
         void globalMuteToggle(int t) override { globalMuteTracks.push_back(t); }
         void soloToggle(int t) override { soloTracks.push_back(t); }

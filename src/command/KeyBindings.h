@@ -129,6 +129,13 @@ namespace lockstep
         MachinePaste,        // Machine+Play:   paste it onto the focused track
         MachineInit,         // Machine+Clear:  reset the machine to its defaults
 
+        // 9.12 st.7c: Phrase+Nav transpose (10.9) finally gets a name. It has been
+        // dispatched imperatively since it shipped, with no row -- so the surface
+        // could not advertise it, and routing nav through the table without it would
+        // have resolved Phrase+↑ to the bare row and changed track instead.
+        TransposeUp,         // Phrase+↑ (bare = +octave, Func = +1 semitone)
+        TransposeDown,       // Phrase+↓
+
         // Sentinel — keep last. Lets the Stage 6 guard test enumerate every action
         // and assert each one is either handled by CommandCore::handleAction or
         // explicitly listed as not-yet-migrated, so a new ActionId cannot be added

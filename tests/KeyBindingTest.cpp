@@ -90,8 +90,13 @@ namespace lockstep
         CHECK(resolve(CB::NavUp, kModFunc) == AId::LengthDouble, "Func+NavUp = ×2");
         CHECK(resolve(CB::NavUp, kModTrack) == AId::CycleInputModeUp, "Track+NavUp = cycle");
         CHECK(resolve(CB::NavUp, kModMorph) == AId::MorphPickPoleA, "Morph+NavUp = A");
-        // Func+Morph: explicit combined row preserves dispatch order (×2 not A).
-        CHECK(resolve(CB::NavUp, kModFunc | kModMorph) == AId::LengthDouble, "Func+Morph+NavUp = ×2 (not A)");
+        // 7c: Func+Morph = A, not ×2. The cascade always checked morphHeld FIRST, so
+        // the key picked the pole; the old row said ×2 and was simply wrong. Morph wins.
+        CHECK(resolve(CB::NavUp, kModFunc | kModMorph) == AId::MorphPickPoleA,
+              "Func+Morph+NavUp = A (Morph outranks Func — the row used to lie)");
+        // 7c: Phrase+Nav = transpose (10.9), declared at last. Bare = octave, Func = semitone.
+        CHECK(resolve(CB::NavUp, kModPhrase) == AId::TransposeUp, "Phrase+NavUp = TRANSPOSE");
+        CHECK(resolve(CB::NavUp, kModPhrase | kModFunc) == AId::TransposeUp, "Func+Phrase+NavUp = TRANSPOSE");
         // Func+Track: explicit combined row = cycle (Track wins over Func ×2).
         CHECK(resolve(CB::NavUp, kModFunc | kModTrack) == AId::CycleInputModeUp, "Func+Track+NavUp = cycle");
 
@@ -107,24 +112,38 @@ namespace lockstep
     {
         CHECK(resolve(CB::NavLeft, kModNone) == AId::NavPageLeft, "NavLeft bare");
         CHECK(resolve(CB::NavLeft, kModFunc) == AId::RotateLeft, "Func+NavLeft = ←ROT");
-        CHECK(resolve(CB::NavLeft, kModTrack) == AId::CycleInputModeLeft, "Track+NavLeft = cycle");
+        // 7c: Track+←/→ PAGES (the mode cycle is up/down only, README §5.17). The
+        // CycleInputModeLeft/Right rows never matched dispatch and are gone.
+        CHECK(resolve(CB::NavLeft, kModTrack) == AId::NavPageLeft, "Track+NavLeft = page (not cycle)");
         CHECK(resolve(CB::NavRight, kModNone) == AId::NavPageRight, "NavRight bare");
         CHECK(resolve(CB::NavRight, kModFunc) == AId::RotateRight, "Func+NavRight = ROT→");
-        CHECK(resolve(CB::NavRight, kModTrack) == AId::CycleInputModeRight, "Track+NavRight = cycle");
+        CHECK(resolve(CB::NavRight, kModTrack) == AId::NavPageRight, "Track+NavRight = page (not cycle)");
 
         // Hints present for bare, absent under Track and Func
         CHECK(!juce::String(resolveBinding(CB::NavLeft, -1, kModNone, SL::Base).hint).isEmpty(), "NavLeft has hint");
-        CHECK(juce::String(resolveBinding(CB::NavLeft, -1, kModTrack, SL::Base).hint).isEmpty(), "Track+NavLeft no hint");
+        CHECK(juce::String(resolveBinding(CB::NavLeft, -1, kModTrack, SL::Base).hint) == juce::String(u8"←ROT"),
+              "Track+NavLeft falls back to the bare page row (hint = ←ROT)");
         CHECK(juce::String(resolveBinding(CB::NavLeft, -1, kModFunc, SL::Base).hint).isEmpty(), "Func+NavLeft no hint");
     }
 
     // ── NavDown / v (R) ───────────────────────────────────────────────────────
     static void testNavDown()
     {
-        CHECK(resolve(CB::NavDown, kModNone) == AId::NavOctaveDown, "NavDown bare");
+        // 7c: bare NavDown moves the FOCUS TRACK down; it never shifted the octave.
+        // (Octave is a LAYER behaviour on ←/→ inside NoteEdit / CHROMATIC — see below.)
+        CHECK(resolve(CB::NavDown, kModNone) == AId::NavTrackDown, "NavDown bare = focus track down");
         CHECK(resolve(CB::NavDown, kModFunc) == AId::LengthHalve, "Func+NavDown = ÷2");
         CHECK(resolve(CB::NavDown, kModMorph) == AId::MorphPickPoleB, "Morph+NavDown = B");
-        CHECK(resolve(CB::NavDown, kModFunc | kModMorph) == AId::LengthHalve, "Func+Morph+NavDown = ÷2 (not B)");
+        CHECK(resolve(CB::NavDown, kModFunc | kModMorph) == AId::MorphPickPoleB,
+              "Func+Morph+NavDown = B (Morph outranks Func)");
+        CHECK(resolve(CB::NavDown, kModPhrase) == AId::TransposeDown, "Phrase+NavDown = TRANSPOSE");
+        // Octave lives on the NoteEdit / CHROMATIC layers, where ←/→ stop paging.
+        CHECK(resolveBinding(CB::NavLeft, -1, kModNone, SL::NoteEdit).action == AId::NavOctaveDown,
+              "NoteEdit layer: ← = OCT-");
+        CHECK(resolveBinding(CB::NavRight, -1, kModNone, SL::ChromaticInput).action == AId::NavOctaveUp,
+              "CHROMATIC layer: → = OCT+");
+        CHECK(resolveBinding(CB::NavLeft, -1, kModFunc, SL::ChromaticInput).action == AId::NavOctaveDown,
+              "CHROMATIC layer: Func+← keeps the octave role (rotate steps aside)");
         CHECK(resolve(CB::NavDown, kModTrack) == AId::CycleInputModeDown, "Track+NavDown = cycle");
     }
 

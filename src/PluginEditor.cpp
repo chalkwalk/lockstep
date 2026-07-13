@@ -250,6 +250,124 @@ namespace lockstep
             ed.keyboardArea_.nextPage();
         }
 
+        // ── 9.12 st.7c: the nav family's effects ──────────────────────────────
+        // Every body below is MOVED from the NavUp/NavDown/NavLeft/NavRight cascades,
+        // not rewritten. What changed is who DECIDES which one runs: the table, via
+        // handleAction, instead of a hand-maintained if-chain per key.
+        void navFocusTrack(int delta) override
+        {
+            // Don't change track while a step is held: the inspector / move targets one
+            // track, and crossing tracks made the move "drag" onto a different track
+            // (9.14 follow-up). Consume and no-op. This guard belongs to THIS action --
+            // it must not block Func+Nav length or rotate, which are legal under a hold.
+            if (ed.processor_.editContext().heldStepIndex() >= 0) return;
+            const int t = ed.keyboardArea_.getActiveTrack();
+            ed.keyboardArea_.setActiveTrack(
+                std::clamp(t + delta, 0, static_cast<int>(kNumTracks) - 1));
+        }
+        void navPage(int delta) override
+        {
+            if (delta < 0) { ed.keyboardArea_.prevPage(); return; }
+            // DESIGN §34.4 / PRINCIPLES §17 (nav reveal/unlock family): at the last
+            // in-length page a single NavRight is a clamped no-op; a double-tap unlocks
+            // one empty page past the end so a longer length can be set.
+            if (ed.keyboardArea_.currentPage() >= ed.keyboardArea_.numPages() - 1)
+            {
+                const double now = juce::Time::getMillisecondCounterHiRes();
+                if (ed.gesture_.doubleTap(GestureRecognizer::kNavRightUnlock, now))
+                {
+                    ed.keyboardArea_.unlockScrollPastEnd();
+                    ed.setStatus(status::scrolledPastEnd());
+                }
+            }
+            ed.keyboardArea_.nextPage();
+        }
+        void navOctave(int delta) override
+        {
+            ed.uiState_.noteEditOctave =
+                std::clamp(ed.uiState_.noteEditOctave + delta, 0, 8);
+            ed.refreshSurface();
+        }
+        void trackLengthScale(int delta) override
+        {
+            const int t = ed.keyboardArea_.getActiveTrack();
+            if (t >= 0 && t < static_cast<int>(kNumTracks))
+            {
+                // S4: a looper has no editable pattern length (it IS the track grid), so
+                // this is the loop-window Double/Halve — parity with the console cells.
+                if (ed.processor_.isLooperTrack(t))
+                    ed.routeLooperVerb(delta > 0 ? 6 /*Double*/ : 5 /*Halve*/);
+                else if (delta > 0)
+                    ed.processor_.doubleTrackLength(t);
+                else
+                    ed.processor_.halveTrackLength(t);
+            }
+            ed.refreshSurface();
+        }
+        void rotateSteps(int delta) override
+        {
+            const int t = ed.keyboardArea_.getActiveTrack();
+            if (t >= 0 && t < static_cast<int>(kNumTracks))
+                ed.processor_.rotateTrackSteps(t, delta);
+            ed.refreshSurface();
+        }
+        void cycleInputMode(int delta) override
+        {
+            const int t = ed.keyboardArea_.getActiveTrack();
+            // MHZ.9.7: the cycle only applies while Track is held with NO track picked
+            // (Control-All). Once a specific track is selected, Track+Nav goes back to
+            // moving the focus. That gate is ENGINE state, not a modifier, so the table
+            // cannot see it — which is why the fallback lives here and not in a row.
+            if (!ed.processor_.controlAllActive() || t < 0 || t >= static_cast<int>(kNumTracks))
+            {
+                navFocusTrack(delta);
+                return;
+            }
+            auto& mode = ed.uiState_.trackInputMode[static_cast<std::size_t>(t)];
+            if (delta > 0)
+            {
+                switch (mode)
+                {
+                    case TrackInputMode::Play:      mode = TrackInputMode::Levels; break;
+                    case TrackInputMode::Chromatic: mode = TrackInputMode::Play; break;
+                    case TrackInputMode::Levels:    mode = TrackInputMode::Chromatic; break;
+                    default:                        break;
+                }
+            }
+            else
+            {
+                switch (mode)
+                {
+                    case TrackInputMode::Play:      mode = TrackInputMode::Chromatic; break;
+                    case TrackInputMode::Chromatic: mode = TrackInputMode::Levels; break;
+                    case TrackInputMode::Levels:    mode = TrackInputMode::Play; break;
+                    default:                        break;
+                }
+            }
+            ed.escapeAllLatches();   // entering a new modality exits the current latch
+            ed.refreshSurface();
+        }
+        void morphPole(int pole) override
+        {
+            ed.uiState_.morphNavQualifier = pole;
+            ed.manipulationZone_.setMorphQualifier(pole);
+            ed.manipulationZone_.setMorphHeld(ed.uiState_.morphHeld);
+            ed.refreshSurface();
+        }
+        void transposeTrack(int semitones) override
+        {
+            const int t = ed.keyboardArea_.getActiveTrack();
+            if (t >= 0 && t < static_cast<int>(kNumTracks))
+            {
+                ed.processor_.snapshot(CheckpointScope::Phrase, t);
+                ed.processor_.transposeTrack(t, semitones);
+                ed.setStatus(juce::String(semitones > 0 ? "TRANSPOSE +" : "TRANSPOSE -")
+                             + (std::abs(semitones) == 12 ? "oct" : "1"));
+            }
+            ed.uiState_.phraseScopeUsed = true;
+            ed.refreshSurface();
+        }
+
         void openGeneratorHub() override
         {
             ed.uiState_.generatorHubHeld = true;
@@ -3800,6 +3918,38 @@ namespace lockstep
         return true;
     }
 
+    // 9.12 Stage 7c: route a nav press through the grammar.
+    //
+    // Resolved on the ACTIVE LAYER, not on Base — because one nav behaviour genuinely
+    // is layer-scoped: inside NoteEdit / CHROMATIC the ←/→ pair shifts the octave
+    // instead of paging or rotating. That is what the table's `layer` column is for,
+    // and declaring it as rows is what lets the key frame say OCT± while the mode is
+    // up. Layer rows are additive, so a miss falls back to Base rather than dropping
+    // the key: every other nav gesture means the same thing in every layer.
+    bool LockstepEditor::routeNav(const ControllerEvent& ev)
+    {
+        const int at = keyboardArea_.getActiveTrack();
+        const auto inputMode = (at >= 0)
+                                   ? uiState_.trackInputMode[static_cast<std::size_t>(at)]
+                                   : TrackInputMode::Play;
+        const LayerFacts facts{ inputMode, at,
+                                at >= 0 && processor_.isLooperTrack(at),
+                                processor_.trackConsoleMode(at) };
+        const auto layer = resolveActiveLayer(uiState_, processor_.editContext(), facts);
+        const auto mods = heldModsFromUiState(uiState_);
+
+        const KeyBinding* row = &resolveBinding(ev.button, ev.index, mods, layer);
+        if (row->action == ActionId::None && layer != SurfaceLayer::Base)
+            row = &resolveBinding(ev.button, ev.index, mods, SurfaceLayer::Base);
+        if (row->action == ActionId::None)
+            return true;   // no row: the key is inert here, and swallowing it is the answer
+
+        auto ctx = commandContext();
+        (void)commandCore_.handleAction(row->action, ev, ctx, *editorEffects_);
+        refreshSurface();
+        return true;
+    }
+
     bool LockstepEditor::routeVerb(const ControllerEvent& ev)
     {
         const auto& row = resolveBinding(ev.button, ev.index, heldModsFromUiState(uiState_),
@@ -5370,265 +5520,63 @@ namespace lockstep
                 return true;
             }
 
-            case ControllerButton::NavUp: {
-                if (consumeDensityStickyKey(CB::NavUp)) return true;
-                if (consumeVelStickyKey(CB::NavUp)) return true;
-                const int t = keyboardArea_.getActiveTrack();
-                // Morph+^ = force A-pole edits while ^ is held (DESIGN §17.3).
-                if (uiState_.morphHeld)
-                {
-                    uiState_.morphNavQualifier = 1;
-                    manipulationZone_.setMorphQualifier(1);
-                    manipulationZone_.setMorphHeld(uiState_.morphHeld);
-                    refreshSurface();
-                    return true;
-                }
-                // Phrase+↑ = transpose the focused track's phrase up. Bare = an
-                // octave; Func+ = one semitone. Guarded before the Func+↑ length
-                // binding so Func+Phrase+↑ transposes rather than doubling length.
-                if (uiState_.phraseScopeHeld)
-                {
-                    if (t >= 0 && t < static_cast<int>(kNumTracks))
-                    {
-                        const int semis = uiState_.funcHeld ? 1 : 12;
-                        processor_.snapshot(CheckpointScope::Phrase, t);
-                        processor_.transposeTrack(t, semis);
-                        setStatus(uiState_.funcHeld ? "TRANSPOSE +1" : "TRANSPOSE +oct");
-                    }
-                    uiState_.phraseScopeUsed = true;
-                    refreshSurface();
-                    return true;
-                }
-                // Func+↑ = double the focused track's pattern length. S4: on a looper
-                // this is the loop-window Double (parity with the console DBL cell) —
-                // a looper has no editable pattern length (it IS the track grid).
-                if (uiState_.funcHeld && !uiState_.trackHeld)
-                {
-                    if (t >= 0 && t < static_cast<int>(kNumTracks))
-                    {
-                        if (processor_.isLooperTrack(t))
-                            routeLooperVerb(6 /*Double*/);
-                        else
-                            processor_.doubleTrackLength(t);
-                    }
-                    refreshSurface();
-                    return true;
-                }
-                // MHZ.9.7: Track (no specific track selected) + NavUp → cycle input mode upward.
-                if (uiState_.trackHeld && processor_.controlAllActive() && t >= 0 && t < static_cast<int>(kNumTracks))
-                {
-                    auto& mode = uiState_.trackInputMode[static_cast<std::size_t>(t)];
-                    switch (mode)
-                    {
-                        case TrackInputMode::Play:      mode = TrackInputMode::Levels; break;
-                        case TrackInputMode::Chromatic: mode = TrackInputMode::Play; break;
-                        case TrackInputMode::Levels:    mode = TrackInputMode::Chromatic; break;
-                        default:                        break;
-                    }
-                    escapeAllLatches();  // entering new modality exits current latch
-                    refreshSurface();
-                    return true;
-                }
-                // Don't change track while a step is held: the inspector / move
-                // targets one track, and crossing tracks made the move "drag" onto a
-                // different track (9.14 follow-up). Consume and no-op.
-                if (processor_.editContext().heldStepIndex() >= 0) return true;
-                // Normal: next higher track number.
-                keyboardArea_.setActiveTrack(
-                    std::min(static_cast<int>(kNumTracks) - 1, t + 1));
-                return true;
-            }
-
+            // ── 9.12 Stage 7c: the nav family is grammar-routed ───────────────────
+            // Each key kept an if-cascade that re-derived, by hand, the same priority
+            // the binding table already encodes (Morph > Phrase > Track > Func > bare).
+            // Three rows had silently drifted out of step with those cascades; the table
+            // is now the single decider and those rows are corrected.
+            //
+            // What stays here is everything that is NOT grammar — state the table cannot
+            // see, because it is keyed on modifiers and these are not modifiers:
+            //   * a sticky overlay consuming the key (Density / Vel),
+            //   * an open FX picker or deck console paging with Nav,
+            //   * a HELD STEP, where ←/→ move the step and Func+←/→ nudge micro-time.
+            // Each is an interception BEFORE the table, exactly as the verb family's
+            // scene/phrase intercepts sit before routeVerb (7b).
+            case ControllerButton::NavUp:
             case ControllerButton::NavDown: {
-                if (consumeDensityStickyKey(CB::NavDown)) return true;
-                if (consumeVelStickyKey(CB::NavDown)) return true;
-                const int t = keyboardArea_.getActiveTrack();
-                // Morph+v = force B-pole edits while v is held (DESIGN §17.3).
-                if (uiState_.morphHeld)
-                {
-                    uiState_.morphNavQualifier = 2;
-                    manipulationZone_.setMorphQualifier(2);
-                    manipulationZone_.setMorphHeld(uiState_.morphHeld);
-                    refreshSurface();
-                    return true;
-                }
-                // Phrase+↓ = transpose the focused track's phrase down. Bare = an
-                // octave; Func+ = one semitone. Guarded before the Func+↓ length
-                // binding so Func+Phrase+↓ transposes rather than halving length.
-                if (uiState_.phraseScopeHeld)
-                {
-                    if (t >= 0 && t < static_cast<int>(kNumTracks))
-                    {
-                        const int semis = uiState_.funcHeld ? -1 : -12;
-                        processor_.snapshot(CheckpointScope::Phrase, t);
-                        processor_.transposeTrack(t, semis);
-                        setStatus(uiState_.funcHeld ? "TRANSPOSE -1" : "TRANSPOSE -oct");
-                    }
-                    uiState_.phraseScopeUsed = true;
-                    refreshSurface();
-                    return true;
-                }
-                // Func+↓ = halve the focused track's pattern length. On a looper this
-                // is the loop-window Halve (parity with the console HALF cell) — a
-                // looper has no editable pattern length (it IS the track grid).
-                if (uiState_.funcHeld && !uiState_.trackHeld)
-                {
-                    if (t >= 0 && t < static_cast<int>(kNumTracks))
-                    {
-                        if (processor_.isLooperTrack(t))
-                            routeLooperVerb(5 /*Halve*/);
-                        else
-                            processor_.halveTrackLength(t);
-                    }
-                    refreshSurface();
-                    return true;
-                }
-                // MHZ.9.7: Track (no specific track selected) + NavDown → cycle input mode downward.
-                if (uiState_.trackHeld && processor_.controlAllActive() && t >= 0 && t < static_cast<int>(kNumTracks))
-                {
-                    auto& mode = uiState_.trackInputMode[static_cast<std::size_t>(t)];
-                    switch (mode)
-                    {
-                        case TrackInputMode::Play:      mode = TrackInputMode::Chromatic; break;
-                        case TrackInputMode::Chromatic: mode = TrackInputMode::Levels; break;
-                        case TrackInputMode::Levels:    mode = TrackInputMode::Play; break;
-                        default:                        break;
-                    }
-                    escapeAllLatches();  // entering new modality exits current latch
-                    refreshSurface();
-                    return true;
-                }
-                // Don't change track while a step is held (see NavUp).
-                if (processor_.editContext().heldStepIndex() >= 0) return true;
-                // Normal: previous (lower) track number.
-                keyboardArea_.setActiveTrack(std::max(0, t - 1));
-                return true;
+                if (consumeDensityStickyKey(ev.button)) return true;
+                if (consumeVelStickyKey(ev.button)) return true;
+                return routeNav(ev);
             }
 
-            case ControllerButton::NavLeft: {
-                // 9.24 S12: while an FX picker is open, Nav pages the catalogue.
-                if (pageFxPicker(-1)) return true;
-                if (consumeDensityStickyKey(CB::NavLeft)) return true;
-                if (consumeVelStickyKey(CB::NavLeft)) return true;
-                if (pageDeckConsole(-1)) return true;  // 11.8: looper Nav pages the console
-                // Note-edit mode and CHROMATIC mode both use NavLeft/Right for octave shift.
-                const int tl = keyboardArea_.getActiveTrack();
-                const bool chromL = tl >= 0 && tl < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(tl)] == TrackInputMode::Chromatic;
-
-                // 9.14 Stage 4 / Part 2: hold-step + Func+← = microOffset nudge back.
-                // Applies to every held step (multi-hold aware).
-                if (uiState_.funcHeld && processor_.editContext().isActiveForEditing()
-                    && tl >= 0)
-                {
-                    const float micro = nudgeHeldMicro(tl, -0.05f);
-                    uiState_.stepMoveActive = true;  // flip grid → sequencer, MZ → Step-Position
-                    refreshMetaBand();
-                    setStatus("micro: " + juce::String(micro, 2));
-                    refreshSurface();
-                    return true;
-                }
-
-                // 9.14 / Part 2: hold-step + ← = move held step(s) toward lower index.
-                // Single step = anchor-carry; multiple = block move (clamped at 0).
-                if (!uiState_.funcHeld && processor_.editContext().isActiveForEditing()
-                    && tl >= 0)
-                {
-                    if (moveHeldSteps(tl, -1))
-                    {
-                        processor_.editContext().markParamWritten();
-                        uiState_.stepMoveActive = true;  // grid → sequencer, MZ → Step-Position
-                        refreshMetaBand();
-                        setStatus("step(s) moved left");
-                        refreshSurface();
-                    }
-                    return true;  // consume while a step is held (never page-flip)
-                }
-
-                // Func+← = rotate the focused track's sequence one step left.
-                // In note-edit or Chromatic mode, Func+← keeps its octave-shift role.
-                if (uiState_.funcHeld && !uiState_.noteEditMode && !chromL)
-                {
-                    if (tl >= 0 && tl < static_cast<int>(kNumTracks))
-                        processor_.rotateTrackSteps(tl, -1);
-                    refreshSurface();
-                    return true;
-                }
-                if (uiState_.noteEditMode || chromL)
-                {
-                    uiState_.noteEditOctave = std::max(uiState_.noteEditOctave - 1, 0);
-                    refreshSurface();
-                    return true;
-                }
-                keyboardArea_.prevPage();
-                return true;
-            }
-
+            case ControllerButton::NavLeft:
             case ControllerButton::NavRight: {
+                const int delta = (ev.button == ControllerButton::NavRight) ? +1 : -1;
                 // 9.24 S12: while an FX picker is open, Nav pages the catalogue.
-                if (pageFxPicker(1)) return true;
-                if (consumeDensityStickyKey(CB::NavRight)) return true;
-                if (consumeVelStickyKey(CB::NavRight)) return true;
-                const int tr = keyboardArea_.getActiveTrack();
-                const bool chromR = tr >= 0 && tr < static_cast<int>(kNumTracks) && uiState_.trackInputMode[static_cast<std::size_t>(tr)] == TrackInputMode::Chromatic;
+                if (pageFxPicker(delta)) return true;
+                if (consumeDensityStickyKey(ev.button)) return true;
+                if (consumeVelStickyKey(ev.button)) return true;
+                if (pageDeckConsole(delta)) return true;  // 11.8: a looper pages its console
 
-                // 9.14 Stage 4 / Part 2: hold-step + Func+→ = microOffset nudge forward.
+                const int t = keyboardArea_.getActiveTrack();
+
+                // 9.14 Stage 4 / Part 2: hold-step + Func+←/→ = microOffset nudge.
                 // Applies to every held step (multi-hold aware).
-                if (uiState_.funcHeld && processor_.editContext().isActiveForEditing()
-                    && tr >= 0)
+                if (uiState_.funcHeld && processor_.editContext().isActiveForEditing() && t >= 0)
                 {
-                    const float micro = nudgeHeldMicro(tr, +0.05f);
-                    uiState_.stepMoveActive = true;  // flip grid → sequencer, MZ → Step-Position
+                    const float micro = nudgeHeldMicro(t, 0.05f * static_cast<float>(delta));
+                    uiState_.stepMoveActive = true;  // grid → sequencer, MZ → Step-Position
                     refreshMetaBand();
                     setStatus("micro: " + juce::String(micro, 2));
                     refreshSurface();
                     return true;
                 }
-
-                // 9.14 / Part 2: hold-step + → = move held step(s) toward higher index.
-                // Single step = anchor-carry; multiple = block move (clamped at end).
-                if (!uiState_.funcHeld && processor_.editContext().isActiveForEditing()
-                    && tr >= 0)
+                // 9.14 / Part 2: hold-step + ←/→ = move the held step(s). Single step =
+                // anchor-carry; multiple = block move (clamped).
+                if (!uiState_.funcHeld && processor_.editContext().isActiveForEditing() && t >= 0)
                 {
-                    if (moveHeldSteps(tr, +1))
+                    if (moveHeldSteps(t, delta))
                     {
                         processor_.editContext().markParamWritten();
-                        uiState_.stepMoveActive = true;  // grid → sequencer, MZ → Step-Position
+                        uiState_.stepMoveActive = true;
                         refreshMetaBand();
-                        setStatus("step(s) moved right");
+                        setStatus(delta > 0 ? "step(s) moved right" : "step(s) moved left");
                         refreshSurface();
                     }
                     return true;  // consume while a step is held (never page-flip)
                 }
-
-                // Func+→ = rotate the focused track's sequence one step right.
-                // In note-edit or Chromatic mode, Func+→ keeps its octave-shift role.
-                if (uiState_.funcHeld && !uiState_.noteEditMode && !chromR)
-                {
-                    if (tr >= 0 && tr < static_cast<int>(kNumTracks))
-                        processor_.rotateTrackSteps(tr, +1);
-                    refreshSurface();
-                    return true;
-                }
-                if (uiState_.noteEditMode || chromR)
-                {
-                    uiState_.noteEditOctave = std::min(uiState_.noteEditOctave + 1, 8);
-                    refreshSurface();
-                    return true;
-                }
-                // DESIGN §34.4 / PRINCIPLES §17 (nav reveal/unlock family): at the last
-                // in-length page, a single NavRight is a no-op (clamped); a double-tap
-                // unlocks one empty page past the end so a longer length can be set.
-                if (keyboardArea_.currentPage() >= keyboardArea_.numPages() - 1)
-                {
-                    const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (gesture_.doubleTap(GestureRecognizer::kNavRightUnlock, now))
-                    {
-                        keyboardArea_.unlockScrollPastEnd();
-                        setStatus(status::scrolledPastEnd());
-                    }
-                }
-                keyboardArea_.nextPage();
-                return true;
+                return routeNav(ev);
             }
 
             // MHY.4: right-utility verbs. Without a scope modifier these perform their

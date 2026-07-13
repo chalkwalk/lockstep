@@ -70,6 +70,12 @@ L22 | Fill idx=-1 | action=8
 L22 | TapTempo idx=-1 | action=14
     (no observable state change)
 
+L22 | Func+Phrase+NavUp idx=-1 | action=78
+    down ckpt.Phrase: 0 -> 1
+    down funcHeld: false -> true
+    down phraseScopeHeld: false -> true
+    down phraseScopeUsed: false -> true
+
 L22 | Func+Track+NavUp idx=-1 | action=26
     down funcHeld: false -> true
     down machineScopeHeld: false -> true
@@ -77,11 +83,16 @@ L22 | Func+Track+NavUp idx=-1 | action=26
     down trackHeld: false -> true
     down trackInputMode: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
-L22 | Func+Morph+NavUp idx=-1 | action=22
+L22 | Func+Morph+NavUp idx=-1 | action=30
     down funcHeld: false -> true
     down morphHeld: false -> true
     down morphNavQualifier: 0 -> 1
     up   morphNavQualifier: 1 -> 0
+
+L22 | Phrase+NavUp idx=-1 | action=78
+    down ckpt.Phrase: 0 -> 1
+    down phraseScopeHeld: false -> true
+    down phraseScopeUsed: false -> true
 
 L22 | Func+NavUp idx=-1 | action=22
     down funcHeld: false -> true
@@ -104,23 +115,32 @@ L22 | NavUp idx=-1 | action=16
     down proc.focusTrack: 0 -> 1
     down trackSection: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
-L22 | Func+Track+NavLeft idx=-1 | action=28
-    down funcHeld: false -> true
-    down machineScopeHeld: false -> true
-    down seq.focusPattern: x...x...x...x... -> ...x...x...x...x
-    down swingDismissed: false -> true
-    down trackHeld: false -> true
-
 L22 | Func+NavLeft idx=-1 | action=24
     down funcHeld: false -> true
     down seq.focusPattern: x...x...x...x... -> ...x...x...x...x
 
-L22 | Track+NavLeft idx=-1 | action=28
-    down swingDismissed: false -> true
-    down trackHeld: false -> true
-
 L22 | NavLeft idx=-1 | action=18
     (no observable state change)
+
+L9 | Func+NavLeft idx=-1 | action=21
+    down funcHeld: false -> true
+    down seq.focusPattern: x...x...x...x... -> ...x...x...x...x
+
+L9 | NavLeft idx=-1 | action=21
+    (no observable state change)
+
+L12 | Func+NavLeft idx=-1 | action=21
+    down funcHeld: false -> true
+    down seq.focusPattern: x...x...x...x... -> ...x...x...x...x
+
+L12 | NavLeft idx=-1 | action=21
+    (no observable state change)
+
+L22 | Func+Phrase+NavDown idx=-1 | action=79
+    down ckpt.Phrase: 0 -> 1
+    down funcHeld: false -> true
+    down phraseScopeHeld: false -> true
+    down phraseScopeUsed: false -> true
 
 L22 | Func+Track+NavDown idx=-1 | action=27
     down funcHeld: false -> true
@@ -129,11 +149,16 @@ L22 | Func+Track+NavDown idx=-1 | action=27
     down trackHeld: false -> true
     down trackInputMode: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
-L22 | Func+Morph+NavDown idx=-1 | action=23
+L22 | Func+Morph+NavDown idx=-1 | action=31
     down funcHeld: false -> true
     down morphHeld: false -> true
     down morphNavQualifier: 0 -> 2
     up   morphNavQualifier: 2 -> 0
+
+L22 | Phrase+NavDown idx=-1 | action=79
+    down ckpt.Phrase: 0 -> 1
+    down phraseScopeHeld: false -> true
+    down phraseScopeUsed: false -> true
 
 L22 | Func+NavDown idx=-1 | action=23
     down funcHeld: false -> true
@@ -151,25 +176,28 @@ L22 | Morph+NavDown idx=-1 | action=31
     down morphNavQualifier: 0 -> 2
     up   morphNavQualifier: 2 -> 0
 
-L22 | NavDown idx=-1 | action=21
+L22 | NavDown idx=-1 | action=17
     (no observable state change)
-
-L22 | Func+Track+NavRight idx=-1 | action=29
-    down funcHeld: false -> true
-    down machineScopeHeld: false -> true
-    down seq.focusPattern: x...x...x...x... -> .x...x...x...x..
-    down swingDismissed: false -> true
-    down trackHeld: false -> true
 
 L22 | Func+NavRight idx=-1 | action=25
     down funcHeld: false -> true
     down seq.focusPattern: x...x...x...x... -> .x...x...x...x..
 
-L22 | Track+NavRight idx=-1 | action=29
-    down swingDismissed: false -> true
-    down trackHeld: false -> true
-
 L22 | NavRight idx=-1 | action=19
+    (no observable state change)
+
+L9 | Func+NavRight idx=-1 | action=20
+    down funcHeld: false -> true
+    down seq.focusPattern: x...x...x...x... -> .x...x...x...x..
+
+L9 | NavRight idx=-1 | action=20
+    (no observable state change)
+
+L12 | Func+NavRight idx=-1 | action=20
+    down funcHeld: false -> true
+    down seq.focusPattern: x...x...x...x... -> .x...x...x...x..
+
+L12 | NavRight idx=-1 | action=20
     (no observable state change)
 
 L22 | Scene+VerbSnapshot idx=-1 | action=40

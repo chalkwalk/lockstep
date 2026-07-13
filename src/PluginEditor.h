@@ -634,6 +634,7 @@ namespace lockstep
         // 9.12 Stage 7b: route a scoped verb press through the binding table.
         // Always returns true (the press is consumed).
         bool routeVerb(const ControllerEvent& ev);
+        bool routeNav(const ControllerEvent& ev);   // 9.12 st.7c: the nav family
 
         // 9.29: the Clear key's tap/hold split. Tap = clear the scope's contents;
         // hold = delete the entity it owns (deleteHoldCapable gates which scopes have

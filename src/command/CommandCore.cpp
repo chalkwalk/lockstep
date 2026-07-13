@@ -246,6 +246,38 @@ namespace lockstep
                 fx.openOverlay(CommandEffects::OverlayId::MachinePicker, 1);
                 return true;
 
+            // ── 9.12 Stage 7c: the nav family ────────────────────────────────────
+            // The four nav keys carried an if-cascade each, re-deriving by hand the
+            // same priority the table already encodes (Morph > Phrase > Track > Func).
+            // Now the table decides and the editor supplies the effect. The +1/-1
+            // convention is the whole reason the pairs cannot drift apart.
+            case AId::NavTrackUp:        fx.navFocusTrack(+1); return true;
+            case AId::NavTrackDown:      fx.navFocusTrack(-1); return true;
+            case AId::NavPageRight:      fx.navPage(+1); return true;
+            case AId::NavPageLeft:       fx.navPage(-1); return true;
+            case AId::NavOctaveUp:       fx.navOctave(+1); return true;
+            case AId::NavOctaveDown:     fx.navOctave(-1); return true;
+            case AId::LengthDouble:      fx.trackLengthScale(+1); return true;
+            case AId::LengthHalve:       fx.trackLengthScale(-1); return true;
+            case AId::RotateRight:       fx.rotateSteps(+1); return true;
+            case AId::RotateLeft:        fx.rotateSteps(-1); return true;
+            case AId::CycleInputModeUp:
+            case AId::CycleInputModeRight:  fx.cycleInputMode(+1); return true;
+            case AId::CycleInputModeDown:
+            case AId::CycleInputModeLeft:   fx.cycleInputMode(-1); return true;
+            case AId::MorphPickPoleA:    fx.morphPole(1); return true;
+            case AId::MorphPickPoleB:    fx.morphPole(2); return true;
+
+            // Transpose: bare = an octave, Func = one semitone. The QUALIFIER is read
+            // here rather than split into four actions, because Func is doing what Func
+            // always does — narrowing the same verb, not naming a different one.
+            case AId::TransposeUp:
+                fx.transposeTrack(ctx.uiState.funcHeld ? 1 : 12);
+                return true;
+            case AId::TransposeDown:
+                fx.transposeTrack(ctx.uiState.funcHeld ? -1 : -12);
+                return true;
+
             case AId::MachineCopy:  return verbs::machine(CB::VerbRecord, ctx, fx);
             case AId::MachinePaste: return verbs::machine(CB::VerbPlay, ctx, fx);
             case AId::MachineInit:  return verbs::machine(CB::VerbClear, ctx, fx);

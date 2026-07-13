@@ -629,6 +629,63 @@ namespace lockstep
         CHECK(!f.track(0).steps[4].overrides.has(2), "the P-Lock is cleared");
     }
 
+    // -------------------------------------------------------------------------
+    // 9.12 st.7c — the nav family. The golden net drives dispatch, but it cannot put
+    // the editor INTO the NoteEdit / CHROMATIC layers, so the octave rows are invisible
+    // to it. And the +1/-1 sign convention is the single most likely thing to invert in
+    // a migration like this. Both are pinned here, at the action->effect seam.
+
+    static void scenario_navActionsMapToEffects()
+    {
+        struct Case { ActionId id; CB btn; const char* fx; int delta; };
+        const Case cases[] = {
+            { ActionId::NavTrackUp,       CB::NavUp,    "focusTrack", +1 },
+            { ActionId::NavTrackDown,     CB::NavDown,  "focusTrack", -1 },
+            { ActionId::NavPageRight,     CB::NavRight, "page",       +1 },
+            { ActionId::NavPageLeft,      CB::NavLeft,  "page",       -1 },
+            { ActionId::NavOctaveUp,      CB::NavRight, "octave",     +1 },
+            { ActionId::NavOctaveDown,    CB::NavLeft,  "octave",     -1 },
+            { ActionId::LengthDouble,     CB::NavUp,    "length",     +1 },
+            { ActionId::LengthHalve,      CB::NavDown,  "length",     -1 },
+            { ActionId::RotateRight,      CB::NavRight, "rotate",     +1 },
+            { ActionId::RotateLeft,       CB::NavLeft,  "rotate",     -1 },
+            { ActionId::CycleInputModeUp, CB::NavUp,    "inputMode",  +1 },
+            { ActionId::CycleInputModeDown, CB::NavDown, "inputMode", -1 },
+            { ActionId::MorphPickPoleA,   CB::NavUp,    "morphPole",   1 },
+            { ActionId::MorphPickPoleB,   CB::NavDown,  "morphPole",   2 },
+        };
+        for (const auto& c : cases)
+        {
+            GestureFixture f;
+            CHECK(f.action(c.id, c.btn), juce::String(c.fx) + " action is wired");
+            CHECK(f.effects.navCalls.size() == 1, juce::String(c.fx) + " fires exactly one effect");
+            CHECK(f.effects.navCalls[0].first == juce::String(c.fx),
+                  juce::String(c.fx) + ": the right effect fired");
+            CHECK(f.effects.navCalls[0].second == c.delta,
+                  juce::String(c.fx) + ": the right direction (sign conventions must not flip)");
+        }
+    }
+
+    // Transpose reads the Func qualifier rather than splitting into four actions: bare
+    // is an octave, Func narrows it to a semitone. That IS what Func does everywhere --
+    // narrow the same verb, not name a different one.
+    static void scenario_transposeQualifiedByFunc()
+    {
+        {
+            GestureFixture f;
+            CHECK(f.action(ActionId::TransposeUp, CB::NavUp), "Phrase+Up handled");
+            CHECK(f.effects.navCalls.at(0) == std::make_pair(juce::String("transpose"), 12),
+                  "bare Phrase+Up transposes by an OCTAVE");
+        }
+        {
+            GestureFixture f;
+            f.uiState.funcHeld = true;
+            CHECK(f.action(ActionId::TransposeDown, CB::NavDown), "Func+Phrase+Down handled");
+            CHECK(f.effects.navCalls.at(0) == std::make_pair(juce::String("transpose"), -1),
+                  "Func+Phrase+Down transposes by ONE SEMITONE");
+        }
+    }
+
     void runGestureTests()
     {
         scenario_trigCopy();
@@ -669,5 +726,7 @@ namespace lockstep
         scenario_deleteHoldArmsPickerPerScope();
         scenario_deleteHoldInertWithoutDeletableScope();
         scenario_trigFuncClearKeepsTrig();
+        scenario_navActionsMapToEffects();
+        scenario_transposeQualifiedByFunc();
     }
 }

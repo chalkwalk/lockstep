@@ -33,14 +33,7 @@ namespace
         ActionId::OpenTrackFxPicker,
         ActionId::OpenMasterFxPicker, ActionId::FocusGlobal,
         ActionId::TapTempo,          ActionId::MetronomeToggle,
-        ActionId::NavTrackUp,        ActionId::NavTrackDown,
-        ActionId::NavPageLeft,       ActionId::NavPageRight,
-        ActionId::NavOctaveUp,       ActionId::NavOctaveDown,
-        ActionId::LengthDouble,      ActionId::LengthHalve,
-        ActionId::RotateLeft,        ActionId::RotateRight,
-        ActionId::CycleInputModeUp,  ActionId::CycleInputModeDown,
-        ActionId::CycleInputModeLeft, ActionId::CycleInputModeRight,
-        ActionId::MorphPickPoleA,    ActionId::MorphPickPoleB,
+        // (the nav family migrated in Stage 7c)
         ActionId::SelectSection,     ActionId::SelectMetaSection,
         // (the verb family migrated in Stage 7b; Confirm/Cancel stay imperative --
         //  they are intercepted by handleDown's pending-confirm gate, not by an action)

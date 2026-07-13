@@ -70,37 +70,67 @@ namespace lockstep
         // Func+3 reserved (was MetronomeToggle pre-9.10 — metronome now in TIME band).
         { CB::TapTempo, -1, kModNone, SL::Base, AId::TapTempo, u8"TAP TEMPO", u8"", CS::Resting },
 
+        // ── The nav cluster (4 / E / R / T) ───────────────────────────────────
+        // 9.12 st.7c: dispatch now RESOLVES here instead of re-deriving the same
+        // priorities in an if-cascade, which is what let three rows drift into
+        // lying about what the key does. All three are corrected below:
+        //
+        //   * Func+Morph said ×2 / ÷2. The cascade checks morphHeld FIRST, so the key
+        //     actually picks the A/B pole. Morph wins; the rows now say so.
+        //   * bare NavDown said NavOctaveDown. It has always moved the FOCUS TRACK
+        //     down. (Octave lives on left/right, and only inside NoteEdit / CHROMATIC
+        //     — which is a LAYER, not a modifier, so it is declared as layer rows.)
+        //   * Phrase+Nav (transpose, 10.9) had NO row at all: dispatch did it, the
+        //     surface never advertised it, and resolving Phrase+↑ through the table
+        //     would have landed on the bare row and changed track instead. Declared.
+        //
+        // Priority within the cluster, top to bottom: Morph > Phrase > Track > Func.
+        // Explicit two-mod rows encode it, because popcount alone cannot.
+
         // ── NavUp / ↑ (key 4) ─────────────────────────────────────────────────
-        // Func+Track (popcount 2) = cycle input mode. Explicit row beats any tie.
-        // Func+Morph (popcount 2) = LengthDouble — preserves current dispatch order
-        // where funcHeld&&!trackHeld shows ×2 even when morphHeld is also true.
+        { CB::NavUp, -1, kModPhrase | kModFunc, SL::Base, AId::TransposeUp, u8"+1", u8"", CS::Resting },
         { CB::NavUp, -1, kModFunc | kModTrack, SL::Base, AId::CycleInputModeUp, u8"↑", u8"", CS::Resting },
-        { CB::NavUp, -1, kModFunc | kModMorph, SL::Base, AId::LengthDouble, u8"×2", u8"", CS::Resting },
+        { CB::NavUp, -1, kModFunc | kModMorph, SL::Base, AId::MorphPickPoleA, u8"A", u8"", CS::Resting },
+        { CB::NavUp, -1, kModPhrase, SL::Base, AId::TransposeUp, u8"+OCT", u8"", CS::Resting },
         { CB::NavUp, -1, kModFunc, SL::Base, AId::LengthDouble, u8"×2", u8"", CS::Resting },
         { CB::NavUp, -1, kModTrack, SL::Base, AId::CycleInputModeUp, u8"↑", u8"", CS::Resting },
-        { CB::NavUp, -1, kModMorph, SL::Base, AId::MorphPickPoleA, u8"A", u8"×2", CS::Resting },
+        { CB::NavUp, -1, kModMorph, SL::Base, AId::MorphPickPoleA, u8"A", u8"", CS::Resting },
         { CB::NavUp, -1, kModNone, SL::Base, AId::NavTrackUp, u8"↑", u8"×2", CS::Resting },
 
         // ── NavLeft / ← (key E) ───────────────────────────────────────────────
-        { CB::NavLeft, -1, kModFunc | kModTrack, SL::Base, AId::CycleInputModeLeft, u8"←", u8"", CS::Resting },
+        // Track+←/→ is NOT an input-mode cycle: it pages the grid, exactly as bare
+        // ←/→ does. The mode cycle is up/down only (README §5.17, and the cascade never
+        // had a Track branch here) -- the CycleInputModeLeft/Right rows were the third
+        // table lie this migration turned up. Rows removed; the two ActionIds are now
+        // vestigial and get swept in Stage 8, when the enum is made exhaustive.
         { CB::NavLeft, -1, kModFunc, SL::Base, AId::RotateLeft, u8"←ROT", u8"", CS::Resting },
-        { CB::NavLeft, -1, kModTrack, SL::Base, AId::CycleInputModeLeft, u8"←", u8"", CS::Resting },
         { CB::NavLeft, -1, kModNone, SL::Base, AId::NavPageLeft, u8"←", u8"←ROT", CS::Resting },
+        // Octave shift is a LAYER behaviour: inside NoteEdit or CHROMATIC input the
+        // nav pair shifts the octave instead of paging/rotating (Func included — the
+        // rotate role steps aside). Declaring it as layer rows is what lets the key
+        // frame say OCT- while the mode is up, instead of lying about paging.
+        { CB::NavLeft, -1, kModFunc, SL::NoteEdit, AId::NavOctaveDown, u8"OCT-", u8"", CS::Resting },
+        { CB::NavLeft, -1, kModNone, SL::NoteEdit, AId::NavOctaveDown, u8"OCT-", u8"", CS::Resting },
+        { CB::NavLeft, -1, kModFunc, SL::ChromaticInput, AId::NavOctaveDown, u8"OCT-", u8"", CS::Resting },
+        { CB::NavLeft, -1, kModNone, SL::ChromaticInput, AId::NavOctaveDown, u8"OCT-", u8"", CS::Resting },
 
         // ── NavDown / ↓ (key R) ───────────────────────────────────────────────
-        // Func+Morph = LengthHalve — same pattern as NavUp: funcHeld wins over morphHeld.
+        { CB::NavDown, -1, kModPhrase | kModFunc, SL::Base, AId::TransposeDown, u8"-1", u8"", CS::Resting },
         { CB::NavDown, -1, kModFunc | kModTrack, SL::Base, AId::CycleInputModeDown, u8"↓", u8"", CS::Resting },
-        { CB::NavDown, -1, kModFunc | kModMorph, SL::Base, AId::LengthHalve, u8"÷2", u8"", CS::Resting },
+        { CB::NavDown, -1, kModFunc | kModMorph, SL::Base, AId::MorphPickPoleB, u8"B", u8"", CS::Resting },
+        { CB::NavDown, -1, kModPhrase, SL::Base, AId::TransposeDown, u8"-OCT", u8"", CS::Resting },
         { CB::NavDown, -1, kModFunc, SL::Base, AId::LengthHalve, u8"÷2", u8"", CS::Resting },
         { CB::NavDown, -1, kModTrack, SL::Base, AId::CycleInputModeDown, u8"↓", u8"", CS::Resting },
-        { CB::NavDown, -1, kModMorph, SL::Base, AId::MorphPickPoleB, u8"B", u8"÷2", CS::Resting },
-        { CB::NavDown, -1, kModNone, SL::Base, AId::NavOctaveDown, u8"↓", u8"÷2", CS::Resting },
+        { CB::NavDown, -1, kModMorph, SL::Base, AId::MorphPickPoleB, u8"B", u8"", CS::Resting },
+        { CB::NavDown, -1, kModNone, SL::Base, AId::NavTrackDown, u8"↓", u8"÷2", CS::Resting },
 
         // ── NavRight / → (key T) ─────────────────────────────────────────────
-        { CB::NavRight, -1, kModFunc | kModTrack, SL::Base, AId::CycleInputModeRight, u8"→", u8"", CS::Resting },
         { CB::NavRight, -1, kModFunc, SL::Base, AId::RotateRight, u8"ROT→", u8"", CS::Resting },
-        { CB::NavRight, -1, kModTrack, SL::Base, AId::CycleInputModeRight, u8"→", u8"", CS::Resting },
         { CB::NavRight, -1, kModNone, SL::Base, AId::NavPageRight, u8"→", u8"ROT→", CS::Resting },
+        { CB::NavRight, -1, kModFunc, SL::NoteEdit, AId::NavOctaveUp, u8"OCT+", u8"", CS::Resting },
+        { CB::NavRight, -1, kModNone, SL::NoteEdit, AId::NavOctaveUp, u8"OCT+", u8"", CS::Resting },
+        { CB::NavRight, -1, kModFunc, SL::ChromaticInput, AId::NavOctaveUp, u8"OCT+", u8"", CS::Resting },
+        { CB::NavRight, -1, kModNone, SL::ChromaticInput, AId::NavOctaveUp, u8"OCT+", u8"", CS::Resting },
 
         // ── VerbSnapshot / SNAP (key Y) ────────────────────────────────────────────
         // Scene+Y = SYNC (re-sync all tracks to scene floor).
