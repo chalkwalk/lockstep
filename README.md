@@ -1684,6 +1684,84 @@ deck's console. Nothing you already know changes.
 Design: DESIGN §40, PRINCIPLES §25.1. The standalone tape instrument that would
 grow from the same engine is a concept brief only: `docs/partner-app-concept.md`.
 
+---
+
+### 5.23 Workflows — the capture family, end to end
+
+Six devices touch audio capture: **Record** (grab), **Loop** (build),
+**Tape** (the 4-track), **Stream** (bring long material back), the
+**capture deck** (§5.20 — the archive), and the **Aux outs** (the DAW
+spigot). Each is simple alone; this chapter is how they compose
+(DESIGN §41 is the design-side contract).
+
+**The defining flow: improvise a live set, leave with stems.**
+
+1. Before the first note: `Func + Song + U`, one tap. Armed — recording
+   starts on Play and runs across every transport stop until you end it.
+2. Perform. Launch Scenes and Songs, play in, P-lock, morph, mute, fill.
+   The take is one uninterrupted stream; stopping the transport doesn't
+   end it.
+3. End the set: stop the transport (or tap the cell) and let the silence
+   tail close the file — or double-tap for a hard cut.
+4. What you take home: `Captures/capture-<date>/` holding `master.wav`
+   (exactly what the outputs played, including master FX and sends) plus
+   `track-NN.wav` for every non-empty track routed to Master —
+   post-fader, post-FX. **Routing is the stem grouping**: send three drum
+   tracks into a Route bus and the bus is one drum stem with the feeders
+   folded in. You grouped the stems by mixing the set.
+
+Two things to know about stems: they are **dry per track** — master
+inserts and send returns live only in `master.wav`, so stems + nothing ≠
+master when sends are hot (the stems are for post-processing; the master
+is the performance document). And **hardware needs a return channel**: a
+MIDI-out track makes no audio, so bring the synth's output into an Ext
+input, put a Thru/Static/Route track on it, and *that* track is the stem.
+
+> **Known gap (being fixed — ROADMAP 11.11):** the stem list is chosen
+> when you arm. A set improvised from a blank project arms zero stems
+> today, and a track you bring in mid-set gets no file. Until 11.11
+> lands, assign machines (even silent ones) before arming.
+
+**Rehearsal & self-review (the Tape as practice mirror).** Put a Tape on
+a track, record a run-through along the song timeline, wind back
+(standalone), listen, punch a better pass over the weak bars — punch is
+a layer, `UNDO` pops it. Iterate until the run feels right, then either
+promote the take (it becomes pool files) or just play the set again for
+the capture deck. Nothing here needs a DAW.
+
+**The set that samples itself.** Mid-performance: the Loop grabs four
+taps of what's playing; promote turns the take into pool files
+(per-sub-track + downmix, linked as a take-group); load a member into
+Slice or Stretch and redeploy it — re-pitched, sliced, stretched — later
+in the same set. Record is the quick single grab when you don't need
+layers. This is a performance skill: practice the promote-and-reload move
+until it lands on a bar.
+
+**The hybrid set (stems → Stream).** Last set's stems are this set's
+material: point a Stream track at a stem WAV from a previous capture and
+it plays as a long-form bed under the live tracks — disk-streamed, so
+length is free. Capture the new set and the loop closes: perform →
+stems → Stream → perform. The instrument eats its own output.
+
+**In a DAW.** The host owns transport, tempo, and position; MIDI-out
+tracks drive plugin instruments through host MIDI routing. For stems you
+have both paths and they answer different needs:
+
+- the **capture deck** works exactly as standalone (files, up to one stem
+  per Master-routed track) — but the files start at arm time, not at the
+  host's bar 1, so align them by ear or marker when you drag them in;
+- the **Aux outs** (Master + 6 stereo buses, enable them in the host)
+  deliver stems as live, timeline-locked DAW tracks — route tracks or
+  buses to Aux, record in the host, and skip the alignment problem, at
+  the cost of the 6-bus ceiling.
+
+**The morning after.** Every take is one directory with predictable
+names — drag the stems in, line them up, and the session starts.
+(Planned, 11.11: a plain-text take sheet per capture — tempo plus the
+bar/wall-clock time of every Scene/Song launch — so navigation notes ride
+with the audio. Like the Tape's markers, the sheet is dumb: places, never
+cues.)
+
 <a name="6-implemented-vs-planned"></a>
 ## 6. Implemented vs. planned
 
@@ -1774,8 +1852,10 @@ the **Cue bus** DSP + gestures (`6.4`); UI polish + preset-selection leftovers
 (`5.8`); the sampling-overlay remainder (`5.4`, largely superseded by the
 capture machines — being re-scoped); diatonic nav + per-track scale-quantize
 (`10.5`/`10.6`) and chord placement on existing rhythm (`10.11`); external
-controller surface polish (`6.6.8`); the structural passes in flight (`9.12`
-dispatch migration, `9.15` unified surface invalidation, `9.14` stage 5); the
+controller surface polish (`6.6.8`); the capture-stems completion (`11.11` —
+dynamic stem set, arm preview, take sheet; see §5.23); the structural passes in
+flight (`9.12` dispatch migration, `9.15` unified surface invalidation, `9.14`
+stage 5); the
 Machine Module ABI (`6.7`, deferred until a second consumer exists); and beta
 polish — CI, factory content, final name (`6.8`).
 
