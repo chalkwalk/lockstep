@@ -1724,8 +1724,8 @@ master when sends are hot (the stems are for post-processing; the master
 is the performance document). And **hardware needs a return channel**: a
 MIDI-out track makes no audio, so bring the synth's output into an Ext
 input, put a Thru/Static/Route track on it, and *that* track is the stem.
-(Standalone currently offers **one** stereo Ext input; a DAW can enable
-all four — ROADMAP 11.12.)
+There are **four** stereo Ext inputs, live in both hosts — four hardware
+returns, four return tracks, four stems.
 
 **Rehearsal & self-review (the Tape as practice mirror).** Put a Tape on
 a track, record a run-through along the song timeline, wind back
@@ -1755,7 +1755,8 @@ have both paths and they answer different needs:
 - the **capture deck** works exactly as standalone (files, up to one stem
   per Master-routed track) — but the files start at arm time, not at the
   host's bar 1, so align them by ear or marker when you drag them in;
-- the **Aux outs** (Master + 6 stereo buses, enable them in the host)
+- the **Aux outs** (Master + Cue + 6 stereo Aux buses, all live — no host
+  opt-in to hunt for)
   deliver stems as live, timeline-locked DAW tracks — route tracks or
   buses to Aux, record in the host, and skip the alignment problem, at
   the cost of the 6-bus ceiling.

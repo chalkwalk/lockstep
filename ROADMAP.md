@@ -25,8 +25,12 @@ README §5.23) and `11.11` (the stems completion) are both shipped: stem
 alignment is now an invariant, a set improvised from nothing comes home with
 stems, arming names its outcome, and every take carries a take sheet. Two
 defects died with it — the arm-time stem set (S12) and the mute-shortened stem
-(S13, which was shipped and silent). Left open: `11.12` (standalone Ext inputs
-2–4, found while verifying).
+(S13, which was shipped and silent). `11.12` then enabled every bus by default
+(the "host opts in" flag bought nothing observable in a DAW and cost the
+standalone its inputs) and killed a third shipped defect on the way out: the
+capture writers were sized from the *total* channel count, so any host that had
+enabled an Aux made them read off the end of a stereo buffer. The capture arc is
+closed; nothing in it is outstanding.
 
 **Recently shipped:** Phase 11 (the deck engine) is **complete** — core,
 tail (chase-locked Tape, i16 reel, §19 proxies, scrub/wind, multi-sub overdub),
@@ -3223,25 +3227,42 @@ stems) actually hold — and make the stems it produces *trustworthy*.
       declare a master slot as processed-outside so the captured master is dry
       for DAW post-processing (DESIGN §41.3). Build only on real demand.
 
-### 11.12 — Standalone external inputs 2–4  *[planned]*
+### 11.12 — Every bus enabled by default  *[shipped 2026-07-13]*
 
-Found while verifying 11.11 S6. Four stereo Ext buses are declared and the
-layout validator accepts any of them enabled, but only `In` (Ext1) is enabled
-by default and **nothing in the standalone turns the others on** — JUCE's
-standalone holder takes the default bus layout and offers no bus-enable UI. A
-DAW can enable all four; standalone reaches exactly one.
+Found while verifying 11.11 S6: only `In` (Ext1) was enabled by default and
+**nothing in the standalone could turn the others on**, so a standalone rig
+could take exactly one stereo hardware return — against a studio CUJ (DESIGN
+§41.1) that wants one per piece of outboard, each becoming a stem.
 
-That is a real constraint on the **studio CUJ** (DESIGN §41.1): each piece of
-outboard gear returns through an Ext input, so today a standalone rig can carry
-one stereo hardware return, and a second synth has to share it through an
-external mixer. Stems inherit the limit — one return track, one stem.
+The fix is the *removal* of a concept, not the addition of one. Play-testing
+showed a **DAW makes no observable distinction** between a declared-enabled and
+a declared-disabled bus — it shows and wires the ports either way — so the
+"host opts in" flag bought nothing while costing the standalone its inputs. Bus
+enable/disable plumbing (a settings UI, a dynamic layout) is complication with
+no payer, and is explicitly **not** being built.
 
-- [ ] Enable Ext2–4 standalone: either request the wider layout at construction
-      when running standalone (`JucePlugin_Build_Standalone` — simplest, but it
-      claims device channels the user may not have), or expose bus-enable in the
-      standalone audio settings / file bar (honest, more plumbing). Prefer the
-      second if the device-channel claim proves noisy.
-- [ ] Verify on a multi-input interface: four returns, four Route tracks, four
+- [x] **All buses enabled by default** — Ext1–4 in; Master / Cue / Aux 1–6 /
+      Send A+B out. A host or device that ignores the extra ports loses nothing
+      (an unconnected Aux is silence, a missing device input reads as zeros), and
+      JUCE negotiates the layout down to whatever the standalone's device has.
+      A host may still *disable* a bus; the fold-to-Master (Aux) and drop
+      (external send) fallbacks still handle that, now tested by disabling a bus
+      on purpose rather than by relying on the old default.
+- [x] **Latent capture OOB fixed, exposed by the above.** `startCaptureTo` sized
+      its WAV writers from `getTotalNumOutputChannels()` (every bus — 20 with the
+      full complement), but the streams it writes are the **main bus** and the
+      per-track buffers, both **stereo**. Any host that had enabled Cue/Aux/Send
+      already made the writer walk 20 channel pointers off a 2-pointer array.
+      Now `getMainBusNumOutputChannels()`. It only looked safe because the extra
+      buses were off by default — the bug shipped with the stems.
+- [x] **The test harness now sizes its buffer from the bus layout** (a host
+      passes `max(totalIn, totalOut)` channels). The old hardcoded 2 segfaulted
+      against 20 declared channels, which is precisely what surfaced the OOB.
+      Aux/Send tests derive channel offsets via
+      `getChannelIndexInProcessBlockBuffer` instead of assuming Master is
+      followed by the bus under test.
+- [x] Standalone smoke-tested (runs clean, no assertions). **User-gated:** verify
+      on a real multi-input interface — four returns, four Route tracks, four
       stems in one take.
 
 ---

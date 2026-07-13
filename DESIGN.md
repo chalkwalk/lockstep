@@ -4589,14 +4589,33 @@ Lockstep is a **co-equal standalone and plugin** instrument, not a
 standalone-first app that happens to load in a DAW. The output layout is fixed
 at build time so both hosts see the same thing:
 
-- **Master + Cue + 6 Aux stereo output buses (8 total).** The main **Master**
-  bus is always enabled; **Cue** and **Aux 1–6** are declared **disabled by
-  default** — a host enables the ones it wants to patch. This is deliberate:
-  JUCE builds the CLAP / VST3 port list from the *statically declared* buses, so
-  a fixed complement is the only reliable way to expose extra outputs. **Dynamic
-  port rescan is rejected** — it is a host lottery (many hosts ignore or
-  mishandle a mid-session port-count change), so we never resize the bus list at
-  runtime.
+- **Master + Cue + 6 Aux + Send A/B stereo output buses, and 4 stereo inputs
+  (Ext1–4) — all ENABLED by default** *(11.12; they were previously declared
+  disabled so a host would "opt in")*. The opt-in flag was **dropped on
+  evidence**: play-testing showed a DAW makes no observable distinction between
+  a declared-enabled and a declared-disabled bus (it shows and wires the ports
+  either way), while the flag cost real capability — nothing in the standalone
+  could enable an *input* bus, so a standalone rig could only ever take one
+  stereo hardware return, against a studio CUJ that wants four (§41.1). Bus
+  enable/disable plumbing is complication with no payer. The ports are simply
+  present; a host or device that ignores them loses nothing (an unconnected Aux
+  is silence, a missing device input reads as zeros), and JUCE negotiates the
+  layout down to whatever the standalone's device actually has.
+
+  The bus **list** remains fixed at build time: JUCE builds the CLAP / VST3 port
+  list from the *statically declared* buses, and **dynamic port rescan is still
+  rejected** — it is a host lottery (many hosts ignore or mishandle a mid-session
+  port-count change), so we never resize the bus list at runtime. A host may
+  still **disable** a bus, and the fallbacks below are what make that safe.
+
+  > **Sizing gotcha (cost us a latent bug).** `getTotalNumOutputChannels()` counts
+  > *every* bus (20 with the full complement), while the master path — `mainOut =
+  > getBusBuffer(buffer, false, 0)` — and the per-track buffers are **stereo**.
+  > Anything sizing a buffer or a file writer for the master/track signal must use
+  > `getMainBusNumOutputChannels()`, never the total. The WAV capture writers got
+  > this wrong and read 20 channel pointers out of a 2-pointer array whenever a
+  > host enabled an extra bus; it merely *looked* safe while everything was
+  > disabled by default.
 - **Cue = additive monitor send** (unchanged from §31): it never affects the
   Master sum and is excluded from `outputReachesMaster()`. Standalone maps Cue to
   device channels 3–4.
@@ -7700,14 +7719,12 @@ follow-ups):
   and that track is the stem. The README workflow chapter teaches this
   pattern; it is the answer, not a workaround.
 
-  *Verified 2026-07-12 (11.11 S6):* four stereo Ext buses are **declared**, and
-  `isBusesLayoutSupported` accepts any of them enabled — but only `In` (Ext1)
-  is enabled by default, and **nothing in the standalone enables the other
-  three**. JUCE's standalone holder takes the default layout and offers no
-  bus-enable UI, so *standalone reaches Ext1 only*; Ext2–4 are reachable in a
-  host that enables them. One stereo hardware return standalone, four in a
-  DAW. That gap is a real constraint on the studio CUJ and is filed
-  (11.12) — it is a standalone plumbing job, not a capture one.
+  *Resolved 2026-07-13 (11.12):* the four stereo Ext buses are now **enabled by
+  default** (§31.1), so a multi-input interface fills all four standalone —
+  four hardware returns, four return tracks, four stems. The 11.11 S6 finding
+  (only Ext1 was reachable standalone, because nothing could enable an input
+  bus and the opt-in flag bought nothing observable in a DAW) is what killed
+  the opt-in.
 - **Alignment is an invariant, not a feature** *(11.11)*. **After every
   processed block, every stem file holds exactly as many samples as
   `master.wav`.** This is stated as an invariant because two shipped defects
