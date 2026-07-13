@@ -10,75 +10,35 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus:** **Phase 11 — the deck engine — substantially shipped.** All
-three faces (Record, the 4-sub-track Loop, and Tape) run on one JUCE-free
-`deck_core` library. Loop + Record re-seated with the suite unchanged (the risk
-gate). Tape records along the song's timeline, punches non-destructively, drives
-from a console, shows on a timeline strip, and promotes to WAV; the 4-track Loop
-records four taps, mixes them, and promotes as a take-group. The 6/5 take-group
-picker, load-onto-sub-track + FIT, and the channel-policy helper shipped in 11.6.
-**Phase 11 tail — SHIPPED** (the "Phase 11 tail" checklist below, built in order
-T→A→B→C→D): chase-locked Tape position + varispeed IO (the tempo model, DESIGN
-§40.2), i16 reel depth, §19 hardware-proxy chrome, Tape scrub/wind, and
-multi-sub-track overdub. Marker serialisation was dropped by decision (tape
-audio is promote-or-lose, so markers live and die with the session).
+**Active focus (set at the 2026-07-12 alignment review):** two arcs, in
+priority order:
 
-**Prior focus:** Phase 8/9. **8.28 track channel/envelope split shipped**
-(CHANNEL always-on, ENVELOPE optional, FLTR universal with OFF mode, serializer
-**v18**, behavioral tests). **8.26 master-bus re-arch + FX catalogue shipped**
-(2-insert + 2-send master bus, 13 effects, WAV capture, Animate for master units).
-**8.11 A-series closed** (A4 dispatch fully wired; Task B done).
-Open verification sweeps: `3.10` standalone, `7.8` VST3/CLAP v18 round-trip,
-`7.9e` vocabulary rename, `8.24` standalone visual smoke
-(picker → named confirm → YES/NO live colour).
-**Last completed:** `9.8` (F1-F3) hierarchical tempo + tempo bar retirement.
-**Serializer v21 shipped:** time-sig hierarchy (§4.8) + tempo hierarchy (§4.9);
-velocity Phrase mode (B2); contextual param-name aliasing (D1/D2). Mix baseline
-centred on velCenter for un-authored steps (B1). Song+TRIG enters TEMPO sticky mode;
-Scene+TRIG enters TIME SIG sticky mode. StandaloneTempoBar retired; replaced by
-scope-coloured BPM + time-sig header readout. Density lookahead barIndex corrected.
-**Active:** `9.9` README + end-to-end verification; `9.5 C` skip-disabled sub-pages +
-inert affordance (velocity + density); contextLabel unit test (9.6); tempo resolution
-tests (9.8). **Audio-quality foundation shipped:** master-only gain staging
-(per-track soft clip removed; transparent soft-knee clipper at master,
-`dsp/SoftClip.h`); tape-style `Saturation` effect with placement-aware quality
-tiers (`EffectTier`, one catalogue entry → LQ on track / oversampled HQ on
-master) and unified Delay/Reverb (HQ ids folded in + migrated); `dsp/Oversampler2x.h`
-(polyphase halfband); Analog character (paraphonic loudness compensation, always-on
-glue, `Age` drift macro); FM clean (exponential op envelopes, smoothed diagonal
-self-feedback, 2× operator oversampling).
-**Capture-machine catalogue shipped (`6.2` + `6.3` + `4.5`):** volatile (RAM-only)
-REC buffers in the unified pool; RecordMachine (overwrite live-resampler, contextual
-recorder trig); LoopMachine (verb-driven overdub state machine, `Track+verb`);
-StreamMachine (disk-streaming long-form sampler, per-Kit path). Freeze-to-disk (§22)
-deferred.
-**Flex-parity audio shipped (tap-fork + Stretch + time-stretch + looper unify):**
-tap-forking (revived `input_source = Track N` as a same-block read-only post-chain
-tap; topo-sort + cycle refusal extended over mix+tap edges) enables aux sends and
-resample-a-single-track; pool `sourceBars` metadata (capture stamps, playback
-stretches); `ITempoAware`/`TransportInfo` seam (no machine-boundary change);
-**StretchMachine** (`lockstep.stretch.v1`, the Flex analog — WSOLA `TimeStretch` voice,
-independent pitch + tempo-tracking); Record opt-in `monitor`; **Loop unified into
-the volatile pool** + `loop_sync` varispeed (Free / Free Len / N-Bar phase-lock) +
-loop-wrap crossfade; multi-capture default-distinct slots + collision query. Loop
-self-play = varispeed (tape); WSOLA stretch lives only in the Stretch. **Deferred
-(Milestone C):** Stream/streaming time-stretch; looper stop-fade; Stretch poly + AHDSR;
-the on-surface shared-slot indicator (query `captureSlotShared` is wired).
-**Next:** `6.7` Machine Module ABI; `4.6`/`4.7` Percussion/Digital synths.
-**Playback-correctness + gain-staging pass shipped (post-audio-quality):** metronome
-downbeat-skip fix + fresh-start trig anchor frame (trigs were on-grid; the
-"half-step-late" feel traced to a *stale Delay left on a new project*); project load
-now tears down effect instances on empty slots and reinstalls master sends (phantom
-effects fix); on-screen playhead advances with no focused track; FX picker reachable
-with Track held (no more wrong-track edits); all-machine loudness calibration (Analog was
-~5× hot → matched to drum/FM); FM carrier-mixer normalization + polyphony comp; Analog
-filter cutoff key-tracking (`va_keytrack`); master output level surfaced (meter VOL
-chip + `Master` band label). Mute-over-soloed-bus verified correct (regression test).
-**Octatrack-parity arc shipped (6.1 + 5.5 + 5.6):** audio-input boundary,
-output-directed track buses (CHANNEL "Out", topo sort, cycle refusal), RouteMachine,
-per-take stem export; Cue-scope audition (`Func+3`); lock-only + one-shot trigs.
-Remaining from the arc: A2 topo-sort/B/C all done; `6.2` RecordMachine + `6.3`
-LoopMachine shipped (the recorder-trig follow-on).
+1. **Structural debt.** Finish `9.12` stages 5–8 (table-driven dispatch
+   migration — display already derives from the grammar; dispatch must too) and
+   build `9.15` (unified surface invalidation) so PRINCIPLES §22 describes code
+   that exists rather than a target.
+2. **Performance usability.** `5.3` Song/Scene management UI (names, colours,
+   browser, Kit recall), `9.4` snapshot restore-semantics session, `6.4` Cue bus.
+
+**Queued design session:** `11.10` — the capture-family CUJ pass. Record /
+Loop / Tape / Stream are individually clear but must become more than the sum
+of their parts, anchored to the core CUJ: **improvise a full live set and
+record it as stems**, then the studio and DAW variants of the same flow.
+
+**Recently shipped:** Phase 11 (the deck engine) is **complete** — core,
+tail (chase-locked Tape, i16 reel, §19 proxies, scrub/wind, multi-sub overdub),
+and all four play-test rounds. Phase 10 is shipped through 10.10 except `10.5`
+(diatonic nav — partial), `10.6` (scale-quantize) and `10.11`. `9.14` shipped
+stages 0–4 (stage 5 copy/paste banners open).
+
+**Gated on the user (schedule a dogfooding session or mark waived):** ear
+tests (`9.23` S1 Bungee, `9.24` A/B matrix, `9.25` R4 varispeed texture);
+manual verification sweeps (`3.10`, `7.8`, `7.9e`, `8.24`, `9.9`); Push 1
+on-hardware palette check.
+
+**Revised decision (2026-07-12):** the "catalogue waits on the ABI" gate is
+lifted — see the locked-decisions list. `4.6`/`4.7` are unblocked and ship
+first-party; `6.7` waits for a concrete second consumer.
 
 Phases 1–3 took Lockstep from an empty plugin to a frozen, playable performance
 surface; Phase 4 fills the machine catalogue; Phases 5–6 are the depth and
@@ -146,8 +106,10 @@ are sequencing decisions with no other home.
 - **Auto-sync degradation:** clock dropout = freewheel; explicit stop = freeze.
   → DESIGN §4.3.
 - **Performance grammar = scope + verb.** Cluster `Func/Track | Phrase/Scene |
-  Morph/Song | Mute/Fill` + held-step + section keys; verbs `Record/Play/Stop/
-  Yes/No`. Cross-column compounds only; `Func` is the universal qualifier; `Cue`
+  Morph/Song | Mute/Fill` + held-step + section keys; verbs `Snapshot/Record/
+  Play/Clear/Confirm` (each with a `Func`-layer secondary `Restore/Copy/Paste/
+  Delete/Cancel`; `Stop` retired — transport stop is `Play` double-press).
+  Cross-column compounds only; `Func` is the universal qualifier; `Cue`
   reserved until 6.4. → PRINCIPLES "One grammar"; DESIGN §13.
 - **Canonical sections reserved + machine extensions.** Keys 5–0 = TRIG / SRC /
   FILTER / AMP / MOD / FX; machines fill by meaning and may add extension pages.
@@ -208,9 +170,15 @@ are sequencing decisions with no other home.
 - *(roadmap)* **Surface frozen at the 10×4 shape (3.1) / cluster identities (3.2).**
   Phases 4–6 author against that frozen surface; surface-affecting changes must
   re-open Phase 3, not bolt on.
-- *(roadmap)* **The machine catalogue waits on the surface freeze and the SDK.**
-  Catalogue machines 4.5+ are authored against the frozen surface and the Machine
-  Module ABI (6.7), so they ship as modules from day one.
+- *(roadmap)* **First-party machines ship statically; the ABI waits for a real
+  second consumer.** *(Revised 2026-07-12; previously "the catalogue waits on
+  the SDK".)* The original gate — author 4.5+ against the Machine Module ABI so
+  they ship as modules from day one — was being routed around in practice (4.5
+  Stream shipped statically) while blocking 4.6/4.7. Since PRINCIPLES §9 already
+  keeps capture machines first-party, and an add-only ABI frozen with no
+  third-party consumer is a forever-cost with no payer, the gate is lifted:
+  catalogue machines author against the frozen surface + `sdk::MachineBase`
+  and link statically; 6.7 lands when a concrete second consumer exists.
 - **Reward mastery — no crutches, no dead weight.** A feature earns its place only
   if it rewards practice; it is rejected as a *crutch* (does the musical work for
   the user) or *dead weight* (cost never repaid in performance). → PRINCIPLES §14.
@@ -387,12 +355,13 @@ starting point for the refactor.
 
 ---
 
-## Phase 3 — Control Surface  *[shipped; 3.11 active]*
+## Phase 3 — Control Surface  *[shipped]*
 
 The 10×4 control-surface and grammar revamp, frozen so the catalogue (Phase 4)
 authors against a stable contract. 3.1 froze geometry; 3.2 froze the cluster +
 section matrix; 3.3–3.10 closed chrome and grammar gaps; 3.11 (pattern length)
-is the one open item.
+was absorbed into Phase 7.5 and shipped there. Only the 3.10 scripted
+verification sweep remains (user-gated).
 
 ### 3.1 — The 10×4 surface revamp  *[shipped]*  *(was MHX)*
 DESIGN §33. Widened 9×4 → 10×4: an eight-key one-hand modifier cluster + the
@@ -494,7 +463,7 @@ The gestures are updated in §34.4. See 7.5 for the full checklist.
 
 ---
 
-## Phase 7 — Musical Hierarchy Re-architecture  *[active]*
+## Phase 7 — Musical Hierarchy Re-architecture  *[shipped; 7.8 manual play-test + 7.9e sweep user-gated]*
 
 Full replacement of the `Project > Bank > Pattern > Part` (Octatrack-style)
 container model with a musically-derived model (see DESIGN §4.7, §4.8, §16).
@@ -869,13 +838,13 @@ the Machine Module ABI (6.7), so they ship as loadable modules.
       (`hasInternalAmp`, level/pan via CHANNEL). Resampling on rate mismatch is a
       later refinement. `StreamMachineTest` covers open/stream/stop/bad-path.
 
-### 4.6 — PercussionMachine (physical model)  *[planned]*  *(was MH.7)*
+### 4.6 — PercussionMachine (physical model)  *[planned — unblocked 2026-07-12: ships first-party, no longer waits on 6.7]*  *(was MH.7)*
 - [ ] Volca-Drum-style two-layer percussion: excitation osc (+FM/ring + pitch
       env) → waveguide / modal resonator (Tube/String/Membrane/Modal); layer A↔B
       crossfade + bit/SR reduce + drive. Canonical FLTR/AMP downstream. Algorithm
       presets ship as Sound Pool entries, not schema variants.
 
-### 4.7 — DigitalMachine (Monomachine archetype)  *[planned]*  *(was MH.8)*
+### 4.7 — DigitalMachine (Monomachine archetype)  *[planned — unblocked 2026-07-12: ships first-party, no longer waits on 6.7]*  *(was MH.8)*
 - [ ] Model-based digital monosynth (`model` stepped slot): SWAVE (supersaw),
       SID (PWM+ring+sync), WAVE (single-cycle wavetable/PWM), VO (formant).
       `V1` + live Mono/Poly; canonical FLTR/AMP (no opt-out). Monomachine
@@ -922,7 +891,7 @@ detection shipped earlier; `Sample::detectedBpm` + `StretchMachine` tempo sync).
 
 ---
 
-## Phase 5 — Performance Depth  *[planned]*
+## Phase 5 — Performance Depth  *[partial: 5.1/5.2/5.7/5.7c/5.10 shipped; 5.3 next (active arc); 5.4/5.8/5.9 open]*
 
 The depth pass on top of the frozen surface: timing feel, scenes, pattern/part
 management, sampling, audition, special trigs, the remaining trig-grid modes, and
@@ -1142,7 +1111,7 @@ context.)
 
 ---
 
-## Phase 6 — Routing, FX & Platform  *[6.1 + 6.5 shipped; 6.6 in progress]*
+## Phase 6 — Routing, FX & Platform  *[6.1/6.2/6.3/6.5 shipped; 6.4 next (active arc); 6.6 in progress; 6.7 waits for a second consumer; 6.8 open]*
 
 The audio-input boundary and the machines it unlocks, the effects system, the cue
 bus, external controller surfaces, the machine-module ABI, and the beta polish.
@@ -1285,7 +1254,10 @@ the default data-driven impl.
       6.6 plan; added as a second worked example. (See memory
       `project_push1_refinement`.)
 
-### 6.7 — Machine Module ABI  *[planned]*  *(was M10; supersedes the old MH.5)*
+### 6.7 — Machine Module ABI  *[deferred — waits for a concrete second consumer (2026-07-12 decision)]*  *(was M10; supersedes the old MH.5)*
+> No longer gates the catalogue: 4.6/4.7 ship first-party statically (see the
+> revised locked decision). Freezing an add-only ABI with no third-party
+> consumer is a forever-cost with no payer; build 6.7 when one exists.
 DESIGN §36. One authoring model, two link paths: first-party statically linked,
 third-party loadable modules behind a JUCE-free C ABI fronted by `WrapperMachine`.
 Not a CLAP/VST3 sub-host; in-process, no IPC/sandbox.
@@ -2039,7 +2011,7 @@ caused several recent bugs) and make silent `switch` fall-through a compile erro
   is a shim. `activeOverlay()` returns `ui.overlay`; `escapeOverlay()` guards each
   arm. *(Stage 6 — 5259b6a)*
 
-### 9.14 — Grammar-consistency pass: Clear/Delete, FX picker, per-step inspector, move-step  *[active]*
+### 9.14 — Grammar-consistency pass: Clear/Delete, FX picker, per-step inspector, move-step  *[stages 0–4 shipped; 5 open; 6 partial]*
 
 One coherent **orchestra paradigm** (PRINCIPLES §21) makes destructive verbs
 predictable, puts the FX picker under its section, brings per-step note/P-Lock
@@ -2055,26 +2027,33 @@ tap = navigate/toggle** (PRINCIPLES §5). Docs-first.
       inspector. DESIGN §13.2 (Clear/Delete table + `Track+Song` all-phrases +
       confirm tiers), §13.8 (held-step inspector), §19.1 (move-step +
       Step-Position panel), §32.2/§32.3 (hold-FX picker; `Func+FX` freed).
-- [ ] **Stage 1 — Clear/Delete consistency + confirm + preview.** Immediate vs
+- [x] **Stage 1 — Clear/Delete consistency + confirm + preview.** Immediate vs
       confirm tiers (immediate auto-snapshots; confirm via `PendingConfirm`).
       `Track+Song+Clear` all-phrases (`kModTrack|kModSong` row +
       `clearTrackAllPhrases`). Armed-preview banner names target + reach.
-- [ ] **Stage 2 — Hold = picker.** `Gesture::Hold` on Section idx5 →
+      *(`7f08e55`…`41d5a50`: PendingConfirm + sticky rule set + live YES/NO +
+      Track/Phrase clear gated through confirm.)*
+- [x] **Stage 2 — Hold = picker.** `Gesture::Hold` on Section idx5 →
       `OpenTrackFxPicker`; tap → params; `Song`+hold-FX → master picker;
-      retire `Func+FX` row.
-- [ ] **Stage 3 — Held-step inspector.** `StepInspector` layer; MZ lock badges
+      retire `Func+FX` row. *(`3ed60c6`.)*
+- [x] **Stage 3 — Held-step inspector.** `StepInspector` layer; MZ lock badges
       + tap-to-clear (absorbs `Func+step` PLockClear); tap SRC → note editor
-      (absorbs `Func+Src+step`).
-- [ ] **Stage 4 — Move-step + Step-Position panel.** `swapSteps` (full Step
+      (absorbs `Func+Src+step`). *(`cd585d8`, `462ee4c`, `c5c76eb`.)*
+- [x] **Stage 4 — Move-step + Step-Position panel.** `swapSteps` (full Step
       travels); hold step + `←/→` bubble-swap; hold step + `Func+←/→`
       microOffset; MZ flips to position panel (encoders = move + micro-time);
-      `QUANT` zeroes offset.
+      `QUANT` zeroes offset. *(`6c59a3b`, `a33f12d`, `8a4c719`;
+      `core/StepBlockMove.h`.)*
 - [ ] **Stage 5 — Copy/paste discoverability.** Armed banners/preview for
-      Record/Play; no clipboard-model change.
-- [ ] **Stage 6 — Tests + README.** Confirm-tier resolution; `Track+Song+Clear`
+      Record/Play; no clipboard-model change. *(Verified unbuilt 2026-07-12 —
+      no clipboard chrome in InspectorModel/SurfaceLayer.)*
+- [~] **Stage 6 — Tests + README.** Confirm-tier resolution; `Track+Song+Clear`
       round-trip; move-step carries overrides round-trip; inspector lock-clear
       + note edit; hold-FX picker entry. README shortcut table; remove retired
-      `Func+Src+step` / `Func+FX`.
+      `Func+Src+step` / `Func+FX`. *(Partial: swapSteps round-trip in
+      EngineTest; README §5.8 documents hold-FX picker + inspector note-edit and
+      `Func+FX`-as-meta-section matches KeyBindings. Remaining: confirm-tier +
+      inspector-gesture test coverage audit — close with Stage 5.)*
 
 > **Retired/relocated gestures (this item):** `Func+Src+step` (note edit) →
 > hold-step inspector + SRC; `Func+step` (P-Lock clear mode) → inspector tap-to-clear;
@@ -2769,7 +2748,7 @@ commit each, each with tests.
 
 ---
 
-## Phase 10 — Melodic & Harmonic Authoring  *[active]*
+## Phase 10 — Melodic & Harmonic Authoring  *[mostly shipped: 10.1–10.4, 10.7–10.10 done; 10.5 partial; 10.6, 10.11 open]*
 
 The tonal layer: a key-signature system built on the **circle-of-fifths
 brightness line**, scale-aware manual authoring, and two supportive
@@ -2777,27 +2756,30 @@ brightness line**, scale-aware manual authoring, and two supportive
 PRINCIPLES §23, DESIGN §4.10 + §39.11–39.12; execution plan in
 `~/.claude/plans/i-would-like-you-validated-bear.md`. Committed per phase.
 
-### 10.1 — Docs  *[active]*
+### 10.1 — Docs  *[shipped]*
 PRINCIPLES §23, DESIGN §4.10 + §39.11–12, this phase block, README stubs.
 
-### 10.2 — Scale core *(src/core/Scale.h)*
+### 10.2 — Scale core *(src/core/Scale.h)*  *[shipped]*
 `KeySig` + `Modifier`; brightness-window math; functional Add/Alter algebra
 (collection-anchored, compatibility-gated); derived `pcMask`/`degrees`/
 `coreTier`/`quantize`/`classicalName`; whole-tone + diminished. Pure, unit-tested.
 
-### 10.3 — KeySig hierarchy + persistence
+### 10.3 — KeySig hierarchy + persistence  *[shipped]*
 Project/Song/Scene fields; `effectiveKeySig()` cascade; serializer bump (one past
 head); round-trip test at all three levels.
 
-### 10.4 — KeySig editor
+### 10.4 — KeySig editor  *[shipped]*
 `Overlay::Key` + `kOverlays` row; `buildKeyBand()` (brightness / root / modifiers
 / name); KEY sub-page off the TIME band; scope routing test.
 
-### 10.5 — Scale-aware authoring
-In-scale highlighting; root-anchored keyboard layout; diatonic nav gestures
-(`Nav` diatonic / `Func+Nav` chromatic / move-mode octave); diatonic transpose.
+### 10.5 — Scale-aware authoring  *[partial]*
+In-scale highlighting *(shipped — `chromScaleMask` in the chromatic layout +
+note editor reads `effectiveKeySig()`)*; root-anchored keyboard layout; diatonic
+nav gestures (`Nav` diatonic / `Func+Nav` chromatic / move-mode octave) and
+diatonic transpose *(open — Phrase+Nav transpose shipped octave/semitone in
+10.9; scale-degree mode deferred)*.
 
-### 10.6 — Per-track scale-quantize
+### 10.6 — Per-track scale-quantize  *[open]*
 Opt-in, default-off transform at note-emit + live play-in; serializer flag;
 audio-path test.
 
@@ -2877,7 +2859,7 @@ placement selector (Nav-right sub-page or a repurposed slot — settle at build)
 
 ---
 
-## Phase 11 — The Deck Engine: Record, Loop, Tape  *[design landed; unbuilt]*
+## Phase 11 — The Deck Engine: Record, Loop, Tape  *[shipped — core, tail, and all play-test rounds]*
 
 Record, Loop, and a new **Tape** face become three faces of one four-sub-track
 deck engine that **defaults to a single stereo sub-track** — so today's Record
@@ -2992,7 +2974,7 @@ mid-record head-jump and every later item builds on the position law.
       `backup_` widen to the take's channel count; whole-deck one-level undo.
       Acceptance gate: the entire existing suite passes unchanged.
 
-### Phase 11 play-test round — inputs, record model, console/timeline polish  *[in progress]*
+### Phase 11 play-test round — inputs, record model, console/timeline polish  *[shipped]*
 
 Play-testing the shipped deck surfaced two bugs, four requests, and a doc update.
 Docs land first per item; commit + tests per work item.
@@ -3012,8 +2994,10 @@ Docs land first per item; commit + tests per work item.
 - [x] **S4 — Loop record model.** ARM gates every write (Rec and Dub alike); SRC-assign
       auto-arms / None disarms; contextual REC/DUB label; hold REC/DUB = punch-replace
       (momentary erase-then-write on armed subs, exact at rate 1; undo covers it).
-- [ ] **S5 — Retroactive double-tap.** Durable-span edges retro-stamp to tap 1; ephemeral
-      verbs act at tap 2. Loop and Tape.
+- [x] **S5 — Retroactive double-tap.** Durable-span edges retro-stamp to tap 1; ephemeral
+      verbs act at tap 2. Loop and Tape. *(Shipped as round-2 Stages 7a–7d,
+      `2d286ea`…`67bb0ee`: DESIGN §40.13 + Loop record-start backfill/close trim +
+      Tape pre-roll ring punch-in backfill.)*
 - [x] **S6 — Stretch research spike.** Measured: **Bungee Basic alone is ~160×RT** per
       stereo stream at -O3 (ratio-independent), so the planned two-tier (cheap streamed +
       background Bungee) is unnecessary — **one engine** is simultaneously the fast path and
@@ -3135,6 +3119,33 @@ already declares both numbers on its own side.
       Tape construct `dc::Deck deck_{ kMaxInputSubTracks }`; Record keeps the default —
       **capacity 1 *is* the linear one-track face**, which is the honest test that the
       abstraction was right. Pure refactor: no behaviour change, suite green unchanged.
+
+### 11.10 — Capture-family CUJ design session  *[planned — queued 2026-07-12]*
+
+Design-only (docs-first, like 9.4). Record / Loop / Tape / Stream are each
+self-explanatory; the session makes them **more than the sum of their parts**
+by writing the combined CUJs end-to-end and finding where the seams force
+hoop-jumping. Anchor: the product's core flow, in priority order —
+
+1. **Improvise a full live set and record it as stems** (the defining CUJ);
+2. **the studio replication** of that flow — still live, more planning/structure;
+3. **the same flow inside a DAW**, including controlling plugins and
+   integrating with host effects.
+
+Positioning target: between Octatrack, Digitakt, and Squarp Pyramid. Posture:
+principled, not dogmatic — where a fence collides with "make a complete set as
+stems", prefer adding the widget over making the user jump through hoops
+(bless with rationale, as with the SEED encoder and the fence-#1 tripwire).
+
+- [ ] Write the three CUJs as concrete walkthroughs (which machine, which
+      gesture, which output) against the shipped surface; mark every seam where
+      the flow stalls (e.g. loop → pool → stem, tape take vs stem export,
+      Stream's role on stage vs in studio).
+- [ ] Decide what "stems of a set" means precisely (per-track? per-take-group?
+      tape sub-tracks? relation to the 6.1 per-take stem export + 9.16 capture
+      deck) and name the one blessed path.
+- [ ] Output: DESIGN section (or §40 extension) + README workflow chapter +
+      follow-up ROADMAP items for the seams found.
 
 ---
 
