@@ -1583,25 +1583,26 @@ decisive, long-press = deliberate** — so there is no mode to learn.
 
 ---
 
-### 5.21 Key signatures & the brightness model *(planned — Phase 10)*
+### 5.21 Key signatures & the brightness model *(shipped — Phase 10, except where marked)*
 
-Lockstep will gain a **key signature** set at the same granularity as the time
+Lockstep has a **key signature** set at the same granularity as the time
 signature (Set → Song → Scene), built on an opinionated idea: the **circle of
 fifths as a bright→dark line**. Instead of picking "Dorian," you set a **root**
 and a **brightness** (Lydian = brightest … Locrian = darkest); "exotic" colour
 comes from a small set of **functional modifiers** (Harmonic, Melodic,
 Double-harmonic, Harmonic-major, Blues, Neapolitan) that carry their character
 across relative modes. Classical names show as labels; chromatic is always
-available.
+available. The KEY editor is a sub-page off the TIME band.
 
 On top of the key:
 
-- **Scale-aware editing** — in-scale notes highlighted (root emphasized);
-  holding a note in the note editor, the nav keys move **diatonically** and
-  `Func+`nav moves **chromatically**.
-- **Per-track scale-quantize** — an opt-in, default-off "quantize as a MIDI
-  effect" that snaps played/sequenced notes into the key without rewriting your
-  authored steps.
+- **Scale-aware editing** *(partial — in-scale highlighting shipped; diatonic
+  nav gestures planned, 10.5)* — in-scale notes highlighted in the chromatic
+  layout and note editor (root emphasized); the planned remainder: nav keys
+  move **diatonically** with `Func+`nav **chromatic** while a note is held.
+- **Per-track scale-quantize** *(planned — 10.6)* — an opt-in, default-off
+  "quantize as a MIDI effect" that snaps played/sequenced notes into the key
+  without rewriting your authored steps.
 - **Melodic generator** — a deterministic, seeded line generator (Generator Hub
   cell 4, **MELODY**) that *prints* editable steps in the key. Metric strength is
   the spine: onsets land on the strongest beats first, strong beats get strong
@@ -1639,14 +1640,14 @@ Design: PRINCIPLES §23, DESIGN §4.10 + §39.11–39.12.
 
 ---
 
-### 5.22 The deck engine — Record, Loop, Tape *(planned — Phase 11)*
+### 5.22 The deck engine — Record, Loop, Tape *(shipped — Phase 11)*
 
 Note the difference from §5.20 above: the **tape deck** is a capture *device*
 that writes your master output to a WAV file. The **deck engine** is a
 *machine* — audio you record onto a medium, inside the instrument, that you
 then play, overdub, punch into, and sample from.
 
-Record and Loop already exist (§2.5). Phase 11 makes them, and a new **Tape**,
+Record and Loop predate it (§2.5). Phase 11 made them, and the new **Tape**,
 three faces of one four-sub-track deck:
 
 | Face | What its medium is | You reach for it to… |
@@ -1672,7 +1673,9 @@ deck's console. Nothing you already know changes.
   inside the project file.
 - **Scrub and jog.** One encoder is the jog wheel: the deck plays under your
   hand while the band keeps playing, and the transport catches up at the next
-  bar when you let go.
+  bar when you let go. Wind (`<<`/`>>`) and jog are **standalone-only** —
+  hosted, the DAW's playhead is the locate, and the cells are absent
+  (PRINCIPLES §3: transport acts belong to the transport's owner).
 - **A timeline strip** appears under the context inspector: bars, markers, the
   cursor, the punch region. You read it; you never click it. Everything you
   *do* lives on the 16 console cells and the encoders — the way hardware will
@@ -1685,11 +1688,16 @@ grow from the same engine is a concept brief only: `docs/partner-app-concept.md`
 ## 6. Implemented vs. planned
 
 Lockstep is under active development. This manual describes both the
-shipped behaviour and the design intent. To avoid confusion:
+shipped behaviour and the design intent. `ROADMAP.md` is the single source of
+truth for per-milestone status; this section is a reader's orientation, kept
+deliberately coarse so it drifts less.
 
-**Working today** — all of **Phase 1** (core sequencer), **Phase 2**
-(performance grammar), **Phase 3** (the 10×4 control surface), and
-**Phase 4 machines 4.1–4.4**. Concretely, that means:
+**Working today** — all of **Phases 1–3** (core sequencer, performance
+grammar, the 10×4 control surface), the **Phase 4 catalogue** except
+Percussion/Digital, **Phase 7** (the Set/Song/Scene/Phrase hierarchy),
+**Phase 8** (hardening + FX/master-bus), most of **Phase 9**, the shipped
+majority of **Phase 10** (key signatures + generators), and all of
+**Phase 11** (the deck engine). Concretely:
 
 - The full **10×4 QWERTY overlay** (the surface §5 documents) — cluster,
   Manipulation Zone, Section Bar, Step Grid, scope colour grammar, top-bar
@@ -1702,25 +1710,26 @@ shipped behaviour and the design intent. To avoid confusion:
   musical-gate + per-note-velocity capture); **runtime polyphony** with the
   per-track Top/Bottom-bias spread selector.
 - The **scope+verb grammar** — copy/paste/clear for step / section /
-  track / pattern; global and pattern mutes; the Fill modifier;
-  Control-All; the checkpoint stack; pattern queueing and chain mode;
-  per-track input modes (CHROMATIC / LEVELS).
+  track / phrase; Clear/Delete confirm tiers with named confirms; global and
+  phrase mutes; the Fill modifier; Control-All; the checkpoint stack;
+  Scene/Song launch + queueing under one launch-quantize authority;
+  per-track input modes (CHROMATIC / LEVELS); the held-step inspector
+  (P-Lock badges, tap-to-clear, note edit, move-step).
 - **Canonical sections + post-machine FILTER/AMP** with role tags; the
   first-class **MIDI-out machine** (per-track CC banks, device presets);
-  machine reassignment via `Func + Part`.
+  machine reassignment via `Func + Track` (the machine picker).
 - **MIDI** CC ingestion (soft-takeover + scoped mappings), MIDI clock +
   sync modes; full **project serialization** (samples as `{path, hash}`
   refs).
-- **Machines:** `SampleMachine` (trim + four loop modes + ZC-snap),
-  `SliceMachine` (SLICE / SCRUB, transient detection, MONO/POLY, reverse),
-  `FMMachine` (4-op, free matrix, Mono/Poly), `AnalogMachine` (dual PolyBLEP +
-  SVF + LFO, Mono/Para-4), `DrumMachine` (Rytm-style, eight voices —
-  KICK/SNARE/HAT/TOM/CLAP/COWBELL/CYMBAL/RIMSHOT, each with dedicated DSP),
-  `RouteMachine` (audio router / sub-bus), `RecordMachine` (overwrite live
-  resampler into volatile REC buffers, contextual recorder trig), `LoopMachine`
-  (verb-driven overdub state machine, `Track + verb`), `StreamMachine` (disk-stream
-  long-form sampler), `MidiOutMachine`, plus the `StubMachine` fallback. Shared
-  post-machine FILTER (SVF) + AMP.
+- **Machines:** Sample (trim + loop modes + ZC-snap), Slice (SLICE / SCRUB,
+  transient detection, MONO/POLY, reverse), FM (4-op, free matrix), Analog
+  (dual PolyBLEP + SVF + LFO, Mono/Para-4), Drum (Rytm-style, eight voices),
+  Stretch (Bungee time-stretch player), Stream (disk-stream long-form
+  sampler), Route (audio router / sub-bus), Record / Loop / Tape (the three
+  faces of the four-sub-track **deck engine** — §5.22: layers + undo,
+  punch-as-a-layer, take-group promote, chase-locked Tape on the project
+  timeline, standalone scrub/wind), MIDI Out, plus the Stub fallback. Shared
+  post-machine CHANNEL/FILTER/AMP.
 - The **surface-model foundation** for external controllers (6.6.5a):
   one pure `buildSurfaceModel()` the screen renders from.
 - **Microtiming, Swing & Quantize** (`5.1`): per-step `microOffset` (±50% of step
@@ -1744,20 +1753,31 @@ shipped behaviour and the design intent. To avoid confusion:
 - **Master FX bus** (2 post-sum slots, `Song + hold FX` picker, MZ params under `Song+FX`, serializer v14).
 - **Density overlay** (entered via generator hub, `3` held → DENSITY cell; sticky DENSITY mode: nav = bank 1-8/9-16; `Song`-held = master offset (encoder or drag); MOD key = Amount/Mode/Selection sub-page; any non-MOD section key or foreign scope = exit sticky mode; `Song`-alone = swing).
 - **Generator hub** (`3` held ≥350 ms → momentary picker EUCLID / DENSITY / VEL; short tap = tap tempo retained).
-- **In-cell gesture affordances** (9.11): each key cell shows its full gesture set in a 4-slot layout (double-tap · tap · PRIMARY · hold · func hint) with painted vector glyphs (dot = tap, two dots = double-tap, ring = hold, amber chip = func). PRIMARY is the strongest action; a faint access glyph names which gesture to use. Empty slots collapse — single-action keys look unchanged. `3` shows PRIMARY = GEN HUB (ring), tap slot above = TAP TEMPO. Affordance data lives in `KeyAffordances.{h,cpp}` (dual-target SSOT).
-- **Context inspector** (9.11): always-on 4-region strip below the top info row. Regions: KEY (focused key + gesture list), HELD (active modifier scope + grammar note), OVERLAY (active picker or mode name + cancel hint), EDIT (held-step overrides). Each region has an idle fallback; built by `buildInspectorModel()` — unit-tested and dual-target.
+- **In-cell gesture affordances** (9.11/9.12): each key cell shows its full gesture set in a fixed-slot layout (double-tap · tap · PRIMARY · hold · func hint) with painted vector glyphs (dot = tap, two dots = double-tap, ring = hold, amber chip = func). PRIMARY is the strongest action. `3` shows PRIMARY = GEN HUB (ring), tap slot above = TAP TEMPO. Slot content is **derived from the grammar table** — the same `resolveBinding` query that dispatches — so display and behaviour cannot silently diverge (the earlier `KeyAffordances` side-table was deleted in 9.12).
+- **Context inspector** (9.11): always-on 4-region strip below the top info row. Regions: KEY (focused key + gesture list), HELD (active modifier scope + grammar note), OVERLAY (active picker or mode name + cancel hint), EDIT (held-step overrides). Each region has an idle fallback; built by `buildInspectorModel()` — unit-tested and dual-target. The **timeline strip** (Phase 11) sits below it: bars + wall-clock rulers, tape end lugs, markers, cursor — read-only.
+- **Hierarchical time** — per-Song/per-Scene tempo ratios and time signatures
+  on the unified TIME page; **key signatures** (root + brightness + functional
+  modifiers) on its KEY sub-page (§5.21).
+- **Deterministic generators** off the `3`-key hub: Euclid, Density, the
+  velocity overlay, the **melodic generator** (seeded, prints editable trigs,
+  Keep-rhythm mode) and the **harmonic voice-mover** (in-key chord sculptor,
+  one chord per bar) — §5.21.
+- **Morph + crossfader** (5.2), Cue-scope **audition** (`Func+3`),
+  **lock-only / one-shot / recorder trigs** (5.6), **per-take stem export**,
+  the **capture tape deck** (§5.20), and the **sample pool** with content-hash
+  identity, typed pickers, save-and-promote and missing-file relink (9.18).
 
-**Planned** — the rest of the
-machine catalogue (`4.6` Percussion, `4.7` Digital — `4.5` Stream shipped); **Phase 5**
-performance depth (scenes + crossfader `5.2`; pattern/part management
-UI `5.3`; sampling + resampling `5.4`; audition + cross-track record `5.5`;
-special trig types `5.6`; UI polish + state-colour palette `5.8`); and **Phase 6**
-routing, FX & platform (audio-input boundary + Route `6.1`, recorder buffers `6.2`
-and looper `6.3` all shipped — freeze-to-disk of REC buffers deferred; cue bus `6.4`;
-master FX bus `6.5b`; external controller surfaces `6.6`, in progress; the Machine
-Module ABI `6.7`; beta polish `6.8`); and **Phase 11**, the deck engine — Record,
-Loop and Tape as one four-sub-track machine on one project timeline (§5.22,
-DESIGN §40).
+**Planned / open** — the remaining catalogue synths (`4.6` Percussion, `4.7`
+Digital — unblocked, first-party); Song/Scene **management UI** (`5.3` — names,
+colours, browser, Kit recall) and the snapshot restore-semantics spec (`9.4`);
+the **Cue bus** DSP + gestures (`6.4`); UI polish + preset-selection leftovers
+(`5.8`); the sampling-overlay remainder (`5.4`, largely superseded by the
+capture machines — being re-scoped); diatonic nav + per-track scale-quantize
+(`10.5`/`10.6`) and chord placement on existing rhythm (`10.11`); external
+controller surface polish (`6.6.8`); the structural passes in flight (`9.12`
+dispatch migration, `9.15` unified surface invalidation, `9.14` stage 5); the
+Machine Module ABI (`6.7`, deferred until a second consumer exists); and beta
+polish — CI, factory content, final name (`6.8`).
 
 See `ROADMAP.md` for the authoritative milestone breakdown and current
 status — it is the single source of truth for what ships when.
