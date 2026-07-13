@@ -1217,8 +1217,9 @@ real estate.
 - `5–0` = the six canonical sections TRIG / SRC / FILTER / AMP / MOD / FX
   (note `LFO`→`MOD` rename from 3.2; see §6.1.1).
 - `Y U I O P` = verbs `Snapshot / Record / Play / Clear / Confirm` (colour-rethink).
-  `Func+Y` = Restore (pop checkpoint); `Func+U` = Omni copy; `Func+I` = Unqualified paste; `Func+O` = Delete (+ confirm);
-  `Func+P` = Cancel. `Record-Arm` / `Play-Stop` chords on `9 / 0` are deferred —
+  `Func+Y` = Restore (pop checkpoint); `Func+U` = Omni copy; `Func+I` = Unqualified paste;
+  `Func+P` = Cancel. Delete is **`scope + hold(O)`** (9.29 — `Func+O` is no longer
+  a delete; `Func` over `O` qualifies the clear, e.g. `Trig+Func+O` = P-Locks only). `Record-Arm` / `Play-Stop` chords on `9 / 0` are deferred —
   see §33.1.
 
 **Step keys.** Row 3 `D F G H J K L ;` = steps 0–7; row 4
@@ -2165,15 +2166,15 @@ The verb set is small and uniform:
 | `Y` | **Snapshot** — push checkpoint; **Yes** in dialog contexts | scope-specific snapshot (confirm) | *(same as bare — push checkpoint)* |
 | `U` | **Record** — arm / toggle overdub | **Copy** — clipboard capture | *(fork Part, placeholder)* |
 | `I` | **Play/Pause** — double-tap = Stop-to-top | **Paste** — clipboard write | **Panic** — kill voices + hard stop |
-| `O` | **Clear** — clear active P-Lock; inert if nothing to clear | **Clear** scope contents | **Delete** — remove entity (+ confirm) |
+| `O` | **Clear** — clear active P-Lock; inert if nothing to clear | tap = **Clear** scope contents · **hold = Delete** the entity (+ confirm) | *(qualifies the clear: `Trig+Func+O` = clear P-Locks only)* |
 | `P` | **No** — cancel a pending action | *(reserved / dim)* | **Pop** checkpoint (tap) / **Floor** (hold+release) |
 
 - Under any section-suite scope (Track / Phrase / Scene / Song / Morph), `Y U I O` glow
   in the scope colour and take their scoped meaning. `P` dims (reserved for the
   confirm/cancel channel).
-- **Scope+Func+O = deletion picker.** Holding a scoped Delete chord
-  (`Track/Phrase/Scene + Func + O`) enters the **deletion picker** modality:
-  the step grid repaints as a slot-selector for that scope; status reads
+- **Scope + hold(`O`) = deletion picker** (9.29; was `scope+Func+O`). Holding
+  `O` under a scope (`Track` / `Phrase` / `Scene`) enters the **deletion picker**
+  modality: the step grid repaints as a slot-selector for that scope; status reads
   "Delete which PHRASE?" (or TRACK / SCENE). The user taps a slot to proceed.
   The picker is **sticky** — releasing the arming chord does not cancel; only
   an explicit non-Func key press does (shows "Cancelled"). `Func` itself never
@@ -2182,10 +2183,26 @@ The verb set is small and uniform:
   The `P` key shows **CONFIRM (green)** when Func is up and **CANCEL (red)** when Func
   is held; the live colour is the confirmation surface — no modal popup
   (PRINCIPLES §5, §16). The pending-confirm is also sticky; any non-Func key
-  other than `P` cancels (status "Cancelled"; press swallowed). `Song+Func+O`
-  has no picker and remains inert; the key dims honestly under Song+Func.
-  Morph+Func+O = morph **erase** (no picker; Morph does not host deletable
+  other than `P` cancels (status "Cancelled"; press swallowed). `Song` hosts no
+  deletable entity, so `Song + hold(O)` stays inert and the key dims honestly.
+  `Morph + Func + O` = morph **erase** (no picker; Morph does not host deletable
   entities). See PRINCIPLES §16.
+
+  **Why the gesture axis, not the `Func` qualifier.** Delete lived on
+  `scope+Func+O` until `Func+Track` became the **Machine** scope (§13.9): the
+  chord that meant "delete the track" is the chord that now means "the machine",
+  and one chord cannot be both. Two things then fell out, and both are
+  improvements rather than compensations:
+  1. **Destroying costs more than clearing.** `scope + tap(O)` clears (reversible
+     via the checkpoint stack); `scope + hold(O)` destroys. The dangerous verb is
+     now the deliberate one — the same tap-vs-hold rule the section keys already
+     use (tap = navigate, hold = choose, §13/9.14), so it is not a new idea, only
+     a new application of an old one.
+  2. **`Func` goes back to being a pure qualifier.** With `Func+O` no longer
+     rewritten to Delete, `Func` over `O` narrows the clear rather than replacing
+     it — which is what restores `Trig + Func + O` = *clear the P-Locks, keep the
+     trig* (§13.2). That gesture was documented but unreachable: the layer remap
+     rewrote the button before the trig verb could ever see it.
 - Solo is `Func + Mute + step` (rung 4 — solo reads as "the
   secondary/advanced layer of mute"; PRINCIPLES §15). No verb acts as a
   held modifier: `Y` is only ever a verb (snapshot / dialog-confirm).
@@ -2282,8 +2299,7 @@ navigation; tap-tempo.
 
 **Rung 2 — `Func + key` (2 keys, Func cheapest).** `Func+Y` (RESTORE)
 checkpoint pop (tap) / floor (hold+release); `Func+P` cancel a pending
-prompt; `Func+U` omni copy; `Func+I` unqualified paste; `Func+O` delete
-(+confirm); `Func+step` P-Lock clear mode; `Func+section` secondary
+prompt; `Func+U` omni copy; `Func+I` unqualified paste; `Func+step` P-Lock clear mode; `Func+section` secondary
 section layer; `Func+Song` global/project params. (Checkpoint **push** is
 the bare `Y` — rung 1.) **Panic** (kill voices): `Song + Clear (O)` —
 rung 3.
@@ -2297,8 +2313,9 @@ a section; `Trig+verb` step copy/paste/clear; `Track+Nav` cycle input
 mode (PLAY/CHROM/LEVELS); `Morph+^`/`Morph+v` pick endpoint A/B (5.2,
 planned).
 
-**Rung 4 — `Func + mod + key` (3 keys).** `Func+Track+step` machine/Kit
-picker assign; `Func+Scene+step` baseline launch (floor, discard
+**Rung 4 — `Func + mod + key` (3 keys).** `Func+Track+verb` = the **Machine**
+scope's verbs (copy / paste / init the sound, §13.9 — the machine *picker* is
+`Track + hold(SRC)`, rung 3); `Func+Scene+step` baseline launch (floor, discard
 overlay); `Func+Scene+Rec`/`Func+Scene+Play` Scene copy / paste;
 `Func+Section+step` note-edit entry; `Trig+Func+Clear` clear
 all P-Locks on the held step(s); **`Func+Mute+step` solo** (the
@@ -2845,8 +2862,15 @@ grammar yields the whole set the moment the operand exists:
 | `Machine + Record` (= `Func+Track+Record`) | **Copy** the sound (the machine's full param set) |
 | `Machine + Play` | **Paste** it onto the focused track |
 | `Machine + Clear` | **Init** the machine to its defaults |
-| `Machine + Func + Clear` | **Delete** (confirm-gated, §13.2) |
 | `Machine + Snapshot` | *deliberately unbound* — see below |
+
+There is no `Machine + Func + <verb>`: `Machine` **is** `Func+Track`, so `Func` is
+already spent — a compound scope cannot be qualified by the key that formed it.
+That is what forced delete off the `Func` qualifier and onto the gesture axis
+(`scope + hold(Clear)`, §13.2): `Func+Track+Clear` cannot mean both "delete the
+track" and "init the machine", and the operand has the better claim to it. The
+one-hand-can-say-it test decided it: `Machine+Clear` is a chord you play; a
+qualifier you cannot add is not a qualifier.
 
 `Machine + Snapshot` reads as "save a preset", and a preset **library** (store,
 name, browse, recall) is a subsystem, not a free consequence of the grammar.

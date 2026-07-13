@@ -157,7 +157,8 @@ Set
   sound.** Each track has a pool of 16.
 - **Kit** — the per-(track, Song) **sound**: which engine the track hosts,
   its base parameters, post-machine FILTER/AMP, and sample references.
-  Recalled live via `Func+Track`. (The dissolved Octatrack "Part".)
+  Chosen via `Track + hold(SRC)`; the sound itself is the operand of the
+  **Machine** scope (`Func+Track`). (The dissolved Octatrack "Part".)
 - **Scene** — a launchable cross-track row: the global phrase index (which
   row all tracks default to), the active-mask (who sounds), core time, and
   the Morph snapshot. Per-track phrase deviations are live/RAM-only — never
@@ -287,7 +288,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Override-ELSE-Base** | The one resolution rule: effective value = step override if present, else track base. |
 | **Machine** | A sound engine. Each track hosts one. Lockstep ships: `SampleMachine` (monophonic sample playback with trim, loop region, ZC-snap), `SliceMachine` (slice/scrub dual-mode with transient detection and poly), `FMMachine` (4-op FM synthesizer, mono/poly), `AnalogMachine` (virtual-analog dual-osc + SVF synth, mono/para), `DrumMachine` (Rytm-style drum synth — eight voices via one stepped param), `RouteMachine` (audio router / sub-bus), `RecordMachine` (live resampler into volatile REC buffers), `LoopMachine` (verb-driven overdub looper, up to 4 sub-tracks), `TapeMachine` (a linear tape addressed by the song's own position), `StreamMachine` (disk-streaming long-form sampler), `MidiOutMachine` (MIDI CC/note output to external gear), and `StubMachine` (silent fallback for unknown IDs). Record, Loop and Tape are three faces of one **deck engine** (a JUCE-free `deck_core` library). |
 | **Machine module** *(planned, 6.7)* | A machine shipped as a loadable native module behind Lockstep's stable C ABI, rather than compiled into the core. First-party machines are statically linked; third-party machines are authored against the SDK and installed into a per-platform folder. Bespoke contract for purpose-built machines — not a VST3/CLAP host. See DESIGN §36. |
-| **Kit** | The per-(track, Song) sound: machine identity, base parameters, post-machine FILTER/AMP, sample refs. Recalled via `Func+Track`. |
+| **Kit** | The per-(track, Song) sound: machine identity, base parameters, post-machine FILTER/AMP, sample refs. Chosen via `Track + hold(SRC)`. ("Kit" is retired as a user-facing term — the surface says MACHINE.) |
 | **Phrase** | A track's pure note content — the trig grid and per-step data. Each track has a pool of 16; Scenes reference them by index. |
 | **Scene** | A launchable cross-track row: a global phrase index (all tracks default to that row) + active-mask + core time + Morph snapshot. Per-track phrase deviations are live/RAM-only and never saved. |
 | **Song** | A self-contained song (Kits + Phrase pools + Scenes). The bank-sized unit. |
@@ -326,7 +327,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Sample pool** | The project-wide library of samples, stored as `{path, hash}` references rather than embedded audio. A reference is identified by **content hash**, not array position (9.18), so it survives a pool reorder and a file move (reload → hash matches → auto-relink); a missing file flags the entry for **Relink**. Missing samples are surfaced by a **persistent banner** ("N samples missing — Manage to relink") that stays until they are relinked, not just a fading load-time toast. Files are **re-checked at runtime** too: opening the pool manager re-stats every path-backed entry, so a sample deleted or moved *while the app is running* shows as MISSING with Relink enabled. A File already decoded into RAM keeps playing even after its file disappears (no mid-performance dropout) — only the flag updates; a disk **Stream** whose file is gone falls silent cleanly. The pool manager groups entries as **FILE / STREAM / RECORD / LOOP**; a **Save…** action promotes a volatile Record/Loop capture into a durable File. Entries are numbered **within their group** (FILE 1, FILE 2, STREAM 1, REC 1 …) in the in-machine sample picker, so the number stays put across a reload even though the reserved volatile REC slots re-seed at the front of the raw pool. |
 | **Sound Pool** | A project-scope library of saved per-track sounds (machine + base params + sample refs). `Fill+SRC` re-skins the step grid to the pool for live-swap audition; with a step held the swap bakes as a `sound_id` P-Lock (5.7). |
 | **Scope colour grammar** *(3.3)* | A canonical palette per scope (`step` = light grey, plus distinct hues for `track / phrase / scene / machine / morph / song`) used by key tints, the step-grid scope re-skin, and any badge that needs to say "which scope is held". In-scope keys (the section keys and verbs the scope rebinds) light fill+border in the scope colour; ambient keys stay neutral; reserved keys dim. |
-| **Scope re-skin** | When a scope modifier maps to a 1-of-16 selector (Track / Phrase / Scene; `Func+Track` = machine/Kit picker), the 16 step keys become a non-paginated index for that scope. Unavailable indices dim. Cells tint in the scope's colour. |
+| **Scope re-skin** | When a scope modifier maps to a 1-of-16 selector (Track / Phrase / Scene; `Track + hold(SRC)` = machine picker), the 16 step keys become a non-paginated index for that scope. Unavailable indices dim. Cells tint in the scope's colour. |
 | **Top-bar dashboard** *(3.4)* | The top of the editor shows a scope-coloured BPM + time-sig readout (colour = the scope that owns the current override: Scene, Song, or grey for global/default). The readout updates every 30 Hz and reflects effective (resolved) values. |
 | **Value-label table** *(3.4)* | A `ParamSpec` field carrying textual names for stepped/enum positions (`LP24 / LP12 / HP / BP`, `MONO / PARA`, …). The MZ renders the textual name in place of a number when present. |
 | **Step-hold capture window** | The canonical chord-edit path: hold a step → play MIDI → each note-on snapshots all currently-held notes; release commits velocity (highest) and gate. Empty capture = no change. Independent of record-arm and transport. Multi-step: all held steps receive the same chord. |
@@ -335,7 +336,8 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Step inspector** | **Hold a step** — the grid re-skins showing the step's P-Locks (packed, orange cells = set slots). Tap a cell to stage it for removal; tap again to cancel; release the held step to commit. To reach the held step's *own* cell (which sits under your finger), press **Func** while holding to **latch** the inspector hands-free, then tap freely and **double-tap Func** to apply. Tap **SRC** while holding to enter note-edit for that step. `←`/`→` while holding **bubble-swaps** the step with its neighbour (the held focus follows, so repeated presses keep moving it). `Func+←`/`Func+→` while holding **nudges micro-time** ±5% of step length. Release all to commit; the trig toggle is suppressed when any edit occurred. |
 | **P-Lock clear gestures** | `Trig + Func + Clear` (`Trig + 1 + O`) clears every P-Lock on the held step(s), leaving trig and condition intact. `Trig + (active MZ slot) + Clear` clears only that one slot. `Trig + (section key) + Clear` clears just that section's overrides on the held step(s); since **SRC** owns the note payload, `Trig + SRC + Clear` clears note / velocity / gate overrides only, leaving trig and P-Locks intact. The hint band shows these gestures automatically when a step with P-Locks or note overrides is held. |
 | **NoteSelection bias** | Per-track bias for chord-note spread when the machine voice count is smaller than the step's note count. `TopBias` (default) includes top + bottom and fills from the top; `BottomBias` fills from the bottom. Set in the TRIG meta-section, slot 3 (Bias = TOP / BOT). |
-| **Func+Track machine picker** | Hold Func (1) + Track (2) — the Track key relabels to MACHINE; step cells show available machine names. Press a step to assign that machine to the focused track. |
+| **Machine picker** | Hold `Track` (2) and **hold** the `SRC` section key — step cells show the available machines; press one to load it on the focused track. Same rule as the FX pickers (`Track`/`Song` + hold `FX`): *scope + hold(section) = choose what fills that section, at that scope.* Tapping SRC still pages its params. |
+| **Machine scope** *(9.29)* | `Func+Track` — the unkeyed rung *inside* Track. Track owns **identity** (which machine, mute, level, routing); Machine owns the **sound** (its params). Section keys resolve to the machine's own pages, and the verbs finally reach it: `Machine+Rec` = copy sound, `Machine+Play` = paste, `Machine+Clear` = init. `Func+Song` is its mirror: the **Set** scope, the unkeyed rung *above* Song. |
 
 ---
 
@@ -504,8 +506,9 @@ two slots on row 0 are `3=TAP` and `4=NavUp`; sections fill `5–0`.
 Row 1's right side is `E=NavLeft / R=NavDown / T=NavRight` followed
 by the verb cluster `Y U I O P`, whose **on-screen legends** are
 `SNAP / REC / PLAY / CLEAR / YES`. Each verb key carries a `Func`-layer
-secondary legend: `Func+Y`=RESTORE, `Func+O`=DEL, `Func+P`=CANCEL (the `U`
-key has no Func legend — `Func+U` is omni copy). The `I` key still paints
+secondary legend: `Func+Y`=RESTORE, `Func+P`=CANCEL (the `U` key has no Func
+legend — `Func+U` is omni copy; `O`'s secondary rail is now the **hold**, not
+Func — see §5.4a). The `I` key still paints
 a stale `PANIC` legend, but `Func+I` is **unqualified paste** — Panic
 moved to `Song+Clear`.)
 
@@ -519,8 +522,9 @@ The verb keys are **context-sensitive** — they read three layers:
   `Y` is the scope's snapshot (reserved/dim on most scopes); `P`=**QUANT**
   under Trig/Track/Phrase (zero microOffset), dim on Scene/Morph/Song/Mute/Fill.
 - **`Func` qualifier** — `Func+Y`=Restore (pop/floor), `Func+U`=omni copy,
-  `Func+I`=unqualified paste, `Func+O`=delete entity, `Func+P`=cancel a
-  prompt.
+  `Func+I`=unqualified paste, `Func+P`=cancel a prompt. `Func+O` is **not** a
+  delete (9.29): `Func` *narrows* the clear (`Trig+Func+O` = clear P-Locks, keep
+  the trig). Delete is `scope + hold(O)` — §5.4a.
 
 There is no separate transport key — the verb row does double duty, which
 is why the surface needs no extra buttons. The full action set is indexed
@@ -543,7 +547,7 @@ in the scope-section matrix); two are **performance specialists**
 | Key | Scope | Selects |
 |---|---|---|
 | `1` | **Func** | Universal qualifier — composes with any other scope to flip to its "secondary variant." Also the modifier layer for snapshots, verbs, and machine secondaries. |
-| `2` | **Track** | One or more tracks; or, with none selected, Control-All. `Track+section` opens the track-foundation row (post-machine FILTER/AMP, IEffect inserts). **`Func+Track`** opens the machine/Kit picker (step cells show machines; press one to assign it to the focused track). |
+| `2` | **Track** | One or more tracks; or, with none selected, Control-All. `Track+section` opens the track-foundation row (post-machine FILTER/AMP, IEffect inserts). `Track + hold(SRC)` = the **machine picker**. **`Func+Track`** = the **Machine** scope (the sound: its params + copy/paste/init). |
 | `Q` | **Phrase** | A per-track musical phrase (pure note content). `Phrase+step` (or `Track+Phrase+step`) deviates the focused track to that phrase. `Scene+Phrase+step` deviates all tracks; landing on the diagonal row clears all deviations. To clear all deviations: `Scene+Phrase+step` on diagonal, re-launch active Scene, or `Func+Scene+step`. |
 | `W` | **Scene** | A launchable cross-track row (diagonal phrase row + active-mask + core time). Scene N always plays phrase row N. `Scene+step` occupied = carry overlay; on active = revert to floor; on **empty** = baked-copy create + launch. `Func+Scene+empty` = baseline-copy create; `Mute+Scene+empty` = blank create. `Func+Scene+occupied` = floor launch. `Scene+Record` = commit-and-bake. `Func+Scene+Record/Play` = copy/paste. |
 | `A` | **Morph** | The A/B crossfader scope. Hold/latch + encoder sculpts overlay at current fader split; `Morph+^`/`v` forces pure A/B writes; `Morph+Mute` = fluid mute a track. |
@@ -610,8 +614,8 @@ Transport and record-arm ride the verb row (no scope held — see §5.1):
 
 ### 5.4a Deletion picker and named confirms
 
-Holding a scope+Func+Clear chord (`Track/Phrase/Scene + Func + O`) enters the
-**deletion picker** modality — the step grid repaints as a slot-selector for
+**Holding** the Clear key under a scope (`Track` / `Phrase` / `Scene` + hold `O`)
+enters the **deletion picker** modality — the step grid repaints as a slot-selector for
 that scope. Status reads "Delete which PHRASE?" (or TRACK / SCENE). The
 currently playing/focused slot is highlighted.
 
@@ -623,8 +627,12 @@ currently playing/focused slot is highlighted.
 - **Confirm stickiness.** The confirm prompt is also sticky — releasing Func or
   any held modifier does not cancel. Any key press other than `P` or `Func`
   cancels (status "Cancelled"; press swallowed).
+- **Tap vs hold.** `scope + tap(O)` **clears** that scope's contents (recoverable
+  from the checkpoint stack); `scope + hold(O)` **deletes** the entity. The
+  destructive verb costs the deliberate gesture — the same tap/hold split the
+  section keys use (tap = navigate, hold = pick).
 - **Scope coverage.** Track / Phrase / Scene deletions use the picker.
-  `Song+Func+O` is inert (no entity to delete). `Morph+Func+O` = morph
+  `Song + hold(O)` is inert (no entity to delete). `Morph+Func+O` = morph
   **erase** (no picker; Morph maps are not entities).
 - **Delete semantics.** Delete Phrase N = reset slot N of the **focused track**
   to uninitialised. Delete Scene N = clear scene slot N (falls back to scene 0
@@ -640,7 +648,7 @@ Lockstep has 16 tracks. The track header shows 8 at a time; the **"1–8" / "9�
 | `Track (2) + C–/` | Select / focus track 9–16 (`2 + C` = track 9, … `2 + /` = track 16). |
 | Page button (click) | Flip track header between tracks 1–8 and 9–16. |
 
-Tracks 1–8 default to `SampleMachine` and tracks 9–16 to `MidiOutMachine` (Digitakt-style default split). Any track can be reassigned to any machine via **`Func + Track`** (hold `1`, tap `2` — the step grid re-skins to machine names; press a step to assign; replaces the retired `Func+R` gesture). A small **"M"** badge in the top-right corner of a track button identifies MIDI-out tracks at a glance.
+Tracks 1–8 default to `SampleMachine` and tracks 9–16 to `MidiOutMachine` (Digitakt-style default split). Any track can be reassigned to any machine via **`Track + hold(SRC)`** (hold `2`, hold the SRC section key — the step grid re-skins to machine names; press a step to load one). A small **"M"** badge in the top-right corner of a track button identifies MIDI-out tracks at a glance.
 
 #### The Machines — what each one is for
 
@@ -1324,7 +1332,7 @@ Stage E / 7.5 and has shipped — see *Phrase-length authoring* below.)
 
 - **Step-grid scope re-skin.** Hold `Track` and the 16 step keys
   become a 1-of-16 track picker; `Phrase` → phrase picker; `Scene`
-  → scene picker; `Func + Track` → machine/Kit picker showing machine
+  → scene picker; `Track + hold(SRC)` → machine picker showing machine
   names. **Pagination is suppressed in this mode** — only "which key
   was pressed" matters. Unavailable indices dim; cells tint with the
   scope colour.
@@ -1356,10 +1364,15 @@ Stage E / 7.5 and has shipped — see *Phrase-length authoring* below.)
   of set P-locks only (not by raw slot index). Press a cell to stage
   it for removal; press again to cancel. Release Func to commit all
   staged removals.
-- **Func+Track machine/Kit picker.** Hold Func (1) and Track (2) —
-  Track relabels to MACHINE; step cells show available machine names.
-  Press a step to assign that machine to the focused track. Release
-  Func or Track to exit.
+- **Machine picker.** Hold Track (2) and **hold** the SRC section key —
+  step cells show available machine names. Press a step to load that
+  machine on the focused track (selecting closes the picker). Tapping
+  SRC still pages its params; the *bare* SRC hold is the machine
+  console, so the scope gate is what keeps the two apart.
+- **Machine scope (9.29).** Hold Func (1) + Track (2) — Track relabels to
+  MACHINE. This does not open a picker: it names the **sound** as the
+  operand. Section keys page the machine's own params, and the verbs act
+  on it: `Rec` = copy the sound, `Play` = paste it, `Clear` = init.
 
 **3.10 — Latch (hands-free virtual-hold) + Track+Nav mode cycle.**
 
@@ -1825,7 +1838,7 @@ majority of **Phase 10** (key signatures + generators), and all of
   (P-Lock badges, tap-to-clear, note edit, move-step).
 - **Canonical sections + post-machine FILTER/AMP** with role tags; the
   first-class **MIDI-out machine** (per-track CC banks, device presets);
-  machine reassignment via `Func + Track` (the machine picker).
+  machine reassignment via `Track + hold(SRC)` (the machine picker).
 - **MIDI** CC ingestion (soft-takeover + scoped mappings), MIDI clock +
   sync modes; full **project serialization** (samples as `{path, hash}`
   refs).
@@ -1977,7 +1990,8 @@ Func (1)
 ├─ Func + Y (RESTORE) → restore checkpoint: tap = pop one, hold = jump to floor — §5.15
 ├─ Func + U           → omni copy (scene + track + phrase; badge CPY:ALL) — §5.4
 ├─ Func + I           → unqualified paste (stamp the one captured layer) — §5.4
-├─ Func + O           → deletion picker (bare Func+O: inert; needs a scope) — §5.4a
+├─ Func + O           → qualifies the clear (Trig+Func+O = clear P-Locks, keep trig) — §5.4a
+│                       (delete moved to scope + HOLD O — 9.29)
 ├─ Func + P           → cancel a pending prompt — §5.3
 ├─ Func + 3           → Cue (audition) scope: hold = pre-listen focused track; Cue+step = audition step — §2.5
 ├─ Func + 5…0         → secondary section page (machine deep params; COND/NOTE meta; Func+7 = transport globals) — §5.8
@@ -2056,7 +2070,9 @@ Track (2)
 ├─ + Scene           → re-sync the focused track to the active scene — §5.14
 ├─ + TRIG → kit divider (DIV meta) — §5.8
 ├─ + (held) → shows song-track delta swing in band (SwTrk + (D)) — §5.8
-└─ Func + Track      → machine picker (Track→MACHINE; press a step to assign) — §5.5
+├─ + hold(SRC)       → machine picker (press a step to load a machine) — §5.5
+└─ Func + Track      → the MACHINE scope: sections page the sound; Rec/Play/Clear
+                       = copy / paste / init the sound — §5.5
 ```
 
 Links: [§5.5](#55-track-selection-and-focus) ·
