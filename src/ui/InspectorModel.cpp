@@ -109,6 +109,47 @@ namespace lockstep
         return "track --";
     }
 
+    // 9.30 st.2: the badges the header dashboard used to carry, folded into HELD.
+    // They QUALIFY the scope, which is why they belong next to it: "TRACK" plus
+    // "CPY:TRK" together say "a paste right now would stamp a track", and CK says how
+    // far back the scope you are holding can be undone. Read at a glance, in the one
+    // place the eye is already looking, instead of at x=420 in the header.
+    static juce::String buildHeldBadges(const UiState& ui, const StatusInput& si) noexcept
+    {
+        juce::String out;
+
+        // Per-track input mode — only when it is NOT the default. PLAY is the resting
+        // state of every track; announcing it on all sixteen is noise, and noise is what
+        // made the old dashboard invisible.
+        const int t = ui.activeTrack;
+        if (t >= 0 && t < static_cast<int>(kNumTracks))
+        {
+            switch (ui.trackInputMode[static_cast<std::size_t>(t)])
+            {
+                case TrackInputMode::Chromatic: out += "  CHROM"; break;
+                case TrackInputMode::Levels:    out += "  LEVLS"; break;
+                case TrackInputMode::Play:      break;
+            }
+        }
+
+        switch (si.clipboard)
+        {
+            case ClipboardType::Step:    out += "  CPY:STP"; break;
+            case ClipboardType::Section: out += "  CPY:SEC"; break;
+            case ClipboardType::Track:   out += "  CPY:TRK"; break;
+            case ClipboardType::Pattern: out += "  CPY:PHR"; break;
+            case ClipboardType::Scene:   out += "  CPY:SCN"; break;
+            case ClipboardType::Machine: out += "  CPY:SND"; break;
+            case ClipboardType::All:     out += "  CPY:ALL"; break;
+            case ClipboardType::None:    break;
+        }
+
+        if (si.checkpointDepth > 0)
+            out += "  CK:" + juce::String(si.checkpointDepth);
+
+        return out;
+    }
+
     // ── OVERLAY region ────────────────────────────────────────────────────────
 
     static juce::String buildOverlayRegion(const UiState& ui,
@@ -279,7 +320,7 @@ namespace lockstep
     {
         InspectorModel m;
         m.key     = buildKeyRegion(focusedButton, focusedIndex);
-        m.held    = buildHeldRegion(ui, proc);
+        m.held    = buildHeldRegion(ui, proc) + buildHeldBadges(ui, si);
         m.overlay = buildOverlayRegion(ui, proc);
         m.edit    = buildEditRegion(ui, ec, proc);
         buildStatusLane(m, ui, si);

@@ -2,7 +2,8 @@
 #include <juce_core/juce_core.h>
 #include <cstdint>
 #include "../io/ControllerEvent.h"
-#include "../state/UiState.h"   // ConfirmKind
+#include "../state/UiState.h"      // ConfirmKind
+#include "../io/ClipboardType.h"
 
 namespace lockstep
 {
@@ -55,6 +56,13 @@ namespace lockstep
         juce::uint32 toastAgeMs = 0;     // ms since it was set
         juce::uint32 toastDurationMs = 1500;
         int missingSamples = 0;          // pool alert (0 = none)
+
+        // 9.30 st.2 — the two badges the deleted header dashboard carried. Both are
+        // scope-qualified STATE ("what would a paste paste? how deep can I undo?"), so
+        // they belong beside the scope in the HELD region rather than in a far corner
+        // of the chrome the eye never visits.
+        ClipboardType clipboard = ClipboardType::None;
+        int checkpointDepth = 0;         // depth of the HELD scope's checkpoint stack
     };
 
     struct InspectorModel
