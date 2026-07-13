@@ -47,7 +47,6 @@ add_executable(lockstep_tests
     LayerResolveTest.cpp
     SurfaceLayerTest.cpp
     KeyBindingTest.cpp
-    ActionCoverageTest.cpp
     SerializerRoundTripTest.cpp
     SampleIdRoundTripTest.cpp
     MultiStepHoldTest.cpp

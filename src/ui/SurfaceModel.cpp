@@ -346,7 +346,7 @@ namespace lockstep
             {
                 const auto& r = resolveBinding(ControllerButton::Func, -1, heldMods, SurfaceLayer::Base);
                 c.primary = juce::String(r.primary);
-                c.funcHint = juce::String(r.hint);
+                c.funcHint = juce::String(hintFor(ControllerButton::Func, -1, heldMods, SurfaceLayer::Base));
             }
             c.strip.present = hasCompound && ui.funcHeld;
             c.strip.colour = kAmberStrip;
@@ -370,7 +370,7 @@ namespace lockstep
             {
                 const auto& r = resolveBinding(ControllerButton::TrackScope, -1, heldMods, SurfaceLayer::Base);
                 c.primary = juce::String(r.primary);
-                c.funcHint = juce::String(r.hint);
+                c.funcHint = juce::String(hintFor(ControllerButton::TrackScope, -1, heldMods, SurfaceLayer::Base));
             }
         }
 
@@ -397,7 +397,7 @@ namespace lockstep
             {
                 const auto& r = resolveBinding(ControllerButton::SongScope, -1, heldMods, SurfaceLayer::Base);
                 c.primary = juce::String(r.primary);
-                c.funcHint = juce::String(r.hint);
+                c.funcHint = juce::String(hintFor(ControllerButton::SongScope, -1, heldMods, SurfaceLayer::Base));
             }
         }
         {
@@ -444,7 +444,7 @@ namespace lockstep
             {
                 const auto& r = resolveBinding(ControllerButton::TapTempo, -1, heldMods, SurfaceLayer::Base);
                 c.primary = juce::String(r.primary);
-                c.funcHint = juce::String(r.hint);
+                c.funcHint = juce::String(hintFor(ControllerButton::TapTempo, -1, heldMods, SurfaceLayer::Base));
             }
             jassert(!c.primary.isEmpty());
         }
@@ -488,7 +488,7 @@ namespace lockstep
             {
                 const auto& r = resolveBinding(ControllerButton::NavUp, -1, heldMods, SurfaceLayer::Base);
                 c.primary = juce::String(r.primary);
-                c.funcHint = juce::String(r.hint);
+                c.funcHint = juce::String(hintFor(ControllerButton::NavUp, -1, heldMods, SurfaceLayer::Base));
             }
             jassert(!c.primary.isEmpty());
         }
@@ -778,26 +778,31 @@ namespace lockstep
             // Table-driven labels: covers Func-promotion, CPC relabels (COPY/PASTE/CLEAR
             // under scope), nav-hint suppression under Track, and Morph B-pole on NavDown.
             // Runtime states PAUSE and OD override afterwards since the table is static.
-            const auto& binding = resolveBinding(def.button, -1, heldMods, SurfaceLayer::Base);
-            juce::String displayPrimary{ binding.primary };
-            juce::String displayHint{ binding.hint };
-
-            // QUANT lives on the P/Confirm key under quantizing scopes (Trig held
-            // steps / Track / Phrase): it zeros microOffset. The binding table can't
-            // express the Trig case (Trig is not a modifier bit), so surface it here.
-            // Scene/Morph/Song keep P as the dim confirm channel. (DESIGN §19.3)
-            const bool quantScope = ui.stepHeld || ui.trackHeld || ui.phraseScopeHeld;
+            // 9.12 st.8: resolve on the STEP-HELD layer when a step is down, so the P key
+            // reads QUANT from the table instead of from a hand-written special case
+            // below. Layer rows are additive — a miss falls back to Base — so this is a
+            // no-op for every other key. (The Trig case could not be a Base row because a
+            // held step is not a modifier; st.7e made it a layer row, and this is the
+            // painter finally reading it.)
+            const SurfaceLayer labelLayer = ui.stepHeld ? SurfaceLayer::StepInspector
+                                                        : SurfaceLayer::Base;
+            const auto* row = &resolveBinding(def.button, -1, heldMods, labelLayer);
+            if (row->action == ActionId::None && labelLayer != SurfaceLayer::Base)
+                row = &resolveBinding(def.button, -1, heldMods, SurfaceLayer::Base);
+            juce::String displayPrimary{ row->primary };
+            juce::String displayHint{ hintFor(def.button, -1, heldMods, labelLayer) };
 
             // Runtime-only overrides (not encodable in a static table):
             if (def.keyCode == 'I' && isPlaying && !sectionScopeHeld && !ui.stepHeld)
                 displayPrimary = "PAUSE";
             if (isOverdub)
                 displayPrimary = "OD";
-            if (def.keyCode == 'P' && quantScope && !ui.euclidHeld)
-            {
-                displayPrimary = "QUANT";
-                displayHint = {};
-            }
+            // (The P-key QUANT override that used to live here is gone: the table says
+            //  QUANT now — under Track/Phrase as a Base row, under a held step as a layer
+            //  row — so the painter reading the table IS the QUANT rule. One home.)
+            if (def.keyCode == 'P' && ui.euclidHeld)
+                displayPrimary = juce::String(resolveBinding(def.button, -1, heldMods,
+                                                             SurfaceLayer::Base).primary);
 
             c.primary = displayPrimary;
             c.funcHint = displayHint;
@@ -858,9 +863,11 @@ namespace lockstep
             {
                 if (def.role == KeyRole::VerbConfirm)
                 {
-                    // QUANT under Track/Phrase is an active scoped verb — glow, don't
-                    // dim. Under Scene/Morph/Song, P stays the reserved confirm channel.
-                    if (quantScope)
+                    // QUANT under Track/Phrase (or a held step) is an ACTIVE scoped verb
+                    // — glow, don't dim. Under Scene/Morph/Song, P stays the reserved
+                    // confirm channel. Asked of the resolved row, so the colour and the
+                    // label can no longer disagree about whether this key quantizes.
+                    if (row->action == ActionId::QuantizeHeld)
                         c.scopeTint = scopeColour(sectionScope).getARGB();
                     else
                         c.disabled = true;
@@ -887,7 +894,8 @@ namespace lockstep
                     const auto& b = resolveBinding(def.button, -1, heldMods,
                                                    SurfaceLayer::PendingConfirm);
                     c.primary = juce::String(b.primary);
-                    c.funcHint = juce::String(b.hint);
+                    c.funcHint = juce::String(hintFor(def.button, -1, heldMods,
+                                                      SurfaceLayer::PendingConfirm));
                     if (!c.pressed)
                         c.base = b.state;
                     c.disabled = false;

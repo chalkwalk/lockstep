@@ -261,10 +261,8 @@ namespace lockstep
             case AId::LengthHalve:       fx.trackLengthScale(-1); return true;
             case AId::RotateRight:       fx.rotateSteps(+1); return true;
             case AId::RotateLeft:        fx.rotateSteps(-1); return true;
-            case AId::CycleInputModeUp:
-            case AId::CycleInputModeRight:  fx.cycleInputMode(+1); return true;
-            case AId::CycleInputModeDown:
-            case AId::CycleInputModeLeft:   fx.cycleInputMode(-1); return true;
+            case AId::CycleInputModeUp:     fx.cycleInputMode(+1); return true;
+            case AId::CycleInputModeDown:   fx.cycleInputMode(-1); return true;
             case AId::MorphPickPoleA:    fx.morphPole(1); return true;
             case AId::MorphPickPoleB:    fx.morphPole(2); return true;
 
@@ -343,8 +341,43 @@ namespace lockstep
             case AId::OpenRetrigPicker: fx.setTrigGridMode(TrigGridMode::Retrig); return true;
             case AId::OpenSoundPool:    fx.setTrigGridMode(TrigGridMode::SoundPool); return true;
 
-            default:                    return false;
+            // ── 9.12 Stage 8: the actions handleAction DECLINES, on purpose ───────
+            // The switch is exhaustive over ActionId with NO `default:`, so -Wswitch
+            // (-Werror) makes a new action a BUILD failure rather than a key that
+            // silently does nothing when pressed. That compile-time guarantee is what
+            // replaced the kNotYetMigrated set: a list of debt you must remember to
+            // shrink is exactly the kind of hand-synced invariant this phase exists to
+            // delete (PRINCIPLES §20 -- make it structural, not remembered).
+            //
+            // Declining is a real answer, and each of these says something different:
+
+            // Confirm / Cancel with nothing pending. A PENDING prompt never reaches an
+            // action -- handleDown intercepts VerbConfirm far upstream and executes or
+            // cancels it. With nothing pending they delegate to the scope x verb matrix,
+            // which declines them in every scope. Handled above; listed here only so the
+            // reader does not go looking for a missing case.
+            //   (AId::VerbConfirm / AId::VerbCancel are handled in the verb block.)
+
+            // Display-only rows: the key's FRAME advertises the gesture; the behaviour is
+            // owned elsewhere, so there is deliberately nothing to dispatch.
+            case AId::TransportTrackCut:   // Play double-tap  — the transport owns it
+            case AId::TransportMasterCut:  // Play triple-tap  — ditto
+            case AId::HoldSceneMuteView:   // Scene+Mute is a VIEW, derived from held state
+            case AId::HoldMachineScope:    // Func+Track = Machine (9.29): a compound scope,
+            case AId::FocusGlobal:         // Func+Song  = Set     (9.29): entered by the
+                                           //   modifier's BARE row (7a), not by this row
+                return false;
+
+            // No action. Resolving to None means "this key is inert here", which is a
+            // grammar answer (a reserved combination), not a hole.
+            case AId::None:
+                return false;
+
+            // The sentinel is not an action.
+            case AId::Count:
+                return false;
         }
+        return false;   // unreachable — the switch above is exhaustive over ActionId
     }
 
     bool CommandCore::handleVerb(EditMode::PrimaryScope scope,

@@ -80,7 +80,7 @@ namespace lockstep
 
         // Labels — no MET hint post-9.11
         CHECK(juce::String(resolveBinding(CB::TapTempo, -1, kModNone, SL::Base).primary) == "TAP TEMPO", "TAP TEMPO primary");
-        CHECK(juce::String(resolveBinding(CB::TapTempo, -1, kModNone, SL::Base).hint).isEmpty(), "TAP hint empty");
+        CHECK(juce::String(hintFor(CB::TapTempo, -1, kModNone, SL::Base)).isEmpty(), "TAP hint empty");
     }
 
     // ── NavUp / ^ ─────────────────────────────────────────────────────────────
@@ -101,9 +101,9 @@ namespace lockstep
         CHECK(resolve(CB::NavUp, kModFunc | kModTrack) == AId::CycleInputModeUp, "Func+Track+NavUp = cycle");
 
         // Label content
-        CHECK(juce::String(resolveBinding(CB::NavUp, -1, kModNone, SL::Base).hint) == juce::String(u8"×2"),
+        CHECK(juce::String(hintFor(CB::NavUp, -1, kModNone, SL::Base)) == juce::String(u8"×2"),
               "NavUp bare hint = ×2");
-        CHECK(juce::String(resolveBinding(CB::NavUp, -1, kModTrack, SL::Base).hint).isEmpty(),
+        CHECK(juce::String(hintFor(CB::NavUp, -1, kModTrack, SL::Base)).isEmpty(),
               "Track+NavUp has no hint");
     }
 
@@ -120,10 +120,10 @@ namespace lockstep
         CHECK(resolve(CB::NavRight, kModTrack) == AId::NavPageRight, "Track+NavRight = page (not cycle)");
 
         // Hints present for bare, absent under Track and Func
-        CHECK(!juce::String(resolveBinding(CB::NavLeft, -1, kModNone, SL::Base).hint).isEmpty(), "NavLeft has hint");
-        CHECK(juce::String(resolveBinding(CB::NavLeft, -1, kModTrack, SL::Base).hint) == juce::String(u8"←ROT"),
+        CHECK(!juce::String(hintFor(CB::NavLeft, -1, kModNone, SL::Base)).isEmpty(), "NavLeft has hint");
+        CHECK(juce::String(hintFor(CB::NavLeft, -1, kModTrack, SL::Base)) == juce::String(u8"←ROT"),
               "Track+NavLeft falls back to the bare page row (hint = ←ROT)");
-        CHECK(juce::String(resolveBinding(CB::NavLeft, -1, kModFunc, SL::Base).hint).isEmpty(), "Func+NavLeft no hint");
+        CHECK(juce::String(hintFor(CB::NavLeft, -1, kModFunc, SL::Base)).isEmpty(), "Func+NavLeft no hint");
     }
 
     // ── NavDown / v (R) ───────────────────────────────────────────────────────
@@ -222,34 +222,30 @@ namespace lockstep
     }
 
     // ── Universal hint rule ───────────────────────────────────────────────────
-    // hint == Func-variant primary when the action differs; otherwise hint is empty.
-    // Section rows are skipped (labels live in ScopedSectionMatrix).
-    // Rows with Func already in requiredMods are skipped (adding Func is a no-op).
-    // Non-Tap rows are skipped: hold/double-tap gestures can't simultaneously add Func.
+    // 9.12 st.8: the hint is no longer STORED, so there is no stored value to check
+    // against the rule -- hintFor() IS the rule. What is worth pinning is that the rule
+    // still says what the surface needs it to say, so these are the cases the old data
+    // column existed to express, asked of the function instead.
     static void testHintRule()
     {
-        for (const auto& row : kKeyBindings)
-        {
-            if (row.button == CB::Section) continue;
-            if (row.requiredMods & kModFunc) continue;  // Func-held rows: no hint expected
-            if (row.gesture != Gesture::Tap) continue;  // Hold/DoubleTap rows: hint n/a
+        auto hint = [](CB b, uint16_t mods) {
+            return juce::String(hintFor(b, -1, mods, SL::Base));
+        };
+        CHECK(hint(CB::VerbSnapshot, kModNone) == "RESTORE", "Y: Func variant is RESTORE");
+        CHECK(hint(CB::VerbConfirm, kModNone) == "CANCEL",  "P: Func variant is CANCEL");
+        CHECK(hint(CB::TrackScope, kModNone) == "MACHINE",  "Track: Func variant is the MACHINE scope");
+        CHECK(hint(CB::SongScope, kModNone) == "SET",       "Song: Func variant is the SET scope");
+        CHECK(hint(CB::NavUp, kModNone) == juce::String(u8"×2"), "Nav up: Func variant is x2");
+        CHECK(hint(CB::VerbClear, kModTrack) == "INIT",
+              "Track+Clear: the Func variant is the MACHINE scope's INIT (9.29)");
 
-            const auto& fv = resolveBinding(row.button, row.index,
-                                            row.requiredMods | kModFunc,
-                                            row.layer);
-            const bool hasFuncVariant = (fv.action != AId::None && fv.action != row.action);
-            if (hasFuncVariant)
-            {
-                const juce::String expected(fv.primary);
-                CHECK(juce::String(row.hint) == expected,
-                      "hint must equal Func-variant primary");
-            }
-            else
-            {
-                CHECK(juce::String(row.hint).isEmpty(),
-                      "no Func-variant → hint must be empty");
-            }
-        }
+        // No Func variant → no secondary. Adding Func must change the ACTION, not just
+        // the label, or the key would advertise a gesture that does the same thing.
+        CHECK(hint(CB::TapTempo, kModNone).isEmpty(), "TAP has no Func variant");
+        CHECK(hint(CB::NavUp, kModTrack).isEmpty(),
+              "Track+Nav: Func changes nothing (the row is the same action)");
+        // A row that already carries Func cannot gain another one.
+        CHECK(hint(CB::NavLeft, kModFunc).isEmpty(), "Func+Nav: no second Func to add");
     }
 
     // ── Label-length invariants ───────────────────────────────────────────────
@@ -274,10 +270,8 @@ namespace lockstep
             if (row.button == CB::Section) continue;
 
             CHECK(row.primary != nullptr, "primary non-null (testLabelLengths)");
-            CHECK(row.hint != nullptr, "hint non-null (testLabelLengths)");
 
             const std::size_t pLen = utf8Length(row.primary);
-            const std::size_t hLen = utf8Length(row.hint);
 
             // A row renders in the large 15pt PRIMARY slot only when its gesture is
             // the promoted one for its context (limit 8). Otherwise it lands in a
@@ -287,19 +281,17 @@ namespace lockstep
                                                  row.requiredMods, row.layer);
             const std::size_t pLimit = (row.gesture == prom) ? 8u : 12u;
             CHECK(pLen <= pLimit, "primary label within slot limit");
-            CHECK(hLen <= 8, "hint label ≤8 code points");
+            // The hint is a Func variant's PRIMARY, so its length is already covered by
+            // the primary limit above — one fact, checked once (9.12 st.8).
         }
     }
 
     // ── Table invariants ─────────────────────────────────────────────────────
     static void testTableInvariants()
     {
-        // 1. All rows have non-null primary and hint.
+        // 1. All rows have a non-null primary.
         for (const auto& row : kKeyBindings)
-        {
             CHECK(row.primary != nullptr, "primary non-null");
-            CHECK(row.hint != nullptr, "hint non-null");
-        }
 
         // 2. No two rows for the same (button, index, layer, gesture) have identical requiredMods.
         for (std::size_t i = 0; i < kKeyBindings.size(); ++i)

@@ -30,7 +30,6 @@ namespace lockstep
     } while (false)
 
     void runSurfaceModelTests();
-    void runActionCoverageTests();   // 9.12 st.6: every ActionId wired or declared debt
     void runSurfaceInvalidationGuardTests();   // 9.15: §22 has one channel (source scan)
     void runSamplePoolTests();   // 6.2 volatile REC buffers (DESIGN §28)
     void runTempoEstimateTests(); // WI-4 energy-based BPM detection (DESIGN §28)

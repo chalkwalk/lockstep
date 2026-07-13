@@ -13,17 +13,19 @@ expressible within those principles and within the existing scope+verb grammar
 **Active focus (set at the 2026-07-12 alignment review):** two arcs, in
 priority order:
 
-1. **Structural debt.** `9.15` is **done** (2026-07-13): its Stage 5 found the
-   mechanism had shipped but the *rule* had not — ~45 surface-changing edits still
-   repainted the window and left controller LEDs stale — and now a build guard
-   makes the violation impossible to reintroduce, so PRINCIPLES §22 describes code
-   rather than a target. `9.12` **stage 5 is done** (2026-07-13): the dispatch
-   golden net exists, driven by a *headless editor* — 9.13's "unviable headless"
-   note was a misdiagnosis (a stack-local 47 MB processor, not component teardown),
-   and it had shaped the plan for this whole item. What remains is `9.12` stages
-   6–8, the migration itself: display already derives from the grammar, but
-   dispatch calls `resolveBinding` exactly *once* in 2,079 lines, so the two halves
-   of one grammar are still hand-synced. Plan: `docs/dispatch-migration-plan.md`.
+1. **Structural debt — CLEARED (2026-07-13).** Both items shipped.
+   `9.15`: the invalidation channel is now build-enforced, so PRINCIPLES §22
+   describes code rather than a target.
+   `9.12`: **dispatch and display now read the same table.** Display already derived
+   from the grammar; dispatch re-derived it by hand, and the migration proved the two
+   had drifted in **five** places — every one a key frame advertising a label the key
+   did not honour (`Func+Morph+Nav` said ×2 but picked the morph pole; bare `↓` said
+   octave but moved the track; `Track+←/→` said cycle but paged; `Track+tap(FX)`
+   bypassed the resolver it was coloured by; `scope+P` said confirm but quantized) —
+   plus one gesture (`Phrase+Nav` transpose) that dispatch performed and the surface
+   could never show. `handleAction` is exhaustive with no `default:`, so a new action
+   that reaches no handler is a *build* failure; the burn-down list is deleted because
+   the compiler is now the guard.
 2. **Grammar.** `9.29` — the **Machine scope** — **shipped 2026-07-13**. Section keys
    had always edited the machine, but no modifier could *say* "machine", so no verb
    could act on one. `Func` now reaches both unkeyed rungs (`Machine` inside Track,
@@ -1957,7 +1959,7 @@ README affordances + inspector.
       README affordances + inspector in implemented list; shortcut map already correct.
       *(Stage 8 — this commit)*
 
-### 9.12 — Unified Gesture Grammar (table-driven dispatch + derived affordance display)  *[active]*
+### 9.12 — Unified Gesture Grammar (table-driven dispatch + derived affordance display)  *[SHIPPED 2026-07-13]*
 
 Closes the display–dispatch drift: every key's visual frame (five fixed
 slots, top→bottom: dbl-tap · tap · **PRIMARY** · hold · func) is derived from the
@@ -2081,17 +2083,75 @@ the grammar; grid picker cells share a common `paintGridCell*` renderer.
         need most-specific-wins for *scope* qualification only — the mirror image of
         7a's bare-row rule, and the reason the two families must not share a routing
         rule.
-  - [ ] 7c–7f — nav, sections, steps, transport.
-- [ ] **Stage 8 — Exhaustiveness guard + cleanup.** `handleAction` switch
-      exhaustive (`-Werror=switch`, no `default:`); test that every ActionId is
-      handled; remove `KeyBinding::hint` field.
+  - [x] **7c — nav.** *(2026-07-13.)* **Net first:** rotate was invisible to a
+        trig-*census* digest and the step PAGE could not move at all on the probe's
+        16-step tracks, so the net was widened (trig positions, track length, page)
+        and re-blessed BEFORE any code moved — a net that cannot see the family it
+        protects is decoration. **Three rows were LYING**, and because display derives
+        from the table while dispatch re-derived by hand, each was a key frame showing
+        a label the key did not honour: `Func+Morph+Nav` said ×2 (it picks the morph
+        pole — the cascade checks morphHeld first); bare `↓` said NavOctaveDown (it
+        moves the focus track); `Track+←/→` said cycle-input-mode (it pages — the cycle
+        is up/down only). And `Phrase+Nav` = transpose (10.9) had **no row at all**:
+        dispatched since it shipped, never advertised, and routing nav through the
+        table without declaring it would have resolved `Phrase+↑` to the bare row and
+        changed track instead. Octave shift is declared as **layer rows** (NoteEdit /
+        ChromaticInput) — it is a layer, not a modifier — and `routeLayered` resolves
+        on the active layer, falling back to Base.
+  - [x] **7d — sections.** *(2026-07-13.)* Taps (`SelectSection` /
+        `SelectMetaSection`) move into effects. The picker **hold-arm stops being
+        hardcoded**: it was two blocks of index+scope `if`s restating rules the table
+        already carried (which is why 9.29's machine picker cost a new `if` in three
+        places). Dispatch now asks
+        `resolveBinding(Section, idx, mods, Gesture::Hold)` — **adding a picker is
+        adding a row**. Per-picker "firedMidHold" bools → one pair; two long-press
+        tokens → one. *Fourth divergence:* `Track+tap(FX)` **bypassed the section
+        resolver**, so it disagreed with the colour the key was painted in (9.21's
+        nearest-ceiling rule). Now routed through it: on a track with no insert loaded,
+        `Track+tap(FX)` pages the master FX — the nearest populated layer, which is the
+        colour the key was already showing.
+  - [x] **7e — confirm / quantize.** *(2026-07-13.)* *Fifth divergence:* the P key's
+        rows said `VerbConfirm` while **labelled QUANT** — the label was the honest
+        half. Rows now say `QuantizeHeld`. The step-scoped quantize (bare P while
+        holding steps) becomes a **layer row**: a held step is not a modifier, which is
+        exactly why it lived buried in an if-cascade and the frame never advertised it.
+  - [x] **7f — transport.** *(2026-07-13.)* TAP TEMPO + metronome route to the ONE
+        transport effect (the controller path already came through `handleDown`'s
+        button switch — two doors, one behaviour). The generator hub fires its row from
+        the timer instead of poking `generatorHubHeld`, so a controller can open it
+        through the same door (§19). The tap still resolves on RELEASE: the same key's
+        hold opens the hub.
+- [x] **Stage 8 — Exhaustiveness guard + cleanup.** *(2026-07-13.)*
+      `handleAction` is **exhaustive over `ActionId` with no `default:`**, so `-Wswitch`
+      (`-Werror`) makes a new action a BUILD failure rather than a key that silently
+      does nothing. That compile-time guarantee is what let `kNotYetMigrated` be
+      **deleted** — a list of debt you must remember to shrink is precisely the
+      hand-synced invariant this phase exists to remove (PRINCIPLES §20: structural,
+      not remembered). `ActionCoverageTest` deleted with it; the compiler is the guard.
+      Declining is now a stated answer: the display-only rows (the Play key's multi-tap,
+      Scene+Mute's view, the two compound scopes) `return false` with a comment saying
+      whose behaviour it is.
+      **`KeyBinding::hint` removed.** The secondary label was, by rule, "what this key
+      becomes with Func also held" — so storing it wrote the same fact twice (once as
+      the Func row's primary, once as the bare row's hint) with nothing to stop a row
+      contradicting its own Func variant. `hintFor()` derives it. 117 rows lost a
+      column; the painter's bespoke **QUANT override went with it** (the table says
+      QUANT now, under Track/Phrase as a Base row and under a held step as a layer row),
+      and the P key's *colour* is asked of the resolved row, so label and colour can no
+      longer disagree about whether the key quantizes.
+      Vestigial `CycleInputModeLeft/Right` swept.
 
-> **Natural ship point:** Stages 1–6 are landed (5 = the golden net, 6 = the
-> handlers + coverage guard). **Stage 7 is the migration itself** — family by
-> family, each sub-step points a family at `handleAction` and deletes its
-> imperative branch, with the goldens proving the behaviour did not move. The
-> ActionCoverage count (24 wired / 49 pending) is the burn-down. Re-blessing a
-> golden without reading the diff is the one way to make the net worthless.
+**Outcome.** Dispatch and display now read the same table. Across Stage 7 the
+migration found **five** places where they had already drifted — every one of them a
+key frame advertising something the key did not do — plus one gesture (`Phrase+Nav`
+transpose) that dispatch performed and the surface could never show. None of that was
+findable by reading either side alone, which is the argument for the phase.
+
+> **Shipped 2026-07-13.** Every stage landed. The discipline that made it safe:
+> widen the net *before* moving the code, read every golden diff (a re-bless without
+> reading the diff is the one way to make the net worthless), and move bodies rather
+> than rewrite them — so a diff that shows only action-ID changes is proof the
+> behaviour did not move.
 
 ### 9.13 — Redundancy / SSOT consolidation + switch hygiene  *[active]*
 

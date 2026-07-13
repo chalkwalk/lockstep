@@ -57,11 +57,12 @@ namespace lockstep
         LengthHalve,         // Func+NavDown
         RotateLeft,          // Func+NavLeft
         RotateRight,         // Func+NavRight
-        // Track-held nav (cycles track input mode)
+        // Track-held nav (cycles track input mode). Up/down ONLY: Track+left/right
+        // pages the grid (README §5.17). The Left/Right values existed because the
+        // table once claimed otherwise; 9.12 st.7c proved dispatch never agreed, and
+        // st.8 removes them rather than leave two names nothing can reach.
         CycleInputModeUp,
         CycleInputModeDown,
-        CycleInputModeLeft,
-        CycleInputModeRight,
         // Morph pole picks (NavUp=A, NavDown=B while Morph held)
         MorphPickPoleA,
         MorphPickPoleB,
@@ -172,7 +173,8 @@ namespace lockstep
         SurfaceLayer layer = SurfaceLayer::Base;
         ActionId action = ActionId::None;
         const char8_t* primary = u8"";    // main label (UTF-8, ≤8 visible chars)
-        const char8_t* hint = u8"";    // Func-hint / bottom strip ("" = none)
+        // (no `hint` column: the secondary label IS the Func variant's primary, so it is
+        //  derived by hintFor() rather than stored a second time — 9.12 st.8.)
         CellState state = CellState::Resting;
         // 9.12: gesture axis — appended at end so positional-init rows are unchanged.
         Gesture gesture = Gesture::Tap;
@@ -190,6 +192,12 @@ namespace lockstep
     // Resolve the best-matching row for (button, index, layer, heldMods, gesture).
     // Returns a row with ActionId::None if nothing matches.
     // The gesture parameter defaults to Tap so all existing callers are unchanged.
+    // The key's secondary (bottom-strip) label: what this key becomes if Func is ALSO
+    // held. Empty when Func changes nothing here. Derived, not stored — one fact, one
+    // home (9.12 st.8).
+    const char8_t* hintFor(ControllerButton b, int idx, uint16_t heldMods,
+                           SurfaceLayer layer, Gesture g = Gesture::Tap) noexcept;
+
     const KeyBinding& resolveBinding(ControllerButton b, int idx,
                                      uint16_t heldMods,
                                      SurfaceLayer layer,
