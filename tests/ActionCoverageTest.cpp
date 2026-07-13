@@ -28,10 +28,7 @@ namespace
     // migrated. Do NOT add to this list to silence a failure on a NEW action --
     // wire the action instead; the list is debt, not an escape hatch.
     const std::set<ActionId> kNotYetMigrated = {
-        ActionId::HoldFuncScope,     ActionId::HoldTrackScope,
-        ActionId::HoldPhraseScope,   ActionId::HoldSceneScope,
-        ActionId::HoldMorphScope,    ActionId::HoldSongScope,
-        ActionId::HoldMuteScope,     ActionId::HoldFillScope,
+        // (the eight Hold*Scope actions migrated in Stage 7a)
         ActionId::HoldSceneMuteView,
         ActionId::OpenMachinePicker, ActionId::OpenTrackFxPicker,
         ActionId::OpenMasterFxPicker, ActionId::FocusGlobal,

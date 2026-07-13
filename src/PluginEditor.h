@@ -618,6 +618,10 @@ namespace lockstep
         // branch and the StepLatch action. True if it latched (caller consumes).
         bool latchHeldSteps();
 
+        // 9.12 Stage 7a: enter a scope on a modifier press. The effect behind the
+        // Hold*Scope actions; the same code the imperative branches used to run.
+        void enterScopeHold(ControllerButton cb);
+
         // MHZ.9.x: auto-release a transient mode's latch after its terminal action.
         // No-op when not latched; leaves physically-held (non-latched) mods alone.
         void releaseTransientLatch(ControllerButton cb);

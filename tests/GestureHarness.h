@@ -75,6 +75,8 @@ namespace lockstep::test
         int generatorHubOpens = 0;
         std::vector<TrigGridMode> trigGridModes;
 
+        std::vector<ControllerButton> scopesEntered;
+        void enterScope(ControllerButton cb) override { scopesEntered.push_back(cb); }
         void latchModifier(ControllerButton cb) override { latchedModifiers.push_back(cb); }
         void escapeOverlay() override { ++escapes; }
         void restorePop() override { ++restorePops; }

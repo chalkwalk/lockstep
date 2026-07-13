@@ -179,6 +179,7 @@ namespace lockstep
         // implementation. Stages 7-8 delete the branches; nothing here changes then,
         // which is what makes the golden net's "behaviour did not move" claim mean
         // something.
+        void enterScope(ControllerButton cb) override { ed.enterScopeHold(cb); }
         void latchModifier(ControllerButton cb) override { ed.setModifierLatch(cb, true); }
 
         void escapeOverlay() override
@@ -3610,6 +3611,178 @@ namespace lockstep
         return true;
     }
 
+    // 9.12 Stage 7a: the modifier family's effect. Every line below is MOVED from
+    // the dispatchDown branches, not rewritten — the golden net is what proves that.
+    // The per-scope differences are real and stay here (Func's escape gesture and
+    // step-latch, Track's Control-All, Scene's re-sync-to-scene, Morph's MZ hand-off),
+    // because a modifier press is not one uniform thing.
+    void LockstepEditor::enterScopeHold(ControllerButton cb)
+    {
+        using CB = ControllerButton;
+        const ControllerEvent ev{ ControllerEvent::Type::ButtonDown, cb, -1, 0 };
+        switch (cb)
+        {
+                case CB::Func:
+                    // W7: hold-step + Func latches the held step(s) so the finger is free
+                    // (release no longer ends the edit). No trig mutation — a purely
+                    // virtual hold. Fires whenever step(s) are PHYSICALLY held and nothing
+                    // is latched yet, so a later double-tap-Func still escapes. Decoupled
+                    // from the inspector (Part 2): a bare multi-hold latches too, keeping
+                    // every held step editable hands-free; the long-press inspector adds
+                    // the tap-to-clear slot flow on top.
+                    if (latchHeldSteps())
+                        return;   // consume: no funcHeld, no Chance band
+                    uiState_.funcHeld = true;
+                    // Func+Track is the machine/Kit picker gesture (§4.7.2) — entering
+                    // the compound re-skins the step grid to machine names directly.
+                    uiState_.funcTrackHeld = uiState_.trackHeld;
+                    editMode_.onScopeEvent(ev);
+                    updateFillActivation();
+                    refreshMetaBand();  // 1c: Func held → show Chance band in MZ
+                    refreshSurface();
+                    // MHZ.9.4: Func never latches; double-tap = universal escape.
+                    // Cancels latches and any active overlay (Euclid / sticky modes).
+                    {
+                        const double now = juce::Time::getMillisecondCounterHiRes();
+                        if (gesture_.doubleTap(1000 + static_cast<int>(CB::Func), now))
+                        {
+                            if (uiState_.latch.any() || processor_.editContext().hasAnyLatchedStep())
+                                escapeAllLatches();
+
+                            // 7b: double-tap Func also closes an open machine console
+                            // (the confirmed Cancel/close path). 7c hooks revert here.
+                            if (uiState_.machineConsoleOpen)
+                            {
+                                closeMachineConsole();
+                                refreshSurface();
+                            }
+
+                            // Route through the overlay reducer.  Guard: sticky modes
+                            // require no latches (they shouldn't be co-active, but
+                            // double-tap can arrive mid-gesture).  Euclid always exits.
+                            const Overlay prevOv = activeOverlay(uiState_);
+                            const bool canEscape = (prevOv == Overlay::Euclid)
+                                || (prevOv == Overlay::Melodic)
+                                || (prevOv == Overlay::Harmony)
+                                || (!uiState_.latch.any()
+                                    && !processor_.editContext().hasAnyLatchedStep());
+                            if (canEscape)
+                            {
+                                const auto r = handleOverlayEvent(uiState_,
+                                    { ModeEventKind::DoubleTapFunc });
+                                if (r == OverlayResult::Exited)
+                                {
+                                    // Euclid/Melodic stash restore is editor-owned state
+                                    // (the reducer reset the held flag via escapeOverlay).
+                                    if (prevOv == Overlay::Euclid && euclidTrack_ >= 0)
+                                    {
+                                        restoreEuclidStash();
+                                        forgetEuclidEditorState();
+                                    }
+                                    if (prevOv == Overlay::Melodic && melodicTrack_ >= 0)
+                                    {
+                                        restoreMelodyStash();
+                                        forgetMelodyEditorState();
+                                    }
+                                    if (prevOv == Overlay::Harmony && harmonyTrack_ >= 0)
+                                    {
+                                        restoreHarmonyStash();
+                                        forgetHarmonyEditorState();
+                                    }
+                                    refreshMetaBand();
+                                    refreshSurface();
+                                }
+                            }
+                        }
+                    }
+                    return;
+
+                case CB::TrackScope:
+                    physHeld_.track = true;
+                    uiState_.trackHeld = true;
+                    // Func+Track = machine/Kit picker (§4.7.2): arm when Track pressed with Func held.
+                    uiState_.funcTrackHeld = uiState_.funcHeld;
+                    processor_.setControlAllActive(true);  // MD.10: active until a track is selected
+                    editMode_.onScopeEvent(ev);
+                    handleModifierTap(CB::TrackScope, uiState_.latch.track);
+                    clearSwingDismissed();
+                    refreshSurface();
+                    return;
+
+                case CB::PhraseScope:
+                    physHeld_.phrase = true;
+                    uiState_.phraseScopeHeld = true;
+                    uiState_.phraseScopeUsed = false;
+                    editMode_.onScopeEvent(ev);
+                    // Euclid entry moved to generator hub (9.10): Phrase+Fill no longer enters it.
+                    handleModifierTap(CB::PhraseScope, uiState_.latch.phrase);
+                    refreshSurface();
+                    return;
+
+                case CB::MuteScope:
+                    physHeld_.mute = true;
+                    uiState_.muteHeld = true;
+                    editMode_.onScopeEvent(ev);
+                    handleModifierTap(CB::MuteScope, uiState_.latch.mute);
+                    refreshSurface();
+                    return;
+
+                case CB::FillScope:
+                    physHeld_.fill = true;
+                    uiState_.fillHeld = true;
+                    editMode_.onScopeEvent(ev);
+                    // Euclid entry moved to generator hub (9.10): Phrase+Fill no longer enters it.
+                    updateFillActivation();
+                    handleModifierTap(CB::FillScope, uiState_.latch.fill);
+                    refreshSurface();
+                    return;
+
+                case CB::CueScope:
+                    physHeld_.cue = true;
+                    uiState_.cueHeld = true;
+                    editMode_.onScopeEvent(ev);
+                    refreshSurface();
+                    return;
+
+                case CB::MorphScope:
+                    physHeld_.morph = true;
+                    uiState_.morphHeld = true;
+                    manipulationZone_.setMorphHeld(true);
+                    editMode_.onScopeEvent(ev);
+                    handleModifierTap(CB::MorphScope, uiState_.latch.morph);
+                    refreshSurface();
+                    return;
+
+                case CB::SongScope:
+                    physHeld_.song = true;
+                    uiState_.songHeld = true;
+                    editMode_.onScopeEvent(ev);
+                    handleModifierTap(CB::SongScope, uiState_.latch.song);
+                    clearSwingDismissed();
+                    refreshSurface();
+                    return;
+
+                case CB::SceneScope:
+                    physHeld_.scene = true;
+                    // Track + Scene: re-sync focused musician to current Scene (Phase 7).
+                    if (uiState_.trackHeld)
+                    {
+                        processor_.resyncTrackToScene(processor_.focusTrack());
+                        refreshSurface();
+                        return;
+                    }
+                    uiState_.sceneHeld = true;
+                    editMode_.onScopeEvent(ev);
+                    handleModifierTap(CB::SceneScope, uiState_.latch.scene);
+                    clearSwingDismissed();
+                    refreshSurface();
+                    return;
+
+            default:
+                return;   // not a scope modifier
+        }
+    }
+
     // -------------------------------------------------------------------------
     // MHZ.9.x: per-modifier tap router.
     // Single tap on a latched modifier unlatches it; double-tap toggles latch.
@@ -3818,161 +3991,42 @@ namespace lockstep
 
         switch (ev.button)
         {
+            // ── 9.12 Stage 7a: the modifier family is grammar-routed ──────────────
+            // The eight scope modifiers no longer carry their behaviour inline. The
+            // binding table names the action, handleAction dispatches it, and the
+            // editor supplies the effect (enterScopeHold) — which is the very code
+            // these branches used to run, moved, not rewritten.
+            //
+            // Resolved on the modifier's BARE row (kModNone), NOT on the held-mod set.
+            // A modifier press means "enter this scope" whatever else is down, but
+            // most-specific-wins would resolve TrackScope-under-Func to the compound
+            // row (OpenMachinePicker) and swallow the hold — the scope would silently
+            // never be entered. A compound row says what a PAIR means for the keys it
+            // qualifies; it is not the modifier's own action.
             case CB::Func:
-                // W7: hold-step + Func latches the held step(s) so the finger is free
-                // (release no longer ends the edit). No trig mutation — a purely
-                // virtual hold. Fires whenever step(s) are PHYSICALLY held and nothing
-                // is latched yet, so a later double-tap-Func still escapes. Decoupled
-                // from the inspector (Part 2): a bare multi-hold latches too, keeping
-                // every held step editable hands-free; the long-press inspector adds
-                // the tap-to-clear slot flow on top.
-                if (latchHeldSteps())
-                    return true;   // consume: no funcHeld, no Chance band
-                uiState_.funcHeld = true;
-                // Func+Track is the machine/Kit picker gesture (§4.7.2) — entering
-                // the compound re-skins the step grid to machine names directly.
-                uiState_.funcTrackHeld = uiState_.trackHeld;
-                editMode_.onScopeEvent(ev);
-                updateFillActivation();
-                refreshMetaBand();  // 1c: Func held → show Chance band in MZ
-                refreshSurface();
-                // MHZ.9.4: Func never latches; double-tap = universal escape.
-                // Cancels latches and any active overlay (Euclid / sticky modes).
-                {
-                    const double now = juce::Time::getMillisecondCounterHiRes();
-                    if (gesture_.doubleTap(1000 + static_cast<int>(CB::Func), now))
-                    {
-                        if (uiState_.latch.any() || processor_.editContext().hasAnyLatchedStep())
-                            escapeAllLatches();
-
-                        // 7b: double-tap Func also closes an open machine console
-                        // (the confirmed Cancel/close path). 7c hooks revert here.
-                        if (uiState_.machineConsoleOpen)
-                        {
-                            closeMachineConsole();
-                            refreshSurface();
-                        }
-
-                        // Route through the overlay reducer.  Guard: sticky modes
-                        // require no latches (they shouldn't be co-active, but
-                        // double-tap can arrive mid-gesture).  Euclid always exits.
-                        const Overlay prevOv = activeOverlay(uiState_);
-                        const bool canEscape = (prevOv == Overlay::Euclid)
-                            || (prevOv == Overlay::Melodic)
-                            || (prevOv == Overlay::Harmony)
-                            || (!uiState_.latch.any()
-                                && !processor_.editContext().hasAnyLatchedStep());
-                        if (canEscape)
-                        {
-                            const auto r = handleOverlayEvent(uiState_,
-                                { ModeEventKind::DoubleTapFunc });
-                            if (r == OverlayResult::Exited)
-                            {
-                                // Euclid/Melodic stash restore is editor-owned state
-                                // (the reducer reset the held flag via escapeOverlay).
-                                if (prevOv == Overlay::Euclid && euclidTrack_ >= 0)
-                                {
-                                    restoreEuclidStash();
-                                    forgetEuclidEditorState();
-                                }
-                                if (prevOv == Overlay::Melodic && melodicTrack_ >= 0)
-                                {
-                                    restoreMelodyStash();
-                                    forgetMelodyEditorState();
-                                }
-                                if (prevOv == Overlay::Harmony && harmonyTrack_ >= 0)
-                                {
-                                    restoreHarmonyStash();
-                                    forgetHarmonyEditorState();
-                                }
-                                refreshMetaBand();
-                                refreshSurface();
-                            }
-                        }
-                    }
-                }
-                return true;
-
             case CB::TrackScope:
-                physHeld_.track = true;
-                uiState_.trackHeld = true;
-                // Func+Track = machine/Kit picker (§4.7.2): arm when Track pressed with Func held.
-                uiState_.funcTrackHeld = uiState_.funcHeld;
-                processor_.setControlAllActive(true);  // MD.10: active until a track is selected
-                editMode_.onScopeEvent(ev);
-                handleModifierTap(CB::TrackScope, uiState_.latch.track);
-                clearSwingDismissed();
-                refreshSurface();
-                return true;
-
             case CB::PhraseScope:
-                physHeld_.phrase = true;
-                uiState_.phraseScopeHeld = true;
-                uiState_.phraseScopeUsed = false;
-                editMode_.onScopeEvent(ev);
-                // Euclid entry moved to generator hub (9.10): Phrase+Fill no longer enters it.
-                handleModifierTap(CB::PhraseScope, uiState_.latch.phrase);
-                refreshSurface();
-                return true;
-
             case CB::MuteScope:
-                physHeld_.mute = true;
-                uiState_.muteHeld = true;
-                editMode_.onScopeEvent(ev);
-                handleModifierTap(CB::MuteScope, uiState_.latch.mute);
-                refreshSurface();
-                return true;
-
             case CB::FillScope:
-                physHeld_.fill = true;
-                uiState_.fillHeld = true;
-                editMode_.onScopeEvent(ev);
-                // Euclid entry moved to generator hub (9.10): Phrase+Fill no longer enters it.
-                updateFillActivation();
-                handleModifierTap(CB::FillScope, uiState_.latch.fill);
-                refreshSurface();
-                return true;
-
             case CB::CueScope:
-                physHeld_.cue = true;
-                uiState_.cueHeld = true;
-                editMode_.onScopeEvent(ev);
-                refreshSurface();
-                return true;
-
             case CB::MorphScope:
-                physHeld_.morph = true;
-                uiState_.morphHeld = true;
-                manipulationZone_.setMorphHeld(true);
-                editMode_.onScopeEvent(ev);
-                handleModifierTap(CB::MorphScope, uiState_.latch.morph);
-                refreshSurface();
-                return true;
-
             case CB::SongScope:
-                physHeld_.song = true;
-                uiState_.songHeld = true;
-                editMode_.onScopeEvent(ev);
-                handleModifierTap(CB::SongScope, uiState_.latch.song);
-                clearSwingDismissed();
-                refreshSurface();
-                return true;
-
-            case CB::SceneScope:
-                physHeld_.scene = true;
-                // Track + Scene: re-sync focused musician to current Scene (Phase 7).
-                if (uiState_.trackHeld)
+            case CB::SceneScope: {
+                // Base layer: the eight modifier rows are declared there, and a
+                // modifier's own meaning does not change with the active overlay.
+                const auto& row = resolveBinding(ev.button, ev.index, kModNone,
+                                                 SurfaceLayer::Base);
+                if (row.action != ActionId::None)
                 {
-                    processor_.resyncTrackToScene(processor_.focusTrack());
-                    refreshSurface();
-                    return true;
+                    auto ctx = commandContext();
+                    if (commandCore_.handleAction(row.action, ev, ctx, *editorEffects_))
+                        return true;
                 }
-                uiState_.sceneHeld = true;
-                editMode_.onScopeEvent(ev);
-                handleModifierTap(CB::SceneScope, uiState_.latch.scene);
-                clearSwingDismissed();
-                refreshSurface();
+                // CueScope is reserved and has no binding row; it still owes its hold,
+                // so fall through to the effect rather than dropping the press.
+                enterScopeHold(ev.button);
                 return true;
+            }
 
             case ControllerButton::Section: {
                 // Euclid is a focused modal generator; selecting a section exits it,

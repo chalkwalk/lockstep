@@ -199,6 +199,16 @@ namespace lockstep
             case AId::FluidMuteToggle:  fx.fluidMuteToggle(ev.index); return true;
             case AId::ToggleCapture:    fx.toggleCapture(); return true;
 
+            // ── 9.12 Stage 7a: the modifier family ───────────────────────────────
+            case AId::HoldFuncScope:   fx.enterScope(CB::Func); return true;
+            case AId::HoldTrackScope:  fx.enterScope(CB::TrackScope); return true;
+            case AId::HoldPhraseScope: fx.enterScope(CB::PhraseScope); return true;
+            case AId::HoldSceneScope:  fx.enterScope(CB::SceneScope); return true;
+            case AId::HoldMorphScope:  fx.enterScope(CB::MorphScope); return true;
+            case AId::HoldSongScope:   fx.enterScope(CB::SongScope); return true;
+            case AId::HoldMuteScope:   fx.enterScope(CB::MuteScope); return true;
+            case AId::HoldFillScope:   fx.enterScope(CB::FillScope); return true;
+
             // ── 9.12 Stage 6: the gesture-axis actions ───────────────────────────
             // Wired here first, still unreached from dispatch: stages 7-8 point each
             // family at handleAction and delete its imperative branch, one at a time,

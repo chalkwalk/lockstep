@@ -67,6 +67,11 @@ namespace lockstep
     // an imperative branch that stages 7-8 delete: the branch and the effect must
     // share one implementation (the effect calls the same editor helper the branch
     // does), never two copies that can drift.
+    // Enter a scope on a modifier press (9.12 Stage 7a). One effect for all eight:
+    // the per-scope differences (Func's escape gesture, Track's Control-All, Scene's
+    // re-sync, Morph's MZ hand-off) live in the editor's enterScopeHold, which is the
+    // same code the imperative branch ran.
+        virtual void enterScope(ControllerButton cb) = 0;
         virtual void latchModifier(ControllerButton cb) = 0;  // dbl-tap: latch scope on
         virtual void escapeOverlay() = 0;                     // Func dbl-tap: leave overlay
         virtual void restorePop() = 0;                        // Func+Snapshot: pop one
