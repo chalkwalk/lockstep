@@ -117,3 +117,43 @@ endif()
 
 enable_testing()
 add_test(NAME SurfaceModelTest COMMAND lockstep_tests)
+
+# ---------------------------------------------------------------------------
+# DispatchSpike (9.12 Stage 5, throwaway): can the editor's dispatch be driven
+# headlessly? Separate binary so a crash here never breaks the main suite.
+# ---------------------------------------------------------------------------
+add_executable(lockstep_dispatch_spike
+    DispatchSpike.cpp
+    ../src/PluginEditorFactory.cpp   # the real createEditor() (not the test stub)
+    ../src/PluginEditor.cpp
+    ../src/ui/KeyButton.cpp
+    ../src/ui/KeyboardArea.cpp
+    ../src/ui/MetaBand.cpp
+    ../src/ui/MetaRotary.cpp
+    ../src/ui/SurfaceModel.cpp
+    ../src/ui/SectionResolve.cpp
+    ../src/ui/InspectorModel.cpp
+    ../src/ui/TimelineModel.cpp
+    ../src/ui/InspectorBar.cpp
+    ../src/ui/TimelineStrip.cpp
+    ../src/ui/InPluginTransport.cpp
+    ../src/ui/ManipulationZone.cpp
+    ../src/ui/SamplePoolOverlay.cpp
+    ../src/ui/SoundBankOverlay.cpp
+    ../src/ui/StandaloneFileBar.cpp
+    ../src/ui/mode/ModeReducer.cpp
+    ../src/ui/mode/FuncReskin.cpp
+    ../src/ui/mode/ModalState.cpp
+    ../src/ui/mode/LatchOps.cpp)
+
+target_link_libraries(lockstep_dispatch_spike PRIVATE
+    lockstep_engine
+    juce::juce_gui_extra
+    juce::juce_gui_basics
+    juce::juce_core
+    juce::juce_data_structures)
+
+# runDispatchLoopUntil() (used to deliver the SurfaceDispatcher's async frame) is
+# compiled out unless modal loops are permitted.
+target_compile_definitions(lockstep_dispatch_spike PRIVATE
+    JUCE_MODAL_LOOPS_PERMITTED=1)

@@ -77,6 +77,12 @@ namespace lockstep
         // juce::Timer — drives the diagnostic VU meters / activity blinks.
         void timerCallback() override;
 
+        // 9.12: the dispatch golden net drives dispatchDown/dispatchUp directly, to
+        // pin today's behaviour before the table migration rewrites it. Granting one
+        // named friend keeps the entry points private to everything else (no public
+        // test-only method that production code could start calling by accident).
+        friend struct DispatchProbe;
+
     private:
         LockstepProcessor& processor_;
         QwertyOverlay qwerty_;
