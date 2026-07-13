@@ -1710,17 +1710,22 @@ spigot). Each is simple alone; this chapter is how they compose
    tracks into a Route bus and the bus is one drum stem with the feeders
    folded in. You grouped the stems by mixing the set.
 
+**Improvise from nothing and the stems still arrive.** The stem list is
+not fixed when you arm — a track you bring in halfway through the set
+gets its own file, silence-padded back to the take's start, so every stem
+stays sample-aligned with `master.wav` and drops straight onto a DAW
+timeline. Mute, unmute, and re-route freely: files record what tracks
+output. Arming tells you what you'll get (`ARMED ▸ master + 4 stems`), and
+the count grows live as tracks join.
+
 Two things to know about stems: they are **dry per track** — master
 inserts and send returns live only in `master.wav`, so stems + nothing ≠
 master when sends are hot (the stems are for post-processing; the master
 is the performance document). And **hardware needs a return channel**: a
 MIDI-out track makes no audio, so bring the synth's output into an Ext
 input, put a Thru/Static/Route track on it, and *that* track is the stem.
-
-> **Known gap (being fixed — ROADMAP 11.11):** the stem list is chosen
-> when you arm. A set improvised from a blank project arms zero stems
-> today, and a track you bring in mid-set gets no file. Until 11.11
-> lands, assign machines (even silent ones) before arming.
+(Standalone currently offers **one** stereo Ext input; a DAW can enable
+all four — ROADMAP 11.12.)
 
 **Rehearsal & self-review (the Tape as practice mirror).** Put a Tape on
 a track, record a run-through along the song timeline, wind back
@@ -1755,12 +1760,36 @@ have both paths and they answer different needs:
   buses to Aux, record in the host, and skip the alignment problem, at
   the cost of the 6-bus ceiling.
 
-**The morning after.** Every take is one directory with predictable
-names — drag the stems in, line them up, and the session starts.
-(Planned, 11.11: a plain-text take sheet per capture — tempo plus the
-bar/wall-clock time of every Scene/Song launch — so navigation notes ride
-with the audio. Like the Tape's markers, the sheet is dumb: places, never
-cues.)
+**The morning after.** Every take is one directory with predictable names,
+plus a **`take-sheet.txt`**: the project, the tempo and time signature,
+the length, every stem it kept (named by the machine that made it), and
+the **launch log** — where each Scene and Song change happened in the
+take. Drag the stems in, line them up against the log, and the session
+starts. Like the Tape's markers the sheet is **dumb**: places, never cues.
+Nothing reads it back, and no Scene is ever fired by it.
+
+```
+Lockstep take
+=============
+
+Project     : night-set
+Recorded    : 12 Jul 2026 9:10pm
+Length      : 41:02.027
+Sample rate : 48000 Hz
+Tempo       : 128.00 BPM
+Time sig    : 4/4
+
+Files
+-----
+master.wav
+track-01.wav  Analog
+track-04.wav  Route
+
+Launches
+--------
+0:16.000  Scene 2
+4:48.000  Song  3
+```
 
 <a name="6-implemented-vs-planned"></a>
 ## 6. Implemented vs. planned

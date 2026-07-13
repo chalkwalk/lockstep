@@ -20,10 +20,13 @@ priority order:
 2. **Performance usability.** `5.3` Song/Scene management UI (names, colours,
    browser, Kit recall), `9.4` snapshot restore-semantics session, `6.4` Cue bus.
 
-**Capture-family CUJ session (`11.10`) — done 2026-07-12.** DESIGN §41 +
-README §5.23 landed; the follow-up work is `11.11` (dynamic stem set — the
-from-blank improvised set records zero stems today — plus arm preview + take
-sheet), which slots ahead of the usability arc: it completes the defining CUJ.
+**Capture arc closed 2026-07-12.** `11.10` (the CUJ session — DESIGN §41 +
+README §5.23) and `11.11` (the stems completion) are both shipped: stem
+alignment is now an invariant, a set improvised from nothing comes home with
+stems, arming names its outcome, and every take carries a take sheet. Two
+defects died with it — the arm-time stem set (S12) and the mute-shortened stem
+(S13, which was shipped and silent). Left open: `11.12` (standalone Ext inputs
+2–4, found while verifying).
 
 **Recently shipped:** Phase 11 (the deck engine) is **complete** — core,
 tail (chase-locked Tape, i16 reel, §19 proxies, scrub/wind, multi-sub overdub),
@@ -3157,7 +3160,7 @@ stems", prefer adding the widget over making the user jump through hoops
       rehearsal & self-review, set-samples-itself, hybrid set (stems→Stream),
       the morning after.
 
-### 11.11 — Stems completion: the alignment invariant, arm preview, take sheet  *[active]*
+### 11.11 — Stems completion: the alignment invariant, arm preview, take sheet  *[shipped 2026-07-12]*
 
 The follow-ups the 11.10 session committed to (DESIGN §41.3), plus the shipped
 defect planning uncovered. These make the defining CUJ (improvise from blank →
@@ -3182,7 +3185,7 @@ stems) actually hold — and make the stems it produces *trustworthy*.
 > sweep → prune at close (DESIGN §41.3). This fixes S12 and S13 with one
 > mechanism and needs no late-arm race.
 
-- [ ] **Stage 1 — the alignment invariant (S12 + S13).** Arm **all 16** stem
+- [x] **Stage 1 — the alignment invariant (S12 + S13).** SHIPPED (`d0879d3`). Arm **all 16** stem
       recorders at capture start (Stub + MIDI-out included — a machine assigned
       mid-take must yield a file reaching back to the start). After each master
       `writeBlock`, a bounded, allocation-free **top-up sweep** pads any stem
@@ -3193,26 +3196,53 @@ stems) actually hold — and make the stems it produces *trustworthy*.
       master + stems (17 always-armed recorders must not be 17 threads).
       Tests: from-blank capture → assign mid-take → aligned padded stem;
       **mute-alignment regression** (stem length == master length, sample-exact,
-      across a floored mute ramp and the idle path); feeder-fold prune.
-- [ ] **Stage 2 — Arm-time stem preview (S1).** Arming announces the outcome in
+      across a floored mute ramp and the idle path); feeder-fold prune. Both new
+      tests verified to FAIL with the sweep disabled — the regression is real and
+      the net catches it.
+- [x] **Stage 2 — Arm-time stem preview (S1).** SHIPPED (`aece2aa`). Arming announces the outcome in
       the capture strip — "ARMED ▸ master + N stems"; the count live-updates
       while recording (same predicate the prune latches).
-- [ ] **Stage 3 — Take sheet (S4 / the morning after).** Each capture directory
+- [x] **Stage 3 — Take sheet (S4 / the morning after).** SHIPPED (`a19a0f0`) —
+      `src/io/TakeSheet.h` (pure formatter + wait-free bounded ring). Each capture directory
       gains a plain-text sheet: project, date, sample rate, tempo root, the
       stems it kept, and the launch log — the time of every Scene/Song launch
       during the take. Events are stamped on the audio thread into a fixed-size
       ring at the same site the Tape drops its markers (§40.4) and drained to
       text at close, so a discarded take takes its sheet with it. Dumb like Tape
       markers: places, never cues (NON-GOALS #1 tripwire applies).
-- [ ] **Stage 4 — Verification rider (S6) + docs close.** Confirm how many of
-      the four stereo Ext buses are reachable **standalone** (`In` is enabled by
-      default, `In 2–4` are declared disabled — the studio CUJ's return-channel
-      recipe depends on the answer); record the finding in DESIGN §41.3 + README
-      §5.23 rather than implying all four work. Remove README's "known gap"
-      callout. (Host Aux port exposure stays tracked under 6.4.)
+- [x] **Stage 4 — Verification rider (S6) + docs close.** **Finding:** four
+      stereo Ext buses are declared and `isBusesLayoutSupported` accepts any of
+      them enabled, but only `In` (Ext1) is enabled by default and **nothing in
+      the standalone enables the other three** (JUCE's standalone holder takes
+      the default layout and offers no bus-enable UI). So: *one* stereo hardware
+      return standalone, four in a host that enables them. Recorded in DESIGN
+      §41.3 + README §5.23 rather than implying all four work; the fix is filed
+      as **11.12** (standalone plumbing, not capture). README's "known gap"
+      callout removed. (Host Aux port exposure stays tracked under 6.4.)
 - [ ] *(Parked, not scheduled)*: the "External" master-insert placeholder —
       declare a master slot as processed-outside so the captured master is dry
       for DAW post-processing (DESIGN §41.3). Build only on real demand.
+
+### 11.12 — Standalone external inputs 2–4  *[planned]*
+
+Found while verifying 11.11 S6. Four stereo Ext buses are declared and the
+layout validator accepts any of them enabled, but only `In` (Ext1) is enabled
+by default and **nothing in the standalone turns the others on** — JUCE's
+standalone holder takes the default bus layout and offers no bus-enable UI. A
+DAW can enable all four; standalone reaches exactly one.
+
+That is a real constraint on the **studio CUJ** (DESIGN §41.1): each piece of
+outboard gear returns through an Ext input, so today a standalone rig can carry
+one stereo hardware return, and a second synth has to share it through an
+external mixer. Stems inherit the limit — one return track, one stem.
+
+- [ ] Enable Ext2–4 standalone: either request the wider layout at construction
+      when running standalone (`JucePlugin_Build_Standalone` — simplest, but it
+      claims device channels the user may not have), or expose bus-enable in the
+      standalone audio settings / file bar (honest, more plumbing). Prefer the
+      second if the device-channel claim proves noisy.
+- [ ] Verify on a multi-input interface: four returns, four Route tracks, four
+      stems in one take.
 
 ---
 

@@ -7699,6 +7699,15 @@ follow-ups):
   hardware's audio enters an Ext input, a Thru/Static/Route track carries it,
   and that track is the stem. The README workflow chapter teaches this
   pattern; it is the answer, not a workaround.
+
+  *Verified 2026-07-12 (11.11 S6):* four stereo Ext buses are **declared**, and
+  `isBusesLayoutSupported` accepts any of them enabled — but only `In` (Ext1)
+  is enabled by default, and **nothing in the standalone enables the other
+  three**. JUCE's standalone holder takes the default layout and offers no
+  bus-enable UI, so *standalone reaches Ext1 only*; Ext2–4 are reachable in a
+  host that enables them. One stereo hardware return standalone, four in a
+  DAW. That gap is a real constraint on the studio CUJ and is filed
+  (11.12) — it is a standalone plumbing job, not a capture one.
 - **Alignment is an invariant, not a feature** *(11.11)*. **After every
   processed block, every stem file holds exactly as many samples as
   `master.wav`.** This is stated as an invariant because two shipped defects
