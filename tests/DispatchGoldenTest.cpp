@@ -203,7 +203,8 @@ namespace
         put(d, "stepMoveActive", u.stepMoveActive);
         put(d, "stepMoveAnchor", u.stepMoveAnchor);
 
-        put(d, "funcTrackHeld", u.funcTrackHeld);
+        put(d, "machineScopeHeld", u.machineScopeHeld);
+        put(d, "machinePickerOpen", u.machinePickerOpen);
         put(d, "funcSrcHeld", u.funcSrcHeld);
         put(d, "noteEditMode", u.noteEditMode);
         put(d, "noteEditOctave", u.noteEditOctave);

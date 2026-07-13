@@ -148,13 +148,13 @@ namespace lockstep
                   "generatorHubHeld → GENERATOR HUB in overlay region");
         }
 
-        // Machine picker → MACHINE PICKER text.
+        // Machine picker (9.29: Track+hold(SRC)) -> PICK MACHINE text.
         {
             UiState ui{};
-            ui.funcTrackHeld = true;
+            ui.machinePickerOpen = true;
             const auto m = build(ui, ec, proc);
-            CHECK(m.overlay.containsIgnoreCase("MACHINE PICKER"),
-                  "funcTrackHeld → MACHINE PICKER in overlay region");
+            CHECK(m.overlay.containsIgnoreCase("PICK MACHINE"),
+                  "machinePickerOpen → PICK MACHINE in overlay region");
         }
 
         // Density sticky overlay.

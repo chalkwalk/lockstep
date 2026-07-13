@@ -49,6 +49,11 @@ namespace
         // Display-only rows: they exist so the key's frame can advertise the
         // gesture; the transport owns the behaviour (see KeyBindings.h).
         ActionId::TransportTrackCut, ActionId::TransportMasterCut,
+        // Display-only compound-scope rows (9.29): Func+Track = Machine, Func+Song =
+        // Set. A modifier press always resolves on its BARE row (Stage 7a) -- "enter
+        // this scope" whatever else is held -- so these rows advertise the compound on
+        // the key frame; the scope state itself is set by enterScopeHold.
+        ActionId::HoldMachineScope,
     };
 }   // namespace
 

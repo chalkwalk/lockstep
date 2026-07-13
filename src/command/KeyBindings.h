@@ -38,10 +38,10 @@ namespace lockstep
         HoldFillScope,
         HoldSceneMuteView,   // Scene+Mute combo: enters scene-mute grid view
         // Overlay pickers (step grid re-skin)
-        OpenMachinePicker,
+        OpenMachinePicker,   // Track+hold(SRC): choose which machine this track runs
         OpenTrackFxPicker,
         OpenMasterFxPicker,
-        FocusGlobal,         // Func+Song: focus global/master-bus parameters
+        FocusGlobal,         // Func+Song = the Set scope (global/master-bus) — display row
         // Tap / metronome
         TapTempo,
         MetronomeToggle,
@@ -115,6 +115,13 @@ namespace lockstep
         OpenRetrigPicker,    // step-grid: open retrig/ratchet picker
         OpenSoundPool,       // step-grid: open sound-pool picker
         PlayStopToggle,      // PlayStop (key 0) tap: play/stop toggle
+
+        // 9.29: the Machine scope (Func+Track) — the unkeyed rung inside Track.
+        // Display row: like FocusGlobal (Func+Song = Set), the compound is entered by
+        // the modifier's own bare row (the Stage 7a rule — a modifier press means
+        // "enter this scope" whatever else is held), so the compound row exists to
+        // advertise the scope on the key frame, not to carry its effect.
+        HoldMachineScope,
 
         // Sentinel — keep last. Lets the Stage 6 guard test enumerate every action
         // and assert each one is either handled by CommandCore::handleAction or

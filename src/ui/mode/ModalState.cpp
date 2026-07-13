@@ -9,7 +9,7 @@ namespace lockstep
         // step-grid truth). Held-chords and entered modes interleave by priority.
         if (ui.masterFxPickerOpen)                    return Modal::MasterFxPicker;
         if (ui.funcFxHeld)                            return Modal::TrackFxPicker;
-        if (ui.funcTrackHeld)                         return Modal::MachinePicker;
+        if (ui.machinePickerOpen)                     return Modal::MachinePicker;
         if (ui.generatorHubHeld)                      return Modal::GeneratorHub;
         if (ui.noteEditMode)                          return Modal::NoteEdit;
         if (ui.pLockClearMode)                        return Modal::PLockClear;

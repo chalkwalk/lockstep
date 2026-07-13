@@ -28,7 +28,11 @@ namespace lockstep
         { CB::Func, -1, kModNone, SL::Base, AId::HoldFuncScope, u8"FUNC", u8"", CS::Resting },
 
         // ── Track modifier (key 2) ──────────────────────────────────────────
-        { CB::TrackScope, -1, kModFunc, SL::Base, AId::OpenMachinePicker, u8"MACHINE", u8"", CS::FuncHeld },
+        // Func+Track = the MACHINE scope (9.29 / §13.9): the unkeyed rung inside
+        // Track. Track owns identity, Machine owns the sound. It no longer opens the
+        // picker — choosing which machine a track runs is a Track-scope act and lives
+        // on Track+hold(SRC), with the FX pickers.
+        { CB::TrackScope, -1, kModFunc, SL::Base, AId::HoldMachineScope, u8"MACHINE", u8"", CS::FuncHeld },
         { CB::TrackScope, -1, kModNone, SL::Base, AId::HoldTrackScope, u8"TRACK", u8"MACHINE", CS::Resting },
 
         // ── Phrase scope (key Q) ─────────────────────────────────────────────
@@ -41,8 +45,11 @@ namespace lockstep
         { CB::MorphScope, -1, kModNone, SL::Base, AId::HoldMorphScope, u8"MORPH", u8"", CS::Resting },
 
         // ── Song scope (key S) ───────────────────────────────────────────────
-        { CB::SongScope, -1, kModFunc, SL::Base, AId::FocusGlobal, u8"GLOBAL", u8"", CS::FuncHeld },
-        { CB::SongScope, -1, kModNone, SL::Base, AId::HoldSongScope, u8"SONG", u8"GLOBAL", CS::Resting },
+        // Func+Song = the SET scope (9.29 / §13.9): the unkeyed rung above Song.
+        // Same behaviour as before (global / master-bus / transport params) — the
+        // name is the honest one now that both unkeyed rungs are named.
+        { CB::SongScope, -1, kModFunc, SL::Base, AId::FocusGlobal, u8"SET", u8"", CS::FuncHeld },
+        { CB::SongScope, -1, kModNone, SL::Base, AId::HoldSongScope, u8"SONG", u8"SET", CS::Resting },
 
         // ── Mute scope (key Z) ───────────────────────────────────────────────
         // Scene+Mute = scene-mute grid view (S-MUTE). Bare Mute = track/fill mute.
@@ -170,9 +177,14 @@ namespace lockstep
         { CB::Section, 4, kModNone, SL::Base, AId::SelectSection, u8"", u8"", CS::Resting },
         { CB::Section, 5, kModNone, SL::Base, AId::SelectSection, u8"", u8"", CS::Resting },
 
-        // FX hold-gesture rows (9.14): tap = navigate, hold = picker. The picker is
-        // scope-gated (Track = track inserts, Song = master) so the hold-rail label
-        // only appears under the scope where the picker actually fires.
+        // Picker hold-gesture rows (9.14, extended by 9.29): tap = navigate, hold =
+        // choose what fills that section, at the held scope. Scope-gated (Track = this
+        // track's machine / its inserts, Song = master) so the hold-rail label only
+        // appears under the scope where the picker actually fires. Bare hold(SRC) is
+        // NOT this: it opens an OnDemand machine console (consoleSectionIndex defaults
+        // to SRC) — the scope gate is what keeps the two apart.
+        { CB::Section, 1, kModTrack, SL::Base, AId::OpenMachinePicker, u8"PICK MACHINE", u8"", CS::Resting,
+          Gesture::Hold, false },
         { CB::Section, 5, kModTrack, SL::Base, AId::OpenTrackFxPicker, u8"PICK FX", u8"", CS::Resting,
           Gesture::Hold, false },
         { CB::Section, 5, kModSong, SL::Base, AId::OpenMasterFxPicker, u8"PICK MASTER FX", u8"", CS::Resting,

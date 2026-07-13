@@ -237,9 +237,12 @@ namespace lockstep
               "Global has its own dedicated hue, distinct from Song (9.22)");
     }
 
-    // 9.22: the single Func-promotion rule. Func+Song → Global (primary); bare Func
-    // → the meta hierarchy; plain scope → that scope; Func over an unwired scope
-    // (Track) falls back to the meta hierarchy (promotion is Global-only for now).
+    // 9.22 + 9.29: the single Func-promotion rule. Func over a scope key promotes to
+    // that key's unkeyed neighbour, and there are exactly two: Func+Song → Set (floor
+    // Global) and Func+Track → Machine. Both are PRIMARY-layer scopes — they name an
+    // operand, so their section keys must resolve to that operand's real content, not
+    // to the Func meta hierarchy. Bare Func (or Func over any other scope) is the meta
+    // hierarchy; a plain scope hold is that scope.
     static void testSectionResolveMode()
     {
         using O = SecOrigin;
@@ -265,9 +268,24 @@ namespace lockstep
                   "Func+Song → Global scope, primary layer (promotion)");
         }
         {
+            // 9.29: the Machine scope. Func+Track floors at Machine on the PRIMARY
+            // layer — section keys page the machine's own params, exactly as an
+            // unqualified press does. That identity is the point: the default WAS the
+            // machine all along; Func+Track declares it so a verb can reach it. The
+            // old behaviour (falling back to the Func meta hierarchy, COND/NOTE/TRSP)
+            // was the visible face of the missing operand.
             UiState ui; ui.funcHeld = true; ui.trackHeld = true;
             const auto m = sectionResolveMode(ui);
-            CHECK(m.funcLayer, "Func+Track (unwired) → falls back to the meta hierarchy");
+            CHECK(m.floor == O::Machine && !m.funcLayer,
+                  "Func+Track → Machine scope, primary layer (9.29)");
+        }
+        {
+            // Func+Phrase / Func+Scene are reserved and inert (PRINCIPLES §17): every
+            // other rung already has a key, so there is no third compound to promote.
+            // They stay on the Func meta hierarchy.
+            UiState ui; ui.funcHeld = true; ui.phraseScopeHeld = true;
+            const auto m = sectionResolveMode(ui);
+            CHECK(m.funcLayer, "Func+Phrase → still the meta hierarchy (no third rung)");
         }
         {
             // 9.26: stepHeld rides through to the mode so consumers promote bare TRIG.

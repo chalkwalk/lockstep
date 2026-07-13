@@ -236,6 +236,7 @@ namespace lockstep
         int heldSectionIndex_ = -1;  // section index (0-5) while key held; -1 = none
         bool fxSectionPickerWantsMaster_ = false; // captured at Section-5 key-down
         bool fxPickerFiredMidHold_ = false;       // picker opened during the hold (not on key-up)
+        bool machinePickerFiredMidHold_ = false;  // 9.29: Track+hold(SRC) opened the machine picker
         bool stepInspectorFiredMidHold_ = false;  // Part 2: StepInspector opened via long-press this hold
         bool fxPickerRemoveArmed_ = false;        // loaded-cell press deferred to key-up
         bool fxPickerRemoveMaster_ = false;       // which picker the armed press targets

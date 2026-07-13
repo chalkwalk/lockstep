@@ -66,10 +66,18 @@ namespace lockstep
         // Phrase-length authoring (Func + Phrase, or Func + Morph for all tracks):
         // the grid re-skins to in-run / boundary / out-run and a step press sets the
         // length. Checked before the generic Func case so the hint is specific.
-        if (ui.funcHeld && !ui.funcTrackHeld && (ui.phraseScopeHeld || ui.morphHeld))
+        if (ui.funcHeld && !ui.machineScopeHeld && (ui.phraseScopeHeld || ui.morphHeld))
             return ui.morphHeld
                 ? juce::String(u8"LENGTH (all tracks) — tap a step to set length")
                 : juce::String(u8"LENGTH — tap a step to set phrase length");
+
+        // 9.29: the two compound scopes name the rungs the cluster has no key for.
+        // Checked before the bare Func/Track/Song cases — the compound is the more
+        // specific statement, and it is the operand the verbs will act on.
+        if (ui.funcHeld && ui.machineScopeHeld)
+            return u8"MACHINE — the sound: sections page the machine";
+        if (ui.funcHeld && ui.songHeld)
+            return u8"SET — global / master bus";
 
         // Modifier held → scope description. (u8 literals: the em-dash is non-ASCII,
         // so juce::String must bind to the char8_t* overload — a plain char* literal
@@ -124,7 +132,7 @@ namespace lockstep
         {
             case Modal::MasterFxPicker: return u8"MASTER FX — select effect  esc=release Func+Song+FX";
             case Modal::TrackFxPicker:  return u8"FX INSERT — select effect  esc=release Func";
-            case Modal::MachinePicker:  return u8"MACHINE PICKER — select machine  esc=release Func";
+            case Modal::MachinePicker:  return u8"PICK MACHINE — tap a cell to load it on this track";
             case Modal::GeneratorHub:   return u8"GENERATOR HUB — pick cell  esc=release";
             case Modal::NoteEdit:
                 return "NOTE EDIT  oct " + juce::String(ui.noteEditOctave)

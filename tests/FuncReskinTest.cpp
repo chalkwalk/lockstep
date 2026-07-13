@@ -40,9 +40,9 @@ namespace lockstep
     static void testActiveMachinePicker()
     {
         UiState ui;
-        ui.funcTrackHeld = true;
+        ui.machinePickerOpen = true;
         CHECK(activeFuncReskin(ui) == FR::MachinePicker,
-              "funcTrackHeld → MachinePicker");
+              "machinePickerOpen → MachinePicker");
     }
 
     static void testActiveNoteEdit()
@@ -68,7 +68,7 @@ namespace lockstep
         UiState ui;
         ui.masterFxPickerOpen = true;
         ui.funcFxHeld = true;
-        ui.funcTrackHeld = true;
+        ui.machinePickerOpen = true;
         ui.noteEditMode = true;
         ui.pLockClearMode = true;
         CHECK(activeFuncReskin(ui) == FR::MasterFxPicker,
@@ -79,7 +79,7 @@ namespace lockstep
     {
         UiState ui;
         ui.funcFxHeld = true;
-        ui.funcTrackHeld = true;
+        ui.machinePickerOpen = true;
         ui.noteEditMode = true;
         ui.pLockClearMode = true;
         CHECK(activeFuncReskin(ui) == FR::TrackFxPicker,
@@ -89,7 +89,7 @@ namespace lockstep
     static void testPriorityMachinePickerBeatsModeEditors()
     {
         UiState ui;
-        ui.funcTrackHeld = true;
+        ui.machinePickerOpen = true;
         ui.noteEditMode = true;
         ui.pLockClearMode = true;
         CHECK(activeFuncReskin(ui) == FR::MachinePicker,
@@ -132,9 +132,9 @@ namespace lockstep
     static void testExitClearsMachinePicker()
     {
         UiState ui;
-        ui.funcTrackHeld = true;
+        ui.machinePickerOpen = true;
         exitFuncReskin(ui);
-        CHECK(!ui.funcTrackHeld,          "funcTrackHeld cleared");
+        CHECK(!ui.machinePickerOpen,          "machinePickerOpen cleared");
         CHECK(activeFuncReskin(ui) == FR::None, "None after exit");
     }
 
@@ -179,7 +179,7 @@ namespace lockstep
         CHECK(activeFuncReskin(ui) == FR::None, "None after noop exit");
         CHECK(!ui.noteEditMode, "noteEditMode still false");
         CHECK(!ui.pLockClearMode, "pLockClearMode still false");
-        CHECK(!ui.funcTrackHeld, "funcTrackHeld still false");
+        CHECK(!ui.machinePickerOpen, "machinePickerOpen still false");
     }
 
     // ── exitFuncReskin: cancels all when multiple flags set ───────────────────
@@ -189,7 +189,7 @@ namespace lockstep
         UiState ui;
         ui.masterFxPickerOpen = true;
         ui.funcFxHeld = true;
-        ui.funcTrackHeld = true;
+        ui.machinePickerOpen = true;
         ui.noteEditMode = true;
         ui.noteEditSteps.insert(0);
         ui.pLockClearMode = true;
@@ -198,7 +198,7 @@ namespace lockstep
         CHECK(activeFuncReskin(ui) == FR::None, "all modes cleared");
         CHECK(!ui.masterFxPickerOpen, "masterFxPickerOpen cleared");
         CHECK(!ui.funcFxHeld, "funcFxHeld cleared");
-        CHECK(!ui.funcTrackHeld, "funcTrackHeld cleared");
+        CHECK(!ui.machinePickerOpen, "machinePickerOpen cleared");
         CHECK(!ui.noteEditMode, "noteEditMode cleared");
         CHECK(!ui.pLockClearMode, "pLockClearMode cleared");
     }

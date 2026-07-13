@@ -22,7 +22,7 @@ namespace lockstep
 
         if (ui.masterFxPickerOpen) { return SurfaceLayer::MasterFxPicker; }
         if (ui.funcFxHeld) { return SurfaceLayer::TrackFxPicker; }
-        if (ui.funcTrackHeld) { return SurfaceLayer::MachinePicker; }
+        if (ui.machinePickerOpen) { return SurfaceLayer::MachinePicker; }
         if (ui.generatorHubHeld) { return SurfaceLayer::GeneratorHub; }
 
         // KEY page of the signatures band: the grid hosts the modifier/symmetric
@@ -55,7 +55,7 @@ namespace lockstep
         if (ui.muteHeld && ui.relaunchHeld) { return SurfaceLayer::MuteRelaunchView; }
         if (ui.muteHeld) { return SurfaceLayer::MuteView; }
 
-        if ((ui.phraseScopeHeld || ui.morphHeld) && ui.funcHeld && !ui.funcTrackHeld)
+        if ((ui.phraseScopeHeld || ui.morphHeld) && ui.funcHeld && !ui.machineScopeHeld)
         {
             return SurfaceLayer::LengthEdit;
         }
@@ -122,6 +122,10 @@ namespace lockstep
                 return "KEY MODIFIERS";
 
             case SurfaceLayer::ScopeSelector: {
+                // 9.29: Func+Track is the Machine scope, not a track selector — the
+                // grid still selects tracks (Track is held), but the banner must name
+                // the operand the verbs and section keys are now aimed at.
+                if (ui.machineScopeHeld) { return "MACHINE - the sound"; }
                 const PS scope = firstHeldSectionSuiteScope(ui);
                 if (scope == PS::Track)  { return "SELECT TRACK"; }
                 if (scope == PS::Phrase) { return "SELECT PHRASE"; }

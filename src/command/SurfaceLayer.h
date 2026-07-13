@@ -19,7 +19,7 @@ namespace lockstep
         RetrigPicker,     // ui.trigGridMode == Retrig
         MasterFxPicker,   // ui.masterFxPickerOpen (Task B wiring)
         TrackFxPicker,    // ui.funcFxHeld
-        MachinePicker,    // ui.funcTrackHeld
+        MachinePicker,    // ui.machinePickerOpen — Track+hold(SRC)
         GeneratorHub,     // ui.generatorHubHeld — momentary Euclid/Density/Vel picker
         KeyPanel,         // overlay==Time && sigPage==Key — modifier/symmetric grid panel
         NoteEdit,         // ui.noteEditMode && !noteEditSteps.empty()
@@ -30,7 +30,7 @@ namespace lockstep
         MorphMuteView,    // ui.morphHeld && ui.muteHeld
         MuteRelaunchView, // ui.muteHeld && ui.relaunchHeld (Mute+Play: relaunch/retrigger)
         MuteView,         // ui.muteHeld (bare, after MorphMuteView)
-        LengthEdit,       // (phraseScopeHeld || morphHeld) && funcHeld && !funcTrackHeld
+        LengthEdit,       // (phraseScopeHeld || morphHeld) && funcHeld && !machineScopeHeld
         MorphStepView,    // ui.morphHeld && !ui.funcHeld
         ScopeSelector,    // trackHeld || phraseScopeHeld || sceneHeld || songHeld
         LooperConsole,    // focused track is a looper, no higher overlay (S3) — always-on

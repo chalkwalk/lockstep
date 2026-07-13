@@ -115,7 +115,7 @@ namespace lockstep
     {
         return uiState_.masterFxPickerOpen
             || uiState_.funcFxHeld
-            || uiState_.funcTrackHeld
+            || uiState_.machinePickerOpen
             || (uiState_.noteEditMode && !uiState_.noteEditSteps.empty())
             || (uiState_.trigGridMode != TrigGridMode::Default);
     }
@@ -1059,9 +1059,9 @@ namespace lockstep
             return;
         }
 
-        // MHZ.3.5: Func+Part machine picker — step cells show available machine names.
-        // Fill and press come from model; machine name text is a screen residual.
-        if (uiState_.funcTrackHeld)
+        // 9.29: machine picker (Track+hold(SRC)) — step cells show available machine
+        // names. Fill and press come from model; machine name text is a screen residual.
+        if (uiState_.machinePickerOpen)
         {
             const juce::Colour machineTint = scopeColour(EditMode::PrimaryScope::Scene, true);
 

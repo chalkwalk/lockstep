@@ -86,6 +86,18 @@ namespace lockstep
                   "ScopeSelector with trackHeld → 'SELECT TRACK'");
         }
         {
+            // 9.29: Func+Track is the Machine scope. The grid still selects tracks
+            // (Track IS held), so the layer is unchanged — but the banner must name
+            // the operand the section keys and verbs are now aimed at, or the scope
+            // is invisible and the user cannot tell it is armed.
+            UiState ui;
+            ui.trackHeld = true;
+            ui.funcHeld = true;
+            ui.machineScopeHeld = true;
+            CHECK(bannerEq(layerBanner(SL::ScopeSelector, ui), "MACHINE - the sound"),
+                  "ScopeSelector with machineScopeHeld → names the MACHINE scope");
+        }
+        {
             UiState ui;
             ui.phraseScopeHeld = true;
             CHECK(bannerEq(layerBanner(SL::ScopeSelector, ui), "SELECT PHRASE"),

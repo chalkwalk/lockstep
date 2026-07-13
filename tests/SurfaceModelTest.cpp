@@ -691,7 +691,7 @@ namespace lockstep
         EngineHarness h;
         auto& proc = h.processor();
         UiState ui;
-        ui.funcTrackHeld = true;
+        ui.machinePickerOpen = true;
         EditContext ec;
 
         const SurfaceModel model = buildSurfaceModel(

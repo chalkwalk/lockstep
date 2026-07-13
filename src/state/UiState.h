@@ -178,10 +178,20 @@ namespace lockstep
         // cleared by resetPLockClear.
         int stepMoveAnchor = -1;
 
-        // MHZ.3.5: true while Func+Part are both held (machine picker mode).
-        // Step cells re-skin to show available machine names; pressing a cell assigns
-        // the machine for the active track.
-        bool funcTrackHeld = false;
+        // 9.29: the Machine scope — Func+Track, the unkeyed rung *inside* Track
+        // (DESIGN §13.9). Track owns identity (which machine, mute, routing);
+        // Machine owns the sound (its params). Section keys resolve to the machine's
+        // own pages under this scope, and verbs finally reach it (copy/paste/init).
+        // NOT a picker: choosing which machine a track runs is a Track-scope act
+        // (Track + hold(SRC)) — see machinePickerOpen.
+        bool machineScopeHeld = false;
+
+        // 9.29: the machine picker overlay — step cells re-skin to the machine
+        // catalogue; pressing a cell assigns that machine to the focused track.
+        // Opened by Track + hold(SRC) (the §13.9 picker rule: <scope> + hold(<section>)
+        // = choose what fills that section, at that scope). Sticky: closes on select,
+        // or on Func escape.
+        bool machinePickerOpen = false;
 
         // Note-edit mode: Func+Src(NOTE)+step gesture. Step cells become a 1-octave
         // chromatic keyboard; pressing a cell toggles a pitch on the target steps.
@@ -355,7 +365,7 @@ namespace lockstep
         // FX picker). Call on Func release or picker close.
         void resetFxPickers() noexcept
         {
-            funcTrackHeld = false;
+            machinePickerOpen = false;
             funcFxHeld = false;
             funcFxInsertSlot = 0;
             masterFxPickerOpen = false;

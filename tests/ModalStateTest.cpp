@@ -22,7 +22,7 @@ namespace lockstep
 
         { UiState u; u.masterFxPickerOpen = true; CHECK(activeModal(u) == Modal::MasterFxPicker, "masterFx"); }
         { UiState u; u.funcFxHeld = true;         CHECK(activeModal(u) == Modal::TrackFxPicker,  "trackFx"); }
-        { UiState u; u.funcTrackHeld = true;      CHECK(activeModal(u) == Modal::MachinePicker,  "machine"); }
+        { UiState u; u.machinePickerOpen = true;      CHECK(activeModal(u) == Modal::MachinePicker,  "machine"); }
         { UiState u; u.generatorHubHeld = true;   CHECK(activeModal(u) == Modal::GeneratorHub,   "genHub"); }
         { UiState u; u.noteEditMode = true;       CHECK(activeModal(u) == Modal::NoteEdit,       "noteEdit"); }
         { UiState u; u.pLockClearMode = true;     CHECK(activeModal(u) == Modal::PLockClear,     "pLockClear"); }
@@ -42,11 +42,11 @@ namespace lockstep
     static void testActiveModalPriority()
     {
         {
-            UiState u; u.masterFxPickerOpen = true; u.funcTrackHeld = true; u.overlay = Overlay::Density;
+            UiState u; u.masterFxPickerOpen = true; u.machinePickerOpen = true; u.overlay = Overlay::Density;
             CHECK(activeModal(u) == Modal::MasterFxPicker, "masterFx outranks lower modals");
         }
         {
-            UiState u; u.funcTrackHeld = true; u.euclidHeld = true;
+            UiState u; u.machinePickerOpen = true; u.euclidHeld = true;
             CHECK(activeModal(u) == Modal::MachinePicker, "grid picker outranks euclid");
         }
         {
@@ -63,7 +63,7 @@ namespace lockstep
           CHECK(activeOverlay(u) == Overlay::Euclid && activeModal(u) == Modal::Euclid, "euclid agrees"); }
         { UiState u; u.overlay = Overlay::Vel;
           CHECK(activeOverlay(u) == Overlay::Vel && activeModal(u) == Modal::Vel, "vel agrees"); }
-        { UiState u; u.funcTrackHeld = true;
+        { UiState u; u.machinePickerOpen = true;
           CHECK(activeFuncReskin(u) == FuncReskin::MachinePicker && activeModal(u) == Modal::MachinePicker, "machine agrees"); }
         { UiState u; u.masterFxPickerOpen = true;
           CHECK(activeFuncReskin(u) == FuncReskin::MasterFxPicker && activeModal(u) == Modal::MasterFxPicker, "masterFx agrees"); }
@@ -84,7 +84,7 @@ namespace lockstep
         { UiState u; u.funcFxHeld = true;
           CHECK(activeModal(u) == Modal::TrackFxPicker
                 && resolveActiveLayer(u, ec, f) == SurfaceLayer::TrackFxPicker, "trackFx layer"); }
-        { UiState u; u.funcTrackHeld = true;
+        { UiState u; u.machinePickerOpen = true;
           CHECK(activeModal(u) == Modal::MachinePicker
                 && resolveActiveLayer(u, ec, f) == SurfaceLayer::MachinePicker, "machine layer"); }
         { UiState u; u.generatorHubHeld = true;

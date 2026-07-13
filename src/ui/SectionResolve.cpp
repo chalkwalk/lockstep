@@ -162,14 +162,26 @@ namespace lockstep
 
     SectionResolveMode sectionResolveMode(const UiState& ui) noexcept
     {
-        // Func-promotion rule (9.22), single owner. Global-only for now: Func+Song
-        // promotes to the Global scope (primary layer, floor = Global). Func over
-        // any other scope (or none) is the bare Func-meta hierarchy. No Func is the
-        // plain held scope. Morph is bespoke — the caller gates it out first.
-        // Held-step promotion (9.26) rides the primary layer only; the resolver
-        // gates it further (stepQualified && !funcLayer), so it is inert under Func.
+        // Func-promotion rule (9.22, completed by 9.29), single owner. Func over a
+        // scope key promotes to that key's *unkeyed neighbour* — the two compound
+        // scopes, and only those two (DESIGN §13.9):
+        //   Func+Song  → Set    (floor = Global: master bus / transport globals)
+        //   Func+Track → Machine (floor = Machine: the machine's own param pages)
+        // Both are PRIMARY-layer scopes, not the Func-meta hierarchy: they name an
+        // operand, so their section keys must resolve to that operand's real content.
+        // Func over anything else (or nothing) is the bare Func-meta hierarchy
+        // (COND/NOTE/TRSP). No Func is the plain held scope. Morph is bespoke — the
+        // caller gates it out first. Held-step promotion (9.26) rides the primary
+        // layer only; the resolver gates it further (stepQualified && !funcLayer).
+        //
+        // Machine is also the floor an unqualified press resolves at — that is the
+        // point: the default was always the machine, and naming it is what lets a
+        // verb reach it. Func+Track therefore *declares* the default rather than
+        // changing it, and the section row looks identical under both.
         if (ui.funcHeld && ui.songHeld && !ui.morphHeld)
             return { SecOrigin::Global, /*funcLayer*/ false, ui.stepHeld };
+        if (ui.funcHeld && ui.trackHeld && !ui.morphHeld)
+            return { SecOrigin::Machine, /*funcLayer*/ false, ui.stepHeld };
         if (ui.funcHeld)
             return { SecOrigin::Machine, /*funcLayer*/ true, ui.stepHeld };
         return { sectionFloorForScope(firstHeldSectionSuiteScope(ui)),

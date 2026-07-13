@@ -5,11 +5,11 @@ L22 | Func idx=-1 | action=1
     down funcHeld: false -> true
     up   funcHeld: true -> false
 
-L22 | Func+Track idx=-1 | action=10
+L22 | Func+Track idx=-1 | action=74
     down funcHeld: false -> true
-    down funcTrackHeld: false -> true
+    down machineScopeHeld: false -> true
     down trackHeld: false -> true
-    up   funcTrackHeld: true -> false
+    up   machineScopeHeld: true -> false
     up   trackHeld: true -> false
 
 L22 | Track idx=-1 | action=2
@@ -72,7 +72,7 @@ L22 | TapTempo idx=-1 | action=14
 
 L22 | Func+Track+NavUp idx=-1 | action=26
     down funcHeld: false -> true
-    down funcTrackHeld: false -> true
+    down machineScopeHeld: false -> true
     down swingDismissed: false -> true
     down trackHeld: false -> true
     down trackInputMode: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -104,7 +104,7 @@ L22 | NavUp idx=-1 | action=16
 
 L22 | Func+Track+NavLeft idx=-1 | action=28
     down funcHeld: false -> true
-    down funcTrackHeld: false -> true
+    down machineScopeHeld: false -> true
     down swingDismissed: false -> true
     down trackHeld: false -> true
 
@@ -120,7 +120,7 @@ L22 | NavLeft idx=-1 | action=18
 
 L22 | Func+Track+NavDown idx=-1 | action=27
     down funcHeld: false -> true
-    down funcTrackHeld: false -> true
+    down machineScopeHeld: false -> true
     down swingDismissed: false -> true
     down trackHeld: false -> true
     down trackInputMode: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -150,7 +150,7 @@ L22 | NavDown idx=-1 | action=21
 
 L22 | Func+Track+NavRight idx=-1 | action=29
     down funcHeld: false -> true
-    down funcTrackHeld: false -> true
+    down machineScopeHeld: false -> true
     down swingDismissed: false -> true
     down trackHeld: false -> true
 
@@ -233,7 +233,7 @@ L22 | Func+Phrase+VerbClear idx=-1 | action=39
 L22 | Func+Track+VerbClear idx=-1 | action=39
     down deletePicker.active: false -> true
     down funcHeld: false -> true
-    down funcTrackHeld: false -> true
+    down machineScopeHeld: false -> true
     down trackHeld: false -> true
 
 L22 | Func+Scene+VerbClear idx=-1 | action=39
@@ -331,6 +331,11 @@ L22 | Section idx=4 | action=32
 
 L22 | Section idx=5 | action=32
     down masterSection: -1 -> 5
+
+L22 | Track+Section idx=1 | action=10
+    down swingDismissed: false -> true
+    down trackHeld: false -> true
+    up   trackSection: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
 L22 | Track+Section idx=5 | action=11
     down swingDismissed: false -> true

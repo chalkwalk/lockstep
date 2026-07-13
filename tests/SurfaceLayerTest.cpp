@@ -61,9 +61,9 @@ namespace lockstep
         }
         {
             UiState ui;
-            ui.funcTrackHeld = true;
+            ui.machinePickerOpen = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MachinePicker,
-                  "funcTrackHeld → MachinePicker");
+                  "machinePickerOpen → MachinePicker");
         }
         {
             UiState ui;
@@ -182,7 +182,7 @@ namespace lockstep
         {
             UiState ui;
             ui.trigGridMode = TrigGridMode::SoundPool;
-            ui.funcTrackHeld = true;  // would be MachinePicker
+            ui.machinePickerOpen = true;  // would be MachinePicker
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::SoundPool,
                   "SoundPool beats MachinePicker");
         }
@@ -216,7 +216,7 @@ namespace lockstep
         {
             UiState ui;
             ui.masterFxPickerOpen = true;
-            ui.funcTrackHeld = true;  // would be MachinePicker
+            ui.machinePickerOpen = true;  // would be MachinePicker
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MasterFxPicker,
                   "MasterFxPicker beats MachinePicker");
         }
@@ -242,7 +242,7 @@ namespace lockstep
         {
             // MachinePicker still beats GeneratorHub
             UiState ui;
-            ui.funcTrackHeld = true;
+            ui.machinePickerOpen = true;
             ui.generatorHubHeld = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MachinePicker,
                   "MachinePicker beats GeneratorHub");
@@ -252,7 +252,7 @@ namespace lockstep
     static void testMachinePickerBeatsNoteEdit()
     {
         UiState ui;
-        ui.funcTrackHeld = true;
+        ui.machinePickerOpen = true;
         ui.noteEditMode = true;
         ui.noteEditSteps.insert(0);
         CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MachinePicker,
@@ -319,13 +319,13 @@ namespace lockstep
 
     static void testFuncTrackHeldBlocksLengthEdit()
     {
-        // funcTrackHeld → MachinePicker even if phrase+func would give LengthEdit
+        // machinePickerOpen → MachinePicker even if phrase+func would give LengthEdit
         UiState ui;
         ui.phraseScopeHeld = true;
         ui.funcHeld = true;
-        ui.funcTrackHeld = true;
+        ui.machinePickerOpen = true;
         CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::MachinePicker,
-              "funcTrackHeld wins over LengthEdit (MachinePicker has higher priority)");
+              "machinePickerOpen wins over LengthEdit (MachinePicker has higher priority)");
     }
 
     static void testPendingConfirmLayer()
@@ -338,7 +338,7 @@ namespace lockstep
 
         // PendingConfirm beats everything
         ui.trigGridMode = TrigGridMode::SoundPool;
-        ui.funcTrackHeld = true;
+        ui.machinePickerOpen = true;
         ui.morphHeld = true;
         ui.muteHeld = true;
         CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::PendingConfirm,
@@ -359,7 +359,7 @@ namespace lockstep
             UiState ui;
             ui.deletePicker.scope = DeleteScope::Scene;
             ui.trigGridMode = TrigGridMode::SoundPool;
-            ui.funcTrackHeld = true;
+            ui.machinePickerOpen = true;
             ui.phraseScopeHeld = true;
             ui.funcHeld = true;
             CHECK(resolveActiveLayer(ui, ec(), facts()) == SL::DeletePicker,
@@ -416,7 +416,7 @@ namespace lockstep
         // MachinePicker beats StepInspector.
         {
             UiState ui;
-            ui.funcTrackHeld = true;
+            ui.machinePickerOpen = true;
             CHECK(resolveActiveLayer(ui, ecWithStep(0, 2), facts()) == SL::MachinePicker,
                   "MachinePicker beats StepInspector");
         }

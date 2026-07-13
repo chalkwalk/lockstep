@@ -98,7 +98,7 @@ namespace lockstep
                     ed.soundBankOverlay_.setVisible(true);
                     break;
                 case OverlayId::MachinePicker:
-                    ed.uiState_.funcTrackHeld = (param != 0);
+                    ed.uiState_.machinePickerOpen = (param != 0);
                     ed.refreshSurface();
                     break;
             }
@@ -1360,6 +1360,19 @@ namespace lockstep
             }
         }
 
+        // 9.29: the machine picker opens mid-hold too — same gesture shape as the FX
+        // picker it sits beside, so Track+hold(SRC) and Track+hold(FX) feel identical.
+        if (heldSectionIndex_ == IMachine::kSrcSecIdx && !machinePickerFiredMidHold_)
+        {
+            const double nowMs = juce::Time::getMillisecondCounterHiRes();
+            if (gesture_.longPressElapsed(kMachineSectionLongPressToken, nowMs))
+            {
+                machinePickerFiredMidHold_ = true;
+                uiState_.machinePickerOpen = true;
+                refreshSurface();   // the picker re-skins the step grid: controllers too
+            }
+        }
+
         // Multi-step hold (Part 2): long-press a LONE held step → StepInspector.
         // Fires mid-hold so the P-Lock overview appears while still held. Two-plus
         // held steps never open it (a bare multi-hold stays a pure edit context);
@@ -2142,10 +2155,10 @@ namespace lockstep
                 {
                     ctx = "EUCLID  pulses / offset / accent  |  P = commit  Func+P = cancel";
                 }
-                // MHZ.3.5: Func+Part = machine picker — show dedicated hint.
-                else if (ui.funcTrackHeld)
+                // 9.29: machine picker (Track + hold SRC) — show dedicated hint.
+                else if (ui.machinePickerOpen)
                 {
-                    ctx = "FUNC + MACH  |  press step to select machine";
+                    ctx = "PICK MACHINE  |  press step to load it on this track";
                 }
                 // MHZ.3.4: P-lock clear mode.
                 else if (ui.pLockClearMode)
@@ -2300,7 +2313,7 @@ namespace lockstep
                 if (ctx.isEmpty()) return;   // nothing held — preview is blank
 
                 // Qualify with Func if held alongside another modifier (normal path only).
-                if (!ui.funcTrackHeld && !ui.pLockClearMode && ui.funcHeld && ctx != "FUNC")
+                if (!ui.machinePickerOpen && !ui.pLockClearMode && ui.funcHeld && ctx != "FUNC")
                     ctx = "FUNC + " + ctx;
 
                 // Active section suffix — master-aware: show master unit name in master mode.
@@ -3663,9 +3676,11 @@ namespace lockstep
                     if (latchHeldSteps())
                         return;   // consume: no funcHeld, no Chance band
                     uiState_.funcHeld = true;
-                    // Func+Track is the machine/Kit picker gesture (§4.7.2) — entering
-                    // the compound re-skins the step grid to machine names directly.
-                    uiState_.funcTrackHeld = uiState_.trackHeld;
+                    // 9.29 / §13.9: Func+Track = the Machine scope. Either press order
+                    // enters it (Func over a held Track here; Track under a held Func
+                    // in the TrackScope branch) — a compound scope is a state, not a
+                    // sequence.
+                    uiState_.machineScopeHeld = uiState_.trackHeld;
                     editMode_.onScopeEvent(ev);
                     updateFillActivation();
                     refreshMetaBand();  // 1c: Func held → show Chance band in MZ
@@ -3730,8 +3745,8 @@ namespace lockstep
                 case CB::TrackScope:
                     physHeld_.track = true;
                     uiState_.trackHeld = true;
-                    // Func+Track = machine/Kit picker (§4.7.2): arm when Track pressed with Func held.
-                    uiState_.funcTrackHeld = uiState_.funcHeld;
+                    // 9.29 / §13.9: Func+Track = the Machine scope (see the Func branch).
+                    uiState_.machineScopeHeld = uiState_.funcHeld;
                     processor_.setControlAllActive(true);  // MD.10: active until a track is selected
                     editMode_.onScopeEvent(ev);
                     handleModifierTap(CB::TrackScope, uiState_.latch.track);
@@ -4143,6 +4158,26 @@ namespace lockstep
                         editMode_.setSectionHeld(true);
                     }
                     return true;  // action deferred to key-up
+                }
+
+                // 9.29: machine picker. Same rule as the FX pickers above — <scope> +
+                // hold(<section>) = choose what fills that section, at that scope —
+                // so SRC under the Track scope picks the machine this track runs.
+                // Track-scoped, because WHICH engine a channel runs is a property of
+                // the track; the Machine scope (Func+Track) owns the sound, not the
+                // choice. A bare SRC hold is the OnDemand console (below): the scope
+                // gate is the whole separation.
+                if (ev.index == IMachine::kSrcSecIdx && sectionScope == PS::Track)
+                {
+                    gesture_.armLongPress(kMachineSectionLongPressToken,
+                                          juce::Time::getMillisecondCounterHiRes());
+                    if (heldSectionRawCode_ < 0)
+                    {
+                        heldSectionRawCode_ = rawCode;
+                        heldSectionIndex_ = ev.index;
+                        editMode_.setSectionHeld(true);
+                    }
+                    return true;  // action deferred to key-up (or the mid-hold timer)
                 }
 
                 // 7b: OnDemand machine console. A bare long-press of the machine's
@@ -4792,7 +4827,7 @@ namespace lockstep
                 //   Morph  + Func + step → broadcast: all tracks' length.
                 // (Morph is the old "Scene" all-tracks qualifier, renamed in 7.9.)
                 // Gated before the bare Phrase/Scene branches so Func qualifies.
-                if (uiState_.funcHeld && !uiState_.funcTrackHeld && (uiState_.phraseScopeHeld || uiState_.morphHeld))
+                if (uiState_.funcHeld && !uiState_.machineScopeHeld && (uiState_.phraseScopeHeld || uiState_.morphHeld))
                 {
                     const int absStep = keyboardArea_.currentPage() * KeyboardArea::kPageSteps + ev.index;
                     const int newLen = absStep + 1;
@@ -4846,7 +4881,7 @@ namespace lockstep
                 //   empty    + func:               baseline-copy create → launch
                 //   empty    + mute:               blank scene create → launch
                 // The active scene is always treated as occupied (it is live).
-                if (uiState_.sceneHeld && !uiState_.funcTrackHeld)
+                if (uiState_.sceneHeld && !uiState_.machinePickerOpen)
                 {
                     if (ev.index >= 0 && ev.index < kScenesPerSong)
                     {
@@ -5124,15 +5159,17 @@ namespace lockstep
                 if (uiState_.funcFxHeld)
                     return fxPickerStepDown(ev.index, /*master=*/false);
 
-                // Func+Track (machine/Kit picker) + step = assign the indexed
-                // machine to the focused track (§4.7.2).
-                if (uiState_.funcTrackHeld)
+                // 9.29: machine picker (Track + hold SRC) + step = load the indexed
+                // machine on the focused track. Selecting closes the picker, exactly
+                // as choosing an effect closes the FX picker — the pick is the verb.
+                if (uiState_.machinePickerOpen)
                 {
                     if (ev.index >= 0 && ev.index < processor_.numAvailableMachines())
                     {
                         processor_.setTrackMachine(keyboardArea_.getActiveTrack(),
                                                    std::string(processor_.availableMachineInfo(ev.index).id));
                         keyboardArea_.syncToActiveTrack();
+                        uiState_.machinePickerOpen = false;
                     }
                     refreshSurface();
                     return true;
@@ -5983,6 +6020,7 @@ namespace lockstep
                 // MachinePicker, TrackFxPicker, MasterFxPicker). Each reset is safe
                 // when its mode is not active so a single call covers all cases.
                 exitFuncReskin(uiState_);
+                uiState_.machineScopeHeld = false;   // 9.29: half the compound left
                 refreshMetaBand();  // 1c: Func released → restore normal MZ band
                 editMode_.onScopeEvent({ T::ButtonUp, CB::Func });
                 updateFillActivation();
@@ -5994,7 +6032,7 @@ namespace lockstep
             // unique side effects run here when xxxHeld was cleared (i.e. !xxxHeld).
             case CB::TrackScope:
                 physHeld_.track = false;
-                uiState_.funcTrackHeld = false;
+                uiState_.machineScopeHeld = false;   // 9.29: half the compound left
                 if (!uiState_.trackHeld)  // cleared by handleUp → not latched
                 {
                     processor_.setControlAllActive(false);  // MD.10
@@ -6133,6 +6171,32 @@ namespace lockstep
                             break;
                     }
                 }
+                // 9.29: resolve the SRC tap-vs-hold under the Track scope. The picker
+                // is sticky once open (it survives the key-up, like the FX picker), so
+                // key-up only has to answer "was this a tap?" — and a tap pages SRC.
+                if (heldSectionIndex_ == IMachine::kSrcSecIdx)
+                {
+                    using LPR = GestureRecognizer::LongPressResult;
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    if (machinePickerFiredMidHold_)
+                    {
+                        gesture_.cancelLongPress();   // picker already open: consume the arm
+                    }
+                    else switch (gesture_.checkLongPress(kMachineSectionLongPressToken, now))
+                    {
+                        case LPR::ShortHold:
+                            keyboardArea_.selectSection(IMachine::kSrcSecIdx);
+                            break;
+                        case LPR::LongHold:
+                            // Released just past threshold before the timer ticked.
+                            uiState_.machinePickerOpen = true;
+                            refreshSurface();
+                            break;
+                        case LPR::NotArmed:
+                            break;
+                    }
+                }
+
                 // 7b: resolve a deferred machine-console section press.
                 if (machineConsoleArmed_)
                 {
@@ -6155,6 +6219,7 @@ namespace lockstep
                 heldSectionRawCode_ = -1;
                 heldSectionIndex_ = -1;
                 fxPickerFiredMidHold_ = false;
+                machinePickerFiredMidHold_ = false;
                 uiState_.funcSrcHeld = false;
                 if (!uiState_.funcHeld)
                     uiState_.funcFxHeld = false;

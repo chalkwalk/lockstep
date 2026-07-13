@@ -59,12 +59,12 @@ namespace lockstep
     {
         CHECK(resolve(CB::Func, kModNone) == AId::HoldFuncScope, "Func bare");
         CHECK(resolve(CB::TrackScope, kModNone) == AId::HoldTrackScope, "Track bare");
-        CHECK(resolve(CB::TrackScope, kModFunc) == AId::OpenMachinePicker, "Func+Track = MACHINE");
+        CHECK(resolve(CB::TrackScope, kModFunc) == AId::HoldMachineScope, "Func+Track = MACHINE scope (9.29)");
         CHECK(resolve(CB::PhraseScope, kModNone) == AId::HoldPhraseScope, "Phrase bare");
         CHECK(resolve(CB::SceneScope, kModNone) == AId::HoldSceneScope, "Scene bare");
         CHECK(resolve(CB::MorphScope, kModNone) == AId::HoldMorphScope, "Morph bare");
         CHECK(resolve(CB::SongScope, kModNone) == AId::HoldSongScope, "Song bare");
-        CHECK(resolve(CB::SongScope, kModFunc) == AId::FocusGlobal, "Func+Song = GLOBAL");
+        CHECK(resolve(CB::SongScope, kModFunc) == AId::FocusGlobal, "Func+Song = SET scope (9.29)");
         CHECK(resolve(CB::MuteScope, kModNone) == AId::HoldMuteScope, "Mute bare");
         CHECK(resolve(CB::MuteScope, kModScene) == AId::HoldSceneMuteView, "Scene+Mute = S-MUTE");
         CHECK(resolve(CB::FillScope, kModNone) == AId::HoldFillScope, "Fill bare");
@@ -183,6 +183,17 @@ namespace lockstep
         CHECK(resolveHold(CB::Section, kModTrack, 5) == AId::OpenTrackFxPicker, "Track+hold FX = track picker");
         CHECK(resolveHold(CB::Section, kModSong, 5) == AId::OpenMasterFxPicker, "Song+hold-FX = master picker");
         CHECK(resolveHold(CB::Section, kModNone, 5) == AId::None, "bare hold FX = no picker (scope-gated)");
+
+        // Section 1 (SRC): same rule, one section over (9.29). Track+hold picks the
+        // machine this track runs. Bare hold(SRC) must advertise NO picker -- it is
+        // the OnDemand machine console's own gesture, and the scope gate is the only
+        // thing keeping the two apart.
+        CHECK(resolve(CB::Section, kModTrack, 1) == AId::SelectSection,
+              "Track+tap SRC = section select (tap navigates)");
+        CHECK(resolveHold(CB::Section, kModTrack, 1) == AId::OpenMachinePicker,
+              "Track+hold SRC = machine picker (9.29)");
+        CHECK(resolveHold(CB::Section, kModNone, 1) == AId::None,
+              "bare hold SRC = no picker (scope-gated; that hold is the machine console)");
     }
 
     // ── Universal hint rule ───────────────────────────────────────────────────
