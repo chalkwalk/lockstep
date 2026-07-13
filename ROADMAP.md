@@ -35,11 +35,12 @@ priority order:
    `Func+Track` and one chord cannot be two things — which incidentally revived
    `Trig+Func+Clear` (clear P-Locks, keep the trig), dead since the Func layer began
    rewriting `Clear`→`VerbDelete`.
-3. **Performance usability.** `5.3` Song/Scene management UI (names, colours,
-   browser, Kit recall — "Kit" is retired as a term by `9.29`), `9.4` snapshot
-   restore-semantics session, `6.4` Cue bus, `9.30` chrome regroup (three bands,
-   one status organ; spec'd 2026-07-13 — the confirm prompt is currently a
-   fading toast guarding a sticky state, the sharpest defect in the set).
+3. **Performance usability.** `9.30` — the chrome regroup — **shipped 2026-07-13**:
+   three bands ordered by frequency, one status organ, and the confirm prompt fixed
+   *structurally* (it was a 1.5 s fading toast guarding a sticky state; it is now
+   derived from that state and cannot be invisible while armed). Still open: `5.3`
+   Song/Scene management UI (names, colours, browser, sound recall — "Kit" is retired
+   as a term by `9.29`), `9.4` snapshot restore-semantics session, `6.4` Cue bus.
 
 **Capture arc closed 2026-07-12.** `11.10` (the CUJ session — DESIGN §41 +
 README §5.23) and `11.11` (the stems completion) are both shipped: stem
@@ -3018,71 +3019,57 @@ init a sound.** The grammar was not missing a feature, it was missing an
       general form — *ask the table whether a Hold row exists for this (button, index,
       mods)* — belongs to the section-family migration, not here.
 
-### 9.30 — Chrome regroup: one concern per band, one status organ  *[planned]*
+### 9.30 — Chrome regroup: one concern per band, one status organ  *[SHIPPED 2026-07-13]*
 
-The five bands above the MZ are grouped by **accretion order, not concern**
-(2026-07-13 layout review). Time/transport is shredded across three non-adjacent
-bands (transport buttons; BPM/time-sig; timeline ruler). The header is a junk
-drawer of three usage frequencies (per-second Play/Rec, per-session Omni/sync,
-per-project SND/Pool). Status has **six** homes: the master-strip capture banner,
-the hardcoded header badge dashboard (x 420–640: Sg:Sc pill, `CPY`, `CK:n`,
-input-mode), the header held-context preview (a pre-9.11 duplicate of the
-inspector's HELD/OVERLAY job), the inspector itself, the nav-strip toast +
-missing-samples banner, and the bottom controller banner. Worst finding: **the
-confirm prompt is a 1.5 s fading toast guarding a sticky state** — 1.5 s after
-arming a delete there are zero pixels of evidence that the next `P` press
-destroys a track. Prominence is the symptom; *event-rendering a state* is the
-bug. Target: **three bands, ordered by frequency (config cold at the top, time
-as one block, status adjacent to what it describes), and one status organ.**
+The five bands above the MZ were grouped by **accretion order, not concern**. Time was
+shredded across three non-adjacent bands; the header was a junk drawer of three usage
+frequencies; and status had **six** homes, which is another way of saying none. Worst
+finding: **the confirm prompt was a 1.5 s fading toast guarding a sticky state** — 1.5 s
+after arming a delete there were zero pixels saying the next `P` destroys a track.
+Prominence was the symptom; *event-rendering a state* was the bug. Docs: DESIGN §42.
 
-- [ ] **Stage 0 — Docs.** DESIGN: the band map, and a **status taxonomy** —
-      *state* (re-derived from `UiState` every frame, never fades: pending
-      confirm, held scope), *alert* (persistent until cleared: missing samples),
-      *event* (fading toast: "Copied phrase 3"). The rule: **anything that
-      changes what the next key press does is STATE and must render while
-      armed.** Plus the occlusion rule for the confirm pop-over (below).
-- [ ] **Stage 1 — Inspector 2.0.** The inspector moves to sit **directly above
-      the MZ** (it is the MZ's caption: EDIT says where the knobs write) and
-      gains a full-width **STATUS lane** as a second row. `InspectorModel` grows
-      `status` text + kind enum (state/alert/event) — still a pure build, unit-
-      tested, dual-target (PRINCIPLES §19: external controller displays get the
-      lane for free). Toast + missing-samples banner move in; `paintStatus`
-      leaves the nav strip; the mini-seq reverts to one job.
-      **Confirm = double-height pop-over**: when `uiState.confirm.pending()`,
-      the lane extends *downward from its logical home* to 2× height in a
-      danger-coloured treatment (`DELETE TRACK 3?  [P] CONFIRM  [any] CANCEL`),
-      re-derived every frame — armed-but-invisible becomes structurally
-      impossible (§20). Occlusion of the MZ top edge is deliberate and safe
-      **by contract**: while pending, every key either confirms or cancels, so
-      nothing under the pop-over is a live target. Rule: the pop-over zone may
-      only ever cover display, never an interactive control.
-- [ ] **Stage 2 — Kill the duplicate status homes.** Delete the header badge
-      dashboard + held-context preview paint block (`PluginEditor.cpp` MHZ.2.2
-      region); `CK:n` / `CPY:*` / input-mode fold into the inspector's row-1
-      regions (checkpoint depth and clipboard are scope-qualified state — they
-      belong in HELD's text); Sg:Sc pill parks for Stage 3.
-- [ ] **Stage 3 — The transport+time block.** One hot band answering "where am
-      I and what's playing" in one glance: Play/Stop/Rec/Click | BPM ·
-      time-sig · **key-sig** (new — currently displayed nowhere in the time
-      group) | Sg:Sc | **capture/rec-arm indicator** (moved off the master VU —
-      the highest-stakes status in the core CUJ, currently a peripheral
-      overload). Timeline ruler fused directly beneath. The info row dies
-      (tempo merges in; `fileBar_` moves to Stage 4's rail).
-- [ ] **Stage 4 — The project rail.** One cold top row: project name + file ops
-      + SND/Pool + Omni/sync/STG + a controller-connection indicator (kills the
-      bottom banner).
-- [ ] **Stage 5 — Master VU goes vertical** beside the crossfader (the MZ's
-      right flank becomes the output column: sculpt, blend, level); the top
-      master strip is removed. Its old accidental role as the only full-width
-      attention lane (capture banner host) is what the STATUS lane now serves
-      properly. `masterChromeRegion_` scoped-repaint re-derived; the §22
-      invalidation guard stays green.
-- [ ] **Stage 6 — Height reconciliation.** Reclaimed band height returns to the
-      MZ/grid; verify real pixel dimensions across all three `GridDisplayMode`s
-      (trace through `resized()`, not assumptions).
+- [x] **Stage 0 — Docs.** DESIGN §42: the band map, the **status taxonomy** (*state* /
+      *alert* / *event*, distinguished by what makes them go away), the rule —
+      **anything that changes what the next key press does is STATE and must render
+      while armed** — and the pop-over's occlusion rule.
+- [x] **Stage 1 — Inspector 2.0.** Moved **directly above the MZ** (it is the MZ's
+      caption) and grew a full-width **STATUS lane**. `InspectorModel` gained a typed
+      status (pure, unit-tested, dual-target §19). **The confirm no longer fades:** the
+      prompt is *derived from the state* (`confirmPromptFor(kind, target)`), not from a
+      message captured at arm time, so armed-but-invisible is now unrepresentable rather
+      than merely unlikely (§20). It renders as a **double-height pop-over** over the
+      MZ's top edge — occluding **by contract**, since while pending every key confirms
+      or cancels. `paintStatus` deleted (two renderers each deciding for itself when to
+      show, in the busiest pixels on the surface, beside the animating mini-seq).
+- [x] **Stage 2 — Duplicate status homes deleted.** ~320 lines: the hand-placed header
+      badge dashboard (x 420–640) and the held-context preview, which re-narrated the
+      inspector's HELD + OVERLAY regions *and* painted a hint pill on top of the
+      animating mini-sequencer. The badges were real state, so they moved: CPY / CK /
+      input-mode now **qualify the HELD text** (`TRACK` + `CPY:TRK` = "a paste right now
+      would stamp a track"). Input mode shows only when it is *not* the default — PLAY on
+      all sixteen tracks is noise, and noise is why the dashboard was invisible.
+- [x] **Stage 3 — The transport+time block.** One hot band: `Play`/`Stop`/`Rec`/`Click` ·
+      BPM · time-sig · **key-sig** (displayed nowhere before, despite Phase 10 building a
+      whole key hierarchy behind it) · `Sg:Sc` · the **capture indicator**, moved off the
+      master VU strip — the highest-stakes status in the core CUJ was sitting in
+      peripheral vision on the element the eye treats as decoration. Timeline **fused**
+      beneath. The info row dies.
+- [x] **Stage 4 — The project rail.** One cold top row (file ops · library · sync ·
+      channel · display) plus the **controller-connection indicator**, which kills the
+      bottom banner — status home number six.
+- [x] **Stage 5 — Master VU vertical**, in the MZ's right flank: the output column, read
+      top-to-bottom as the signal flows (sculpt → blend → level). The top strip's one
+      real virtue was being the only full-width attention lane — the role the STATUS lane
+      now serves *on purpose*.
+- [x] **Stage 6 — Height reconciliation, measured.** Chrome above the MZ: 136 px → 128 px.
+      A headless-editor test lays out **all three `GridDisplayMode`s** and measures the
+      result (grid keeps real estate; inspector sits directly above the MZ; the pop-over
+      actually reaches over it). It earned its keep at once: the first version ran at the
+      golden rig's 1400×900 and passed with a 300 px rail planted in it — a layout test at
+      the wrong size cannot fail. It now measures at the shipping 990×626.
 
-Each stage independently shippable; dispatch goldens and the invalidation guard
-green throughout.
+**Outcome.** Three bands ordered by frequency, one status organ, and the sharpest defect
+on the surface fixed *structurally* rather than cosmetically.
 
 ---
 
