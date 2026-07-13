@@ -2773,6 +2773,32 @@ namespace lockstep
         tmpDir.deleteRecursively();
     }
 
+    // 11.11 (S1) — the arm-time preview counts what the take will KEEP, which is
+    // the routing read back: a feeder folded into a bus is not its own stem, and
+    // the count grows when a track joins mid-take.
+    static void testStemmableCountTracksRouting()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            proc.setTrackMachine(t, StubMachine::kMachineId);
+        CHECK(proc.stemmableCount() == 0, "empty project: master only");
+
+        installRoute(proc, 0, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        CHECK(proc.stemmableCount() == 1, "one Master-routed track: one stem");
+
+        // Add a bus and route the first track into it: the feeder folds in, so the
+        // count stays at one — two tracks, one stem, exactly as the mix says.
+        installRoute(proc, 1, static_cast<float>(static_cast<int>(InputSourceKind::None)));
+        proc.kit(0).channelState.out = encodeOutputDest(OutputDestKind::Track, 1);
+        CHECK(proc.stemmableCount() == 1, "a feeder folded into a bus adds no stem");
+
+        // An Off-routed track contributes nothing.
+        installRoute(proc, 2, static_cast<float>(static_cast<int>(InputSourceKind::External)));
+        proc.kit(2).channelState.out = encodeOutputDest(OutputDestKind::Off, -1);
+        CHECK(proc.stemmableCount() == 1, "an Off-routed track adds no stem");
+    }
+
     // Resolve a VA slot index from its stable param id (slot constants are
     // private; the id is the public contract).
     static int vaSlotById(const char* id)
@@ -4789,5 +4815,6 @@ namespace lockstep
         testStemCaptureRouteDefined();
         testStemsFromBlankProjectAssignedMidTake();
         testStemStaysAlignedAcrossMute();
+        testStemmableCountTracksRouting();
     }
 }

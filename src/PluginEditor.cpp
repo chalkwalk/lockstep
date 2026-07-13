@@ -1130,7 +1130,10 @@ namespace lockstep
             case Phase::Armed:
                 label  = "ARMED";
                 dot    = juce::Colours::red.withAlpha(0.35f + 0.5f * pulse);
-                detail = "starts on Play";
+                // 11.11 (S1): name the outcome before the take, not the morning
+                // after — how many stems this arm would keep, alongside the master.
+                detail = "starts on Play " + juce::String(juce::CharPointer_UTF8("\xc2\xb7"))
+                       + " " + stemOutcomeText(processor_.stemmableCount());
                 break;
             case Phase::Recording:
             {
@@ -1146,7 +1149,10 @@ namespace lockstep
                 {
                     label  = "REC";
                     dot    = juce::Colours::red;
-                    detail = captureLastFile_.getFileName();
+                    // Live count: a track that joins mid-take is kept (11.11), so
+                    // the number can only grow while the tape rolls.
+                    detail = captureLastFile_.getFileName()
+                           + "  " + stemOutcomeText(processor_.stemsKeptCount());
                 }
                 break;
             }
@@ -1193,6 +1199,16 @@ namespace lockstep
         juce::String p = f.getFullPathName();
         if (p.startsWith(home)) p = "~" + p.substring(home.length());
         return p;
+    }
+
+    // 11.11 (S1): the take's outcome in words. "Routing is the stem grouping"
+    // (DESIGN §41.3), so this number is how the performer reads their routing
+    // back before committing to a take.
+    juce::String LockstepEditor::stemOutcomeText(int stemCount)
+    {
+        if (stemCount <= 0) return "master only";
+        return "master + " + juce::String(stemCount)
+             + (stemCount == 1 ? " stem" : " stems");
     }
 
     void LockstepEditor::timerCallback()

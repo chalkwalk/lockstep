@@ -261,6 +261,8 @@ namespace lockstep
         void paintCaptureStrip(juce::Graphics& g);
         void paintMasterMeter(juce::Graphics& g);   // dB VU meter (peak-hold + clip + labels)
         [[nodiscard]] juce::String captureFolderDisplayPath() const;  // ~-relative path for SAVED
+        // 11.11 (S1): "master + N stems" / "master only" — what this take will keep.
+        [[nodiscard]] static juce::String stemOutcomeText(int stemCount);
         // Banner transient-detail window: the filename/path fades in at arm /
         // record-start, then the banner is compact for the performance.
         CaptureController::Phase lastCapturePhase_ = CaptureController::Phase::Idle;
