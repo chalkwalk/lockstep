@@ -131,7 +131,7 @@ namespace lockstep
         uiState_.activeTrack = clamped;
         processor_.setFocusTrack(clamped);
         stepPage_ = 0;
-        repaint();
+        markSurfaceDirty();
         if (onActiveTrackChanged)
             onActiveTrackChanged(uiState_.activeTrack);
     }
@@ -149,15 +149,14 @@ namespace lockstep
     void KeyboardArea::setPage(int page)
     {
         stepPage_ = page;
-        clampPage();
-        repaint();
+        clampPage();   // invalidates
     }
 
     void KeyboardArea::setDisplayMode(GridDisplayMode mode)
     {
         displayMode_ = mode;
         resized();  // nav row button positions may shift
-        repaint();
+        markSurfaceDirty();
     }
 
     // -------------------------------------------------------------------------
@@ -188,7 +187,7 @@ namespace lockstep
         const auto r = clampStepPage(stepPage_, numPages(), scrollPastEndUnlocked_);
         stepPage_ = r.page;
         scrollPastEndUnlocked_ = r.unlocked;
-        repaint();
+        markSurfaceDirty();
     }
 
     int KeyboardArea::stepCellAt(juce::Point<int> pos) const
@@ -417,7 +416,7 @@ namespace lockstep
         }
         uiState_.trackPageTrackScope[ti][si] = trackScope;
 
-        repaint();
+        markSurfaceDirty();
         notifySectionChanged(sectionIndex, uiState_.activeTrack, trackScope);
         return true;
     }
@@ -433,14 +432,14 @@ namespace lockstep
             uiState_.masterSection = (uiState_.masterSection == sectionIndex) ? -1 : sectionIndex;
         else
             uiState_.masterSection = sectionIndex;
-        repaint();
+        markSurfaceDirty();
         if (onMetaSectionChanged)
             onMetaSectionChanged(uiState_.masterSection);
     }
 
     void KeyboardArea::syncToActiveTrack()
     {
-        repaint();
+        markSurfaceDirty();
         if (uiState_.activeTrack < 0 || uiState_.activeTrack >= static_cast<int>(kNumTracks))
             return;
         if (uiState_.masterSection >= 0)
@@ -722,7 +721,7 @@ namespace lockstep
         mouseHeldButton_ = {};
         mouseHeldStep_ = -1;
         if (onButtonUp) onButtonUp(up);
-        repaint();
+        markSurfaceDirty();   // the release clears held state — visible on controllers too
     }
 
     // -------------------------------------------------------------------------

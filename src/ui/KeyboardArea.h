@@ -70,6 +70,14 @@ namespace lockstep
 
 
         // Callbacks
+        // The one invalidation channel (PRINCIPLES §22). This component must never
+        // call its own repaint() for a change that is *visible on a controller*
+        // (active track, page, section, display mode, held state): repainting
+        // itself redraws the grid but leaves every open controller's LEDs stale,
+        // so the redraw would depend on the caller remembering to invalidate too.
+        // The editor wires this to refreshSurface(); markSurfaceDirty() below is
+        // the only route such a change may take.
+        std::function<void()> onSurfaceDirty;
         std::function<void(int)> onActiveTrackChanged;
         std::function<void(GridDisplayMode)> onDisplayModeChanged;
         std::function<void(int, int, int)> onSectionChanged;    // (section, page, firstSlot)
@@ -109,6 +117,18 @@ namespace lockstep
         static constexpr int kRows = 2;
 
     private:
+        // Route a surface-changing state edit through the one invalidation channel
+        // (PRINCIPLES §22), so screen and controllers move together. The bare
+        // repaint() fallback exists only for a KeyboardArea constructed without an
+        // editor (no controllers can be open in that case, so it cannot diverge).
+        void markSurfaceDirty()
+        {
+            if (onSurfaceDirty)
+                onSurfaceDirty();
+            else
+                repaint();
+        }
+
         // Layout helpers — reproduce the same area math used in PluginEditor::resized()
         // but applied to this component's own bounds.
         struct RowAreas

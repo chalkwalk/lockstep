@@ -30,6 +30,7 @@ add_executable(lockstep_tests
     StreamMachineTest.cpp
     MetricGridTest.cpp
     SurfaceModelTest.cpp
+    SurfaceInvalidationGuardTest.cpp
     StateResolverTest.cpp
     HierarchyNavTest.cpp
     ArrangementTest.cpp
@@ -96,6 +97,11 @@ target_link_libraries(lockstep_tests PRIVATE
     juce::juce_gui_basics
     juce::juce_core
     juce::juce_data_structures)
+
+# SurfaceInvalidationGuardTest scans the surface-owning sources for unrouted
+# repaint() calls (PRINCIPLES §22), so it needs the source tree's location.
+target_compile_definitions(lockstep_tests PRIVATE
+    LOCKSTEP_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../src")
 
 # Inherit the project's strict warning flags.
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")

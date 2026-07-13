@@ -490,6 +490,12 @@ namespace lockstep
         }
         updateTransportGhosting();
 
+        // The grid's own state edits (active track, page, section, display mode,
+        // mouse release) join the one invalidation channel (PRINCIPLES §22) instead
+        // of self-repainting: a self-repaint redraws the grid but leaves the
+        // controllers' LEDs stale.
+        keyboardArea_.onSurfaceDirty = [this] { refreshSurface(); };
+
         // Wire section-change callbacks -> update ManipulationZone.
         keyboardArea_.onSectionChanged = [this](int section, int page, int firstSlot) {
             manipulationZone_.setSlotOffset(firstSlot);
@@ -535,7 +541,7 @@ namespace lockstep
                           .tracks[static_cast<std::size_t>(track)]
                           .steps[static_cast<std::size_t>(absStep)];
             s.trig = !s.trig;
-            repaint();
+            refreshSurface();   // a trig changed: grid + controllers, not chrome alone
         };
         keyboardArea_.onMiniSeqScrollToStep = [this](int absStep) {
             keyboardArea_.setPage(absStep / KeyboardArea::kPageSteps);
@@ -564,7 +570,7 @@ namespace lockstep
             trackPage_ = 1 - trackPage_;
             trackPageBtn_.setButtonText(trackPage_ == 0 ? "1-8" : "9-16");
             resized();
-            repaint();
+            repaint();   // chrome only: which 8 track buttons the header shows
         };
         addAndMakeVisible(trackPageBtn_);
 
@@ -757,14 +763,13 @@ namespace lockstep
                                     + " — open the pool (Manage) to relink");
             });
         };
+        // The live generator previews rewrite the phrase under the user's hands, so
+        // each edit must reach the grid *and* the controllers: one refreshSurface()
+        // does both (its frame repaints chrome + grid), so no bare repaint() here.
         manipulationZone_.onEuclidParamChanged = [this] {
             if (uiState_.euclidHeld && euclidTrack_ >= 0)
             {
                 applyEuclidLive(euclidTrack_);
-                repaint();
-                // Explicitly repaint the grid: the KeyboardArea timer only repaints
-                // on playhead movement, so when stopped the editor repaint() alone
-                // left the live rhythm invisible until transport started.
                 refreshSurface();
             }
         };
@@ -772,7 +777,6 @@ namespace lockstep
             if (uiState_.melodicHeld && melodicTrack_ >= 0)
             {
                 applyMelodyLive(melodicTrack_);
-                repaint();
                 refreshSurface();
             }
         };
@@ -781,7 +785,6 @@ namespace lockstep
             {
                 applyHarmonyLive(harmonyTrack_);
                 auditionHarmonyCursorChord();   // re-strike on any edit (voice/MOVE/OCT/CUR)
-                repaint();
                 refreshSurface();
             }
         };
@@ -1256,7 +1259,7 @@ namespace lockstep
             if (missing != missingSampleBanner_)
             {
                 missingSampleBanner_ = missing;
-                repaint();
+                repaint();   // chrome only: the missing-sample banner has no cell state
             }
         }
 
@@ -1267,7 +1270,7 @@ namespace lockstep
             if (nowMs - tapTempoArmMs_ >= GestureRecognizer::kLongPressMs)
             {
                 uiState_.generatorHubHeld = true;
-                repaint();
+                refreshSurface();   // the hub re-skins the step grid: controllers too
             }
         }
 
@@ -1352,10 +1355,12 @@ namespace lockstep
                     captureDetailUntilMs_ = nowMs + 3000.0;
                 lastCapturePhase_ = ph;
             }
-            // Keep the feedback strip live (elapsed timer / state changes).
+            // Keep the feedback strip live (elapsed timer). The capture *cell*'s
+            // state changes invalidate the surface on their own; this only drives
+            // the readout under the master meter.
             if (ph != CaptureController::Phase::Idle
                 || prevPhase != CaptureController::Phase::Idle)
-                repaint();
+                repaint();   // chrome only: the capture feedback strip's elapsed clock
         }
 
         // Peak meters: fast attack, slow ballistic decay. Activity blinks: a
@@ -1592,7 +1597,7 @@ namespace lockstep
                 pressTracker_.release(src);
                 dispatchUp(relEv, src);
             }
-            repaint();
+            refreshSurface();   // a stuck key was released: held state cleared everywhere
         }
     }
 
@@ -2310,13 +2315,13 @@ namespace lockstep
     void LockstepEditor::fileDragEnter(const juce::StringArray& /*files*/, int /*x*/, int /*y*/)
     {
         isDraggingFiles_ = true;
-        repaint();
+        repaint();   // chrome only: the file-drag highlight is a window overlay
     }
 
     void LockstepEditor::fileDragExit(const juce::StringArray& /*files*/)
     {
         isDraggingFiles_ = false;
-        repaint();
+        repaint();   // chrome only: the file-drag highlight is a window overlay
     }
 
     void LockstepEditor::filesDropped(const juce::StringArray& files, int /*x*/, int /*y*/)
@@ -2365,7 +2370,7 @@ namespace lockstep
             poolOverlay_.setVisible(true);
             poolOverlay_.toFront(false);
         }
-        repaint();
+        refreshSurface();
     }
 
     void LockstepEditor::refreshMetaBand()
@@ -2417,7 +2422,7 @@ namespace lockstep
         }
         uiState_.masterFxPickerOpen = false;
         refreshMetaBand();
-        repaint();
+        refreshSurface();
         return true;
     }
 
@@ -2484,7 +2489,7 @@ namespace lockstep
             processor_.setTrackInsertBypass(at, uiState_.funcFxInsertSlot, false);
         }
         uiState_.funcFxHeld = false;
-        repaint();
+        refreshSurface();
         return true;
     }
 
@@ -2535,7 +2540,7 @@ namespace lockstep
             processor_.clearTrackInsert(at, uiState_.funcFxInsertSlot);
         }
         refreshMetaBand();
-        repaint();
+        refreshSurface();
     }
 
     // Step-down entry for the FX picker. On the loaded cell we arm a long-press
@@ -3379,7 +3384,7 @@ namespace lockstep
         {
             uiState_.densityBank ^= 1;
             refreshMetaBand();
-            repaint();
+            refreshSurface();
             return true;
         }
         // Section handling moved to handleOverlayEvent in the Section dispatch.
@@ -3426,7 +3431,7 @@ namespace lockstep
         {
             uiState_.velBank ^= 1;
             refreshMetaBand();
-            repaint();
+            refreshSurface();
             return true;
         }
         // Section handling moved to handleOverlayEvent in the Section dispatch.
@@ -3797,7 +3802,7 @@ namespace lockstep
                                     forgetHarmonyEditorState();
                                 }
                                 refreshMetaBand();
-                                repaint();
+                                refreshSurface();
                             }
                         }
                     }
@@ -3813,7 +3818,7 @@ namespace lockstep
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::TrackScope, uiState_.latch.track);
                 clearSwingDismissed();
-                repaint();
+                refreshSurface();
                 return true;
 
             case CB::PhraseScope:
@@ -3823,7 +3828,7 @@ namespace lockstep
                 editMode_.onScopeEvent(ev);
                 // Euclid entry moved to generator hub (9.10): Phrase+Fill no longer enters it.
                 handleModifierTap(CB::PhraseScope, uiState_.latch.phrase);
-                repaint();
+                refreshSurface();
                 return true;
 
             case CB::MuteScope:
@@ -3831,7 +3836,7 @@ namespace lockstep
                 uiState_.muteHeld = true;
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::MuteScope, uiState_.latch.mute);
-                repaint();
+                refreshSurface();
                 return true;
 
             case CB::FillScope:
@@ -3841,14 +3846,14 @@ namespace lockstep
                 // Euclid entry moved to generator hub (9.10): Phrase+Fill no longer enters it.
                 updateFillActivation();
                 handleModifierTap(CB::FillScope, uiState_.latch.fill);
-                repaint();
+                refreshSurface();
                 return true;
 
             case CB::CueScope:
                 physHeld_.cue = true;
                 uiState_.cueHeld = true;
                 editMode_.onScopeEvent(ev);
-                repaint();
+                refreshSurface();
                 return true;
 
             case CB::MorphScope:
@@ -3857,7 +3862,7 @@ namespace lockstep
                 manipulationZone_.setMorphHeld(true);
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::MorphScope, uiState_.latch.morph);
-                repaint();
+                refreshSurface();
                 return true;
 
             case CB::SongScope:
@@ -3866,7 +3871,7 @@ namespace lockstep
                 editMode_.onScopeEvent(ev);
                 handleModifierTap(CB::SongScope, uiState_.latch.song);
                 clearSwingDismissed();
-                repaint();
+                refreshSurface();
                 return true;
 
             case CB::SceneScope:
@@ -3922,14 +3927,14 @@ namespace lockstep
                     if (slSliceable && slSliceable->hasSlices())
                     {
                         uiState_.trigGridMode = TrigGridMode::Retrig;
-                        repaint();
+                        refreshSurface();
                     }
                     return true;
                 }
                 if (uiState_.fillHeld && ev.index == 1)
                 {
                     uiState_.trigGridMode = TrigGridMode::SoundPool;
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -4176,7 +4181,7 @@ namespace lockstep
                                 default: break;
                             }
                         }
-                        repaint();
+                        refreshSurface();
                         return true;
                     }
 
@@ -4930,7 +4935,7 @@ namespace lockstep
                     gesture_.armLongPress(absStep, juce::Time::getMillisecondCounterHiRes());
                     refreshMetaBand();
 
-                    repaint();
+                    refreshSurface();
                 }
                 return true;
             }
@@ -5006,7 +5011,7 @@ namespace lockstep
                     uiState_.morphNavQualifier = 1;
                     manipulationZone_.setMorphQualifier(1);
                     manipulationZone_.setMorphHeld(uiState_.morphHeld);
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
                 // Phrase+↑ = transpose the focused track's phrase up. Bare = an
@@ -5075,7 +5080,7 @@ namespace lockstep
                     uiState_.morphNavQualifier = 2;
                     manipulationZone_.setMorphQualifier(2);
                     manipulationZone_.setMorphHeld(uiState_.morphHeld);
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
                 // Phrase+↓ = transpose the focused track's phrase down. Bare = an
@@ -5281,7 +5286,7 @@ namespace lockstep
                 {
                     auto ctx = commandContext();
                     (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
                 // Func+I (no non-trivial scope) = unqualified paste.
@@ -5316,7 +5321,7 @@ namespace lockstep
                         {
                             auto ctx = commandContext();
                             (void)commandCore_.handleVerb(synScope, ev.button, ctx, *editorEffects_);
-                            repaint();
+                            refreshSurface();
                         }
                     }
                     return true;
@@ -5360,7 +5365,7 @@ namespace lockstep
                         else if (swScope == 3)
                             processor_.setSwingSongTrack(uiState_.activeTrack, 0.0f);
                         refreshMetaBand();
-                        repaint();
+                        refreshSurface();
                         return true;
                     }
                 }
@@ -5368,7 +5373,7 @@ namespace lockstep
                 if (uiState_.sceneHeld)
                 {
                     processor_.cancelQueuedScene();
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
                 // Phrase scope → cancel queued scene.
@@ -5376,7 +5381,7 @@ namespace lockstep
                 {
                     processor_.cancelQueuedScene();
                     uiState_.phraseScopeUsed = true;
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
                 // Non-trivial scope → grammar verb (Clear scope contents).
@@ -5384,7 +5389,7 @@ namespace lockstep
                 {
                     auto ctx = commandContext();
                     (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
                 // No scope: clear the active P-Lock slot if one is active.
@@ -5433,7 +5438,7 @@ namespace lockstep
                     }
                     uiState_.confirm = { ConfirmKind::BakeScene, -1 };
                     setStatus(status::confirmBake(nd, processor_.activeSectionIdx()));
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
                 // Scope held → grammar verb (e.g. copy).  No scope → arm recording.
@@ -5441,7 +5446,7 @@ namespace lockstep
                 {
                     auto ctx = commandContext();
                     (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
                 // Func+U with no non-trivial scope = omni copy (capture all layers).
@@ -5490,7 +5495,7 @@ namespace lockstep
                 {
                     auto ctx = commandContext();
                     (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
                 // No scope → Song-scope snapshot.
@@ -5498,7 +5503,7 @@ namespace lockstep
                     int ckTrk = 0;
                     processor_.snapshot(ckScope(ckTrk), ckTrk);
                 }
-                repaint();
+                refreshSurface();
                 return true;
             }
 
@@ -5537,7 +5542,7 @@ namespace lockstep
                     uiState_.resetEuclid();
                     forgetEuclidEditorState();
                     refreshMetaBand();
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -5556,7 +5561,7 @@ namespace lockstep
                     uiState_.resetMelodic();
                     forgetMelodyEditorState();
                     refreshMetaBand();
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -5575,7 +5580,7 @@ namespace lockstep
                     uiState_.resetHarmony();
                     forgetHarmonyEditorState();
                     refreshMetaBand();
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -5640,7 +5645,7 @@ namespace lockstep
                         auto ctx = commandContext();
                         (void)commandCore_.handleVerb(editMode_.primaryScope(), ev.button, ctx, *editorEffects_);
                     }
-                    repaint();
+                    refreshSurface();
                     return true;
                 }
 
@@ -5662,7 +5667,7 @@ namespace lockstep
                     int ckTrk = 0;
                     processor_.snapshot(ckScope(ckTrk), ckTrk);
                 }
-                repaint();
+                refreshSurface();
                 return true;
             case ControllerButton::Restore:
                 // Func+Y = Restore. Resolve on key-up (tap = pop one, hold = jump to floor).
@@ -6286,7 +6291,7 @@ namespace lockstep
                     stepInspectorFiredMidHold_ = false;   // hold ended — re-arm next time
                     gesture_.cancelLongPress();           // drop any pending step long-press
                 }
-                repaint();
+                refreshSurface();
                 break;
             }
 
@@ -6300,8 +6305,8 @@ namespace lockstep
                 using LPR = GestureRecognizer::LongPressResult;
                 switch (gesture_.checkLongPress(kRestoreLongPressToken, now))
                 {
-                    case LPR::LongHold:  processor_.restoreToFloor(scp, ckTrk); repaint(); break;
-                    case LPR::ShortHold: processor_.restoreOne(scp, ckTrk);     repaint(); break;
+                    case LPR::LongHold:  processor_.restoreToFloor(scp, ckTrk); refreshSurface(); break;
+                    case LPR::ShortHold: processor_.restoreOne(scp, ckTrk);     refreshSurface(); break;
                     case LPR::NotArmed:  break;
                 }
                 break;
@@ -6404,7 +6409,7 @@ namespace lockstep
                     uiState_.resetGeneratorHub();
                 else
                     handleTapTempo();
-                repaint();
+                refreshSurface();
                 break;
 
             case CB::MetronomeToggle:
@@ -6508,7 +6513,7 @@ namespace lockstep
                 {
                     processor_.clock().setLocalBpm(bpm);
                 }
-                repaint();
+                refreshSurface();
             }
         }
     }
@@ -6684,7 +6689,7 @@ namespace lockstep
         if (freeSlot >= 0) msg += "  free:S" + juce::String(freeSlot + 1);
         msg += "  P=CONFIRM  Func+P=CANCEL";
         setStatus(msg);
-        repaint();
+        refreshSurface();   // uiState_.confirm arms the CONFIRM cell — a surface change
         return true;    // conflict raised — caller must wait for Yes/No
     }
 
@@ -6695,7 +6700,7 @@ namespace lockstep
     {
         statusMessage_ = msg;
         statusSetMs_ = juce::Time::getMillisecondCounter();
-        repaint();
+        repaint();   // chrome only: the transient status line carries no cell state
     }
 
     void LockstepEditor::routeLooperVerb(int cmd, bool immediate)

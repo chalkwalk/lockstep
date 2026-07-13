@@ -10,6 +10,7 @@ int main()
     juce::initialiseJuce_GUI();
 
     lockstep::runSurfaceModelTests();
+    lockstep::runSurfaceInvalidationGuardTests();
     lockstep::runSamplePoolTests();
     lockstep::runTempoEstimateTests();
     lockstep::runKeyEstimateTests();

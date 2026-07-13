@@ -30,6 +30,7 @@ namespace lockstep
     } while (false)
 
     void runSurfaceModelTests();
+    void runSurfaceInvalidationGuardTests();   // 9.15: §22 has one channel (source scan)
     void runSamplePoolTests();   // 6.2 volatile REC buffers (DESIGN §28)
     void runTempoEstimateTests(); // WI-4 energy-based BPM detection (DESIGN §28)
     void runKeyEstimateTests();   // 4.9 key + tuning detection (DESIGN §28)
