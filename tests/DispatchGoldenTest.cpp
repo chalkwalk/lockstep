@@ -72,6 +72,33 @@ namespace lockstep
         // 7c: the step page lives in KeyboardArea, not UiState, so a UiState-only
         // digest recorded every page-nav gesture as "(no observable state change)".
         static int page(const LockstepEditor& ed) { return ed.keyboardArea_.currentPage(); }
+
+        // 9.30 st.6 — layout verification. Real pixels, traced through resized(), never
+        // arithmetic done in a comment: the bands were reordered and re-sized, and the
+        // only honest way to know the grid still fits is to lay it out and MEASURE it.
+        static juce::Rectangle<int> kbBounds(const LockstepEditor& ed)
+        {
+            return ed.keyboardArea_.getBounds();
+        }
+        // (KeyboardArea::computeRowAreas is private; the step grid's real estate is
+        //  measured through the public nav-area + component bounds instead, which is
+        //  the same geometry the paint path uses.)
+        static juce::Rectangle<int> navArea(const LockstepEditor& ed)
+        {
+            return ed.keyboardArea_.navAreaBounds();
+        }
+        static void setGridMode(LockstepEditor& ed, GridDisplayMode m)
+        {
+            ed.applyDisplayMode(m);
+            ed.resized();
+        }
+        static juce::Rectangle<int> inspector(const LockstepEditor& ed) { return ed.inspectorRow_; }
+        static juce::Rectangle<int> popover(const LockstepEditor& ed) { return ed.confirmPopoverRegion_; }
+        static juce::Rectangle<int> mz(const LockstepEditor& ed)
+        {
+            return ed.manipulationZone_.getBounds();
+        }
+        static juce::Rectangle<int> meter(const LockstepEditor& ed) { return ed.masterChromeRegion_; }
     };
 }
 
@@ -475,6 +502,64 @@ namespace
     }
 }   // namespace
 
+// ── 9.30 st.6: height reconciliation, measured ───────────────────────────────
+// The chrome was reordered and two bands were deleted; this asserts the grid still
+// has real estate in ALL THREE display modes, and that the new geometry holds the
+// invariants the layout depends on. Traced through resized() on a real headless
+// editor -- the project's own rule: verify real pixel dimensions, do not assume them.
+void runChromeLayoutTests(int& failed)
+{
+    // PluginEditor's own setSize() — the default window the user actually gets.
+    constexpr int kShipWidth = 990;
+    constexpr int kShipHeight = 626;
+
+    auto check = [&failed](bool ok, const char* what) {
+        if (!ok) { std::fprintf(stderr, "FAIL [ChromeLayout] %s\n", what); ++failed; }
+    };
+
+    Rig rig;
+    auto& ed = *rig.editor;
+
+    // Measure at the size the product SHIPS (the editor's own setSize), not at whatever
+    // the golden rig happens to use. The first version of this test ran at the rig's
+    // 1400x900 and passed happily with a 300px project rail planted in it -- a test that
+    // cannot fail is not a test, and a layout test at the wrong size is exactly that.
+    ed.setSize(kShipWidth, kShipHeight);
+
+    for (const auto mode : { GridDisplayMode::Staggered,
+                             GridDisplayMode::Ortholinear,
+                             GridDisplayMode::Clean })
+    {
+        DispatchProbe::setGridMode(ed, mode);
+        const auto kb  = DispatchProbe::kbBounds(ed);
+        const auto nav = DispatchProbe::navArea(ed);
+
+        check(kb.getHeight() > 200, "keyboard area keeps a real height in every grid mode");
+        check(!nav.isEmpty(), "the nav strip has real estate");
+        check(nav.getBottom() <= kb.getHeight(), "the nav strip fits inside the keyboard area");
+        // Nothing may hang off the bottom of the window.
+        check(kb.getBottom() <= ed.getHeight(), "the keyboard area fits inside the window");
+    }
+
+    // The inspector is the MZ's caption: it must sit DIRECTLY above it (9.30 st.1).
+    const auto insp = DispatchProbe::inspector(ed);
+    const auto mz   = DispatchProbe::mz(ed);
+    check(insp.getBottom() <= mz.getY(), "the inspector sits above the MZ");
+    check(mz.getY() - insp.getBottom() < 12, "...and DIRECTLY above it (it is its caption)");
+
+    // The confirm pop-over must actually reach over the MZ -- if it fits inside the
+    // chrome it is not a pop-over, and the whole point (§42.3) is lost.
+    const auto pop = DispatchProbe::popover(ed);
+    check(pop.getBottom() > mz.getY(), "the confirm pop-over extends DOWN over the MZ");
+    check(pop.getHeight() >= 2 * InspectorBar::kStatusLaneH, "...at (at least) double height");
+
+    // The meter is the output column: right of the crossfader, beside the MZ.
+    const auto meter = DispatchProbe::meter(ed);
+    check(meter.getWidth() > 0 && meter.getHeight() > 40, "the master meter is a vertical column");
+    check(meter.getX() > mz.getRight(), "...in the MZ's right flank");
+    check(meter.getY() >= mz.getY() - 8, "...level with the MZ, not a strip across the top");
+}
+
 void runDispatchGoldenTests(int& failed)
 {
     const Digest base = Rig{}.snap();
@@ -605,6 +690,7 @@ int main()
     juce::ScopedJuceInitialiser_GUI juceInit;
     int failed = 0;
     lockstep::runDispatchGoldenTests(failed);
+    lockstep::runChromeLayoutTests(failed);
     std::fprintf(stderr, failed == 0 ? "All dispatch golden tests passed.\n"
                                      : "%d dispatch golden test(s) FAILED.\n", failed);
     return failed == 0 ? 0 : 1;

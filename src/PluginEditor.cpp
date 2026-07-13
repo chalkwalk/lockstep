@@ -1390,76 +1390,91 @@ namespace lockstep
 
     static juce::Colour meterColour(float level);  // fwd decl (defined below)
 
-    // Master section background + DAW-style stereo dB VU meter (left ~ width -
-    // kCaptureBannerW), with peak high-water mark, a clip pip, and faint dB
-    // labels. Persistent — always present so levels read at a glance.
+    // Stereo dB VU meter with peak high-water mark and a clip pip. Persistent —
+    // always present, so levels read at a glance.
+    // 9.30 st.5: the master meter is VERTICAL, in the MZ's right flank beside the
+    // crossfader. That flank is now the output column and reads top-to-bottom as the
+    // signal does: SCULPT (the MZ) -> BLEND (the crossfader) -> LEVEL (this).
+    //
+    // The old full-width strip across the top of the window was not there because a
+    // horizontal meter is better; it was there because it was built first. Its one real
+    // virtue was being the only full-width attention lane on the surface, which is why
+    // the capture banner ended up living on it — a role the STATUS lane now serves on
+    // purpose (§42.2) rather than by accident.
     void LockstepEditor::paintMasterMeter(juce::Graphics& g)
     {
-        const int fullW = getWidth();
-        const auto strip = juce::Rectangle<int>(0, 0, fullW, kMasterStripH);
+        const auto strip = masterChromeRegion_;
+        if (strip.isEmpty()) return;
+
         g.setColour(juce::Colour::fromRGB(24, 27, 33));
         g.fillRect(strip);
 
-        // Meter occupies the left; the capture banner floats in the right margin.
-        const int meterW = std::max(120, fullW - kCaptureBannerW);
+        // The VOL chip sits under the meter: the level you are giving away, beneath the
+        // level you are getting. (There is no on-screen master fader by design — the
+        // level is set from the keyboard / encoders via the Func+7 band — so this chip
+        // is how the value stays discoverable at all.)
+        constexpr int kChipH = 12;
+        auto column = strip.reduced(1, 2);
+        const auto chip = column.removeFromBottom(kChipH);
 
-        // dB mapping: -kMeterFloorDb..0 dBFS across meterW.
-        auto dbToX = [meterW](float lin) {
+        const int meterH = column.getHeight();
+
+        // dB mapping: -kMeterFloorDb..0 dBFS bottom-to-top.
+        auto dbToPx = [meterH](float lin) {
             const float db = lin > 1.0e-5f ? 20.0f * std::log10(lin) : -120.0f;
             const float n = juce::jlimit(0.0f, 1.0f, (db + kMeterFloorDb) / kMeterFloorDb);
-            return juce::roundToInt(n * static_cast<float>(meterW));
+            return juce::roundToInt(n * static_cast<float>(meterH));
         };
 
-        // Faint dB gridlines + labels along the top of the strip.
+        // Faint dB gridlines. No labels: the column is 14 px wide, and a legend nobody
+        // can read is just noise — the ticks give the shape, the clip pip gives the
+        // only number that matters in performance.
         static constexpr int kTicks[] = { -24, -12, -6, 0 };
-        g.setFont(juce::Font(juce::FontOptions(8.0f)));
         for (const int db : kTicks)
         {
-            const int tx = dbToX(std::pow(10.0f, static_cast<float>(db) / 20.0f));
-            g.setColour(juce::Colour::fromRGBA(120, 130, 145, 70));
-            g.fillRect(tx, 0, 1, kMasterStripH - 1);
-            g.setColour(juce::Colour::fromRGBA(150, 160, 175, 150));
-            g.drawText(juce::String(db), tx - 18, 0, 16, 8, juce::Justification::centredRight);
+            const int ty = column.getBottom()
+                         - dbToPx(std::pow(10.0f, static_cast<float>(db) / 20.0f));
+            g.setColour(juce::Colour::fromRGBA(120, 130, 145, 60));
+            g.fillRect(column.getX(), ty, column.getWidth(), 1);
         }
 
-        const int barTop = 9;
-        const int barH   = 5;
-        const int gap    = 1;
+        const int barW = (column.getWidth() - 1) / 2;
         const float levelL = juce::jlimit(0.0f, 1.5f, masterMeter_);
         const float levelR = juce::jlimit(0.0f, 1.5f, masterMeterR_);
 
-        auto drawBar = [&](int y, float level, float hold, bool clip) {
+        auto drawBar = [&](int x, float level, float hold, bool clip) {
             g.setColour(juce::Colour::fromRGB(15, 17, 21));
-            g.fillRect(0, y, meterW, barH);
-            const int w = dbToX(level);
-            if (w > 0) { g.setColour(meterColour(juce::jlimit(0.0f, 1.0f, level))); g.fillRect(0, y, w, barH); }
+            g.fillRect(x, column.getY(), barW, meterH);
+            const int h = dbToPx(level);
+            if (h > 0)
+            {
+                g.setColour(meterColour(juce::jlimit(0.0f, 1.0f, level)));
+                g.fillRect(x, column.getBottom() - h, barW, h);
+            }
             // Peak high-water mark.
-            const int hx = dbToX(hold);
-            if (hx > 1) { g.setColour(juce::Colours::white.withAlpha(0.85f)); g.fillRect(hx - 1, y, 2, barH); }
-            // Clip pip at the far right.
-            if (clip) { g.setColour(juce::Colours::red); g.fillRect(meterW - 3, y, 3, barH); }
+            const int hy = dbToPx(hold);
+            if (hy > 1)
+            {
+                g.setColour(juce::Colours::white.withAlpha(0.85f));
+                g.fillRect(x, column.getBottom() - hy - 1, barW, 2);
+            }
+            // Clip pip, at the TOP — where the ceiling is.
+            if (clip)
+            {
+                g.setColour(juce::Colours::red);
+                g.fillRect(x, column.getY(), barW, 3);
+            }
         };
-        drawBar(barTop, levelL, masterPeakHoldL_, masterClipL_);
-        drawBar(barTop + barH + gap, levelR, masterPeakHoldR_, masterClipR_);
+        drawBar(column.getX(), levelL, masterPeakHoldL_, masterClipL_);
+        drawBar(column.getX() + barW + 1, levelR, masterPeakHoldR_, masterClipR_);
 
-        // Master output-level readout. There is no on-screen master fader by design
-        // (the level is set from the keyboard / encoders via the Func+7 band); this
-        // chip surfaces its current value next to the meter so it is discoverable
-        // and you can see how much headroom you are giving up.
         const float gainDb = processor_.apvts().getRawParameterValue(ParamIDs::outputGain)->load();
-        juce::String gainStr = "VOL " + juce::String(gainDb >= 0.0f ? "+" : "")
-                               + juce::String(gainDb, 1);
-        const int chipW = 66;
-        const int chipH = barH * 2 + gap + 2;
-        const int chipX = meterW - chipW - 2;
-        const int chipY = barTop - 1;
         g.setColour(juce::Colour::fromRGBA(10, 12, 15, 205));
-        g.fillRoundedRectangle(static_cast<float>(chipX), static_cast<float>(chipY),
-                               static_cast<float>(chipW), static_cast<float>(chipH), 2.0f);
-        g.setFont(juce::Font(juce::FontOptions(9.0f)));
+        g.fillRect(chip);
+        g.setFont(juce::Font(juce::FontOptions(8.0f)));
         g.setColour(gainDb > 0.01f ? juce::Colour::fromRGB(232, 200, 120)
                                    : juce::Colour::fromRGBA(175, 185, 200, 220));
-        g.drawText(gainStr, chipX, chipY, chipW, chipH, juce::Justification::centred);
+        g.drawText(juce::String(gainDb, 1), chip, juce::Justification::centred);
     }
 
     // Compact capture banner, floating in the right margin of the master strip.
@@ -6665,11 +6680,9 @@ namespace lockstep
     {
         auto bounds = getLocalBounds();
 
-        // Reserve the top edge for the master section (dB VU meter + capture
-        // banner, painted in paintOverChildren) so the header row sits below it.
-        bounds.removeFromTop(kMasterStripH);
-        // Cache the master-strip chrome region for the scoped meter repaint.
-        masterChromeRegion_ = { 0, 0, getWidth(), kMasterStripH };
+        // (9.30 st.5: the full-width master strip that used to sit here is GONE. The
+        //  meter is now a vertical column beside the crossfader — see the MZ block
+        //  below, which is where masterChromeRegion_ is computed.)
 
         // ── 9.30 st.4: THE PROJECT RAIL (cold) ────────────────────────────────
         // One row, and it is the top row because it is the row you look at LEAST: file
@@ -6741,6 +6754,9 @@ namespace lockstep
         static constexpr int kMsRowH = 22;  // mute/solo row
         {
             auto mzStrip = bounds.removeFromTop(kMZHeight).reduced(8, 4);
+            // 9.30 st.5: the MZ's right flank is the OUTPUT COLUMN, read top-to-bottom
+            // as the signal flows: sculpt (MZ) -> blend (crossfader) -> level (meter).
+            masterChromeRegion_ = mzStrip.removeFromRight(kMasterMeterW).reduced(1, 0);
             auto faderArea = mzStrip.removeFromRight(kFaderW).reduced(2, 0);
             crossfader_.setBounds(faderArea);
             manipulationZone_.setBounds(mzStrip);

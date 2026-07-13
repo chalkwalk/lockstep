@@ -482,12 +482,11 @@ namespace lockstep
 
         // Master VU strip height (px), drawn at the very top edge in
         // paintOverChildren as two stacked bars (L, R). resized() reserves this
-        // many pixels at the top so the header row sits below it — single source
-        // so the layout and the paint cannot drift (PRINCIPLES §20).
-        // kMasterStripH is the reserved top zone (dB VU meter + capture banner);
-        // resized() removes exactly this many pixels before the header row.
-        static constexpr int kMasterStripH = 22;
-        static constexpr int kCaptureBannerW = 150;  // right margin reserved for the REC banner
+        // 9.30 st.5: the meter is a vertical column in the MZ's right flank, so its
+        // geometry is a WIDTH now, not a reserved top strip. One source, so the layout
+        // and the paint cannot drift (PRINCIPLES §20) — masterChromeRegion_ is computed
+        // in resized() and both the painter and the scoped repaint read it.
+        static constexpr int kMasterMeterW = 16;
         static constexpr float kMeterFloorDb = 48.0f;  // meter spans -48..0 dBFS
 
         // Last-seen morphFader value: used to detect on-screen fader moves and
