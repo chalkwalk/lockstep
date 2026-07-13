@@ -2023,6 +2023,20 @@ the grammar; grid picker cells share a common `paintGridCell*` renderer.
 - [ ] **Stage 7 — Dispatch migration.** Family-by-family (7a modifiers → 7f
       steps); each sub-step routes via `resolve(..., gesture).action →
       handleAction`, deletes the imperative branch, and keeps goldens green.
+  - [x] **7a — modifiers** *(2026-07-13).* The eight scope modifiers route through
+        the table; their bodies moved (not rewritten) into `enterScopeHold`. Goldens
+        unchanged. `dispatchDown` 2,079 → 1,951 lines; coverage 24 → 32 wired.
+        **Finding — a modifier resolves on its BARE row (`kModNone`).** The table's
+        most-specific-wins rule is built for ordinary keys and fights the modifier's
+        own press: resolving `TrackScope` while Func is held returns the *compound*
+        row (`OpenMachinePicker`) and would **swallow the hold**, so the scope would
+        silently never be entered. A compound row says what a *pair* means for the
+        keys it qualifies — it is not the modifier's own action. Routing modifiers
+        through most-specific-wins is the obvious implementation, and it is wrong.
+        Per-scope differences stay in the effect (Func's escape + step-latch, Track's
+        Control-All, Scene's re-sync-when-Track-held — an early return, not a
+        compound, Morph's MZ hand-off): a modifier press is not one uniform thing.
+  - [ ] 7b–7f — verbs, nav, sections, steps, transport.
 - [ ] **Stage 8 — Exhaustiveness guard + cleanup.** `handleAction` switch
       exhaustive (`-Werror=switch`, no `default:`); test that every ActionId is
       handled; remove `KeyBinding::hint` field.
