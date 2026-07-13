@@ -7913,3 +7913,80 @@ follow-ups):
   but archival guarantees (unbounded, always-stems, zero-thought) belong to
   the capture deck alone; proposals to grow the Tape toward disk-unbounded
   re-open §40.3, not this section.
+
+---
+
+## 42. Editor Chrome — the band map and the status organ (9.30)
+
+The screen above the Manipulation Zone accreted one band at a time, and it shows:
+the bands are ordered by *when they were built*, not by what they are about. Time
+is shredded across three non-adjacent places (the transport buttons, the BPM
+readout, the timeline ruler); the header mixes three usage frequencies in one row
+(per-second `Play`/`Rec`, per-session sync mode, per-project file ops); and
+**status has six homes**, which is another way of saying it has none.
+
+### 42.1 The band map
+
+Chrome is **three bands, ordered by how often you look at them** — cold at the
+top, hot next to what it describes:
+
+| Band | Concern | Contents | Frequency |
+|---|---|---|---|
+| **Project rail** | *What am I working on?* | project name · file ops · SND / Pool · Omni / sync / STG · controller-connection | per project / per session |
+| **Transport + time** | *Where am I and what's playing?* | `Play`/`Stop`/`Rec`/`Click` · BPM · time-sig · **key-sig** · `Sg:Sc` · capture / rec-arm · **timeline ruler fused beneath** | per second |
+| **Inspector + STATUS** | *What did I just do, and what will the next key do?* | KEY · HELD · OVERLAY · EDIT, plus a full-width STATUS lane | continuously |
+
+The Inspector sits **directly above the MZ** because it is the MZ's caption: its
+EDIT region says where the knobs are about to write. Status sits in the Inspector
+because status is *about* what you just did with your hands, and the hands are
+looking there.
+
+### 42.2 The status taxonomy
+
+The six status homes were not just untidy — they were **untyped**, and the
+untyped-ness is what produced the worst bug on the surface. There are exactly
+three kinds of status, and they differ in *what makes them go away*:
+
+| Kind | Lives until | Rendering | Examples |
+|---|---|---|---|
+| **state** | the state changes | **re-derived from `UiState` every frame; NEVER fades** | pending confirm · held scope · armed capture · delete picker |
+| **alert** | the condition is cleared | persistent; distinct colour | "3 samples missing" |
+| **event** | a timer expires | fading toast (~1.5 s) | "Copied phrase 3" · "Quantized" |
+
+> **The rule: anything that changes what the next key press does is STATE, and it
+> must render for as long as it is armed.**
+
+The confirm prompt broke this rule, and the break was invisible because *nothing
+in the code knew there was a rule*. `uiState.confirm` is **sticky** — it survives
+releasing every key, and the next `P` executes the delete — but it was announced
+with `setStatus()`, a 1.5-second fading toast. So 1.5 seconds after arming a
+delete there were **zero pixels** on screen saying that the next `P` destroys a
+track, while the arming remained fully live. Prominence was the symptom; the bug
+was **event-rendering a state**.
+
+The fix is structural, not cosmetic (PRINCIPLES §20): the STATUS lane derives its
+content from state every frame, so an armed confirm *cannot* be invisible — there
+is no code path in which the arming exists and the pixels do not.
+
+### 42.3 The confirm pop-over, and the occlusion rule
+
+A pending confirm renders as a **double-height pop-over extending downward from
+the STATUS lane** — its logical home — in a danger-coloured treatment:
+
+```
+  DELETE TRACK 3?      [P] CONFIRM        [any other key] CANCEL
+```
+
+It deliberately **occludes** the top of the Manipulation Zone. That is safe *by
+contract*, not by luck: while a confirm is pending, **every key either confirms or
+cancels it** (§13.2 — the prompt is sticky and any non-`Func` key other than `P`
+cancels), so nothing underneath the pop-over is a live target. There is nothing to
+hide *because there is nothing you could have pressed anyway*.
+
+> **The occlusion rule.** The pop-over zone may only ever cover **display**, never
+> an interactive control. If a future layout puts a control under that zone, the
+> control moves — the pop-over does not shrink.
+
+A destructive decision must never be made *by accident, because we didn't spot the
+message*. The pop-over is the one place in the surface where being in the way is
+the point.
