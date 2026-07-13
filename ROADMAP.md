@@ -1998,9 +1998,28 @@ the grammar; grid picker cells share a common `paintGridCell*` renderer.
       gesture **sets**, not what it **clears** (a branch that only clears an
       already-false flag has no delta). Widen the matrix with non-trivial prior
       state as stages 6–8 touch those families.
-- [ ] **Stage 6 — New ActionIds + handlers.** Append-only ActionIds for latch,
-      escape, restore pop/floor, rec-arm overdub, play-stop, step latch, nav
-      unlock, overlay-entry opens. `CommandEffects` methods. Guard test.
+- [x] **Stage 6 — ActionIds wired + coverage guard.** *(2026-07-13.)* The ActionIds
+      existed since Stage 1 (display needed them) but **nothing wired them to
+      behaviour** — `handleAction` served 5 and `default:`-returned false for the
+      rest, so the table could name an action that did nothing. Now 24 are wired.
+      `CommandEffects` gains the gesture-axis effects (latch, escape, restore
+      pop/floor, rec-arm overdub, step latch, nav unlock, generator hub, trig-grid
+      mode); `EditorEffects` implements each by calling **the same editor code its
+      imperative branch calls** — never a second copy, or stages 7–8 would be
+      deleting one of two divergent implementations. Where no shared helper existed
+      the branch was extracted into one (`latchHeldSteps()`).
+      Two deliberate refusals: `PlayStopToggle` gets **no effect of its own**
+      (`CB::PlayStop` already routes through `transport(Play)`, the mode-aware
+      toggle — a second path to it would be the very drift this item kills), and
+      `stepLatch` does **not** latch "the step whose index arrived" (the real
+      gesture latches every *held* step; the plausible single-step version would
+      have invented semantics the surface never had).
+      **Guard** (`tests/ActionCoverageTest.cpp`): every `ActionId` is either handled
+      or named in `kNotYetMigrated` — no third state, and *both* is also a failure
+      (a stale list would hide the next unwired action). A new ActionId nobody wires
+      fails the suite instead of becoming a key that does nothing. **24 wired, 49
+      awaiting migration**; Stage 8 deletes the list when `handleAction` goes
+      exhaustive.
 - [ ] **Stage 7 — Dispatch migration.** Family-by-family (7a modifiers → 7f
       steps); each sub-step routes via `resolve(..., gesture).action →
       handleAction`, deletes the imperative branch, and keeps goldens green.
@@ -2008,9 +2027,11 @@ the grammar; grid picker cells share a common `paintGridCell*` renderer.
       exhaustive (`-Werror=switch`, no `default:`); test that every ActionId is
       handled; remove `KeyBinding::hint` field.
 
-> **Natural ship point:** Stages 1–5 are landed (5 = the golden net). Stages 6–8
-> are the dispatch rewrite itself, now covered by the net: a family whose goldens
-> move is a bug found, and the golden diff is the review artifact. Re-blessing a
+> **Natural ship point:** Stages 1–6 are landed (5 = the golden net, 6 = the
+> handlers + coverage guard). **Stage 7 is the migration itself** — family by
+> family, each sub-step points a family at `handleAction` and deletes its
+> imperative branch, with the goldens proving the behaviour did not move. The
+> ActionCoverage count (24 wired / 49 pending) is the burn-down. Re-blessing a
 > golden without reading the diff is the one way to make the net worthless.
 
 ### 9.13 — Redundancy / SSOT consolidation + switch hygiene  *[active]*
