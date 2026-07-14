@@ -7018,9 +7018,31 @@ cell. It consumes `effectiveKeySig()` (§4.10) and writes a monophonic line
 - **Step-vs-leap** — stepwise-within-scale vs leaps to chord tones.
 - **Seed** — deterministic variation.
 
+**Seed salting (9.31).** `SEED` is the *musical* dial; it is not the RNG seed.
+The effective seed is
+`hash(SEED, track, machineId, song, scene, phrase, projectEpoch)`
+(`melodySeedFor`, `src/core/MelodyGen.h`). Seeding from `SEED` alone made the
+determinism contract too strong in the wrong axis: `SEED 1` produced the *same
+line* on every track, in every scene, in every project — so "generate me a part
+here" kept answering with the part you already had over there, and a small,
+reproducible set of melodies is worth nothing if every slot draws from the same
+one. Salting keeps the half of determinism that is musically load-bearing —
+**same SEED, same place, same project ⇒ the same melody, forever** — and drops
+the half that was an accident of implementation.
+
+The **project epoch** is a number stamped once at project creation and
+serialized (state v33, `Misc/projectEpoch`). It is what makes two *projects*
+differ; without it, a fresh project would hand you the same lines as the last
+one. Pre-v33 projects have no epoch and read as **0** — a stable legacy
+identity, deliberately *not* invented at upgrade time, because inventing one
+would silently re-roll every melody a user had already generated and saved.
+`newProject()` stamps a fresh epoch **before** reading the pristine default blob
+back (the blob predates the epoch and carries none, and the read rule is
+*present ⇒ adopt, absent ⇒ keep*).
+
 Output is indistinguishable from hand entry and fully editable afterward.
 `src/core/MelodyGen.h` is pure and unit-tested (determinism, in-`pcMask`,
-core-bias histogram).
+core-bias histogram, seed salting).
 
 ### 39.12 Harmonic voice-mover (Generator Hub, sticky)
 

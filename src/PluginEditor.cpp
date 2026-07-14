@@ -3164,7 +3164,20 @@ namespace lockstep
         p.contour  = uiState_.melodyContour;
         p.octaves  = uiState_.melodyOctaves;
         p.stepLeap = uiState_.melodyStepLeap;
-        p.seed     = static_cast<uint32_t>(uiState_.melodySeed);
+        // 9.31: SEED is the musical dial, not the whole seed. Salted with WHERE this
+        // melody is being generated (track, machine, song, scene, phrase) and with the
+        // project's epoch, so SEED 1 on track 3 of this scene is not the same line as
+        // SEED 1 on track 1 of the last project you opened. Same place + same SEED +
+        // same project still reproduces exactly -- that is what makes SEED playable.
+        MelodySeedContext sc;
+        sc.track         = track;
+        sc.machineIdHash = melodyHashMachineId(processor_.getMachineIdRaw(track));
+        sc.song          = processor_.activePieceIdx();
+        sc.scene         = processor_.activeSectionIdx();
+        sc.phrase        = processor_.arrangement().activePhraseIdx(track);
+        sc.projectEpoch  = processor_.projectEpoch();
+        sc.seed          = uiState_.melodySeed;
+        p.seed     = melodySeedFor(sc);
         p.source   = uiState_.melodySource;
 
         // KeepRhythm: lock onsets to the pre-entry trigs (the stash, so the live

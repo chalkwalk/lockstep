@@ -3112,7 +3112,7 @@ Six items off one play-test session. Two are outright bugs; two are features tha
       `output_gain` (double-click = 0 dB), and **CC7 main volume** for MIDI-out tracks
       (sent on load, on change, on reassignment — the level means the same thing whether
       the track ends in a machine or a synth).
-- [ ] **Stage 5 — Generator seeds stop cloning.** The melodic/harmonic seed was the SEED
+- [x] **Stage 5 — Generator seeds stop cloning.** The melodic/harmonic seed was the SEED
       encoder alone, so the same SEED gave the same melody on every track, in every scene,
       in every project. The effective RNG seed is now
       `hash(track, machine, song, scene, phrase, projectEpoch, SEED)` — a **project epoch**

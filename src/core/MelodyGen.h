@@ -71,6 +71,67 @@ namespace lockstep
         return s == static_cast<int>(MelodySource::KeepRhythm) ? "Keep" : "Gen";
     }
 
+    // ── Seed salting (9.31) ──────────────────────────────────────────────────
+    //
+    // SEED is the musical dial: turn it, get a different melody, and the same
+    // number brings the same one back. But the RNG seed was *only* SEED, so SEED 1
+    // gave the identical melody on every track, in every scene, in every project.
+    // "Generate me a line here" answered with the line you already had over there.
+    //
+    // The fix is to salt the seed with WHERE the melody is being generated, plus a
+    // per-project epoch stamped at creation. The determinism contract is unchanged
+    // in the way that matters: the same SEED, in the same place, in the same
+    // project, still reproduces exactly -- which is what makes SEED an instrument
+    // rather than a lottery. What changes is that the same SEED somewhere ELSE is a
+    // different melody, which is what a performer means by "a different track".
+    struct MelodySeedContext
+    {
+        int      track         = 0;
+        uint32_t machineIdHash = 0;  // hash of the machine id (see melodyHashMachineId)
+        int      song          = 0;
+        int      scene         = 0;
+        int      phrase        = 0;
+        uint32_t projectEpoch  = 0;  // stamped at project creation, serialized
+        int      seed          = 1;  // the SEED encoder (1..999) -- the musical dial
+    };
+
+    // FNV-1a over a machine id string. Inline + JUCE-free so the seed context stays
+    // usable from the pure core (and from a test) without dragging in juce::String.
+    [[nodiscard]] inline uint32_t melodyHashMachineId(const char* id) noexcept
+    {
+        uint32_t h = 2166136261u;
+        if (id == nullptr) return h;
+        for (const char* p = id; *p != '\0'; ++p)
+        {
+            h ^= static_cast<uint32_t>(static_cast<unsigned char>(*p));
+            h *= 16777619u;
+        }
+        return h;
+    }
+
+    // Boost-style hash_combine: order-dependent, avalanches well enough that two
+    // adjacent tracks (or two adjacent SEEDs) do not produce neighbouring streams.
+    [[nodiscard]] inline uint32_t melodyHashCombine(uint32_t h, uint32_t v) noexcept
+    {
+        return h ^ (v + 0x9e3779b9u + (h << 6) + (h >> 2));
+    }
+
+    // The effective RNG seed. NEVER zero: xorshift32 is dead at zero, and a seed
+    // context that happened to hash to 0 would silently collapse every melody it
+    // touched into the same one.
+    [[nodiscard]] inline uint32_t melodySeedFor(const MelodySeedContext& c) noexcept
+    {
+        uint32_t h = 0x811c9dc5u;
+        h = melodyHashCombine(h, static_cast<uint32_t>(c.seed));
+        h = melodyHashCombine(h, static_cast<uint32_t>(c.track));
+        h = melodyHashCombine(h, c.machineIdHash);
+        h = melodyHashCombine(h, static_cast<uint32_t>(c.song));
+        h = melodyHashCombine(h, static_cast<uint32_t>(c.scene));
+        h = melodyHashCombine(h, static_cast<uint32_t>(c.phrase));
+        h = melodyHashCombine(h, c.projectEpoch);
+        return h != 0u ? h : 0x9e3779b9u;
+    }
+
     struct MelodyParams
     {
         int density  = 8;   // number of onsets (placed strongest-beat-first)

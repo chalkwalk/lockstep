@@ -526,6 +526,32 @@ namespace
                     "v31->v32: other delay params are untouched");
             }
 
+            beginTest("v32 -> v33: a legacy project keeps epoch 0 (its melodies do not move)");
+            {
+                // The epoch salts the generator seeds. A pre-v33 project has none, and
+                // must NOT acquire one at upgrade: inventing an epoch would re-roll
+                // every melody the user had already generated and saved. Epoch 0 is
+                // the identity such a project has always implicitly had.
+                juce::ValueTree v32(keys::kLockstepState);
+                v32.setProperty(keys::kVersion, 32, nullptr);
+                v32.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
+                auto misc = juce::ValueTree(keys::kMisc);
+                misc.setProperty(keys::kLocalBpm, 96.0, nullptr);
+                v32.appendChild(misc, nullptr);
+
+                const auto result = lockstep::PluginState::applyUpgrades(v32);
+                expectEquals(static_cast<int>(result.getProperty(keys::kVersion, 0)),
+                             lockstep::PluginState::kCurrentVersion,
+                             "v32->v33: version stamp bumped");
+
+                const auto miscR = result.getChildWithName(keys::kMisc);
+                expect(!miscR.hasProperty(keys::kProjectEpoch),
+                       "v32->v33: no epoch is invented for a legacy project (reads as 0)");
+                expectWithinAbsoluteError(
+                    static_cast<double>(miscR.getProperty(keys::kLocalBpm)), 96.0, 1.0e-6,
+                    "v32->v33: the rest of the Misc node is untouched");
+            }
+
             beginTest("future version: valid tree returned without crash");
             {
                 juce::ValueTree future(keys::kLockstepState);

@@ -209,6 +209,11 @@ namespace lockstep::keys
     inline constexpr const char* kMisc = "Misc";
     inline constexpr const char* kFocusTrack = "focusTrack";
     inline constexpr const char* kLocalBpm = "localBpm";
+  // 9.31: stamped once at project creation; salts the generator seeds so the same
+  // SEED is a different melody in a different project. Absent in pre-v33 projects,
+  // which read as epoch 0 -- a stable legacy identity, so an old project's melodies
+  // stay exactly as they were.
+    inline constexpr const char* kProjectEpoch = "projectEpoch";
 
   // ── Legacy (upgrade paths only) ──────────────────────────────────────────────
     inline constexpr const char* kProject = "Project";   // v2 legacy container

@@ -236,6 +236,12 @@ namespace lockstep
         // Capture the pristine default state so newProject() can reset to it later.
         PluginState::writeTo(defaultStateBlob_, *this);
         savedStateHash_ = stateHash();
+
+        // 9.31: stamp this project's epoch AFTER the pristine blob is captured, so the
+        // blob carries none. newProject() reads that blob back over the state; if it
+        // carried an epoch, every new project would inherit the one this instance was
+        // born with -- and every new project would generate the same melodies.
+        stampProjectEpoch();
     }
 
     LockstepProcessor::~LockstepProcessor()
@@ -3825,6 +3831,17 @@ namespace lockstep
             enqueueStepOverride(*this, track, step, slot, v);
         }
         editContext_.markParamWritten();
+    }
+
+    // 9.31: a fresh project identity. Wall-clock derived, so two projects created on
+    // the same machine differ, and mixed into a constant so an epoch of 0 (the legacy
+    // value every pre-v33 project reads as) stays reachable ONLY by legacy projects.
+    void LockstepProcessor::stampProjectEpoch()
+    {
+        const auto ms = static_cast<std::uint64_t>(juce::Time::currentTimeMillis());
+        auto e = static_cast<std::uint32_t>(ms ^ (ms >> 32));
+        if (e == 0u) e = 0x9e3779b9u;   // never collide with the legacy identity
+        projectEpoch_ = e;
     }
 
     // 9.31: "which slot is this track's fader?" -- one owner, because the mixer, the
@@ -8039,6 +8056,10 @@ namespace lockstep
     {
         withQuiescedEngine([&] {
             resetArrangement();
+            // 9.31: a new project is a new seed space. Stamped BEFORE the blob is read
+            // back, because the blob has no epoch property and the reader's rule is
+            // "present -> adopt, absent -> keep" -- so the fresh stamp survives it.
+            stampProjectEpoch();
             PluginState::readFrom(defaultStateBlob_.getData(),
                                   static_cast<int>(defaultStateBlob_.getSize()),
                                   *this);

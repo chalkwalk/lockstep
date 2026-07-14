@@ -1396,6 +1396,14 @@ namespace lockstep::PluginState
         juce::ValueTree miscNode(keys::kMisc);
         miscNode.setProperty(keys::kFocusTrack, proc.focusTrack(), nullptr);
         miscNode.setProperty(keys::kLocalBpm, proc.clock().localBpm(), nullptr);
+        // 9.31: an epoch of 0 means "no epoch" (a legacy project) and is written as an
+        // ABSENT property, not a zero. That is what lets the pristine default blob --
+        // captured in the constructor, before the first stamp -- stay epoch-free, so
+        // newProject()'s fresh stamp survives reading that blob back over the state.
+        // Writing a literal 0 would hand every new project the same seed space.
+        if (proc.projectEpoch() != 0u)
+            miscNode.setProperty(keys::kProjectEpoch,
+                                 static_cast<int>(proc.projectEpoch()), nullptr);
         root.appendChild(miscNode, nullptr);
     }
 
@@ -1442,6 +1450,17 @@ namespace lockstep::PluginState
             proc.setFocusTrack(static_cast<int>(miscNode.getProperty(keys::kFocusTrack, -1)));
             const double bpm = static_cast<double>(miscNode.getProperty(keys::kLocalBpm, 120.0));
             proc.clock().setLocalBpm(bpm);
+
+            // 9.31: present -> adopt it; ABSENT -> keep whatever the processor has.
+            // The distinction is load-bearing. newProject() stamps a fresh epoch and
+            // then reads the pristine default blob back over the state; that blob was
+            // captured before any epoch existed, so a "missing means 0" rule here
+            // would wipe the new project's epoch and hand every new project the same
+            // seeds. A pre-v33 project on disk has no epoch either -- but it also
+            // never had one, and 0 is its stable identity.
+            if (miscNode.hasProperty(keys::kProjectEpoch))
+                proc.setProjectEpoch(static_cast<std::uint32_t>(
+                    static_cast<int>(miscNode.getProperty(keys::kProjectEpoch, 0))));
         }
     }
 
@@ -2120,6 +2139,20 @@ namespace lockstep::PluginState
         return v28;
     }
 
+    // v33 (9.31): projects gained an EPOCH -- a number stamped once at creation that
+    // salts the generator seeds, so the same SEED is a different melody in a
+    // different project. A stamp-only upgrade: an old project has no epoch and does
+    // not acquire one here, so it reads as epoch 0. That is deliberate. 0 is a
+    // perfectly good identity, and it is the one an old project has always
+    // implicitly had -- inventing an epoch for it would silently re-roll every
+    // melody the user already generated and saved.
+    static juce::ValueTree upgrade_v32_to_v33(const juce::ValueTree& v32)
+    {
+        juce::ValueTree v33 = v32.createCopy();
+        v33.setProperty(keys::kVersion, 33, nullptr);
+        return v33;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -2160,6 +2193,7 @@ namespace lockstep::PluginState
         if (version < 30) tree = upgrade_v29_to_v30(tree);
         if (version < 31) tree = upgrade_v30_to_v31(tree);
         if (version < 32) tree = upgrade_v31_to_v32(tree);
+        if (version < 33) tree = upgrade_v32_to_v33(tree);
 
         // 9.18: unconditional — resolve sample references to current pool positions
         // (hash-driven for v29 trees, "i"-bridged for the v28 tree just upgraded).

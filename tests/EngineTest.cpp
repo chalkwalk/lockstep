@@ -4776,8 +4776,45 @@ namespace lockstep
         }
     }
 
+    // -------------------------------------------------------------------------
+    // 9.31: the project epoch. It is what makes the same SEED a different melody in
+    // a different project, so its lifecycle is the whole feature: a project keeps its
+    // epoch across save/load (or its melodies would move under it), and a NEW project
+    // gets a different one (or every new project would hand you the same lines).
+    static void testProjectEpochLifecycle()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        const auto born = proc.projectEpoch();
+        CHECK(born != 0u,
+              "epoch: a fresh project is stamped (0 is reserved for pre-v33 projects)");
+
+        // Survives a save/load: the melodies you generated must still be there.
+        juce::MemoryBlock blob;
+        proc.getStateInformation(blob);
+        {
+            EngineHarness h2;
+            CHECK(h2.processor().projectEpoch() != born,
+                  "epoch: a different instance is a different project (precondition)");
+            h2.processor().setStateInformation(blob.getData(), static_cast<int>(blob.getSize()));
+            CHECK(h2.processor().projectEpoch() == born,
+                  "epoch: a loaded project keeps its epoch (its melodies reproduce)");
+        }
+
+        // newProject() re-stamps. The trap this guards: newProject reads the pristine
+        // default blob back over the state, and that blob was captured before any
+        // epoch existed. Were the reader's rule "missing means 0", the fresh stamp
+        // would be wiped and every new project would share one seed space.
+        proc.newProject();
+        const auto after = proc.projectEpoch();
+        CHECK(after != 0u, "epoch: newProject stamps a real epoch, not 0");
+        CHECK(after != born, "epoch: newProject is a NEW seed space (the stamp survives the blob)");
+    }
+
     void runEngineTests()
     {
+        testProjectEpochLifecycle();
         testMidiOutVuVelocityAndCc();
         testAuxRoutingAndFold();
         testExternalSendRoutesToHostBus();

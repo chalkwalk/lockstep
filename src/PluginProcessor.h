@@ -477,6 +477,14 @@ namespace lockstep
         int focusTrack() const { return focusTrack_; }
         void setFocusTrack(int track) { focusTrack_ = track; }
 
+        // 9.31: the project's identity for generator seeding. Stamped once at
+        // creation (and re-stamped by newProject), serialized, and never otherwise
+        // written -- so "the same SEED, in the same place, in this project" keeps
+        // reproducing the same melody for the life of the project, while a NEW
+        // project generates something else. Legacy (pre-v33) projects read as 0.
+        [[nodiscard]] std::uint32_t projectEpoch() const noexcept { return projectEpoch_; }
+        void setProjectEpoch(std::uint32_t e) noexcept { projectEpoch_ = e; }
+
         // MD.10: Control-All — broadcast param writes to all tracks with a matching slot id.
         // Set true when Track scope is held without a specific track selected.
         // UI-thread only; no atomic needed.
@@ -583,6 +591,8 @@ namespace lockstep
         // audio track, the machine's Level-role param for a MIDI-out track (which has
         // no CHANNEL block and sends its level as CC7). -1 if the track has none.
         [[nodiscard]] int levelSlotForTrack(int track) const;
+        // 9.31: stamp a fresh project epoch (construction + newProject).
+        void stampProjectEpoch();
         // 9.31: write a track's BASE value even while a step is held -- the mixer's
         // write path. Everything else must use writeParam, which is where the
         // "a held step captures" rule lives.
@@ -1157,7 +1167,8 @@ namespace lockstep
         Clock clock_;                    // [AUDIO] (internal BPM/PPQ state)
         EditContext editContext_;        // message thread only
         CCMappingTable ccMappingTable_;  // [SUSPEND] (learn writes via atomic gate)
-        int focusTrack_ = -1;   // message thread only
+        int focusTrack_ = -1;
+        std::uint32_t projectEpoch_ = 0;   // 9.31 — see projectEpoch()   // message thread only
         bool controlAllActive_ = false; // message thread only
 
         std::atomic<bool> fillActive_{ false };  // [ATOMIC]

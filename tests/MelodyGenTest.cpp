@@ -210,8 +210,100 @@ namespace lockstep
         CHECK(fired > 0, "KeepRhythm with no onset set falls back to Generate");
     }
 
+    // -------------------------------------------------------------------------
+    // 9.31 seed salting. SEED alone meant SEED 1 gave the same melody on every
+    // track, in every scene, in every project -- "generate me a line here" kept
+    // answering with the line you already had over there. The effective seed is now
+    // salted with WHERE the melody is being placed, plus the project's epoch.
+    //
+    // The contract has two halves and both must hold, so both are asserted: the same
+    // context reproduces exactly (SEED stays a playable dial, not a lottery), and
+    // varying ANY component of the context changes the stream (which is what makes
+    // the tracks sound like different parts).
+    static void testSeedSalting()
+    {
+        MelodySeedContext base;
+        base.track = 0;
+        base.machineIdHash = melodyHashMachineId("lockstep.va.v1");
+        base.song = 0;
+        base.scene = 0;
+        base.phrase = 0;
+        base.projectEpoch = 0xDEADBEEFu;
+        base.seed = 1;
+
+        // Reproducible: the same place, the same SEED, the same project.
+        CHECK(melodySeedFor(base) == melodySeedFor(base),
+              "seed salting: the same context must reproduce the same seed");
+
+        // Every component matters. A component that does NOT change the seed is a
+        // component whose melodies collide -- which is the bug being fixed.
+        const uint32_t ref = melodySeedFor(base);
+        {
+            auto c = base; c.track = 1;
+            CHECK(melodySeedFor(c) != ref, "seed salting: another TRACK is another melody");
+        }
+        {
+            auto c = base; c.machineIdHash = melodyHashMachineId("lockstep.fm.v1");
+            CHECK(melodySeedFor(c) != ref, "seed salting: another MACHINE is another melody");
+        }
+        {
+            auto c = base; c.song = 1;
+            CHECK(melodySeedFor(c) != ref, "seed salting: another SONG is another melody");
+        }
+        {
+            auto c = base; c.scene = 1;
+            CHECK(melodySeedFor(c) != ref, "seed salting: another SCENE is another melody");
+        }
+        {
+            auto c = base; c.phrase = 1;
+            CHECK(melodySeedFor(c) != ref, "seed salting: another PHRASE is another melody");
+        }
+        {
+            auto c = base; c.projectEpoch = 12345u;
+            CHECK(melodySeedFor(c) != ref, "seed salting: another PROJECT is another melody");
+        }
+        {
+            auto c = base; c.seed = 2;
+            CHECK(melodySeedFor(c) != ref, "seed salting: SEED still turns (the musical dial)");
+        }
+
+        // Never zero: xorshift32 is dead at zero, so a context that hashed to 0 would
+        // silently collapse every melody it touched into one. Sweep a wide space.
+        for (int t = 0; t < 16; ++t)
+        {
+            for (int s = 1; s <= 999; s += 37)
+            {
+                auto c = base;
+                c.track = t;
+                c.seed = s;
+                c.projectEpoch = static_cast<uint32_t>(s) * 2654435761u;
+                CHECK(melodySeedFor(c) != 0u, "seed salting: the effective seed is never 0");
+            }
+        }
+
+        // And it reaches the generator: two tracks, same SEED, different notes.
+        // (This is the user-visible complaint, asserted end-to-end on the pure core.)
+        {
+            const KeySig key{};
+            MelodyParams pa;
+            pa.seed = melodySeedFor(base);
+            auto cb = base; cb.track = 5;
+            MelodyParams pb = pa;
+            pb.seed = melodySeedFor(cb);
+
+            const auto a = generateMelody(key, 16, 60, pa);
+            const auto b = generateMelody(key, 16, 60, pb);
+            bool differs = false;
+            for (std::size_t i = 0; i < a.size() && i < b.size(); ++i)
+                if (a[i].trig != b[i].trig || a[i].note != b[i].note) { differs = true; break; }
+            CHECK(differs,
+                  "seed salting: the same SEED on two tracks must not print the same melody");
+        }
+    }
+
     void runMelodyGenTests()
     {
+        testSeedSalting();
         testDeterminism();
         testAllNotesInScale();
         testCoreBiasNarrowsPool();
