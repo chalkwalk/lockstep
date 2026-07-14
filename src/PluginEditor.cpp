@@ -6494,14 +6494,18 @@ namespace lockstep
                 break;  // Y = Snapshot; no held-state to clear.
 
             case CB::Restore: {
+                // Func+Y is remapped to CB::Restore upstream (ButtonLayers), so the
+                // keyboard reaches restore HERE and never through AId::VerbRestore --
+                // which is why this branch has to be the effects call and not a second
+                // copy of it. It used to be a copy, and the copy dropped restoreOne()'s
+                // bool on the floor: 9.4 item A's "NOTHING TO RESTORE" was live on the
+                // table path and unreachable from the keys the player actually presses.
                 const double now = juce::Time::getMillisecondCounterHiRes();
-                int ckTrk = 0;
-                const CheckpointScope scp = ckScope(ckTrk);
                 using LPR = GestureRecognizer::LongPressResult;
                 switch (gesture_.checkLongPress(kRestoreLongPressToken, now))
                 {
-                    case LPR::LongHold:  processor_.restoreToFloor(scp, ckTrk); refreshSurface(); break;
-                    case LPR::ShortHold: processor_.restoreOne(scp, ckTrk);     refreshSurface(); break;
+                    case LPR::LongHold:  editorEffects_->restoreFloor(); break;
+                    case LPR::ShortHold: editorEffects_->restorePop();   break;
                     case LPR::NotArmed:  break;
                 }
                 break;
