@@ -3078,7 +3078,7 @@ on the surface fixed *structurally* rather than cosmetically.
 Six items off one play-test session. Two are outright bugs; two are features that were
 *specified* but only ever built on one instance; two are UX corrections.
 
-- [ ] **Stage 1 — Fractional trig conditions mean what they say.** `m:n` read the
+- [x] **Stage 1 — Fractional trig conditions mean what they say.** `m:n` read the
       numerator as a *phase offset* (`iter % n == m - 1`), so `2:3` fired once per three
       cycles at an offset instead of twice — the numerator's musical meaning was
       unreachable, and a `n:n` condition never all-fired. Now: **m fires per n cycles,
@@ -3087,11 +3087,21 @@ Six items off one play-test session. Two are outright bugs; two are features tha
       preview (`SurfaceModel.cpp`) had a *second copy* of the buggy formula and now calls
       the same helper, so audio and display cannot diverge. Property tests over all
       `1 ≤ m ≤ n ≤ 8`. DESIGN §4.4.
-- [ ] **Stage 2 — Analog stops dropping trigs.** In mono LEGATO, an overlapping note-on
-      after the shared amp envelope had already died slid the pitch but never re-gated the
-      envelope — an audible dropped trig (FM has the revival guard Analog lacked). The
-      dead-env test is **table-driven across pitched machines**, so the next machine joins
-      the table rather than re-learning the bug.
+- [x] **Stage 2 — The dropped trig: legato slid a dead envelope.** In LEGATO an
+      overlapping note-on re-uses the running envelope instead of re-gating it — which is
+      silence if that envelope is already spent. And a **sustain-0 patch spends it while
+      the note is still held**: `dsp::Envelope` decays to zero and then parks in
+      `Sustain` — level 0, but `isActive()` forever, because the gate is down. So every
+      "is this voice still sounding?" guard in the codebase was asking the wrong question.
+      Analog had no guard at all; **FM's guard (`!voice.active`) had the same hole** and
+      dropped the note too — the user's report that FM was clean was the patch, not the
+      code. Fixed at the source: `Envelope::isSilent()` ("makes no sound and will not
+      rise on its own"), used by Analog's mono legato **and** its paraphonic path (the
+      chord's shared envelope has the identical hole), plus a carrier-aware
+      `FMMachine::voiceIsSilent` — a modulator with a live envelope and no mixer level is
+      not audibility. The test is **table-driven across the pitched machines** (VA mono /
+      VA para / FM) with a vacuity guard on each row, so the next machine joins the table
+      rather than re-learning the bug.
 - [ ] **Stage 3 — The MZ Func outline latches.** The outline is a property of *how the
       shown page was reached*, not of what is held right now: it survives the Func release
       and clears on any page change. Surface keys keep their live behaviour (7e).

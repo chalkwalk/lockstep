@@ -20,6 +20,7 @@
 #include "../src/machine/EffectFactory.h"
 #include "../src/machine/EffectPickerModel.h"
 #include "../src/dsp/ConvolutionEffect.h"
+#include "../src/dsp/Envelope.h"
 #include <thread>
 #include "../src/dsp/Oversampler2x.h"
 #include "../src/dsp/OversamplingStages.h"
@@ -679,6 +680,142 @@ namespace lockstep
 
         // Sample-playing machines have no sample loaded → silence; skip.
         juce::Logger::writeToLog("retrig click: Sample/Slice skipped (no sample loaded)");
+    }
+
+    // -----------------------------------------------------------------------
+    // Dead-envelope overlap: the dropped-trig class (9.31).
+    //
+    // A mono machine in LEGATO holds the note until note-off, but a percussive
+    // patch (sustain = 0) lets the amp envelope reach zero long before that. In
+    // a sequence, the next trig's note-on then arrives while the previous note
+    // is *still held* -- an overlap, not a new phrase -- so it takes the legato
+    // path. If legato only slides pitch, it slides a DEAD envelope: the trig is
+    // audibly dropped. FM already guarded this (legatoUpdateVoice revives an
+    // inactive voice); Analog did not, which is what "the VA sometimes drops
+    // trigs" was.
+    //
+    // Table-driven over the pitched mono machines so the next one joins the
+    // table instead of re-learning the bug. Each row is a percussive LEGATO
+    // patch; the shared body proves the envelope really died (precondition)
+    // before asserting the overlapping note-on brings it back.
+    static void testDeadEnvOverlapRevives()
+    {
+        constexpr int kBlockSize = 64;
+        constexpr double kSR = 48000.0;
+
+        // The trap itself, stated once: a sustain-0 envelope decays to zero and
+        // then parks in Sustain -- silent, but isActive() forever. Every "is this
+        // voice still sounding?" question must be asked with isSilent().
+        {
+            dsp::Envelope env;
+            env.prepare(kSR);
+            env.setADSR(1.0f, 5.0f, 0.0f, 5.0f);
+            env.gateOn();
+            for (int i = 0; i < static_cast<int>(0.060 * kSR); ++i)
+                env.tick();
+            CHECK(env.isActive(),
+                  "Envelope: a held sustain-0 gate stays 'active' (this is the trap, not a bug)");
+            CHECK(env.isSilent(),
+                  "Envelope::isSilent: a decayed sustain-0 envelope must read as silent");
+            env.gateOn();
+            CHECK(!env.isSilent(), "Envelope::isSilent: re-gating must clear silence");
+        }
+
+        auto runDeadEnvOverlap = [&](IMachine& m, const ParamFrame& frame, const char* name) {
+            m.prepare(kSR, kBlockSize);
+            m.reset();
+
+            juce::AudioBuffer<float> buf(2, kBlockSize);
+            juce::MidiBuffer midi;
+
+            // Note-on, held. Render ~53 ms -- well past attack + decay to zero.
+            midi.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(120)), 0);
+            float firstNotePeak = 0.0f;
+            for (int b = 0; b < 40; ++b)
+            {
+                renderBlock(m, midi, frame, buf);
+                for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+                    for (int i = 0; i < buf.getNumSamples(); ++i)
+                        firstNotePeak = std::max(firstNotePeak, std::abs(buf.getSample(ch, i)));
+            }
+
+            // Guard the guard: a patch that never sounded would satisfy the
+            // "envelope died" precondition vacuously.
+            CHECK(firstNotePeak > 1e-2f,
+                  juce::String(name) + " dead-env overlap: the FIRST note was silent "
+                  "(precondition -- the test would be vacuous), peak="
+                  + juce::String(firstNotePeak, 6));
+
+            const float rmsDead = blockRms(buf);
+            CHECK(rmsDead < 1e-4f,
+                  juce::String(name) + " dead-env overlap: envelope had not died after 53 ms "
+                  "(precondition -- the patch is not percussive enough to exercise the bug), RMS="
+                  + juce::String(rmsDead, 6));
+
+            // Overlapping note-on: the first note is never released, so this is
+            // an OverlapTrigger, not a FirstTrigger.
+            midi.addEvent(juce::MidiMessage::noteOn(1, 64, static_cast<juce::uint8>(120)), 0);
+            float peak = 0.0f;
+            for (int b = 0; b < 12; ++b)
+            {
+                renderBlock(m, midi, frame, buf);
+                for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+                    for (int i = 0; i < buf.getNumSamples(); ++i)
+                        peak = std::max(peak, std::abs(buf.getSample(ch, i)));
+            }
+
+            CHECK(!hasNaNOrInf(buf),
+                  juce::String(name) + " dead-env overlap: NaN/Inf after the overlapping note-on");
+            CHECK(peak > 1e-2f,
+                  juce::String(name) + " dead-env overlap: the overlapping note-on was DROPPED "
+                  "(legato slid a dead envelope instead of re-gating it), peak="
+                  + juce::String(peak, 6));
+        };
+
+        // Analog MONO + LEGATO. Decay is a time CONSTANT, not a time-to-zero:
+        // an exponential needs ~9 tau to reach the 1e-4 floor, so 5 ms decay is
+        // what dies inside the 53 ms window (20 ms would still be ringing at 7%).
+        auto percussiveVA = [](AnalogMachine& va, ParamFrame& f) {
+            setSlot(va, f, "va_retrig", 0.0f);      // LEGATO
+            setSlot(va, f, "va_amp_a", 1.0f);
+            setSlot(va, f, "va_amp_d", 5.0f);
+            setSlot(va, f, "va_amp_s", 0.0f);       // percussive: dies while held
+            setSlot(va, f, "va_amp_r", 5.0f);
+            setSlot(va, f, "va_level", 1.0f);
+        };
+
+        {
+            AnalogMachine va;
+            ParamFrame frame = defaultFrame(va);
+            setSlot(va, frame, "va_voice_mode", 0.0f);  // MONO
+            percussiveVA(va, frame);
+            runDeadEnvOverlap(va, frame, "VA mono");
+        }
+
+        // Analog PARA: the master amp envelope is shared by the chord, so it can
+        // be spent while notes are still held -- adding a note to a decayed chord
+        // must re-strike it, not add a silent voice.
+        {
+            AnalogMachine va;
+            ParamFrame frame = defaultFrame(va);
+            setSlot(va, frame, "va_voice_mode", 1.0f);  // PARA
+            percussiveVA(va, frame);
+            runDeadEnvOverlap(va, frame, "VA para");
+        }
+
+        // FM: MONO + LEGATO, carrier (op1) decays to a zero sustain.
+        {
+            FMMachine fm;
+            ParamFrame frame = defaultFrame(fm);
+            setSlot(fm, frame, "fm_voice_mode", 0.0f);  // MONO
+            setSlot(fm, frame, "fm_retrig", 0.0f);      // LEGATO
+            setSlot(fm, frame, "fm_atk_1", 1.0f);
+            setSlot(fm, frame, "fm_dec_1", 20.0f);
+            setSlot(fm, frame, "fm_sus_1", 0.0f);       // percussive
+            setSlot(fm, frame, "fm_rel_1", 5.0f);
+            setSlot(fm, frame, "fm_level", 1.0f);
+            runDeadEnvOverlap(fm, frame, "FM");
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -1521,6 +1658,7 @@ namespace lockstep
         vaEnvelopeGolden();
         vaLegatoGolden();
         testRetrigClickMetrics();
+        testDeadEnvOverlapRevives();
 
         // --- FMMachine ---
         {

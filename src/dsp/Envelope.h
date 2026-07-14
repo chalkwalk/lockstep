@@ -147,7 +147,23 @@ namespace lockstep::dsp
         [[nodiscard]] Stage stage() const noexcept { return stage_; }
         [[nodiscard]] bool isActive() const noexcept { return stage_ != Stage::Idle; }
 
+  // "Makes no sound, and will not rise on its own." NOT the negation of
+  // isActive(): a sustain-0 patch decays to zero and then parks in Sustain
+  // forever (level 0, stage != Idle), because the gate is still held. Callers
+  // that ask "is this voice audible?" -- above all legato, which re-uses an
+  // envelope rather than re-gating it -- must ask THIS, or they slide the pitch
+  // of a dead envelope and drop the note (9.31).
+        [[nodiscard]] bool isSilent() const noexcept
+        {
+            if (stage_ == Stage::Idle) return true;
+            if (stage_ == Stage::Attack || stage_ == Stage::Hold) return false;  // rising / held high
+            return level_ <= kSilenceFloor;
+        }
+
     private:
+        // Matches the Release stage's own idle threshold.
+        static constexpr float kSilenceFloor = 1e-4f;
+
         double sr_ = 44100.0;
         Stage stage_ = Stage::Idle;
         float level_ = 0.0f;

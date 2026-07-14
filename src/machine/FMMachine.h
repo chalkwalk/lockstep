@@ -176,6 +176,13 @@ namespace lockstep
         int findVoiceByNote(int midiNote) const;
         void startVoice(int voiceIdx, int midiNote, const ParamFrame& params, float velocity = 1.0f);
         void legatoUpdateVoice(int midiNote, const ParamFrame& params, float velocity = 1.0f);
+
+  // "Makes no sound, and will not rise on its own" -- the FM analogue of
+  // dsp::Envelope::isSilent(), which the operator envelopes do not use. NOT
+  // !voice.active: a sustain-0 operator parks in Sustain at level 0 (the gate
+  // is still held), so an all-dead voice still reads as active. Legato must
+  // ask this before re-using a voice, or it slides a silent one (9.31).
+        [[nodiscard]] static bool voiceIsSilent(const FMVoice& v) noexcept;
         void releaseVoice(int voiceIdx);
         float advanceEnv(Operator& op);
         static float envMul(int samples);

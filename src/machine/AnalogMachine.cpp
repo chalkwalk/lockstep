@@ -434,6 +434,19 @@ namespace lockstep
     {
         auto& sv = subVoices_[0];
         const auto p = [&](int s) { return params[static_cast<std::size_t>(s)]; };
+
+        // Legato re-uses the running envelope instead of re-gating it -- which
+        // is silence if that envelope is already spent. A percussive patch
+        // (sustain 0) decays to zero while the note is still held, so an
+        // overlapping trig (the next step's note-on before this one's gate ends)
+        // took this path and slid the pitch of a dead envelope: the dropped trig
+        // (9.31). Nothing to slide from -- start the note.
+        if (!sv.active || ampEnv_.isSilent())
+        {
+            startMonoVoice(midiNote, params);
+            return;
+        }
+
         const double targetHz = midiNoteToHz(midiNote);
         if (p(kSlotPorta) <= 0.0f)
             sv.currentFreq = targetHz;
@@ -533,6 +546,14 @@ namespace lockstep
             sv.ar.setADSR(kParaArAttackMs, 0.0f, 1.0f, kParaArReleaseMs);
             sv.ar.gateOn();
 
+            triggerEnvs(params);
+        }
+        else if (ampEnv_.isSilent())
+        {
+            // Same dropped-trig hole as mono legato (9.31): the master envelope
+            // is shared by the chord, so on a percussive patch it can already be
+            // spent while notes are still held. Re-strike it -- a note that adds
+            // to a decayed chord must be heard.
             triggerEnvs(params);
         }
 

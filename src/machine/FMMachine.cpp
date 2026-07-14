@@ -178,10 +178,32 @@ namespace lockstep
         }
     }
 
+    bool FMMachine::voiceIsSilent(const FMVoice& v) noexcept
+    {
+        constexpr float kSilenceFloor = 1e-4f;  // matches dsp::Envelope's idle threshold
+
+        // Only the CARRIERS decide audibility: the voice's output is the sum of
+        // op.output * op.mixerLevel, so a modulator with a live envelope and no
+        // mixer level contributes nothing you can hear (and modulating a dead
+        // carrier is still silence). Judging "is this voice sounding?" on all
+        // four operators would call a spent voice alive whenever any unrouted
+        // operator happened to still be decaying -- which is the default patch.
+        for (const auto& op : v.ops)
+        {
+            if (op.mixerLevel <= 0.0f || op.stage == Stage::Idle)
+                continue;
+            if (op.stage == Stage::Attack)
+                return false;                     // rising
+            if (op.envLevel > kSilenceFloor)
+                return false;                     // still sounding
+        }
+        return true;
+    }
+
     void FMMachine::legatoUpdateVoice(int midiNote, const ParamFrame& params, float velocity)
     {
         auto& voice = voices_[0];
-        if (!voice.active)
+        if (!voice.active || voiceIsSilent(voice))
         {
             startVoice(0, midiNote, params, velocity);
             return;
