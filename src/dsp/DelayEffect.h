@@ -16,7 +16,27 @@ namespace lockstep
     // quantisation was the source of the "zipper" retune buzz on time sweeps.
     class DelayEffect final : public IEffect
     {
+        // 9.31: the division lattice, in beats (1.0 = a quarter). Wider at the fast
+        // end than the HQ delay's, because the plain delay is also the slapback /
+        // comb-flutter box -- 1/64 and 1/32 are the character settings that made the
+        // raw-seconds Time knob worth keeping. Bare turn snaps to these; Func+turn
+        // sweeps between them (still in beats -- still tempo-relative).
+        static constexpr float kDivBeats[] = {
+            0.0625f, 0.125f, 0.25f, 1.0f/3.0f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f
+        };
+        static constexpr const char* const kDivLabels[] = {
+            "1/64", "1/32", "1/16", "1/8T", "1/8", "1/8.", "1/4", "1/4.", "1/2"
+        };
+        static constexpr int kNumDivs = 9;
+        static constexpr float kMinBeats = kDivBeats[0];
+        static constexpr float kMaxBeats = kDivBeats[kNumDivs - 1];
+
     public:
+        void setTimeInfo(double bpm) override
+        {
+            bpm_ = bpm > 0.0 ? bpm : 120.0;
+        }
+
         void prepare(double sampleRate, int maxBlockSize) override
         {
             sampleRate_ = sampleRate;
@@ -44,9 +64,16 @@ namespace lockstep
         {
             const int ch = buffer.getNumChannels();
             if (ch == 0 || numSamples <= 0) return;
+
+            // 9.31: Time is BEATS, not seconds. beats x (60/bpm) x sr = samples.
+            // Clamped to the 2 s buffer, which is what a slow tempo runs into first:
+            // 2 beats at 60 BPM is exactly 2 s, so below 60 BPM a 1/2-note delay
+            // saturates rather than reading past the buffer.
+            const float beats = juce::jlimit(kMinBeats, kMaxBeats,
+                                             params.size() > 0 ? params[0] : 0.5f);
+            const double beatSecs = 60.0 / bpm_;
             const float timeTarget = static_cast<float>(
-                juce::jlimit(0.001, 2.0, static_cast<double>(params.size() > 0 ? params[0] : 0.25f))
-                    * sampleRate_);
+                juce::jlimit(0.001, 2.0, static_cast<double>(beats) * beatSecs) * sampleRate_);
             const float feedbackTarget = params.size() > 1 ? params[1] : 0.4f;
             const float mixTarget = params.size() > 2 ? params[2] : 0.3f;
             const float lpf = params.size() > 3 ? params[3] : 1.0f;
@@ -107,13 +134,19 @@ namespace lockstep
             switch (i)
             {
                 case 0: {
+                    static const std::span<const char* const> kDivSpan{
+                        kDivLabels, static_cast<std::size_t>(kNumDivs) };
                     ParamSpec p;
                     p.id = "lockstep.delay.time";
                     p.label = "Time";
-                    p.minValue = 0.001f;
-                    p.maxValue = 2.0f;
-                    p.defaultValue = 0.25f;
+                    p.minValue = kMinBeats;
+                    p.maxValue = kMaxBeats;
+                    p.defaultValue = 0.5f;   // 1/8 — the old 0.25 s default, at 120 BPM
                     p.sectionIndex = kFxSec;
+                    p.unit = ParamSpec::Unit::Beats;
+                    p.detents = std::span<const float>(kDivBeats,
+                        static_cast<std::size_t>(kNumDivs));
+                    p.valueLabels = kDivSpan;   // parallel to `detents`, not indexed
                     return p;
                 }
                 case 1: {
@@ -153,6 +186,7 @@ namespace lockstep
     private:
         static inline const std::string kId = "lockstep.delay.v1";
         double sampleRate_ = 44100.0;
+        double bpm_ = 120.0;   // 9.31 — fed per block by setTimeInfo
         float smoothCoef_ = 0.005f;
         std::array<std::vector<float>, 2> buf_;
         std::array<int, 2> head_{};

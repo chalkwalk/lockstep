@@ -190,6 +190,14 @@ namespace lockstep
         virtual void prepare(double sampleRate, int maxBlockSize) = 0;
         virtual void reset() = 0;
 
+        // 9.31: called once per block with the current BPM. Default no-op; override
+        // for anything whose time is MUSICAL time (the Analog LFO's period is in
+        // beats). Symmetric with IEffect::setTimeInfo -- a machine and an effect
+        // learn the tempo the same way, because "follow the tempo" is one idea and
+        // it should not have two shapes depending on which side of the boundary the
+        // DSP happens to sit on.
+        virtual void setTimeInfo(double /*bpm*/) {}
+
         // Gently release every currently-sounding internal voice: move amp/voice
         // envelopes into their RELEASE stage so a transport stop lets held notes
         // ring out and die naturally instead of freezing mid-note. This is NOT the

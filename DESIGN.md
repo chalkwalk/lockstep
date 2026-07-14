@@ -4817,6 +4817,43 @@ A machine may *also* carry internal effects; those surface as
 extension sections, leaving the canonical FX section for the
 foundation inserts.
 
+#### 32.1z Temporal parameters are tempo-relative (9.31)
+
+**A time is a musical time.** Every parameter whose value *is* a duration in the
+groove — delay time, and every modulation rate — is stored in **beats**, never in
+seconds or Hz, and is therefore tempo-relative by construction: change the BPM
+and the echo still lands on the eighth, the chorus still breathes once a bar.
+Modulation rates are stored as a **period in beats** (not a frequency), because
+that is the unit that stays musical: "one cycle per bar" is a number a performer
+can hold, "0.5 Hz" is arithmetic they have to do at every tempo.
+
+The value is a **continuous** beat quantity, and the encoder gives you both
+readings of it — the shipped A4 convention, already used by the HQ delay:
+
+- **bare turn → snaps to the division lattice** (1/16, 1/8T, 1/8, 1/8., 1/4 …);
+- **`Func` + turn → sweeps freely between the divisions.**
+
+A Func-swept value is *still* stored in beats, so it is *still* tempo-relative —
+sweeping off the grid buys you a flam or a drift, not an absolute-time parameter.
+There is no mode switch, no second parameter, and nothing to get stuck in: the
+snap is a property of the gesture, not of the state (`snapToDetents`,
+`IMachine.h`).
+
+Tempo reaches the DSP the same way on both sides of the boundary: effects get it
+through `IEffect::setTimeInfo(bpm)`, and machines through the symmetric
+`IMachine::setTimeInfo(bpm)`, both broadcast per block from the processor.
+
+**In scope:** track delay time, chorus / flanger / phaser rate, the Analog LFO
+rate. **Out of scope, deliberately:** reverb pre-delay and decay, dynamics attack
+and release, the phaser's centre frequency, bitcrusher rate. Those are not
+musical durations — they are properties of a *space* or of a *transient*, and a
+compressor whose release lengthened because you slowed the song down would simply
+be broken. The question the rule answers is "would a musician expect this to
+follow the tempo?", not "is this measured in time?".
+
+Migration (state v34) converts old seconds/Hz values through the project's **saved
+BPM**, so a project sounds the same on load at the tempo it was written at.
+
 #### 32.1a Placement-aware quality tiers
 
 Some effects warrant a heavier, oversampled treatment on the master bus

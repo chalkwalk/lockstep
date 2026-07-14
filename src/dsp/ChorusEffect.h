@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../machine/IEffect.h"
+#include "TempoRate.h"
 #include "../deckcore/Interpolation.h"
 #include "OversamplingStages.h"
 #include <juce_dsp/juce_dsp.h>
@@ -89,15 +90,23 @@ namespace lockstep
             for (auto& os : os_) if (os) os->reset();
         }
 
+        // 9.31: tempo, broadcast per block by the processor. The modulation rate is
+        // a period in beats, so the sweep tracks the song rather than the wall clock.
+        void setTimeInfo(double bpm) override { bpm_ = bpm > 0.0 ? bpm : 120.0; }
+
         void process(juce::AudioBuffer<float>& buffer, int numSamples,
                      const ParamFrame& params) override
         {
             const int ch = buffer.getNumChannels();
             if (ch == 0 || numSamples <= 0) return;
 
-            const float rate = params.size() > 0
-                                   ? juce::jlimit(0.1f, 5.0f, params[0] * 5.0f)
-                                   : 0.5f;
+            // 9.31: Rate is a PERIOD IN BEATS (it used to be a 0..1 knob scaled to
+            // 0.1..5 Hz) -- the chorus now breathes with the tempo.
+            const float periodBeats = params.size() > 0
+                                   ? juce::jlimit(dsp::kMinModPeriod, dsp::kMaxModPeriod,
+                                                  params[0])
+                                   : 4.0f;
+            const float rate = dsp::rateHzFromPeriodBeats(periodBeats, bpm_);
             const float depthTarget = params.size() > 1
                                           ? juce::jlimit(0.0f, 1.0f, params[1]) : 0.3f;
             const float mixTarget = params.size() > 2 ? params[2] : 0.5f;
@@ -163,7 +172,20 @@ namespace lockstep
             };
             switch (i)
             {
-                case 0: return mk("lockstep.chorus.rate",  "Rate",  0.1f);
+                case 0: {
+                    ParamSpec p;
+                    p.id = "lockstep.chorus.rate";
+                    p.label = "Rate";
+                    p.minValue = dsp::kMinModPeriod;
+                    p.maxValue = dsp::kMaxModPeriod;
+                    p.defaultValue = 4.0f;   // one cycle per bar (~0.5 Hz at 120)
+                    p.skew = 0.35f;
+                    p.sectionIndex = kFxSec;
+                    p.unit = ParamSpec::Unit::Beats;
+                    p.detents = dsp::modPeriodDetents();
+                    p.valueLabels = dsp::modPeriodLabels();
+                    return p;
+                }
                 case 1: return mk("lockstep.chorus.depth", "Depth", 0.3f);
                 case 2: return mk("lockstep.chorus.mix",   "Mix",   0.5f);
                 // Appended S9. Default 0 = legacy no-feedback sound on old projects.
@@ -176,6 +198,7 @@ namespace lockstep
         juce::String badge() const override { return "CHR"; }
 
     private:
+        double bpm_ = 120.0;   // 9.31 — fed per block by setTimeInfo
         // Run the three-voice modulated delay + feedback over `io[0..n)` at osRate_,
         // replacing each sample with the wet-only signal. Reads dry from io for the
         // delay-line write, so the caller must pass dry-in and gets wet-out.

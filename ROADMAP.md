@@ -3073,7 +3073,7 @@ on the surface fixed *structurally* rather than cosmetically.
 
 ---
 
-### 9.31 — Play-test batch: levels, seeds, outline, tempo-relative time, two bugs  *[active]*
+### 9.31 — Play-test batch: levels, seeds, outline, tempo-relative time, two bugs  *[SHIPPED 2026-07-13]*
 
 Six items off one play-test session. Two are outright bugs; two are features that were
 *specified* but only ever built on one instance; two are UX corrections.
@@ -3118,7 +3118,7 @@ Six items off one play-test session. Two are outright bugs; two are features tha
       `hash(track, machine, song, scene, phrase, projectEpoch, SEED)` — a **project epoch**
       stamped at creation and serialized (state **v33**). SEED stays the musical dial:
       same project + same placement + same SEED still reproduces exactly.
-- [ ] **Stage 6 — Temporal FX are tempo-relative.** Only the HQ/master delay had the
+- [x] **Stage 6 — Temporal FX are tempo-relative.** Only the HQ/master delay had the
       beats+detents treatment; the track delay showed a raw `0.25`. Delay time now stores
       **beats**, and modulation rates store **period-in-beats** (chorus / flanger / phaser
       / the Analog LFO), following the shipped A4 convention: **bare turn snaps to musical

@@ -1061,19 +1061,30 @@ follow the tempo.
 *Track inserts (any slot):*
 | Badge | Name | Key params |
 |---|---|---|
-| `DLY` | Delay | Time, Feedbk, Mix, LPF — Time is in **milliseconds** here (the absolute, character delay). *(HQ on master: + Color, Width, and a **tempo-relative** Time — see below)* |
+| `DLY` | Delay | Time, Feedbk, Mix, LPF — Time is **tempo-relative** (1/64 … 1/2; bare turn snaps to the divisions, `Func`+turn sweeps between them). *(HQ on master: + Color, Width)* |
 | `REV` | Reverb | Size, Decay, Damp, Mix *(HQ on master: + PreDly, LoCut, Mod)* |
 | `DRV` | Distortion | Drive, Tone, Mix |
 | `SAT` | Saturation | Drive, Tone, Mix, Output *(HQ on master: + Bias, Comp, Crisp, Low — 2× oversampled tape glue)* |
-| `CHR` | Chorus | Rate, Depth, Mix, Feedbk *(3-voice Hermite; Feedbk=0 is the classic no-feedback sound)* |
+| `CHR` | Chorus | Rate, Depth, Mix, Feedbk — Rate is a **period in beats** (1/16 … 16 bars), so the chorus breathes with the tempo *(3-voice Hermite; Feedbk=0 is the classic no-feedback sound)* |
 | `TLT` | Tilt EQ | Tilt (−1..+1), Gain (dB) |
 | `CMP` | Compressor | Thresh, Ratio, Atk, Rel, Mkup |
 | `BIT` | Bitcrush | Bits, Rate, Mix |
-| `FLG` | Flanger | Rate, Depth, Feedbk, Mix |
-| `PHA` | Phaser | Rate, Depth, Centre, Feedbk, Mix |
+| `FLG` | Flanger | Rate (**period in beats**), Depth, Feedbk, Mix |
+| `PHA` | Phaser | Rate (**period in beats**), Depth, Centre, Feedbk, Mix |
 | `LDR` | Ladder | Cutoff, Reso, Drive, Mode (LP/BP/HP · 12/24 dB) — Moog-style self-oscillating ladder |
 | `FSH` | FreqShift | Shift (±Hz), Mix, Feedbk — single-sideband (inharmonic) frequency shifter |
 | `CNV` | Convolve | IR (Pool \| Bundled 1–4), PreDly, Damp, Mix — zero-latency convolution reverb |
+
+**Time is musical time.** Every parameter that *is* a duration in the groove —
+delay time, and every modulation rate (chorus / flanger / phaser, and the Analog
+LFO) — is stored in **beats**, so it follows the tempo: change the BPM and the
+echo still lands on the eighth, the sweep still takes a bar. Modulation rates are
+a **period in beats** ("one cycle per bar"), not a frequency in Hz. A **bare turn
+snaps to the musical divisions; `Func` + turn sweeps freely between them** — and a
+Func-swept value is still in beats, so it still follows the tempo. What is *not*
+tempo-relative, on purpose: reverb pre-delay and decay, compressor attack/release,
+the phaser's centre frequency, bitcrush rate — those describe a space or a
+transient, not a rhythm.
 
 **Convolution IR workflow.** The `Convolve` effect's IR comes from either a
 **bundled** starter (Room / Plate / Hall / Long-Dark, rendered from Lockstep's

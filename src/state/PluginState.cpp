@@ -2153,6 +2153,85 @@ namespace lockstep::PluginState
         return v33;
     }
 
+    // v34 (9.31): temporal parameters became tempo-relative (DESIGN §32.1z). Delay
+    // time is now BEATS, and the modulation rates are PERIODS IN BEATS, where they
+    // used to be seconds and Hz. Convert every stored value through the project's own
+    // SAVED BPM, so a project loads sounding the way it was written -- the numbers
+    // change, the sound does not.
+    //
+    // The walker visits every "P" node, which is the same node type used for base
+    // params, P-Locks AND fill-P-Locks: a delay time automated per step migrates with
+    // the base value, because they are the same id in the same shape of node.
+    static juce::ValueTree upgrade_v33_to_v34(const juce::ValueTree& v33)
+    {
+        juce::ValueTree v34 = v33.createCopy();
+
+        // The tempo the project was written at. Absent (or nonsense) reads as 120 --
+        // the same default the Clock starts at, so the conversion is at worst the one
+        // a fresh project would have made.
+        double bpm = 120.0;
+        {
+            const auto misc = v34.getChildWithName(keys::kMisc);
+            if (misc.isValid())
+            {
+                const double saved = static_cast<double>(misc.getProperty(keys::kLocalBpm, 120.0));
+                if (saved > 1.0 && saved < 1000.0) bpm = saved;
+            }
+        }
+        const double beatSecs = 60.0 / bpm;
+
+        // Hz -> period in beats. A rate of 0 (or negative, or absurd) would divide by
+        // zero, so it lands on the slow end rather than on infinity.
+        const auto hzToBeats = [beatSecs](float hz, float lo, float hi) {
+            if (hz <= 1.0e-4f) return hi;
+            const auto beats = static_cast<float>(1.0 / (static_cast<double>(hz) * beatSecs));
+            return juce::jlimit(lo, hi, beats);
+        };
+
+        const std::function<void(juce::ValueTree&)> rewrite = [&](juce::ValueTree& node) {
+            if (node.getType() == juce::Identifier("P"))
+            {
+                const juce::String id = node.getProperty("id", "").toString();
+
+                if (id == "lockstep.delay.time")
+                {
+                    // Seconds -> beats. Clamped to the new lattice's range: below 60 BPM
+                    // a 2-beat delay exceeds the 2 s buffer, and a slapback under 1/64
+                    // of a beat has nowhere to go. Both were accepted at design time.
+                    const float secs = getFloat(node, "v", 0.25f);
+                    const auto beats = static_cast<float>(static_cast<double>(secs) / beatSecs);
+                    node.setProperty("v", juce::jlimit(0.0625f, 2.0f, beats), nullptr);
+                }
+                else if (id == "lockstep.chorus.rate")
+                {
+                    // The chorus rate was a NORMALISED knob, scaled to Hz inside
+                    // process() as jlimit(0.1, 5, v * 5) -- so the migration has to
+                    // repeat that exact mapping, not guess at it, or every chorus in
+                    // every old project moves.
+                    const float norm = getFloat(node, "v", 0.1f);
+                    const float hz = juce::jlimit(0.1f, 5.0f, norm * 5.0f);
+                    node.setProperty("v", hzToBeats(hz, 0.25f, 64.0f), nullptr);
+                }
+                else if (id == "lockstep.flanger.rate" || id == "lockstep.phaser.rate")
+                {
+                    node.setProperty("v", hzToBeats(getFloat(node, "v", 0.5f), 0.25f, 64.0f),
+                                     nullptr);
+                }
+                else if (id == "va_lfo_rate")
+                {
+                    node.setProperty("v", hzToBeats(getFloat(node, "v", 3.0f), 0.03125f, 64.0f),
+                                     nullptr);
+                }
+            }
+            for (auto child : node)
+                rewrite(child);
+        };
+        rewrite(v34);
+
+        v34.setProperty(keys::kVersion, 34, nullptr);
+        return v34;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -2194,6 +2273,7 @@ namespace lockstep::PluginState
         if (version < 31) tree = upgrade_v30_to_v31(tree);
         if (version < 32) tree = upgrade_v31_to_v32(tree);
         if (version < 33) tree = upgrade_v32_to_v33(tree);
+        if (version < 34) tree = upgrade_v33_to_v34(tree);
 
         // 9.18: unconditional — resolve sample references to current pool positions
         // (hash-driven for v29 trees, "i"-bridged for the v28 tree just upgraded).

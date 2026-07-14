@@ -21,6 +21,8 @@
 #include "../src/machine/EffectPickerModel.h"
 #include "../src/dsp/ConvolutionEffect.h"
 #include "../src/dsp/Envelope.h"
+#include "../src/dsp/DelayEffect.h"
+#include "../src/dsp/TempoRate.h"
 #include <thread>
 #include "../src/dsp/Oversampler2x.h"
 #include "../src/dsp/OversamplingStages.h"
@@ -816,6 +818,111 @@ namespace lockstep
             setSlot(fm, frame, "fm_level", 1.0f);
             runDeadEnvOverlap(fm, frame, "FM");
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // 9.31: temporal params are tempo-relative (DESIGN §32.1z).
+    //
+    // The claim is not "the number is stored in beats" -- that is an implementation
+    // detail. The claim a musician can hear is: HALVE THE TEMPO AND THE ECHO LANDS
+    // TWICE AS LATE, with the same parameter value. So measure the echo.
+    static void testTemporalParamsFollowTempo()
+    {
+        constexpr double kSR = 48000.0;
+        constexpr int kBlock = 64;
+
+        // Impulse in, then silence; return the sample index of the loudest echo
+        // (skipping the dry impulse itself).
+        auto echoDelaySamples = [&](double bpm, float beats) -> int {
+            DelayEffect dly;
+            dly.prepare(kSR, kBlock);
+            dly.setTimeInfo(bpm);
+
+            ParamFrame f(4);
+            f[0] = beats;
+            f[1] = 0.5f;   // feedback
+            f[2] = 1.0f;   // fully wet, so the echo is unmistakable
+            f[3] = 1.0f;   // LPF open
+
+            std::vector<float> out;
+            juce::AudioBuffer<float> buf(2, kBlock);
+            const int blocks = static_cast<int>(2.5 * kSR / kBlock);
+            for (int b = 0; b < blocks; ++b)
+            {
+                buf.clear();
+                if (b == 0) buf.setSample(0, 0, 1.0f);   // the impulse
+                dly.process(buf, kBlock, f);
+                for (int i = 0; i < kBlock; ++i)
+                    out.push_back(buf.getSample(0, i));
+            }
+
+            int peakIdx = -1;
+            float peak = 0.0f;
+            for (int i = 200; i < static_cast<int>(out.size()); ++i)  // skip the dry hit
+            {
+                const float v = std::abs(out[static_cast<std::size_t>(i)]);
+                if (v > peak) { peak = v; peakIdx = i; }
+            }
+            CHECK(peak > 0.05f, "delay tempo: no echo found (precondition)");
+            return peakIdx;
+        };
+
+        // A 1/4-note delay (1.0 beat) at 120 BPM is 0.5 s; at 60 BPM it is 1.0 s.
+        // Same parameter, twice the time -- that is what "tempo-relative" means.
+        const int at120 = echoDelaySamples(120.0, 1.0f);
+        const int at60  = echoDelaySamples(60.0, 1.0f);
+
+        const double expected120 = 0.5 * kSR;
+        const double expected60 = 1.0 * kSR;
+        CHECK(std::abs(at120 - expected120) < 0.05 * kSR,
+              "delay tempo: 1 beat at 120 BPM should echo at ~0.5 s (got "
+              + juce::String(at120 / kSR, 3) + " s)");
+        CHECK(std::abs(at60 - expected60) < 0.05 * kSR,
+              "delay tempo: 1 beat at 60 BPM should echo at ~1.0 s (got "
+              + juce::String(at60 / kSR, 3) + " s)");
+        CHECK(at60 > at120 * 3 / 2,
+              "delay tempo: halving the tempo must lengthen the echo, not leave it alone");
+
+        // The encoder's two readings (the shipped A4 convention): a bare turn snaps to
+        // the division lattice, Func+turn sweeps between the divisions. Both stay in
+        // beats -- a Func sweep buys a flam, not an absolute-time parameter.
+        {
+            DelayEffect dly;
+            const auto spec = dly.paramSpec(0);
+            CHECK(spec.unit == ParamSpec::Unit::Beats, "delay time is a Beats param");
+            CHECK(!spec.detents.empty(), "delay time carries the division lattice");
+
+            const float offGrid = 0.47f;                       // between 1/8 (0.5) and 1/8T
+            CHECK(feq(snapToDetents(spec, offGrid, false), 0.5f, 1e-4f),
+                  "delay time: a bare turn snaps to the nearest division");
+            CHECK(feq(snapToDetents(spec, offGrid, true), offGrid, 1e-6f),
+                  "delay time: Func + turn sweeps freely between divisions");
+        }
+
+        // The Analog LFO is the same idea on the machine side of the boundary: its
+        // rate is a period in beats, fed by IMachine::setTimeInfo.
+        {
+            AnalogMachine va;
+            const int rateSlot = va.slotForId("va_lfo_rate");
+            CHECK(rateSlot >= 0, "VA LFO rate slot resolves");
+            const auto spec = va.paramSpec(rateSlot);
+            CHECK(spec.unit == ParamSpec::Unit::Beats,
+                  "VA LFO rate is a period in BEATS, not Hz");
+            CHECK(!spec.detents.empty(), "VA LFO rate carries a division lattice");
+            CHECK(feq(snapToDetents(spec, 0.9f, false), 1.0f, 1e-4f),
+                  "VA LFO rate: a bare turn snaps to a division (1 beat)");
+            CHECK(feq(snapToDetents(spec, 0.9f, true), 0.9f, 1e-6f),
+                  "VA LFO rate: Func + turn sweeps freely");
+        }
+
+        // rateHzFromPeriodBeats is the single conversion: one cycle per beat at 120 BPM
+        // is 2 Hz, and a longer period is a slower rate at every tempo.
+        CHECK(feq(dsp::rateHzFromPeriodBeats(1.0f, 120.0), 2.0f, 1e-4f),
+              "mod rate: 1 beat at 120 BPM is 2 Hz");
+        CHECK(feq(dsp::rateHzFromPeriodBeats(4.0f, 120.0), 0.5f, 1e-4f),
+              "mod rate: one cycle per bar at 120 BPM is 0.5 Hz");
+        CHECK(dsp::rateHzFromPeriodBeats(4.0f, 60.0) < dsp::rateHzFromPeriodBeats(4.0f, 120.0),
+              "mod rate: the same period is a slower rate at a slower tempo");
     }
 
     // -----------------------------------------------------------------------
@@ -1659,6 +1766,7 @@ namespace lockstep
         vaLegatoGolden();
         testRetrigClickMetrics();
         testDeadEnvOverlapRevives();
+        testTemporalParamsFollowTempo();
 
         // --- FMMachine ---
         {

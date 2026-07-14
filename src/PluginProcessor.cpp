@@ -1564,6 +1564,10 @@ namespace lockstep
                 if (eff) eff->setTimeInfo(blockBpm);
             for (auto& eff : masterSends_)
                 if (eff) eff->setTimeInfo(blockBpm);
+            // 9.31: machines learn the tempo the same way effects do (IMachine::
+            // setTimeInfo). The Analog LFO's rate is a period in beats.
+            for (auto& m : machines_)
+                if (m) m->setTimeInfo(blockBpm);
         }
 
         // --- MIDI clock scanning (before any other processing) ---------------

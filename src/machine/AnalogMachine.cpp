@@ -1,5 +1,6 @@
 #include "AnalogMachine.h"
 #include "MachineParamTable.h"
+#include "../dsp/TempoRate.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -56,7 +57,7 @@ namespace lockstep
     // These must stay in sync with the ParamSpec enums in IMachine.h.
     namespace va_u
     { // unit
-        static constexpr uint8_t None = 0, Ms = 1, Semi = 2, Pct = 3;
+        static constexpr uint8_t None = 0, Ms = 1, Semi = 2, Pct = 3, Beats = 5;
     }
     namespace va_r
     { // role
@@ -76,7 +77,23 @@ namespace lockstep
         static constexpr const char* kVALfoTargetLabels[] = { "CUT", "PITCH", "PW", "AMP", nullptr };
         static constexpr const char* kVALfoSyncLabels[] = { "FREE", "SYNC", nullptr };
         static constexpr const char* kVARetrigLabels[] = { "LEGATO", "RETRIG", nullptr };
+
+        // 9.31: the LFO's period lattice, in beats. Finer at the fast end than the
+        // shared FX lattice (dsp/TempoRate.h) because an LFO is also a timbre control:
+        // 1/32 beat is 64 Hz at 120 BPM, which is the audio-rate zone the old 40 Hz
+        // ceiling reached. Ascending = slower.
+        static constexpr float kVALfoBeats[] = {
+            0.03125f, 0.0625f, 0.125f, 0.25f, 0.5f, 1.0f,
+            2.0f, 4.0f, 8.0f, 16.0f, 32.0f, 64.0f
+        };
+        static constexpr const char* kVALfoLabels[] = {
+            "1/128", "1/64", "1/32", "1/16", "1/8", "1/4",
+            "1/2", "1 bar", "2 bar", "4 bar", "8 bar", "16 bar"
+        };
     }
+
+    static constexpr float kVALfoMinBeats = kVALfoBeats[0];
+    static constexpr float kVALfoMaxBeats = kVALfoBeats[std::size(kVALfoBeats) - 1];
 
     // { id, label, min, max, def, skew, stepped, unit, role, variant, section, zcSnap, labels }
     static constexpr ParamRow kVAParams[] = {
@@ -119,7 +136,11 @@ namespace lockstep
         { "va_retrig", "Retrig", 0.f, 1.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 3, 0, kVARetrigLabels }, // 31
         { "va_vel_sens", "Vel Sens", 0.f, 1.f, 0.f, 1.f, 0, va_u::Pct, va_r::None, 0, 3, 0, nullptr }, // 32
         // --- MOD/LFO (section 4, 6 slots, 1 page) ---
-        { "va_lfo_rate", "LFO Rate", 0.01f, 40.f, 3.f, 0.3f, 0, va_u::None, va_r::LfoRat, 0, 4, 0, nullptr }, // 33 (skew 0.3: log-ish, slow end reachable)
+        // 9.31: the LFO rate is a PERIOD IN BEATS, not Hz -- it follows the tempo like
+        // every other musical time (DESIGN §32.1z). 1/32 beat is 64 Hz at 120 BPM, so
+        // the audio-rate zone the old 40 Hz ceiling reached is still there; 64 beats is
+        // 32 s, so the slow evolving end is too.
+        { "va_lfo_rate", "LFO Rate", kVALfoMinBeats, kVALfoMaxBeats, 1.f, 0.35f, 0, va_u::Beats, va_r::LfoRat, 0, 4, 0, nullptr }, // 33
         { "va_lfo_depth", "LFO Depth", 0.f, 1.f, 0.f, 1.f, 0, va_u::None, va_r::LfoDep, 0, 4, 0, nullptr }, // 34
         { "va_lfo_shape", "LFO Shape", 0.f, 5.f, 0.f, 1.f, 1, va_u::None, va_r::LfoShp, 0, 4, 0, kVALfoShapeLabels }, // 35
         { "va_lfo_target", "LFO Target", 0.f, 3.f, 0.f, 1.f, 1, va_u::None, va_r::None, 0, 4, 0, kVALfoTargetLabels }, // 36
@@ -132,7 +153,18 @@ namespace lockstep
     ParamSpec AnalogMachine::paramSpec(int index) const
     {
         if (index < 0 || index >= kNumSlots) return {};
-        return toParamSpec(kVAParams[static_cast<std::size_t>(index)]);
+        ParamSpec p = toParamSpec(kVAParams[static_cast<std::size_t>(index)]);
+        if (index == kSlotLfoRate)
+        {
+            // The lattice cannot live in the table (it has no detent column), so it is
+            // attached here -- the one slot on this machine whose value is a musical
+            // duration rather than a quantity.
+            p.detents = std::span<const float>(kVALfoBeats,
+                std::size(kVALfoBeats));
+            p.valueLabels = std::span<const char* const>(kVALfoLabels,
+                std::size(kVALfoBeats));
+        }
+        return p;
     }
 
     SectionInfo AnalogMachine::section(int index) const
@@ -652,7 +684,8 @@ namespace lockstep
         if (!isVoiceActive() && noteEvents.isEmpty()) return;
 
         // ---- LFO (per-block update) ------------------------------------
-        const float lfoRate = p(kSlotLfoRate);
+        // 9.31: the rate slot is a PERIOD IN BEATS; convert at the current tempo.
+        const float lfoRate = dsp::rateHzFromPeriodBeats(p(kSlotLfoRate), bpm_);
         const float lfoDepth = p(kSlotLfoDepth);
         const int lfoShape = static_cast<int>(p(kSlotLfoShape));
         {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../machine/IEffect.h"
+#include "TempoRate.h"
 #include <cmath>
 
 namespace lockstep
@@ -28,15 +29,22 @@ namespace lockstep
             for (auto& z : fbkZ_) z = 0.0f;
         }
 
+        // 9.31: tempo, broadcast per block by the processor. The modulation rate is
+        // a period in beats, so the sweep tracks the song rather than the wall clock.
+        void setTimeInfo(double bpm) override { bpm_ = bpm > 0.0 ? bpm : 120.0; }
+
         void process(juce::AudioBuffer<float>& buffer, int numSamples,
                      const ParamFrame& params) override
         {
             const int numCh = buffer.getNumChannels();
             if (numCh == 0 || numSamples <= 0) return;
 
-            const float rate    = params.size() > 0
-                                      ? juce::jlimit(0.02f, 5.0f, params[0])
-                                      : 0.5f;
+            // 9.31: Rate is a PERIOD IN BEATS -- the sweep follows the tempo.
+            const float periodBeats = params.size() > 0
+                                      ? juce::jlimit(dsp::kMinModPeriod, dsp::kMaxModPeriod,
+                                                     params[0])
+                                      : 4.0f;
+            const float rate = dsp::rateHzFromPeriodBeats(periodBeats, bpm_);
             const float depth   = params.size() > 1
                                       ? juce::jlimit(0.0f, 1.0f, params[1])
                                       : 0.5f;
@@ -110,8 +118,13 @@ namespace lockstep
                 case 0:
                     p.id = "lockstep.phaser.rate";
                     p.label = "Rate";
-                    p.minValue = 0.02f; p.maxValue = 5.0f; p.defaultValue = 0.5f;
-                    p.skew = 0.5f;
+                    p.minValue = dsp::kMinModPeriod;
+                    p.maxValue = dsp::kMaxModPeriod;
+                    p.defaultValue = 4.0f;      // one cycle per bar (~0.5 Hz at 120)
+                    p.skew = 0.35f;
+                    p.unit = ParamSpec::Unit::Beats;
+                    p.detents = dsp::modPeriodDetents();
+                    p.valueLabels = dsp::modPeriodLabels();
                     break;
                 case 1:
                     p.id = "lockstep.phaser.depth";
@@ -142,6 +155,7 @@ namespace lockstep
         [[nodiscard]] juce::String badge() const override { return "PHA"; }
 
     private:
+        double bpm_ = 120.0;   // 9.31 — fed per block by setTimeInfo
         static inline const std::string kId = "lockstep.phaser.v1";
         static constexpr int kFxSec = 5;
 

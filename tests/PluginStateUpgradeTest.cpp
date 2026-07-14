@@ -552,6 +552,84 @@ namespace
                     "v32->v33: the rest of the Misc node is untouched");
             }
 
+            beginTest("v33 -> v34: temporal params convert through the project's saved BPM");
+            {
+                // Delay time was seconds; mod rates were Hz (the chorus a normalised
+                // knob scaled to 0.1..5 Hz inside process()). All become beats /
+                // periods-in-beats, converted at the tempo the project was WRITTEN at,
+                // so it loads sounding the same. The walker must reach P-Locks and
+                // fill-P-Locks too, not just base params -- they are the same node type,
+                // and a delay time automated per step would otherwise be left in
+                // seconds and read as a 250-beat delay.
+                juce::ValueTree v33(keys::kLockstepState);
+                v33.setProperty(keys::kVersion, 33, nullptr);
+                v33.appendChild(juce::ValueTree(keys::kLockstep), nullptr);
+
+                auto misc = juce::ValueTree(keys::kMisc);
+                misc.setProperty(keys::kLocalBpm, 90.0, nullptr);   // 1 beat = 2/3 s
+                v33.appendChild(misc, nullptr);
+
+                auto hierarchy = juce::ValueTree(keys::kNewHierarchy);
+
+                const auto mkP = [](const char* id, float v) {
+                    juce::ValueTree p("P");
+                    p.setProperty("id", id, nullptr);
+                    p.setProperty("v", v, nullptr);
+                    return p;
+                };
+
+                // A base param (master insert), a P-Lock and a fill-P-Lock, each of a
+                // different temporal id -- one node type, three homes.
+                auto mIns = juce::ValueTree(keys::kMasterIns);
+                mIns.setProperty("slot", 0, nullptr);
+                mIns.setProperty(keys::kEid, "lockstep.delay.v1", nullptr);
+                mIns.appendChild(mkP("lockstep.delay.time", 0.5f), nullptr);   // 0.5 s
+                hierarchy.appendChild(mIns, nullptr);
+
+                auto plock = juce::ValueTree("PL");
+                plock.appendChild(mkP("lockstep.flanger.rate", 1.5f), nullptr);  // 1.5 Hz
+                hierarchy.appendChild(plock, nullptr);
+
+                auto fillLock = juce::ValueTree("FPL");
+                fillLock.appendChild(mkP("va_lfo_rate", 3.0f), nullptr);         // 3 Hz
+                hierarchy.appendChild(fillLock, nullptr);
+
+                auto chorus = juce::ValueTree("CH");
+                chorus.appendChild(mkP("lockstep.chorus.rate", 0.2f), nullptr);  // norm -> 1 Hz
+                hierarchy.appendChild(chorus, nullptr);
+
+                v33.appendChild(hierarchy, nullptr);
+
+                const auto result = lockstep::PluginState::applyUpgrades(v33);
+                const auto h = result.getChildWithName(keys::kNewHierarchy);
+
+                // 0.5 s at 90 BPM (beat = 0.6667 s) = 0.75 beats.
+                const float delayBeats = static_cast<float>(
+                    h.getChildWithName(keys::kMasterIns).getChild(0).getProperty("v"));
+                expectWithinAbsoluteError(delayBeats, 0.75f, 1.0e-3f,
+                    "v33->v34: delay seconds become beats at the saved BPM");
+
+                // 1.5 Hz at 90 BPM: period = 1/1.5 s = 0.667 s = 1.0 beat.
+                const float flangerBeats = static_cast<float>(
+                    h.getChild(1).getChild(0).getProperty("v"));
+                expectWithinAbsoluteError(flangerBeats, 1.0f, 1.0e-3f,
+                    "v33->v34: a P-LOCKED flanger rate migrates too (Hz -> period in beats)");
+
+                // 3 Hz at 90 BPM: period = 0.333 s = 0.5 beats.
+                const float lfoBeats = static_cast<float>(
+                    h.getChild(2).getChild(0).getProperty("v"));
+                expectWithinAbsoluteError(lfoBeats, 0.5f, 1.0e-3f,
+                    "v33->v34: a FILL-P-LOCKED LFO rate migrates too");
+
+                // Chorus: the stored 0.2 was normalised; process() scaled it x5 -> 1 Hz.
+                // 1 Hz at 90 BPM = 1 s = 1.5 beats. Repeating the OLD mapping exactly is
+                // the whole job -- guessing at it would move every chorus ever saved.
+                const float chorusBeats = static_cast<float>(
+                    h.getChild(3).getChild(0).getProperty("v"));
+                expectWithinAbsoluteError(chorusBeats, 1.5f, 1.0e-3f,
+                    "v33->v34: the chorus rate migrates through its old normalised->Hz mapping");
+            }
+
             beginTest("future version: valid tree returned without crash");
             {
                 juce::ValueTree future(keys::kLockstepState);

@@ -79,7 +79,7 @@ namespace lockstep
         //      divisions and Func+turn sweeps between them. upgrade_v31_to_v32
         //      rewrites any stored index to the beats it named. Old docs at the
         //      default never wrote the slot, and both defaults are 1/4.
-        inline constexpr int kCurrentVersion = 33;
+        inline constexpr int kCurrentVersion = 34;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

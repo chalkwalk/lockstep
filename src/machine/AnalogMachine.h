@@ -17,6 +17,8 @@ namespace lockstep
 
         void prepare(double sampleRate, int maxBlockSize) override;
         void reset() override;
+        // 9.31: the LFO's period is in beats, so the machine needs the tempo.
+        void setTimeInfo(double bpm) override { bpm_ = bpm > 0.0 ? bpm : 120.0; }
         void releaseAllVoices() override;
         void process(const juce::MidiBuffer& events,
                      const ParamFrame& params,
@@ -172,6 +174,7 @@ namespace lockstep
     // State
 
         double sampleRate_ = 44100.0;
+        double bpm_ = 120.0;   // 9.31 — fed per block by setTimeInfo
 
         float voiceVelocity_ = 1.0f;
         std::array<SubVoice, kMaxSubVoices> subVoices_{};
