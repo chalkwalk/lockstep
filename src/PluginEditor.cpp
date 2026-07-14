@@ -772,6 +772,12 @@ namespace lockstep
           editorEffects_(std::make_unique<EditorEffects>(*this)),
           soundBankOverlay_(proc)
     {
+        // The chrome look, installed on the editor so EVERY child inherits it -- the
+        // file bar, the transport, the rail buttons and the combo boxes were each
+        // styled (or not styled) where they were built, which is why the same widget
+        // had three looks and three font sizes at the top of the window.
+        setLookAndFeel(&chromeLnf_);
+
         // Load persisted display mode.
         {
             juce::PropertiesFile::Options o;
@@ -949,8 +955,9 @@ namespace lockstep
             trackBtns_[ti].setClickingTogglesState(false);
             trackBtns_[ti].setWantsKeyboardFocus(false);
             trackBtns_[ti].onClick = [this, i] { keyboardArea_.setActiveTrack(i); };
-            // Transparent background so the underlaid per-track VU meter (drawn
-            // behind in paint()) shows through; the number paints on top.
+            // semantic colour: transparent, because a track cell is a WINDOW -- the
+            // per-track VU (drawn behind in paint()) shows through it, and the number
+            // paints on top. A chrome fill here would paint over the meter.
             trackBtns_[ti].setColour(juce::TextButton::buttonColourId,
                                      juce::Colours::transparentBlack);
             trackBtns_[ti].setColour(juce::TextButton::buttonOnColourId,
@@ -1203,6 +1210,9 @@ namespace lockstep
 
     LockstepEditor::~LockstepEditor()
     {
+        // Must outlive nothing: a LookAndFeel has to be detached before it dies, or
+        // children repaint through a dangling pointer on the way out.
+        setLookAndFeel(nullptr);
         // Stop vblank callbacks before any members it touches are destroyed.
         playheadVBlank_.reset();
         // 9.18: drop the post-load hook so finishStateLoad never calls into a
@@ -6767,11 +6777,11 @@ namespace lockstep
                 fileBar_->setBounds(rail.removeFromLeft(210).reduced(2, 1));
 
             // Right-hand end: the library, then the session plumbing.
-            poolBtn_.setBounds(rail.removeFromRight(80).reduced(3));
-            soundBankBtn_.setBounds(rail.removeFromRight(60).reduced(3));
-            displayModeBtn_.setBounds(rail.removeFromRight(46).reduced(3));
-            channelModeBox_.setBounds(rail.removeFromRight(90).reduced(3));
-            syncModeBox_.setBounds(rail.removeFromRight(80).reduced(3));
+            poolBtn_.setBounds(ChromeLookAndFeel::cell(rail.removeFromRight(80)));
+            soundBankBtn_.setBounds(ChromeLookAndFeel::cell(rail.removeFromRight(60)));
+            displayModeBtn_.setBounds(ChromeLookAndFeel::cell(rail.removeFromRight(46)));
+            channelModeBox_.setBounds(ChromeLookAndFeel::cell(rail.removeFromRight(90)));
+            syncModeBox_.setBounds(ChromeLookAndFeel::cell(rail.removeFromRight(80)));
 
             // What is left in the middle is where the controller-connection indicator
             // is painted (paintProjectRail) — the bottom banner's job, brought up into

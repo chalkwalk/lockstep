@@ -1,7 +1,32 @@
 #include "InPluginTransport.h"
+#include "ChromeLookAndFeel.h"
 
 namespace lockstep
 {
+    // A transport button is either LIT -- it is saying something (armed, recording,
+    // clicking), and the colour IS the message -- or it is resting, in which case it
+    // must look like every other button on the surface. Resting therefore REMOVES the
+    // override rather than re-asserting a colour it fetched from somewhere: an
+    // override that names the resting colour is an override that stops inheriting,
+    // which is how this button row drifted away from the rest of the chrome in the
+    // first place (it was reading the DEFAULT LookAndFeel, which is not the one the
+    // editor installs).
+    static void setStateColour(juce::TextButton& b, bool lit, juce::Colour litColour)
+    {
+        if (lit)
+        {
+            // semantic colour: the transport is SAYING something (armed / recording /
+            // overdubbing / clicking) and the colour is the message, not decoration.
+            b.setColour(juce::TextButton::buttonColourId, litColour);
+            b.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+        }
+        else
+        {
+            b.removeColour(juce::TextButton::buttonColourId);
+            b.removeColour(juce::TextButton::textColourOffId);
+        }
+    }
+
     InPluginTransport::InPluginTransport(Clock& clock)
         : clock_(clock)
     {
@@ -62,60 +87,31 @@ namespace lockstep
         {
             if (m.armed != shadow_.armed || !shadow_.armRegime)
             {
-                auto& lf = juce::LookAndFeel::getDefaultLookAndFeel();
                 playBtn_.setButtonText(m.armed ? "Armed" : "Park");
-                playBtn_.setColour(juce::TextButton::buttonColourId,
-                                   m.armed ? juce::Colour::fromRGB(40, 150, 70)
-                                           : lf.findColour(juce::TextButton::buttonColourId));
-                playBtn_.setColour(juce::TextButton::textColourOffId,
-                                   m.armed ? juce::Colours::white
-                                           : lf.findColour(juce::TextButton::textColourOffId));
+                setStateColour(playBtn_, m.armed, juce::Colour::fromRGB(40, 150, 70));
             }
             // Note: shadow_ is committed once at the tail so the rec/metro change
             // detection below still compares against the previous frame.
         }
         else if (m.playing != shadow_.playing || shadow_.armRegime)
         {
-            // Normal (or just left the arm regime): restore the Play/Pause label
-            // and default colour.
-            auto& lf = juce::LookAndFeel::getDefaultLookAndFeel();
+            // Normal (or just left the arm regime): restore the Play/Pause label and
+            // fall back to the chrome look.
             playBtn_.setButtonText(m.playing ? "Pause" : "Play");
-            playBtn_.setColour(juce::TextButton::buttonColourId,
-                               lf.findColour(juce::TextButton::buttonColourId));
-            playBtn_.setColour(juce::TextButton::textColourOffId,
-                               lf.findColour(juce::TextButton::textColourOffId));
+            setStateColour(playBtn_, false, {});
         }
 
         if (m.recArmed != shadow_.recArmed || m.overdubArmed != shadow_.overdubArmed)
         {
-            juce::Colour bg;
-            if (m.overdubArmed) bg = juce::Colour::fromRGB(210, 130, 30);
-            else if (m.recArmed) bg = juce::Colour::fromRGB(200, 50, 50);
-            else bg = juce::LookAndFeel::getDefaultLookAndFeel()
-                          .findColour(juce::TextButton::buttonColourId);
-
-            recBtn_.setColour(juce::TextButton::buttonColourId, bg);
-            recBtn_.setColour(juce::TextButton::textColourOffId,
-                              (m.recArmed || m.overdubArmed)
-                                  ? juce::Colours::white
-                                  : juce::LookAndFeel::getDefaultLookAndFeel()
-                                        .findColour(juce::TextButton::textColourOffId));
+            const bool lit = m.recArmed || m.overdubArmed;
+            setStateColour(recBtn_, lit,
+                           m.overdubArmed ? juce::Colour::fromRGB(210, 130, 30)
+                                          : juce::Colour::fromRGB(200, 50, 50));
             recBtn_.setButtonText(m.overdubArmed ? "Overdub" : "Rec");
         }
 
         if (m.metronomeOn != shadow_.metronomeOn)
-        {
-            metroBtn_.setColour(juce::TextButton::buttonColourId,
-                                m.metronomeOn
-                                    ? juce::Colour::fromRGB(60, 140, 200)
-                                    : juce::LookAndFeel::getDefaultLookAndFeel()
-                                          .findColour(juce::TextButton::buttonColourId));
-            metroBtn_.setColour(juce::TextButton::textColourOffId,
-                                m.metronomeOn
-                                    ? juce::Colours::white
-                                    : juce::LookAndFeel::getDefaultLookAndFeel()
-                                          .findColour(juce::TextButton::textColourOffId));
-        }
+            setStateColour(metroBtn_, m.metronomeOn, juce::Colour::fromRGB(60, 140, 200));
 
         shadow_ = m;
     }
@@ -178,14 +174,18 @@ namespace lockstep
 
     void InPluginTransport::resized()
     {
-        auto b = getLocalBounds();
+        // The transport is the HOT band, but it says so by where it sits, not by
+        // being built out of bigger buttons than the rest of the chrome: one control
+        // height across the surface (ChromeLookAndFeel::kControlH).
+        auto b = getLocalBounds().withSizeKeepingCentre(
+            getWidth(), juce::jmin(ChromeLookAndFeel::kControlH, getHeight()));
         // Arm regime: one Armed/Park button (Stop hidden), given the pair's width.
-        playBtn_.setBounds(b.removeFromLeft(armRegimeLayout_ ? 72 : 54).reduced(1));
+        playBtn_.setBounds(b.removeFromLeft(armRegimeLayout_ ? 72 : 54).reduced(2, 0));
         if (!armRegimeLayout_)
         {
-            resetBtn_.setBounds(b.removeFromLeft(46).reduced(1));
+            resetBtn_.setBounds(b.removeFromLeft(46).reduced(2, 0));
         }
-        recBtn_.setBounds(b.removeFromLeft(54).reduced(1));
-        metroBtn_.setBounds(b.removeFromLeft(46).reduced(1));
+        recBtn_.setBounds(b.removeFromLeft(54).reduced(2, 0));
+        metroBtn_.setBounds(b.removeFromLeft(46).reduced(2, 0));
     }
 }

@@ -3153,6 +3153,26 @@ knobs pointed at two different stores, and nothing in the knobs tells them apart
       tracks). A third is a trap the lane now announces: **Fill held with no step
       held** — `writeFillParam` has nowhere to put the value and silently drops it.
 
+### 9.33 — The chrome look has one owner  *[SHIPPED 2026-07-13]*
+
+The buttons in the three bands at the top of the window looked like three different
+widgets, because each group was styled where it happened to be **constructed**: the
+file bar hard-coded a fill, the rail buttons and combo boxes took raw JUCE defaults,
+and the transport read its resting colours from the *default* `LookAndFeel` — not the
+one the editor installs — so it could not inherit anything. `Click` even rendered as
+`Cli…`: the transport's font was large enough to truncate its own label.
+
+- [x] `ChromeLookAndFeel`: one font, one control height, one radius, one border, one
+      hover, installed on the editor so every child inherits it. DESIGN §42.2a.
+- [x] A **base, not a straitjacket** — every draw reads the button's own colour ids, so
+      semantic colour still wins (transparent track cells over the VU; the transport
+      lighting up when armed; green-recall / red-delete in the sound bank).
+- [x] `ChromeStyleGuardTest`: a per-component colour override must claim to be
+      semantic (`// semantic colour: <reason>`) or the build fails. Decoration belongs
+      to the look; only meaning belongs to the call site.
+
+---
+
 ## Phase 10 — Melodic & Harmonic Authoring  *[mostly shipped: 10.1–10.4, 10.7–10.10 done; 10.5 partial; 10.6, 10.11 open]*
 
 The tonal layer: a key-signature system built on the **circle-of-fifths

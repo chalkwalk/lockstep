@@ -8116,6 +8116,36 @@ The fix is structural, not cosmetic (PRINCIPLES §20): the STATUS lane derives i
 content from state every frame, so an armed confirm *cannot* be invisible — there
 is no code path in which the arming exists and the pixels do not.
 
+### 42.2a The chrome look has one owner
+
+The three button groups at the top of the window had three different looks — three
+fills, three fonts, three heights — and "Click" rendered as `Cli…` because the
+transport's font was big enough to truncate its own label. None of that was decided;
+it is what you get when a look has no owner. Each group was styled **where it was
+constructed**: the file bar hard-coded a fill, the rail buttons and combo boxes
+inherited raw JUCE defaults, and the transport fetched its resting colours from the
+**default** `LookAndFeel` — which is not the one the editor installs, so it could not
+inherit anything even in principle.
+
+`ChromeLookAndFeel` (`src/ui/ChromeLookAndFeel.h`) is that owner: one font, one
+height (`kControlH`), one corner radius, one border, one hover. It is installed on the
+editor, so **every** child inherits it — which is the whole point, because the failure
+mode was per-file styling.
+
+It is a **base, not a straitjacket.** Every draw reads the button's own colour ids, so
+a colour that *means* something still wins: the track cells are transparent (they are
+windows onto the VU behind them), the transport lights up when armed or recording, the
+sound-bank rows are green for recall and red for delete. What the base owns is only
+what nobody had an opinion about — geometry, font, border — the parts that differed by
+accident.
+
+A look enforced by remembering is not enforced (PRINCIPLES §20), so
+`ChromeStyleGuardTest` scans for per-component `TextButton` / `ComboBox` colour
+overrides and fails the build unless the override carries a
+`// semantic colour: <reason>` marker: an explicit claim that the colour is saying
+something, reviewable as one line. Decoration belongs to the look; only meaning
+belongs to the call site.
+
 ### 42.3 The confirm pop-over, and the occlusion rule
 
 A pending confirm renders as a **double-height pop-over extending downward from

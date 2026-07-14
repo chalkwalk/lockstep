@@ -16,6 +16,9 @@ namespace lockstep
         nameLabel_.onTextChange = [this] { owner.doRename(rowIndex, nameLabel_.getText()); };
         addAndMakeVisible(nameLabel_);
 
+        // semantic colour: green = safe (recall), red = destructive (delete). The
+        // colour is the warning, and a shared chrome fill would erase the distinction
+        // between the two buttons sitting side by side on every row.
         recallBtn_.setColour(juce::TextButton::buttonColourId,
                              juce::Colour::fromRGB(40, 80, 40));
         recallBtn_.setColour(juce::TextButton::textColourOffId,
@@ -24,6 +27,7 @@ namespace lockstep
         recallBtn_.onClick = [this] { owner.doRecall(rowIndex); };
         addAndMakeVisible(recallBtn_);
 
+        // semantic colour: destructive (see above).
         delBtn_.setColour(juce::TextButton::buttonColourId,
                           juce::Colour::fromRGB(80, 30, 30));
         delBtn_.setColour(juce::TextButton::textColourOffId,

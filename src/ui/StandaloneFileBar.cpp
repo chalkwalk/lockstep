@@ -1,4 +1,5 @@
 #include "StandaloneFileBar.h"
+#include "ChromeLookAndFeel.h"
 
 namespace lockstep
 {
@@ -12,8 +13,9 @@ namespace lockstep
         for (auto* btn : { &newBtn_, &openBtn_, &saveBtn_, &saveAsBtn_ })
         {
             btn->setWantsKeyboardFocus(false);
-            btn->setColour(juce::TextButton::buttonColourId, juce::Colour::fromRGB(40, 44, 54));
-            btn->setColour(juce::TextButton::textColourOffId, juce::Colour::fromRGB(180, 200, 220));
+            // No colours here: the file-bar buttons are plain chrome and inherit the
+            // editor's ChromeLookAndFeel. Styling a button where it happens to be
+            // constructed is how three button groups ended up with three looks.
             addAndMakeVisible(btn);
         }
 
@@ -32,11 +34,13 @@ namespace lockstep
 
     void StandaloneFileBar::resized()
     {
-        auto r = getLocalBounds().reduced(2, 1);
-        newBtn_.setBounds(r.removeFromLeft(38).reduced(1));
-        openBtn_.setBounds(r.removeFromLeft(44).reduced(1));
-        saveBtn_.setBounds(r.removeFromLeft(40).reduced(1));
-        saveAsBtn_.setBounds(r.removeFromLeft(64).reduced(1));
+        // Same cell geometry as every other chrome control (rail, transport): one
+        // height, one inset, vertically centred in whatever band it is handed.
+        auto r = getLocalBounds();
+        newBtn_.setBounds(ChromeLookAndFeel::cell(r.removeFromLeft(40), 2));
+        openBtn_.setBounds(ChromeLookAndFeel::cell(r.removeFromLeft(46), 2));
+        saveBtn_.setBounds(ChromeLookAndFeel::cell(r.removeFromLeft(42), 2));
+        saveAsBtn_.setBounds(ChromeLookAndFeel::cell(r.removeFromLeft(66), 2));
         r.removeFromLeft(4);
         nameLabel_.setBounds(r);
     }

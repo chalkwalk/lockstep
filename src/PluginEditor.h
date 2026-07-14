@@ -27,6 +27,7 @@
 #include "state/UiState.h"
 #include "ui/GridDisplayMode.h"
 #include "ui/InPluginTransport.h"
+#include "ui/ChromeLookAndFeel.h"
 #include "ui/InspectorBar.h"
 #include "ui/TimelineStrip.h"
 #include "ui/InspectorModel.h"
@@ -554,6 +555,10 @@ namespace lockstep
         void handleTapTempo();
 
         PressTracker pressTracker_;
+
+        // The one owner of every plain button / combo box look (9.33). Declared before
+        // the child components it styles so it outlives them at destruction.
+        ChromeLookAndFeel chromeLnf_;
 
         juce::ComboBox syncModeBox_;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> syncModeAttachment_;

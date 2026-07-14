@@ -31,6 +31,7 @@ add_executable(lockstep_tests
     MetricGridTest.cpp
     SurfaceModelTest.cpp
     SurfaceInvalidationGuardTest.cpp
+    ChromeStyleGuardTest.cpp
     StateResolverTest.cpp
     HierarchyNavTest.cpp
     ArrangementTest.cpp
