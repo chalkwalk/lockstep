@@ -5,7 +5,7 @@
 
 namespace lockstep
 {
-    StreamMachine::StreamMachine()
+    StreamMachine::StreamMachine(const SamplePool& pool) : pool_(pool)
     {
         formatManager_.registerBasicFormats();
         streamThread_.startThread();
@@ -91,27 +91,46 @@ namespace lockstep
                 s.defaultValue = 0.5f;  // ~100 ms graceful-stop fade (see process())
                 s.isStepped = false;
                 return s;
+            case kSlotTuneMode:
+                s.id = "player_tune_mode";
+                s.label = "A440";
+                s.minValue = 0.0f;
+                s.maxValue = 1.0f;
+                s.defaultValue = 0.0f;  // Auto — cancel the entry's tuning deviation
+                s.isStepped = true;
+                s.valueLabels = std::span<const char* const>(kTuneModeLabels.data(),
+                                                             kTuneModeLabels.size());
+                return s;
             default:
                 return {};
         }
     }
 
-    double StreamMachine::pitchRatioFor(const ParamFrame& params)
+    double StreamMachine::pitchRatioFor(const ParamFrame& params) const
     {
         const float pitchSemis = (params.size() > kSlotPitch) ? params[kSlotPitch] : 0.0f;
         const float tuneCents = (params.size() > kSlotTune) ? params[kSlotTune] : 0.0f;
+        // A440 (9.23): Auto (the default) cancels the entry's tuning deviation so a
+        // sharp/flat recording plays in tune; Raw leaves it as recorded. Same rule and
+        // same source as Stretch.
+        const bool autoA440 = (static_cast<int>(params.size()) <= kSlotTuneMode)
+            || std::lround(params[kSlotTuneMode]) == 0;
+        const double a440 = autoA440 ? -pool_.effectiveTuningCents(activeSampleId_) : 0.0;
         return std::pow(2.0, (static_cast<double>(pitchSemis)
-                             + static_cast<double>(tuneCents) / 100.0) / 12.0);
+                             + (static_cast<double>(tuneCents) + a440) / 100.0) / 12.0);
     }
 
     double StreamMachine::timeRatioFor() const
     {
         if (tsMode_ < 1) return 1.0;  // Off — native duration (still resampled)
-        // Stream carries no captured bars; a per-entry effective BPM arrives in
-        // 9.23 S5. Until then effBpm = 0 ⇒ ratio 1.0 (natural tempo, correctly
-        // rate-converted — the missing-resample fix).
+        // A streamed entry carries no captured bars (nothing recorded it), so its
+        // musical length comes from the effective BPM — user override else whatever the
+        // file's metadata/filename hints declared. effBpm = 0 (an untagged song nobody
+        // has typed a tempo for) still yields ratio 1.0 via the shared helper, which is
+        // the honest answer: we do not know its tempo, so we do not warp it.
         return stretchmath::stretchTimeRatio(
-            /*sourceBars*/ 0.0, /*effBpm*/ 0.0, lengthSamples_, fileRate_,
+            /*sourceBars*/ 0.0, pool_.effectiveBpm(activeSampleId_),
+            lengthSamples_, fileRate_,
             transport_.samplesPerBar, sampleRate_);
     }
 
@@ -125,7 +144,7 @@ namespace lockstep
         source_.setReader(reader_.get(), lengthSamples_, fileChannels_, src);
     }
 
-    bool StreamMachine::setFilePath(const juce::String& path)
+    bool StreamMachine::setFilePath(const juce::String& path, int poolIndex)
     {
         // Caller must have quiesced the engine: this swaps the reader the audio
         // thread reads from.
@@ -135,12 +154,13 @@ namespace lockstep
         fileRate_ = 0.0;
         fileChannels_ = 1;
         path_ = path;
+        activeSampleId_ = poolIndex;
 
-        if (path.isEmpty()) { rebuildEngine(); return false; }
+        if (path.isEmpty()) { activeSampleId_ = -1; rebuildEngine(); return false; }
 
         std::unique_ptr<juce::AudioFormatReader> base(
             formatManager_.createReaderFor(juce::File(path)));
-        if (base == nullptr) { path_ = {}; rebuildEngine(); return false; }
+        if (base == nullptr) { path_ = {}; activeSampleId_ = -1; rebuildEngine(); return false; }
 
         lengthSamples_ = base->lengthInSamples;
         fileRate_ = base->sampleRate;

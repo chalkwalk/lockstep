@@ -4080,7 +4080,9 @@ namespace lockstep
         juce::String path;
         if (s != nullptr && !s->isVolatile && !s->missing && !s->ref.path.empty())
             path = juce::String(s->ref.path);
-        withQuiescedEngine([&] { sm->setFilePath(path); });
+        // 9.23: the entry travels with its path, so the machine can ask the pool for
+        // this stream's effective tempo/tuning instead of assuming it has none.
+        withQuiescedEngine([&] { sm->setFilePath(path, path.isEmpty() ? -1 : poolIndex); });
     }
 
     // A1: rotate a freshly assigned loop onto its first transient, so a file
@@ -6191,7 +6193,7 @@ namespace lockstep
         if (id == TapeMachine::kMachineId)
             return std::make_unique<TapeMachine>();
         if (id == StreamMachine::kMachineId)
-            return std::make_unique<StreamMachine>();
+            return std::make_unique<StreamMachine>(pool);
         if (id == StretchMachine::kMachineId)
             return std::make_unique<StretchMachine>(pool);
         // "lockstep.stub" is an explicitly-empty track (unknownId = "").
@@ -7742,7 +7744,7 @@ namespace lockstep
         if (slot >= 0)
             writeParam(track, slot, static_cast<float>(poolIdx));
         else
-            withQuiescedEngine([&] { sm->setFilePath(path); });  // schema-less fallback
+            withQuiescedEngine([&] { sm->setFilePath(path, poolIdx); });  // schema-less fallback
         return true;
     }
 
@@ -7807,6 +7809,7 @@ namespace lockstep
             const int slot = slotForIdWithMachine(*m, "sample_id");
             const auto ti = static_cast<std::size_t>(track);
             juce::String path;
+            int activeIdx = -1;   // 9.23: the entry the reopened path came from
 
             auto& runBp = sequence().tracks[ti].baseParams;
             if (slot >= 0 && slot < static_cast<int>(runBp.size()))
@@ -7814,7 +7817,10 @@ namespace lockstep
                 const int poolIdx = static_cast<int>(std::lround(runBp[static_cast<std::size_t>(slot)]));
                 const auto* s = samplePool_.get(poolIdx);
                 if (s != nullptr && !s->isVolatile && !s->missing && !s->ref.path.empty())
+                {
                     path = juce::String(s->ref.path);
+                    activeIdx = poolIdx;
+                }
             }
 
             if (path.isEmpty() && !kit(track).streamPath.empty())
@@ -7822,7 +7828,10 @@ namespace lockstep
                 const int poolIdx = samplePool_.addStreamRef(juce::String(kit(track).streamPath));
                 const auto* s = samplePool_.get(poolIdx);
                 if (s != nullptr && !s->missing)
+                {
                     path = juce::String(s->ref.path);
+                    activeIdx = poolIdx;
+                }
                 if (slot >= 0 && poolIdx >= 0)
                 {
                     // Persist the migrated index in both the authoritative Kit store
@@ -7834,7 +7843,7 @@ namespace lockstep
                 }
                 kit(track).streamPath.clear();
             }
-            sm->setFilePath(path);
+            sm->setFilePath(path, activeIdx);
         };
 
         // Reinstall machines from the active Kit so that any Kit loaded from disk

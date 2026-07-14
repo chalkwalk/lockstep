@@ -333,6 +333,28 @@ namespace lockstep
                     sample->ref.hashXX32 = Hash::xx32(mb.getData(),
                                                       static_cast<std::size_t>(got));
             }
+
+            // 9.23: a streamed entry can still DECLARE its tempo. Metadata (ACID / BWF
+            // tempo chunks) and the filename ("...128bpm.wav") are readable without
+            // decoding a single frame, so read them: they are the only way a stream
+            // gets a tempo it did not have typed in by hand, and Stream is exactly the
+            // machine that hosts tempo-stamped long-form material.
+            //
+            // Detection proper stays off. It needs PCM, and PCM is the one thing a
+            // stream reference exists to avoid.
+            std::unique_ptr<juce::AudioFormatReader> reader(
+                formatManager_.createReaderFor(file));
+            if (reader != nullptr)
+            {
+                sample->sampleRate = reader->sampleRate;
+                const SampleHints hints = mergeHints(
+                    parseMetadataHints(reader->metadataValues),
+                    parseFilenameHints(file.getFileNameWithoutExtension().toStdString()));
+                if (hints.bpm > 0.0)
+                    sample->detectedBpm = hints.bpm;
+                sample->detectedOneShot = hints.oneShot;
+                sample->analysed = true;  // as analysed as a stream ever gets
+            }
         }
 
         const int index = static_cast<int>(samples_.size());

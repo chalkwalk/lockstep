@@ -99,6 +99,37 @@ namespace lockstep
         {
             return ParamFrame{ 0.0f, start, pitch, tune, ts, loop };
         }
+
+        // Total non-silent samples the stream produces for one note, played to EOF.
+        // Duration is the observable that tempo-tracking moves: a stream that follows
+        // the project tempo plays LONGER at a slower tempo (same pitch, more time).
+        int streamDuration(StreamMachine& sm, const ParamFrame& params)
+        {
+            int total = 0;
+            int silentRun = 0;
+            bool started = false;
+            for (int b = 0; b < 2000; ++b)
+            {
+                juce::AudioBuffer<float> out(2, 512);
+                out.clear();
+                sm.process(b == 0 ? noteOn() : juce::MidiBuffer{}, params, out);
+
+                int loud = 0;
+                for (int i = 0; i < 512; ++i)
+                    if (std::abs(out.getSample(0, i)) > 1.0e-3f) ++loud;
+
+                total += loud;
+                if (loud > 0) { started = true; silentRun = 0; }
+                else
+                {
+                    // Before the first sample this is the background prefetch; after it,
+                    // a long silent run means the stream reached EOF.
+                    if (started && ++silentRun > 8) break;
+                    juce::Thread::sleep(2);
+                }
+            }
+            return total;
+        }
     }
 
     void runStreamMachineTests()
@@ -135,7 +166,8 @@ namespace lockstep
         const juce::File wav = writeSineWav(tmp, kFileRate, kTone, 2.0);
         CHECK(wav.existsAsFile(), "test WAV written");
 
-        StreamMachine sm;
+        SamplePool pool;
+        StreamMachine sm(pool);
         sm.prepare(kEngineRate, 512);
         CHECK(sm.setFilePath(wav.getFullPathName()), "Stream opens the file");
         CHECK(sm.filePath() == wav.getFullPathName(), "path is stored");
@@ -165,7 +197,8 @@ namespace lockstep
 
         // Pitch +12 semitones doubles the tone (duration unchanged under Tempo).
         {
-            StreamMachine sp;
+            SamplePool ppool;
+            StreamMachine sp(ppool);
             sp.prepare(kEngineRate, 512);
             CHECK(sp.setFilePath(wav.getFullPathName()), "Stream (pitch) opens the file");
             auto out = streamAudio(sp, streamFrame(0.0f, 12.0f, 0.0f, 1.0f, 0.0f), 16384);
@@ -178,8 +211,11 @@ namespace lockstep
         CHECK(!sm.setFilePath("/no/such/file_xyz.wav"), "missing file rejected");
         CHECK(sm.filePath().isEmpty(), "bad path clears the stored path");
 
-        // Schema: sample_id + start kept; pitch/tune/timestretch/loop/release appended.
-        CHECK(sm.numParams() == 7, "StreamMachine exposes 7 slots (after release append)");
+        // Schema: sample_id + start kept; pitch/tune/timestretch/loop/release appended,
+        // then A440 (9.23) at the end. Base params are id-keyed on disk, so appending is
+        // safe: an older 7-slot frame loads with the new slot at its default (Auto).
+        CHECK(sm.numParams() == 8, "StreamMachine exposes 8 slots (after the A440 append)");
+        CHECK(juce::String(sm.paramSpec(7).id) == "player_tune_mode", "slot 7 = A440 mode");
         CHECK(juce::String(sm.paramSpec(0).id) == "sample_id",
               "sample_id is slot 0 (picker renders first)");
         CHECK(juce::String(sm.paramSpec(1).id) == "start", "start keeps id + slot 1");
@@ -210,7 +246,8 @@ namespace lockstep
             const juce::File swav = writeSineWav(stmp, kFileRate, kTone, 0.5);
 
             auto runReLatch = [&](float startLoop, float endLoop) {
-                StreamMachine sm2;
+                SamplePool lpool;
+                StreamMachine sm2(lpool);
                 sm2.prepare(kEngineRate, 512);
                 sm2.setFilePath(swav.getFullPathName());
                 double tailEnergy = 0.0;
@@ -248,13 +285,66 @@ namespace lockstep
         // Old two-slot kit: a v29-shaped {sample_id, start} frame loads defaults for
         // the appended slots (Tempo / no pitch / no loop) and still streams.
         {
-            StreamMachine so;
+            SamplePool opool;
+            StreamMachine so(opool);
             so.prepare(kEngineRate, 512);
             CHECK(so.setFilePath(wav.getFullPathName()), "Stream (legacy frame) opens the file");
             ParamFrame legacy{ 0.0f, 0.0f };  // just sample_id + start
             auto out = streamAudio(so, legacy, 8192);
             CHECK(static_cast<int>(out.size()) > 2048,
                   "Stream: legacy 2-slot frame still streams with appended defaults");
+        }
+
+        // 9.23 — Stream follows the POOL's tempo.
+        //
+        // Stream hardcoded effBpm = 0 and so ignored the pool entirely: a song tagged
+        // 120 BPM streamed at its native rate no matter what the project was doing,
+        // while Stretch (reading the same pool, through the same helper) tracked it.
+        // The observable is duration: at half the tempo the same file must take twice
+        // as long, at the same pitch.
+        //
+        // The control matters as much as the assertion. With NO tempo on the entry the
+        // two tempos must produce the SAME duration — that is what proves this test
+        // measures the pool wiring rather than some other tempo dependence, and it is
+        // exactly the (ratio 1.0) behaviour the old hardcode produced for every entry.
+        {
+            constexpr double kBeats = 4.0;
+            auto barSamplesAt = [&](double bpm) { return kBeats * kEngineRate * 60.0 / bpm; };
+
+            juce::TemporaryFile ttmp(".wav");
+            const juce::File twav = writeSineWav(ttmp, kFileRate, kTone, 1.0);  // 1 s @ 48k
+
+            auto durationAtTempo = [&](double projectBpm, double entryBpm) {
+                SamplePool pool;
+                const int idx = pool.addStreamRef(twav.getFullPathName());
+                if (entryBpm > 0.0) pool.setUserBpm(idx, entryBpm);
+
+                StreamMachine sm(pool);
+                sm.prepare(kEngineRate, 512);
+                TransportInfo t;
+                t.bpm = projectBpm;
+                t.sampleRate = kEngineRate;
+                t.samplesPerBar = barSamplesAt(projectBpm);
+                sm.setTransport(t);
+                sm.setFilePath(twav.getFullPathName(), idx);
+                // Tempo mode on, no loop.
+                return streamDuration(sm, streamFrame(0.0f, 0.0f, 0.0f, 1.0f, 0.0f));
+            };
+
+            // Entry tagged 120 BPM: native at 120, stretched ~2x at 60.
+            const int at120 = durationAtTempo(120.0, 120.0);
+            const int at60  = durationAtTempo(60.0, 120.0);
+            CHECK(at120 > 8192, "Stream (tempo): the 120 BPM case produced audio");
+            const double grew = static_cast<double>(at60) / std::max(1, at120);
+            CHECK(grew > 1.6 && grew < 2.4,
+                  "Stream follows the pool's BPM: half the tempo, ~2x the duration");
+
+            // Control: an entry with no tempo tracks nothing, at either tempo.
+            const int un120 = durationAtTempo(120.0, 0.0);
+            const int un60  = durationAtTempo(60.0, 0.0);
+            const double drift = static_cast<double>(un60) / std::max(1, un120);
+            CHECK(drift > 0.85 && drift < 1.15,
+                  "an untagged stream is not warped -- unknown tempo means play it native");
         }
     }
 }

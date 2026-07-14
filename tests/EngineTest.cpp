@@ -3786,7 +3786,7 @@ namespace lockstep
 
         // Install a StreamMachine on track 0 using its own schema.
         auto installStream = [](LockstepProcessor& proc) {
-            StreamMachine probe;
+            StreamMachine probe(proc.samplePool());
             auto& k = proc.kit(0);
             k.machineId = StreamMachine::kMachineId;
             k.baseParams.resize(static_cast<std::size_t>(probe.numParams()));

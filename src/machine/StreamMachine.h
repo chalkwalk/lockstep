@@ -2,6 +2,7 @@
 
 #include "IMachine.h"
 #include "ITempoAware.h"
+#include "SamplePool.h"
 #include "../dsp/BungeeStretchEngine.h"
 #include "../dsp/ReaderStretchSource.h"
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -25,7 +26,14 @@ namespace lockstep
     class StreamMachine : public IMachine, public ITempoAware
     {
     public:
-        StreamMachine();
+        // 9.23: the pool is how a streamed entry knows its own tempo and tuning. Stream
+        // entries never decode, so they carry only what metadata/filename hints gave
+        // them plus whatever the user typed in Sample Props — but that is exactly the
+        // "effective" value the rest of the pool already resolves (override-else-
+        // detected), and Stretch has been reading it since 9.23 S5. Stream was left
+        // hardcoding effBpm = 0, so a tempo-stamped song streamed at its native rate
+        // and ignored the project's.
+        explicit StreamMachine(const SamplePool& pool);
         ~StreamMachine() override;
 
         static constexpr const char* kMachineId = "lockstep.stream.v1";
@@ -42,7 +50,13 @@ namespace lockstep
         // Open (or clear, if empty) the streamed source file. Message-thread only,
         // and must be called with the engine quiesced (it swaps the reader the audio
         // thread reads from). Returns true if the file opened.
-        bool setFilePath(const juce::String& path);
+        //
+        // `poolIndex` is the entry the path came from (-1 = none/cleared). It travels
+        // WITH the path rather than through a second setter, because the two must not
+        // be able to disagree: a reader open on one file while the tempo is read off
+        // another entry is exactly the silent-mismatch class this project keeps
+        // stamping out.
+        bool setFilePath(const juce::String& path, int poolIndex = -1);
         [[nodiscard]] juce::String filePath() const { return path_; }
 
         void prepare(double sampleRate, int maxBlockSize) override;
@@ -96,15 +110,25 @@ namespace lockstep
         static constexpr int kSlotTimestretch = 4;  // 0 = Off (native), 1 = Tempo
         static constexpr int kSlotLoop = 5;         // 0 = Off, 1 = On
         static constexpr int kSlotRelease = 6;      // graceful-stop fade time (0..1)
-        static constexpr int kNumSlots = 7;
+        // 9.23: A440 mode, mirroring Stretch. Auto cancels the entry's detected/typed
+        // tuning deviation so it plays in tune; Raw leaves it as recorded. Appended at
+        // the end -- base params are id-keyed on disk, so a new slot is additive.
+        static constexpr int kSlotTuneMode = 7;     // 0 = Auto, 1 = Raw
+        static constexpr int kNumSlots = 8;
 
         [[nodiscard]] double timeRatioFor() const;
-        [[nodiscard]] static double pitchRatioFor(const ParamFrame& params);
+        [[nodiscard]] double pitchRatioFor(const ParamFrame& params) const;
         void rebuildEngine();
         // Apply the loop window from the cached note-on ingredients. Called at
         // note-on and again from process() when player_loop is toggled mid-voice
         // (the live re-latch; mirrors StretchMachine).
         void applyLoop(bool loop);
+
+        const SamplePool& pool_;
+        // The pool entry behind the open reader. Set by the processor's sample_id hook
+        // (via setFilePath) rather than read per-block: the audio thread must not chase
+        // a param to find its own source.
+        int activeSampleId_ = -1;
 
         juce::AudioFormatManager formatManager_;
         juce::TimeSliceThread streamThread_{ "lockstep.stream.io" };
@@ -138,5 +162,6 @@ namespace lockstep
 
         static constexpr std::array<const char* const, 2> kTsLabels = { "Off", "Tempo" };
         static constexpr std::array<const char* const, 2> kLoopLabels = { "Off", "On" };
+        static constexpr std::array<const char* const, 2> kTuneModeLabels = { "Auto", "Raw" };
     };
 }

@@ -2629,15 +2629,30 @@ is the named real-time fallback if Bungee fails the ear test. WSOLA
       on Func double-tap or any foreign scope/section. Mandated modality triple
       shipped (ModeReducer / ModalState / MetaBand — resolution, scope routing, and a
       write→serialize→reload round-trip). Milestone code-complete pending the S1
-      ear-test gate + the Stream→pool wiring follow-up.
+      ear-test gate (the Stream→pool wiring follow-up shipped 2026-07-14 — see S9).
 - [x] **S7 — A440 Auto/Raw + fine-tune on Sample/Slicer** (+ Stretch tune mode).
       Auto cancels the detected deviation; Raw plays as recorded.
 - [~] **S8 — Docs** (this block; DESIGN/README/THIRDPARTY).
+- [x] **S9 — Stream→pool wiring.** *(Shipped 2026-07-14.)* The gap the 2026-07-14
+      review found hiding behind shipped prose: S5 gave the pool effective (override-
+      else-detected) tempo/tuning and Stretch read them, but **Stream hardcoded
+      `effBpm = 0.0`** and so ignored the pool completely — a tempo-stamped song
+      streamed at its native rate no matter what the project was doing, which is
+      precisely the machine that hosts tempo-stamped long-form material. Stream now
+      holds the pool, the pool entry travels *with* the path into `setFilePath` (one
+      call, so an open reader cannot read its tempo off a different entry), and the
+      A440 Auto/Raw slot from S7 is appended for parity with Stretch.
+      Second half of the fix: a Stream entry never decodes, so it had no way to *learn*
+      a tempo. `addStreamRef` now reads metadata (ACID/BWF) and filename hints — which
+      cost no PCM — so a tagged file works without the user typing anything. Detection
+      proper stays off; PCM is the one thing a stream reference exists to avoid.
+      Tested on the audio path by duration (half the tempo ⇒ ~2× the time, same pitch),
+      with a control proving an *untagged* stream is still played native.
 - Follow-ups: player unification part 2 (Looper→Bungee tape/scrub/glide, Stream
       reverse, Sample/Slicer engine-optional + Hermite interp), a max-quality offline
       render-to-pool engine behind the seam (engine TBD, benchmark before adopting),
-      Stream→pool wiring (its tempo/one-shot/A440 lookups), FX third-party swap
-      (juce::dsp DelayLine/Oversampling; Signalsmith basics) — now scheduled as **9.24**.
+      FX third-party swap (juce::dsp DelayLine/Oversampling; Signalsmith basics) —
+      now scheduled as **9.24**.
 
 ### 9.24 — FOSS DSP overhaul: FX-catalogue quality + machine-DSP + new effects  *[code complete — pending ear-test A/B]*
 Quality-fix the weak bespoke effects and grow the catalogue using the FOSS DSP
