@@ -232,7 +232,11 @@ namespace lockstep
         {
             int ckTrk = 0;
             const CheckpointScope scp = ed.ckScope(ckTrk);
-            (void)ed.processor_.restoreOne(scp, ckTrk);
+            // 9.4 item A: an empty stack no longer wipes to the project baseline — it
+            // does nothing, and the user is told so. A restore that silently reverts
+            // half an hour of work is worse than a restore that refuses.
+            if (!ed.processor_.restoreOne(scp, ckTrk))
+                ed.setStatus(status::nothingToRestore());
             ed.refreshSurface();
         }
 

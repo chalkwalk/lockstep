@@ -624,47 +624,37 @@ namespace lockstep
         {
             switch (scope)
             {
+                // 9.4 item A: an EMPTY stack is a no-op, not a wipe.
+                //
+                // Every scope below used to fall through to floorSong_ when its stack ran
+                // out — so one Func+Y too many silently reverted the scope to the state it
+                // had when the project LOADED, discarding everything since. No confirm, no
+                // message, and (for Track/Phrase) trivially reachable, because those stacks
+                // could never be pushed to by hand: their snapshot gesture dispatched to
+                // nothing. Returning false leaves the state untouched and lets the caller
+                // say NOTHING TO RESTORE. The floor is still reachable — by the deliberate
+                // hold (restoreToFloor), never by a tap that ran out of stack.
                 case CheckpointScope::Song: {
-                    if (!songStack_.empty())
-                    {
-                        song() = songStack_.back();
-                        songStack_.pop_back();
-                    }
-                    else
-                    {
-                        // DESIGN-DEBT(undo-model): floor-fallback silently wipes to project baseline.
-                        // Rethink in the undo-model redesign session — should this be a no-op or prompt?
-                        song() = floorSong_;
-                    }
+                    if (songStack_.empty()) return false;
+                    song() = songStack_.back();
+                    songStack_.pop_back();
                     syncWorkingFromActive();
                     return true;
                 }
                 case CheckpointScope::Track: {
                     if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
                     auto it = trackStack_.find(track);
-                    if (it != trackStack_.end() && !it->second.empty())
-                    {
-                        song().tracks[idx(track)] = it->second.back();
-                        it->second.pop_back();
-                    }
-                    else
-                    {
-                        song().tracks[idx(track)] = floorSong_.tracks[idx(track)];
-                    }
+                    if (it == trackStack_.end() || it->second.empty()) return false;
+                    song().tracks[idx(track)] = it->second.back();
+                    it->second.pop_back();
                     syncWorkingTrackFromActive(track);
                     return true;
                 }
                 case CheckpointScope::Scene: {
                     auto it = sceneStack_.find(sceneIdx);
-                    if (it != sceneStack_.end() && !it->second.empty())
-                    {
-                        scene() = it->second.back();
-                        it->second.pop_back();
-                    }
-                    else
-                    {
-                        scene() = floorSong_.scenes[idx(sceneIdx)];
-                    }
+                    if (it == sceneStack_.end() || it->second.empty()) return false;
+                    scene() = it->second.back();
+                    it->second.pop_back();
                     deviated.fill(false);      // live deviations are relative to old scene
                     syncWorkingFromActive();
                     return true;
@@ -673,15 +663,9 @@ namespace lockstep
                     if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
                     const int pIdx = activePhraseIdx(track);
                     auto it = phraseStack_.find({ track, pIdx });
-                    if (it != phraseStack_.end() && !it->second.empty())
-                    {
-                        activePhrase(track) = it->second.back();
-                        it->second.pop_back();
-                    }
-                    else
-                    {
-                        activePhrase(track) = floorSong_.tracks[idx(track)].phrases[idx(pIdx)];
-                    }
+                    if (it == phraseStack_.end() || it->second.empty()) return false;
+                    activePhrase(track) = it->second.back();
+                    it->second.pop_back();
                     syncWorkingTrackFromActive(track);
                     return true;
                 }

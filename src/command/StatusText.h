@@ -158,6 +158,10 @@ namespace lockstep::status
     inline juce::String noSoundCopied() { return "No sound copied"; }
 
     inline juce::String nothingCopied() { return "Nothing copied"; }
+
+    // 9.4 item A: the scope has no marks. Restore does NOTHING and says so; it used to
+    // fall through to the project baseline, silently discarding everything since load.
+    inline juce::String nothingToRestore() { return "Nothing to restore"; }
     inline juce::String pastePickScope() { return "Paste: pick a scope"; }
 
     // ---- confirm prompts (shown in the status band) -------------------------

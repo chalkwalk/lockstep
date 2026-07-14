@@ -75,16 +75,23 @@ namespace lockstep
     {
         auto arr = makeArrangement();
 
-        // restoreOne with empty stack restores floor and is idempotent.
+        // 9.4 item A: this test used to assert that restoreOne on an EMPTY stack
+        // "returns to floor" — i.e. it encoded the silent wipe as the contract. It is
+        // the bug, written down. The floor is reached by ASKING for it (restoreToFloor,
+        // the deliberate hold); a restore that ran out of stack must change nothing.
         arr->workingTrack(0).steps[2].trig = true;
-        arr->restoreOne(CheckpointScope::Song, 0);
-        CHECK(!arr->workingTrack(0).steps[2].trig,
-              "Song floor-idempotent: restoreOne with empty stack returns to floor");
+        CHECK(!arr->restoreOne(CheckpointScope::Song, 0),
+              "Song: restoreOne on an empty stack refuses");
+        CHECK(arr->workingTrack(0).steps[2].trig,
+              "Song: and leaves the work alone — it does NOT fall through to the floor");
 
-        // Second call is a no-op (already at floor).
-        arr->restoreOne(CheckpointScope::Song, 0);
+        // restoreToFloor is the deliberate gesture, and it IS idempotent.
+        arr->restoreToFloor(CheckpointScope::Song, 0);
         CHECK(!arr->workingTrack(0).steps[2].trig,
-              "Song floor-idempotent: second restoreOne still at floor");
+              "Song floor: the deliberate gesture reaches it");
+        arr->restoreToFloor(CheckpointScope::Song, 0);
+        CHECK(!arr->workingTrack(0).steps[2].trig,
+              "Song floor: and is idempotent once there");
     }
 
     // ── Song scope: depth-cap eviction ────────────────────────────────────────
@@ -259,6 +266,54 @@ namespace lockstep
         CHECK(arr->songIdx == 1, "Song switch: songIdx updated");
     }
 
+    // ── 9.4 item A: an empty stack is a no-op, not a wipe ─────────────────────
+    //
+    // Every scope used to fall through to the floor when its stack ran out, so one
+    // Func+Y too many silently reverted that scope to the state it had when the
+    // project LOADED — discarding everything since, with no confirm and no message.
+    // Track and Phrase were the worst of it: their snapshot gesture dispatched to
+    // nothing, so those stacks could never be pushed to by hand and a single restore
+    // press was ALWAYS the wipe.
+    //
+    // Restore must now leave the state untouched and report that it did nothing. The
+    // floor stays reachable — via restoreToFloor (the deliberate hold), never via a
+    // tap that ran out of stack.
+    static void testEmptyStackRestoreIsANoOp()
+    {
+        auto arr = makeArrangement();
+
+        // Work done since the floor was seeded, on every scope, with nothing snapshotted.
+        arr->workingTrack(0).steps[3].trig = true;
+        arr->workingTrack(1).steps[7].trig = true;
+        arr->scene().activeMask[2] = !arr->scene().activeMask[2];
+        const bool maskAfterEdit = arr->scene().activeMask[2];
+
+        CHECK(arr->checkpointDepth(CheckpointScope::Track, 0) == 0, "precondition: no track marks");
+        CHECK(arr->checkpointDepth(CheckpointScope::Song, 0) == 0, "precondition: no song marks");
+
+        // Each restore must REFUSE (false) and change nothing.
+        CHECK(!arr->restoreOne(CheckpointScope::Track, 0), "Track: empty stack restore refuses");
+        CHECK(arr->workingTrack(0).steps[3].trig,
+              "Track: the refused restore did NOT wipe the track to the project baseline");
+
+        CHECK(!arr->restoreOne(CheckpointScope::Phrase, 1), "Phrase: empty stack restore refuses");
+        CHECK(arr->workingTrack(1).steps[7].trig,
+              "Phrase: the refused restore did NOT wipe the phrase");
+
+        CHECK(!arr->restoreOne(CheckpointScope::Scene, 0), "Scene: empty stack restore refuses");
+        CHECK(arr->scene().activeMask[2] == maskAfterEdit,
+              "Scene: the refused restore did NOT wipe the scene");
+
+        CHECK(!arr->restoreOne(CheckpointScope::Song, 0), "Song: empty stack restore refuses");
+        CHECK(arr->workingTrack(0).steps[3].trig && arr->workingTrack(1).steps[7].trig,
+              "Song: the refused restore did NOT wipe the song to the project baseline");
+
+        // The floor is still reachable — but only by asking for it.
+        arr->restoreToFloor(CheckpointScope::Song, 0);
+        CHECK(!arr->workingTrack(0).steps[3].trig,
+              "the floor is still reachable through the deliberate gesture");
+    }
+
     void runCheckpointTests()
     {
         testSongSnapshotRestoreOne();
@@ -274,5 +329,7 @@ namespace lockstep
         testPhraseScopeIsolatedFromKit();
         testSeedFloorClearsStacks();
         testSongSwitchReseeds();
+        testEmptyStackRestoreIsANoOp();
     }
 }
+

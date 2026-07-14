@@ -206,8 +206,6 @@ L22 | Scene+VerbSnapshot idx=-1 | action=38
 
 L22 | Func+VerbSnapshot idx=-1 | action=33
     down funcHeld: false -> true
-    up   seq.focusPattern: x...x...x...x... -> ................
-    up   seq.trigsPerTrack: 4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0, -> 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
 L22 | VerbSnapshot idx=-1 | action=32
     down ckpt.Song: 0 -> 1
@@ -463,8 +461,6 @@ L22 | VerbRecord idx=-1 | action=60
 
 L22 | Func+VerbSnapshot idx=-1 | action=65
     down funcHeld: false -> true
-    up   seq.focusPattern: x...x...x...x... -> ................
-    up   seq.trigsPerTrack: 4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0, -> 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
 L22 | NavRight idx=-1 | action=66
     (no observable state change)
