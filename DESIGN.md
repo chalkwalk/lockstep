@@ -4943,6 +4943,37 @@ are always patchable via P-Lock or Morph. When both sends are zero the send
 buses are not processed. The AMP section key (key 8) cycles pages to expose
 all four CHANNEL params (level, pan, sendA, sendB).
 
+**The MIXER page (9.31).** `lockstep.amp.level` is authored in three places that
+must agree: the track's AMP page, the **MIXER** meta band, and (for MIDI-out
+tracks) the wire. The mixer is `Track` + **hold** `AMP` — the *tap* keeps its
+existing meaning (page to the track-scoped AMP section), and the hold-to-open form
+mirrors the shipped `Track` + hold `SRC` machine picker, so a section key's hold
+affordance stays one idea rather than two. Eight encoders = the eight tracks of the
+current bank (the bank the focused track is in, as DENSITY/VEL already page); a
+sub-page carries the master `output_gain`. **Mixer writes are always track base
+values, never P-Locks, even with a step held** — the one place in the grammar where
+a held step does not capture, because a mixer balances the kit and a P-Locked
+balance is not a balance. That exception is load-bearing enough to be tested.
+
+**Levels are a readout on the meters, not a gesture on them.** Each track VU cell
+draws a tick at its level; the master VU is a **drag target** for `output_gain`
+(double-click = 0 dB) with the same tick. This reverses "there is no on-screen
+master fader by design": the design objection was to a *mouse-only surface*, and a
+master level you can only reach through a modifier band failed the more basic test
+of being reachable at all. The reverse move is that the per-track VU **drag**
+gestures (level on left-drag, sendA on right-drag) are **deleted**: they were
+undiscoverable, mouse-only, and they encoded a mixer without admitting it. The
+mixer page is the admission, and it is reachable from the keyboard, an encoder, or
+a controller — which the drag never was (§35.8: if the software surface cannot do
+it, hardware cannot add it).
+
+**MIDI-out level = CC7.** A MIDI-out track's `lockstep.amp.level` is sent as CC7
+(channel volume) on the track's own channel: on project load, on any change, and on
+re-assignment of port / channel / machine. Consecutive identical values are
+suppressed. This is the internal-audio / MIDI-out equality rule applied to level —
+"turn that track down" must mean one thing, whether the track ends in a machine or
+in a synth across the room.
+
 **Song+FX focus cycles loaded units:** `Song+FX` *tap*-re-press walks master
 FX1 → FX2 → Send A return → Send B return, skipping empty units; the FX
 section key shows `"FX"` (not "GLBL") under Song scope — the Song modifier

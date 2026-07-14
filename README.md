@@ -1106,8 +1106,28 @@ is unity below ~−3 dBFS and only catches peaks. Machine-internal character
 saturation (Analog drive, drum kick) is separate and unaffected. Every machine is
 level-matched so a single note at internal level ~0.5 / track 1.0 sits near the
 same reference. The **master output level** is set from the `Func+7` band
-(`Master`) — there is no on-screen fader by design — and its current value shows
-as a **VOL** chip beside the master meter.
+(`Master`), from the **MIXER** page (below), or by **dragging the master VU
+meter** vertically (double-click resets it to 0 dB); its current value shows as a
+**VOL** chip beneath the meter, and as a tick across the meter itself.
+
+**The MIXER page.** `Track` + **hold** `AMP` opens a mixer under the eight
+encoders: the levels of the eight tracks in the current bank, with the master on
+the second sub-page. (A *tap* of `AMP` under `Track` still pages to that track's
+AMP section — the hold is the mixer, exactly as `Track` + hold `SRC` is the
+machine picker.) Mixer moves are always **track base values**, never P-Locks, even
+with a step held: a mixer is where you balance the kit, not where you automate it.
+
+Each track's VU cell carries a **level tick** showing where that track's
+`lockstep.amp.level` sits. The tick is a readout, not a control — the old
+click-and-drag on the VU cells is gone: it was invisible, it was mouse-only, and
+the surface it implied (a mixer) now exists as a page you can reach from the
+keyboard, an encoder, or a controller.
+
+**MIDI-out tracks are mixed the same way.** A track whose machine is `MIDI Out`
+sends its level as **CC7** (channel volume) on its own channel — on project load,
+whenever the level changes, and again if the track is re-pointed at another port,
+channel, or machine. So "turn that track down" means the same thing whether the
+track ends in a machine or in a synth across the room.
 
 State round-trips in serializer v21 (hierarchical time-sig + tempo).
 
