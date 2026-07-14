@@ -2043,6 +2043,10 @@ namespace lockstep
             // checkpoint depth is asked of the scope the user is HOLDING — the same
             // scope its verbs would act on — which is what makes it worth showing.
             si.clipboard = clipboard_.type;
+            // 9.14 st.5: the verbs' operand. Steps and section keys are scopes but not
+            // modifiers, so UiState alone cannot see them — the lane gets it from the
+            // same EditMode the verbs dispatch through.
+            si.scope = editMode_.primaryScope();
             {
                 int ckTrk = 0;
                 si.checkpointDepth = processor_.checkpointDepth(ckScope(ckTrk), ckTrk);

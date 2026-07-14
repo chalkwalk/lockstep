@@ -18,9 +18,10 @@ every remaining claim against the code; the corrections are folded into the
 milestones below. Next orders of business, in order:
 
 0. **Housekeeping sweep** *(in flight)* — this bookkeeping pass; the pool
-   content-hash stub (`SamplePool.cpp`, "real xxHash32 lands in M7", still stubbed
-   despite 9.18 shipping "content-hash refs"); and `9.14` stage 5 + the stage 6
-   close-out, which finishes `9.14`.
+   content-hash comments (which claimed "real xxHash32 lands in M7" long after the
+   canonical algorithm shipped — the hash was never a stub; the *comments* were the
+   defect, and the real invariants are now written down where the field lives); and
+   `9.14` stage 5 + the stage 6 close-out, which finishes `9.14`.
 1. **`9.23` gap — Stream→pool wiring.** The one *functional* gap the review found
    hiding behind shipped prose: `StreamMachine` hardcodes `effBpm = 0.0` and so
    ignores the pool's effective tempo / one-shot / A440 metadata that 9.18's S5
@@ -2201,7 +2202,7 @@ caused several recent bugs) and make silent `switch` fall-through a compile erro
   is a shim. `activeOverlay()` returns `ui.overlay`; `escapeOverlay()` guards each
   arm. *(Stage 6 — 5259b6a)*
 
-### 9.14 — Grammar-consistency pass: Clear/Delete, FX picker, per-step inspector, move-step  *[stages 0–4 shipped; 5 open; 6 partial]*
+### 9.14 — Grammar-consistency pass: Clear/Delete, FX picker, per-step inspector, move-step  *[shipped]*
 
 One coherent **orchestra paradigm** (PRINCIPLES §21) makes destructive verbs
 predictable, puts the FX picker under its section, brings per-step note/P-Lock
@@ -2234,18 +2235,35 @@ tap = navigate/toggle** (PRINCIPLES §5). Docs-first.
       microOffset; MZ flips to position panel (encoders = move + micro-time);
       `QUANT` zeroes offset. *(`6c59a3b`, `a33f12d`, `8a4c719`;
       `core/StepBlockMove.h`.)*
-- [ ] **Stage 5 — Copy/paste discoverability.** Armed banners/preview for
-      Record/Play; no clipboard-model change. *(Re-verified 2026-07-14: 9.30 added
-      a `CPY:` clipboard-**content** badge to the status lane, but the **armed-verb**
-      half is still missing — `copyHint()`/`pasteHint()` in `StatusText.h` have zero
-      callers. Per the 9.30 taxonomy the banner is state-derived, not a fading toast.)*
+- [x] **Stage 5 — Copy/paste discoverability.** *(Shipped 2026-07-14.)* The status
+      lane now carries the **armed-verb** half beside 9.30's clipboard-*content* badge:
+      `REC=COPY` when the held scope copies, and `PLAY=PASTE` **only when the clipboard
+      holds something that scope will actually accept**. State-derived per the §42
+      taxonomy; no clipboard-model change.
+      The stage did not wire the scaffolded `copyHint()`/`pasteHint()` — it **deleted**
+      them. They had no callers and named the wrong key (`P=COPY`; `P` is CONFIRM,
+      COPY is on Record), so wiring them would have shipped the exact defect 9.12
+      exists to prevent. The hint is derived from the **scope × verb matrix**
+      (`verbs::clipAffordance`) instead, which is the real authority: for the verb
+      family the key table carries only *labels* while `handleVerb` decides *behaviour*.
+      **That gap was hiding a live bug.** `Song` had COPY and PASTE rows for verbs
+      `verbs::song` never implemented, so both keys were silent no-ops wearing labels
+      (the old dispatch golden recorded the proof: the press mutated no clipboard).
+      Both rows are gone; the keys now dim under Song, like `P` does. One matrix now
+      feeds the paste guards, the key glow, and the lane, so they cannot drift.
 - [~] **Stage 6 — Tests + README.** Confirm-tier resolution; `Track+Song+Clear`
       round-trip; move-step carries overrides round-trip; inspector lock-clear
       + note edit; hold-FX picker entry. README shortcut table; remove retired
       `Func+Src+step` / `Func+FX`. *(Partial: swapSteps round-trip in
       EngineTest; README §5.8 documents hold-FX picker + inspector note-edit and
-      `Func+FX`-as-meta-section matches KeyBindings. Remaining: confirm-tier +
-      inspector-gesture test coverage audit — close with Stage 5.)*
+      `Func+FX`-as-meta-section matches KeyBindings.)*
+      *(Closed 2026-07-14 with the st.6 audit. It found six `ConfirmKind` values with
+      **no** test coverage — DeleteScene, BakeScene, CreateScene, CreateBaselineScene,
+      PasteScene, ClearPhrase — which made 9.30's "an armed confirm can never be
+      invisible" true only for the kinds someone had remembered to test. The audit is
+      now an exhaustive test over the whole enum: every kind must arm the pop-over, name
+      itself, and be unable to fade. A new kind that forgets its prompt fails the build's
+      test run instead of shipping a blank dialog.)*
 
 > **Retired/relocated gestures (this item):** `Func+Src+step` (note edit) →
 > hold-step inspector + SRC; `Func+step` (P-Lock clear mode) → inspector tap-to-clear;

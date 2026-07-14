@@ -236,10 +236,6 @@ L22 | Scene+VerbRecord idx=-1 | action=43
     down sceneHeld: false -> true
     down swingDismissed: false -> true
 
-L22 | Song+VerbRecord idx=-1 | action=40
-    down songHeld: false -> true
-    down swingDismissed: false -> true
-
 L22 | VerbRecord idx=-1 | action=34
     up   proc.recordArmed: false -> true
 
@@ -254,10 +250,6 @@ L22 | Track+VerbPlay idx=-1 | action=41
 
 L22 | Phrase+VerbPlay idx=-1 | action=41
     down phraseScopeHeld: false -> true
-
-L22 | Song+VerbPlay idx=-1 | action=41
-    down songHeld: false -> true
-    down swingDismissed: false -> true
 
 L22 | VerbPlay idx=-1 | action=35
     (no observable state change)

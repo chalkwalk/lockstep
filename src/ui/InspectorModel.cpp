@@ -3,6 +3,7 @@
 #include "../io/EditContext.h"
 #include "../PluginProcessor.h"
 #include "../command/KeyBindings.h"
+#include "../command/VerbCommands.h"
 #include "../core/MusicalGate.h"
 #include "mode/ModalState.h"
 #include "MetaBand.h"
@@ -110,6 +111,25 @@ namespace lockstep
         return "track --";
     }
 
+    // 9.14 st.5 — the ARMED-VERB half of clipboard chrome. `CPY:TRK` (below) says what
+    // the clipboard HOLDS; this says what the two verb keys WOULD DO if pressed right
+    // now. Both halves are needed: knowing a track is on the clipboard does not tell you
+    // that PLAY will stamp it here, and the answer changes with every scope you hold.
+    //
+    // Sourced from the scope x verb matrix (verbs::clipAffordance), NOT from the key
+    // table -- for the verb family the table carries only labels while `handleVerb`
+    // decides behaviour, so a hint read from the table can advertise a paste the verb
+    // refuses. PASTE is shown only when the clipboard actually satisfies this scope;
+    // silence is the honest answer when the key would no-op.
+    static juce::String buildClipHint(const UiState& ui, const StatusInput& si) noexcept
+    {
+        const auto aff = verbs::clipAffordance(si.scope, ui.funcHeld, si.clipboard);
+        juce::String out;
+        if (aff.canCopy)  out += "  REC=COPY";
+        if (aff.canPaste) out += "  PLAY=PASTE";
+        return out;
+    }
+
     // 9.30 st.2: the badges the header dashboard used to carry, folded into HELD.
     // They QUALIFY the scope, which is why they belong next to it: "TRACK" plus
     // "CPY:TRK" together say "a paste right now would stamp a track", and CK says how
@@ -148,6 +168,7 @@ namespace lockstep
         if (si.checkpointDepth > 0)
             out += "  CK:" + juce::String(si.checkpointDepth);
 
+        out += buildClipHint(ui, si);
         return out;
     }
 

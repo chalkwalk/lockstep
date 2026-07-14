@@ -4,6 +4,7 @@
 #include "../io/ControllerEvent.h"
 #include "../state/UiState.h"      // ConfirmKind
 #include "../io/ClipboardType.h"
+#include "../io/EditMode.h"        // PrimaryScope
 
 namespace lockstep
 {
@@ -64,6 +65,13 @@ namespace lockstep
         // of the chrome the eye never visits.
         ClipboardType clipboard = ClipboardType::None;
         int checkpointDepth = 0;         // depth of the HELD scope's checkpoint stack
+
+        // 9.14 st.5 — the scope the VERBS will act on (EditMode::primaryScope()). It is
+        // an editor-owned fact because it depends on held STEPS and SECTION keys, which
+        // are not modifiers and so are not in UiState. Without it the lane could only
+        // guess whether Record copies right now, and guessing is how the Song keys came
+        // to advertise a COPY that did not exist.
+        EditMode::PrimaryScope scope = EditMode::PrimaryScope::None;
     };
 
     struct InspectorModel

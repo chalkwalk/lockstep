@@ -11,6 +11,23 @@
 
 namespace lockstep
 {
+    // hashXX32 is a real xxHash32 (state/Hash.cpp), not a stub — two long-lived
+    // comments claimed otherwise until 2026-07-14. Two things about it are
+    // load-bearing:
+    //
+    //   Scope. For decoded entries it fingerprints **channel 0 only** (cheap, and
+    //   the pool never needs to distinguish files by their right channel alone).
+    //   The bounded cost: two files whose first channel is byte-identical collide
+    //   — e.g. a mono file and a stereo widening of it. Stream entries hash the
+    //   first 1 MB of *file bytes* instead (they must never decode); that is a
+    //   change-detector, not a content fingerprint, and the two schemes are not
+    //   comparable across origins. Entries are matched within an origin.
+    //
+    //   Stability. The value is **persisted identity** — sample refs (`sh`) and
+    //   insert-slot IR refs (v31) are stored by hash and resolved against pool
+    //   hashes recomputed at load. Changing what the hash covers therefore
+    //   silently orphans every saved reference: it needs a serializer bump and a
+    //   migration, not a one-line edit.
     struct SampleRef
     {
         std::string path;

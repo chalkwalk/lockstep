@@ -6,6 +6,7 @@
 #include "KeyLabel.h"
 #include "../command/SurfaceLayer.h"
 #include "../command/KeyBindings.h"
+#include "../command/VerbCommands.h"
 #include "ParamFormat.h"
 #include "ScopedSectionMatrix.h"
 #include "SectionResolve.h"
@@ -869,7 +870,24 @@ namespace lockstep
                     else
                         c.disabled = true;
                 }
-                else if (def.role == KeyRole::VerbSnapshot || (def.role == KeyRole::VerbCopy && !ui.morphHeld) || (def.role == KeyRole::VerbPaste && !ui.morphHeld) || def.role == KeyRole::VerbClear)
+                else if (def.role == KeyRole::VerbCopy || def.role == KeyRole::VerbPaste)
+                {
+                    // 9.14 st.5: glow ONLY where the scope actually has a clipboard.
+                    // Asked of the verb matrix (the same source the key dispatches
+                    // through), because "does this scope copy?" is a question the key
+                    // table cannot answer -- its verb rows carry labels while handleVerb
+                    // decides behaviour. Song glowed here for years advertising a COPY
+                    // that verbs::song never implemented; now it dims, like P does.
+                    // (Morph needs no special case: the matrix already says it has no
+                    // clipboard, which is why it never glowed.)
+                    const auto aff = verbs::clipAffordance(sectionScope, ui.funcHeld,
+                                                           ClipboardType::None);
+                    if (aff.canCopy)
+                        c.scopeTint = scopeColour(sectionScope).getARGB();
+                    else
+                        c.disabled = true;
+                }
+                else if (def.role == KeyRole::VerbSnapshot || def.role == KeyRole::VerbClear)
                     c.scopeTint = scopeColour(sectionScope).getARGB();
             }
 

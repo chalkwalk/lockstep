@@ -6,6 +6,68 @@
 
 namespace lockstep::verbs
 {
+    // The scope x clipboard matrix (9.14 st.5). Exhaustive over PrimaryScope with no
+    // `default:` so a new scope must state whether it copies (PRINCIPLES §20).
+    ClipAffordance clipAffordance(EditMode::PrimaryScope scope,
+                                  bool func,
+                                  ClipboardType clip) noexcept
+    {
+        using PS = EditMode::PrimaryScope;
+        using CT = ClipboardType;
+
+        // Func + Track IS the Machine scope (9.29): the sound, not the track. It is
+        // reached through the table (MachineCopy / MachinePaste) rather than through
+        // primaryScope, and it is stricter than the rest -- an omni grab holds no
+        // machine params, so `All` does NOT satisfy a machine paste.
+        if (func && scope == PS::Track)
+            return { true, clip == CT::Machine, CT::Machine };
+
+        // Func alone = the omni grab (captured in the editor: it spans layers no single
+        // scope owns). Its paste is the mirror: it stamps a single captured layer, and
+        // refuses an `All` clip because "paste everything" has no unambiguous target --
+        // the user must name a scope.
+        if (scope == PS::Func)
+            return { true, clip != CT::None && clip != CT::All, CT::All };
+
+        auto native = CT::None;
+        switch (scope)
+        {
+            case PS::Trig:    native = CT::Step;    break;
+            case PS::Section: native = CT::Section; break;
+            case PS::Track:   native = CT::Track;   break;
+            case PS::Phrase:  native = CT::Pattern; break;
+
+            // Scene's verbs require Func (bare Scene+Record is BAKE, which is a
+            // different verb on the same key), so an unqualified Scene hold offers
+            // no clipboard at all.
+            case PS::Scene:   native = func ? CT::Scene : CT::None; break;
+
+            // Song has no clipboard. Its rows in the binding table SAID copy/paste
+            // until 9.14 st.5 and `verbs::song` never implemented either, so both keys
+            // were silent no-ops wearing labels. The song-level grab is the omni one,
+            // on Func.
+            case PS::Song:
+            case PS::Mute:
+            case PS::Fill:
+            case PS::Cue:
+            case PS::Morph:
+            case PS::Func:
+            case PS::None:
+                native = CT::None;
+                break;
+        }
+
+        if (native == CT::None)
+            return {};
+
+        return { true, clip == native || clip == CT::All, native };
+    }
+
+    bool pasteAccepts(EditMode::PrimaryScope scope, bool func, ClipboardType clip) noexcept
+    {
+        return clipAffordance(scope, func, clip).canPaste;
+    }
+
     bool trig(ControllerButton verb, CommandContext& ctx, [[maybe_unused]] CommandEffects& fx)
     {
         using CB = ControllerButton;
@@ -36,7 +98,7 @@ namespace lockstep::verbs
 
         if (verb == CB::VerbPlay)
         {
-            if (ctx.clipboard.type != ClipboardType::Step && ctx.clipboard.type != ClipboardType::All)
+            if (!pasteAccepts(EditMode::PrimaryScope::Trig, false, ctx.clipboard.type))
                 return false;
             const int anchor = ec.heldStepIndex();
             const int trkLen = trk.length;
@@ -136,7 +198,7 @@ namespace lockstep::verbs
         }
         if (verb == CB::VerbPlay)
         {
-            if (ctx.clipboard.type != ClipboardType::Track && ctx.clipboard.type != ClipboardType::All)
+            if (!pasteAccepts(EditMode::PrimaryScope::Track, false, ctx.clipboard.type))
                 return false;
             trk = ctx.clipboard.clipTrack;
             fx.status(status::pastedTrackWithSource(at));
@@ -176,7 +238,7 @@ namespace lockstep::verbs
         }
         if (verb == CB::VerbPlay)
         {
-            if (ctx.clipboard.type != ClipboardType::Pattern && ctx.clipboard.type != ClipboardType::All)
+            if (!pasteAccepts(EditMode::PrimaryScope::Phrase, false, ctx.clipboard.type))
                 return false;
             ctx.sequence = ctx.clipboard.clipSequence;
             fx.status(status::pastedPhrase());
@@ -232,7 +294,8 @@ namespace lockstep::verbs
         }
         if (verb == CB::VerbPlay)
         {
-            if (ctx.clipboard.type != ClipboardType::Scene && ctx.clipboard.type != ClipboardType::All)
+            // Func is guaranteed held here (guarded at the top of scene()).
+            if (!pasteAccepts(EditMode::PrimaryScope::Scene, true, ctx.clipboard.type))
                 return false;
 
             if (ctx.editMode.scopeState().mute)
@@ -300,7 +363,7 @@ namespace lockstep::verbs
         }
         if (verb == CB::VerbPlay)
         {
-            if (ctx.clipboard.type != ClipboardType::Section && ctx.clipboard.type != ClipboardType::All)
+            if (!pasteAccepts(EditMode::PrimaryScope::Section, false, ctx.clipboard.type))
                 return false;
             for (const auto& entry : ctx.clipboard.sectionSlots)
             {

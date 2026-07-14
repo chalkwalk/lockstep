@@ -2125,7 +2125,9 @@ Track (2)
 ├─ + param edit (no track selected) → Control-All: broadcast the edit to every matching track — §5.10
 ├─ + ↑ / ↓ (no track selected) → cycle the focused track's input mode PLAY ↔ CHROMATIC ↔ LEVELS — §5.17
 ├─ + track-key + Nav → set the input mode on that specific track — §5.18
-├─ + U / I / O       → copy / paste (P=COPY hint when held) / clear the current phrase — §5.9 (confirm-gated)
+├─ + U / I / O       → copy / paste / clear the current phrase — §5.9 (confirm-gated). While held, the
+│                      status lane spells the armed verbs out: `REC=COPY`, and `PLAY=PASTE` only when the
+│                      clipboard actually holds something this scope accepts.
 ├─ + Song + O        → clear the whole track across every phrase — §5.9 (confirm-gated, wider blast radius)
 ├─ + Func + O        → deletion picker: step grid shows tracks; tap to choose → named confirm (P=CONFIRM, Func+P=CANCEL) — §5.4a
 ├─ + P (QUANT)       → Quantize: zero microOffset on every step of the track — §5.1

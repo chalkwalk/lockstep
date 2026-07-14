@@ -3,10 +3,42 @@
 #include "CommandContext.h"
 #include "CommandEffects.h"
 #include "../io/EditMode.h"
+#include "../io/ClipboardType.h"
 #include "../io/ControllerEvent.h"
 
 namespace lockstep::verbs
 {
+  // ── What Record / Play would do RIGHT NOW (9.14 st.5) ──────────────────────
+  //
+  // For the verb family the binding table's action name is only a LABEL: every
+  // verb action funnels through `handleVerb(primaryScope, button)`, so the real
+  // authority on what a verb key does is the scope x verb matrix below, not the
+  // table. That gap is not theoretical -- it is how the Song rows came to
+  // advertise COPY/PASTE for keys that `verbs::song` never handled, and it is
+  // why the discoverability banner must read the matrix. A banner sourced from
+  // the table would faithfully reprint the lie.
+  //
+  // So: ONE description of the copy/paste affordance, read by the paste guards
+  // in VerbCommands.cpp *and* by the inspector hint. They cannot drift.
+    struct ClipAffordance
+    {
+        bool canCopy = false;               // Record copies in this scope
+        bool canPaste = false;              // Play would paste the CURRENT clipboard
+        ClipboardType native = ClipboardType::None;  // the type this scope's copy makes
+    };
+
+  // `scope` = EditMode::primaryScope(); `func` = the Func modifier; `clip` = what
+  // the clipboard currently holds. Pure.
+    [[nodiscard]] ClipAffordance clipAffordance(EditMode::PrimaryScope scope,
+                                                bool func,
+                                                ClipboardType clip) noexcept;
+
+  // The paste guard, in one place: a scope accepts its own copy type, plus `All`
+  // (the omni grab). Machine is the exception -- it takes only a Machine clip.
+    [[nodiscard]] bool pasteAccepts(EditMode::PrimaryScope scope,
+                                    bool func,
+                                    ClipboardType clip) noexcept;
+
   // Per-scope verb handler free functions.
   // Each returns true if the verb was handled (caller must stop processing).
   // Add a function here and call it from CommandCore::handleVerb as each

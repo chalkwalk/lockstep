@@ -33,7 +33,8 @@ namespace lockstep
         sample->pcm.setSize(numChannels, numSamples);
         reader->read(&sample->pcm, 0, numSamples, 0, true, true);
 
-        // Hash the raw float data; real xxHash32 lands in M7.
+        // Content fingerprint over channel 0 — see the hashXX32 note in SamplePool.h
+        // for why it is one channel and why the function cannot change casually.
         sample->ref.hashXX32 = Hash::xx32(
             sample->pcm.getReadPointer(0),
             static_cast<std::size_t>(numSamples) * sizeof(float));

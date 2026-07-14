@@ -6,6 +6,7 @@
 #include "TestHarness.h"
 #include "EngineHarness.h"
 #include "../src/ui/InspectorModel.h"
+#include "../src/command/VerbCommands.h"
 #include "../src/io/EditContext.h"
 #include "../src/io/ControllerEvent.h"
 #include "../src/state/UiState.h"
@@ -385,10 +386,143 @@ namespace lockstep
         CHECK(m.status.contains("3 samples missing"), "and still counting");
     }
 
+    // ─── 9.14 st.5: the armed-verb (copy/paste) hint ──────────────────────────
+
+    // The matrix itself. This is the SSOT the paste guards, the key glow and the lane
+    // all read, so it is tested directly rather than only through the lane.
+    static void testClipAffordanceMatrix()
+    {
+        using PS = EditMode::PrimaryScope;
+        using CT = ClipboardType;
+
+        // Each scope copies its own type...
+        CHECK(verbs::clipAffordance(PS::Track, false, CT::None).native == CT::Track,
+              "Track copies a Track");
+        CHECK(verbs::clipAffordance(PS::Phrase, false, CT::None).native == CT::Pattern,
+              "Phrase copies a Pattern");
+        CHECK(verbs::clipAffordance(PS::Trig, false, CT::None).native == CT::Step,
+              "a held step copies a Step");
+        CHECK(verbs::clipAffordance(PS::Section, false, CT::None).native == CT::Section,
+              "a held section key copies a Section");
+
+        // ...and pastes only that type, or the omni grab.
+        CHECK(verbs::pasteAccepts(PS::Track, false, CT::Track), "Track scope pastes a Track");
+        CHECK(verbs::pasteAccepts(PS::Track, false, CT::All), "Track scope pastes an omni grab");
+        CHECK(!verbs::pasteAccepts(PS::Track, false, CT::Pattern),
+              "Track scope refuses a Pattern -- the typed clipboard is the guard");
+        CHECK(!verbs::pasteAccepts(PS::Track, false, CT::None), "nothing copied, nothing to paste");
+
+        // Scene's verbs live behind Func: a bare Scene hold is BAKE, not COPY.
+        CHECK(!verbs::clipAffordance(PS::Scene, false, CT::None).canCopy,
+              "bare Scene does not copy (Record is BAKE there)");
+        CHECK(verbs::clipAffordance(PS::Scene, true, CT::None).canCopy, "Func+Scene copies");
+
+        // Song has no clipboard at all -- the defect 9.14 st.5 found. Its rows claimed
+        // COPY/PASTE and verbs::song implemented neither.
+        CHECK(!verbs::clipAffordance(PS::Song, false, CT::None).canCopy, "Song does not copy");
+        CHECK(!verbs::pasteAccepts(PS::Song, false, CT::All), "Song does not paste, even an omni grab");
+
+        // Func+Track is the Machine scope (9.29): stricter than the rest, because an omni
+        // grab carries no machine params.
+        CHECK(verbs::clipAffordance(PS::Track, true, CT::Machine).canPaste,
+              "Machine scope pastes a Machine");
+        CHECK(!verbs::clipAffordance(PS::Track, true, CT::All).canPaste,
+              "Machine scope refuses an omni grab");
+
+        // Func alone is the omni grab, and its paste needs a NAMED layer.
+        CHECK(verbs::clipAffordance(PS::Func, true, CT::None).canCopy, "Func alone grabs everything");
+        CHECK(verbs::clipAffordance(PS::Func, true, CT::Track).canPaste, "Func pastes a captured layer");
+        CHECK(!verbs::clipAffordance(PS::Func, true, CT::All).canPaste,
+              "Func refuses to paste an omni grab -- 'paste everything' has no target");
+    }
+
+    // The lane must say what the verb keys WOULD DO, and must stay silent when they
+    // would no-op. Silence is the honest answer; a hint for a key that does nothing is
+    // the very defect (Song's phantom COPY) this stage removed.
+    static void testClipHintNamesTheArmedVerbs()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ec{};
+        UiState ui{};
+
+        StatusInput si;
+        si.scope = EditMode::PrimaryScope::Track;
+        ui.trackHeld = true;
+
+        // Empty clipboard: copy is offered, paste is not.
+        si.clipboard = ClipboardType::None;
+        auto m = buildInspectorModel(ui, ec, proc, ControllerButton::None, -1, si);
+        CHECK(m.held.contains("REC=COPY"), "Track held: the lane offers COPY");
+        CHECK(!m.held.contains("PASTE"), "empty clipboard: no PASTE offered");
+
+        // A track on the clipboard: now paste is live.
+        si.clipboard = ClipboardType::Track;
+        m = buildInspectorModel(ui, ec, proc, ControllerButton::None, -1, si);
+        CHECK(m.held.contains("PLAY=PASTE"), "a Track clip pastes into Track scope");
+
+        // A mismatched clip: the verb would refuse, so the lane must not promise it.
+        si.clipboard = ClipboardType::Pattern;
+        m = buildInspectorModel(ui, ec, proc, ControllerButton::None, -1, si);
+        CHECK(!m.held.contains("PASTE"),
+              "a Pattern clip does NOT paste into Track scope, and the lane says nothing");
+
+        // Song: no clipboard, so neither verb is advertised.
+        ui = UiState{};
+        ui.songHeld = true;
+        si.scope = EditMode::PrimaryScope::Song;
+        si.clipboard = ClipboardType::Track;
+        m = buildInspectorModel(ui, ec, proc, ControllerButton::None, -1, si);
+        CHECK(!m.held.contains("COPY") && !m.held.contains("PASTE"),
+              "Song advertises neither verb -- it implements neither");
+    }
+
+    // ─── 9.14 st.6: the confirm-tier audit ────────────────────────────────────
+
+    // 9.30's structural claim is that an ARMED confirm can never be invisible: the
+    // prompt is derived from the confirm STATE rather than captured when it was armed.
+    // A claim that holds for the kinds someone remembered to test is not structural, and
+    // the st.6 audit found six kinds with no coverage at all (DeleteScene, BakeScene,
+    // CreateScene, CreateBaselineScene, PasteScene, ClearPhrase). So assert it over the
+    // WHOLE enum: every kind must arm the pop-over and name itself. A new ConfirmKind
+    // that forgets its prompt now fails here instead of shipping a blank dialog.
+    static void testEveryConfirmKindNamesItself()
+    {
+        EngineHarness h;
+        EditContext ec{};
+
+        constexpr ConfirmKind kAll[] = {
+            ConfirmKind::DeleteTrack, ConfirmKind::DeletePhrase, ConfirmKind::DeleteScene,
+            ConfirmKind::BakeScene,   ConfirmKind::CreateScene,  ConfirmKind::CreateBaselineScene,
+            ConfirmKind::PasteScene,  ConfirmKind::ClearTrack,   ConfirmKind::ClearTrackAll,
+            ConfirmKind::ClearPhrase,
+        };
+
+        for (const auto kind : kAll)
+        {
+            UiState ui{};
+            ui.confirm = { kind, 2 };
+            const auto m = build(ui, ec, h.processor());
+
+            CHECK(m.statusKind == StatusKind::Confirm, "an armed confirm is a Confirm state");
+            CHECK(m.confirmPrompt.isNotEmpty(), "an armed confirm always names itself");
+            CHECK(m.confirmActions.isNotEmpty(), "an armed confirm always offers its keys");
+            CHECK(m.statusAlpha >= 1.0f, "a confirm is state: it cannot fade while armed");
+        }
+
+        // And the resting case: no arming, no pop-over.
+        UiState idle{};
+        const auto m = build(idle, ec, h.processor());
+        CHECK(m.statusKind != StatusKind::Confirm, "nothing armed, no confirm");
+    }
+
     // ─── entry point ──────────────────────────────────────────────────────────
 
     void runInspectorModelTests()
     {
+        testClipAffordanceMatrix();
+        testClipHintNamesTheArmedVerbs();
+        testEveryConfirmKindNamesItself();
         testIdleFallbacks();
         testKeyRegionMatchesAffordance();
         testHeldRegionModifiers();

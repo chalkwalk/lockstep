@@ -139,15 +139,20 @@ namespace lockstep
         { CB::VerbSnapshot, -1, kModNone, SL::Base, AId::VerbSnapshot, u8"SNAP", CS::Resting },
 
         // ── VerbRecord / REC (key U) ──────────────────────────────────────────
-        // Scope+VerbRecord = COPY for Track/Phrase/Song. Scene bare = BAKE (arms confirm);
+        // Scope+VerbRecord = COPY for Track/Phrase. Scene bare = BAKE (arms confirm);
         // Func+Scene+Record = COPY (scene copy, handled in verbs::scene).
         // Func+Song+Record = CAPTURE (arm/disarm WAV capture of master output).
+        //
+        // 9.14 st.5: Song had a COPY row here (and a PASTE row below) for a verb
+        // `verbs::song` never implemented -- handleVerb fell through and the key did
+        // nothing, wearing a label. The song-wide grab is the OMNI one and it lives on
+        // Func alone. Verb labels come from this table but verb BEHAVIOUR comes from
+        // the scope x verb matrix, so a row here is a promise the matrix must keep.
         { CB::VerbRecord, -1, kModSong | kModFunc, SL::Base, AId::ToggleCapture, u8"CAPTURE", CS::FuncHeld },
         { CB::VerbRecord, -1, kModScene | kModFunc, SL::Base, AId::VerbCopy, u8"COPY", CS::FuncHeld },
         { CB::VerbRecord, -1, kModTrack, SL::Base, AId::VerbCopy, u8"COPY", CS::Resting },
         { CB::VerbRecord, -1, kModPhrase, SL::Base, AId::VerbCopy, u8"COPY", CS::Resting },
         { CB::VerbRecord, -1, kModScene, SL::Base, AId::VerbBakeScene, u8"BAKE", CS::Resting },
-        { CB::VerbRecord, -1, kModSong, SL::Base, AId::VerbCopy, u8"COPY", CS::Resting },
         // Promoted so the tap REC keeps the primary slot over the RESET hold secondary
         // (below): at equal specificity deriveSlots' fallback would otherwise let the
         // hold win, flipping the key's big label to RESET.
@@ -155,12 +160,11 @@ namespace lockstep
           Gesture::Tap, true },
 
         // ── VerbPlay / PLAY (key I) ───────────────────────────────────────────
-        // Scope+VerbPlay = PASTE for Track/Phrase/Song. Scene bare is inert (verbs::scene
-        // requires Func); Func+Scene+Play = PASTE.
+        // Scope+VerbPlay = PASTE for Track/Phrase. Scene bare is inert (verbs::scene
+        // requires Func); Func+Scene+Play = PASTE. Song has no paste (see the REC note).
         { CB::VerbPlay, -1, kModScene | kModFunc, SL::Base, AId::VerbPaste, u8"PASTE", CS::FuncHeld },
         { CB::VerbPlay, -1, kModTrack, SL::Base, AId::VerbPaste, u8"PASTE", CS::Resting },
         { CB::VerbPlay, -1, kModPhrase, SL::Base, AId::VerbPaste, u8"PASTE", CS::Resting },
-        { CB::VerbPlay, -1, kModSong, SL::Base, AId::VerbPaste, u8"PASTE", CS::Resting },
         { CB::VerbPlay, -1, kModNone, SL::Base, AId::VerbPlay, u8"PLAY", CS::Resting },
 
         // ── VerbClear / CLEAR (key O) ─────────────────────────────────────────

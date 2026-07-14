@@ -160,7 +160,10 @@ namespace lockstep
         CHECK(resolve(CB::VerbRecord, kModPhrase) == AId::VerbCopy, "Phrase+U = COPY");
         CHECK(resolve(CB::VerbRecord, kModScene) == AId::VerbBakeScene, "Scene+U = BAKE");
         CHECK(resolve(CB::VerbRecord, kModScene | kModFunc) == AId::VerbCopy, "Func+Scene+U = COPY");
-        CHECK(resolve(CB::VerbRecord, kModSong) == AId::VerbCopy, "Song+U = COPY");
+        // 9.14 st.5: Song has NO copy. It carried a COPY row for a verb verbs::song never
+        // implemented, so the key was a labelled no-op; the row is gone and the key falls
+        // back to the bare REC label, dimmed by SurfaceModel (Song has no clipboard).
+        CHECK(resolve(CB::VerbRecord, kModSong) == AId::VerbRecord, "Song+U = no COPY (falls back to REC, dimmed)");
         // Morph does NOT relabel REC to COPY
         CHECK(resolve(CB::VerbRecord, kModMorph) == AId::VerbRecord, "Morph+U stays REC");
 
@@ -170,6 +173,7 @@ namespace lockstep
         CHECK(resolve(CB::VerbPlay, kModMorph) == AId::VerbPlay, "Morph+I stays PLAY");
         CHECK(resolve(CB::VerbPlay, kModScene) == AId::VerbPlay, "Scene+I = PLAY (no PASTE row; bare is inert in dispatch)");
         CHECK(resolve(CB::VerbPlay, kModScene | kModFunc) == AId::VerbPaste, "Func+Scene+I = PASTE");
+        CHECK(resolve(CB::VerbPlay, kModSong) == AId::VerbPlay, "Song+I = no PASTE (see Song+U)");
 
         // O: CLEAR on the tap, DELETE on the HOLD (9.29). Func no longer turns Clear
         // into Delete -- Func+Track is the Machine scope, and its Clear is INIT.

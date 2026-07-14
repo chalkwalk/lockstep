@@ -216,15 +216,13 @@ namespace lockstep::status
     inline juce::String soundBankHint() { return "Fill+SRC: performance recall"; }
 
     // ---- copy/paste discoverability (9.14 Stage 5) -------------------------
-
-    // Hint appended to scope-held status when there is no clipboard content.
-    inline juce::String copyHint() { return "  P=COPY"; }
-
-    // Hint appended when clipboard has a paste-compatible type for this scope.
-    inline juce::String pasteHint(const char* clipTypeName)
-    {
-        return juce::String("  P=COPY  Play=PASTE ") + clipTypeName;
-    }
+    //
+    // The scaffolded copyHint()/pasteHint() that sat here were deleted when st.5 was
+    // built. They had never had a caller, and they named the wrong key: COPY is on
+    // Record (U) and PASTE on Play (I), while "P" is CONFIRM. Wiring them would have
+    // shipped a frame that advertised a key it does not honour -- the exact defect
+    // class 9.12 exists to prevent. The hint is now derived from the verb matrix in
+    // InspectorModel (buildClipHint), where it cannot disagree with dispatch.
 
     inline juce::String copiedTrackWithScope(int track, bool allPhrases)
     {
