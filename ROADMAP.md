@@ -17,46 +17,28 @@ enforcement) cleared on 2026-07-13, and the grammar/usability arc shipped `9.29`
 every remaining claim against the code; the corrections are folded into the
 milestones below. Next orders of business, in order:
 
-0. **Housekeeping sweep** *(in flight)* — this bookkeeping pass; the pool
-   content-hash comments (which claimed "real xxHash32 lands in M7" long after the
-   canonical algorithm shipped — the hash was never a stub; the *comments* were the
-   defect, and the real invariants are now written down where the field lives); and
-   `9.14` stage 5 + the stage 6 close-out, which finishes `9.14`.
-1. **`9.23` gap — Stream→pool wiring.** The one *functional* gap the review found
-   hiding behind shipped prose: `StreamMachine` hardcodes `effBpm = 0.0` and so
-   ignores the pool's effective tempo / one-shot / A440 metadata that 9.18's S5
-   shipped for it.
-2. **`9.4` — snapshot restore-semantics session.** Docs-first, interactive. Extra
-   motivation found: `restoreOne()` on an empty stack silently falls back to the
-   project baseline (flagged `DESIGN-DEBT(undo-model)` in `Arrangement.h`).
-3. **`6.4` — Cue completion.** Smaller than the roadmap claimed (see the scope
+0. *(done since the review, same day)* — the housekeeping sweep (`9.14` closed
+   with the stage-6 audit; pool content-hash comments corrected), the `9.23`
+   Stream→pool wiring gap (shipped as `9.23` S9), and the `9.4` design session
+   (spec in DESIGN §13.6; build item A — the silent restore-wipe fix — shipped).
+1. **`9.4` — snapshot / undo build items B–H.** The spec is in; wire scoped
+   snapshot, rehome SYNC, the epoch/overlap engine, undo on `Func+O`, surface
+   + tests.
+2. **`6.4` — Cue completion.** Smaller than the roadmap claimed (see the scope
    correction in 6.4): the scope key and the bus are live; what is missing is the
    per-track cue send tap and the `Cue`+X gestures.
-4. **`5.3` — Song/Scene management UI.** The big arc: names, colours, browser,
+3. **`5.3` — Song/Scene management UI.** The big arc: names, colours, browser,
    sound recall. Needs its own brainstorm/design session first — "Kit" is retired
    as a term (`9.29`), so the recall-unit story is re-derived, likely atop
    `SoundPool`. Must fit the picker paradigm (step grid is the selection surface;
    no popups) and the scope+verb grammar.
 
-**Capture arc closed 2026-07-12.** `11.10` (the CUJ session — DESIGN §41 +
-README §5.23) and `11.11` (the stems completion) are both shipped: stem
-alignment is now an invariant, a set improvised from nothing comes home with
-stems, arming names its outcome, and every take carries a take sheet. Two
-defects died with it — the arm-time stem set (S12) and the mute-shortened stem
-(S13, which was shipped and silent). `11.12` then enabled every bus by default
-(the "host opts in" flag bought nothing observable in a DAW and cost the
-standalone its inputs) and killed a third shipped defect on the way out: the
-capture writers were sized from the *total* channel count, so any host that had
-enabled an Aux made them read off the end of a stereo buffer. The capture arc is
-closed; nothing in it is outstanding.
-
-**Recently shipped:** Phase 11 (the deck engine) is **complete** — core,
-tail (chase-locked Tape, i16 reel, §19 proxies, scrub/wind, multi-sub overdub),
-and all four play-test rounds. Phase 10 is shipped through 10.10 except `10.5`
-(diatonic nav — partial), `10.6` (scale-quantize) and `10.11`. `9.14` shipped
-stages 0–4 (stage 5 copy/paste banners open). The 2026-07-14 review also flipped
-five milestones whose `[active]` flag had gone stale — `9.5`, `9.6`, `9.8a`,
-`9.13`, `9.27` are all complete in code.
+**Recently shipped:** the capture arc closed 2026-07-12 (`11.10`–`11.12` —
+see their compressed entries below the seam) and Phase 11 (the deck engine)
+is complete, core, tail and all play-test rounds. Phase 10 is shipped through
+10.10 except `10.5` (partial), `10.6` and `10.11`. The 2026-07-14 review also
+flipped five milestones whose `[active]` flag had gone stale (`9.5`, `9.6`,
+`9.8a`, `9.13`, `9.27` — all complete in code).
 
 **Gated on the user (schedule a dogfooding session or mark waived):** ear
 tests (`9.23` S1 Bungee, `9.24` A/B matrix, `9.25` R4 varispeed texture);
@@ -261,513 +243,14 @@ are sequencing decisions with no other home.
 
 ---
 
-## Phase 4 — Machine Catalogue  *[partial]*
-
-DESIGN §1 (lineage), §29. Each machine is a contributor-sized engine inheriting
-the SDK base. 4.1–4.4 shipped; 4.5+ are authored against the frozen surface and
-the Machine Module ABI (6.7), so they ship as loadable modules.
-
-### 4.1 — FMMachine  *[shipped]*  *(was MH.1)*
-- [x] 4-op FM, free 4×4 matrix, per-op ADSR/ratio/fine/mix, macro scalars,
-      Mono/Poly (4-voice pool, oldest-steal).
-
-### 4.2 — AnalogMachine  *[shipped]*  *(was MH.2)*
-- [x] Dual PolyBLEP oscs + sub + noise, SVF (LP4/LP2/HP/BP + drive), filter +
-      amp ADSR, LFO (6 shapes, 4 targets), portamento, Mono/Para-4.
-- [x] Polyphonic-trig infrastructure (≤4 notes/step, chord capture, gate
-      auto-write), backward-compatible serialization.
-
-### 4.3 — DrumMachine  *[shipped]*  *(was MH.3)*
-- [x] Rytm-style per-track drum synthesis; `type` stepped slot selects KICK /
-      SNARE / HAT / TOM, each with dedicated DSP.
-
-### 4.4 — Sample depth + SliceMachine  *[shipped]*  *(was MH.4; absorbs the old MK)*
-- [x] Sample trim window (`samp_start/length`), four loop modes, loop region,
-      edit-time zero-crossing snap; shared `SamplePlayingMachineBase`.
-- [x] `SliceMachine` (SLICE / SCRUB dual mode, 16-slice cap, transient
-      detection, MONO/POLY, anti-click fade, reverse at rate < 0).
-
-### 4.5 — StreamMachine (disk-stream)  *[shipped]*  *(was MH.6)*
-- [x] Disk-streaming sampler for long-form audio (DESIGN §29). Streams via a
-      background `BufferingAudioReader`; audio never decoded wholesale into RAM.
-      Source file path held per-Kit (`TrackKit::staticPath`, serializer key
-      `staticPath`, additive — no version bump), not a SamplePool entry; assigned
-      by dropping a file on a focused Stream track. `start` slot; gated stream
-      (`hasInternalAmp`, level/pan via CHANNEL). Resampling on rate mismatch is a
-      later refinement. `StreamMachineTest` covers open/stream/stop/bad-path.
-
-### 4.6 — PercussionMachine (physical model)  *[planned — unblocked 2026-07-12: ships first-party, no longer waits on 6.7]*  *(was MH.7)*
-- [ ] Volca-Drum-style two-layer percussion: excitation osc (+FM/ring + pitch
-      env) → waveguide / modal resonator (Tube/String/Membrane/Modal); layer A↔B
-      crossfade + bit/SR reduce + drive. Canonical FLTR/AMP downstream. Algorithm
-      presets ship as Sound Pool entries, not schema variants.
-
-### 4.7 — DigitalMachine (Monomachine archetype)  *[planned — unblocked 2026-07-12: ships first-party, no longer waits on 6.7]*  *(was MH.8)*
-- [ ] Model-based digital monosynth (`model` stepped slot): SWAVE (supersaw),
-      SID (PWM+ring+sync), WAVE (single-cycle wavetable/PWM), VO (formant).
-      `V1` + live Mono/Poly; canonical FLTR/AMP (no opt-out). Monomachine
-      GND/FM/drum engines subsumed (Route / FMMachine / DrumSynth). Authored
-      against the 6.7 SDK + post-3.11 contract.
-
-### 4.8 — DrumSynth voice expansion  *[shipped]*  *(was MH.9)*
-- [x] Extended the DrumSynth `type` enum to eight voices: KICK, SNARE, HAT, TOM,
-      CLAP, COWBELL, CYMBAL, RIMSHOT — each with dedicated DSP.
-      Boundary rule: 808/909 analog/FM-metal lives in DrumSynth; modal/waveguide
-      struck-metal stays in PercussionMachine. Shipped as `type` values.
-
-### 4.9 — Sample analysis metadata  *[shipped]*
-Completes the sample-analysis story the pool already anticipated (tempo
-detection shipped earlier; `Sample::detectedBpm` + `StretchMachine` tempo sync).
-- [x] **Key + tuning detection** (`dsp/KeyEstimate.h`): a full-sample FFT →
-      band-limited (60–2000 Hz) chroma → tuning reference (deviation from A440,
-      via parabolic peak interpolation) → key scored over 12 roots × 7
-      brightnesses with the circle-of-fifths `noteStrengthRank` (the same tonal
-      core the melodic generator uses; DESIGN §4.10). Depth is **root +
-      brightness only**. Unknown = root −1, gated by chroma concentration +
-      score-margin confidence. Runs at load, message thread, under the shared
-      ≤30 s `kMaxAnalysisSeconds` gate.
-- [x] **Filename + ACID hints** (`dsp/SampleHints.h`): parse tempo/key from the
-      filename (bpm-adjacent tokens; note+quality patterns) and ACID WAV tags
-      (`acidTempo`/`acidRootSet`/`acidRootNote`/`acidOneShot`); fuse
-      detection-first — a hint only resolves the tempo estimator's octave fold
-      (~2×/0.5×) or fills a gap; a one-shot flag suppresses any tempo hint.
-- [x] **Cached analysis, serialized v26** — per pool entry, keyed by the sample
-      hash. A hash match on load adopts the cache and skips re-analysis; a
-      mismatch (or a legacy v25 entry) re-analyses. Missing files keep their
-      cache across an offline session.
-- [x] **SliceMachine SYNC source** — third `slicer_slice_src` value; the Count
-      slot reinterprets as a clock division (`4bar…1/16`, shown as a "Div 1/4"
-      context label). Beat-grid boundaries at the detected tempo, anchored on
-      the first transient (a loop may not start on the 1) and ZC-snapped;
-      bpm == 0 falls back to EQUAL.
-- [x] **Pool visibility** — the browser hint reads `128 bpm  Amin`; an analysed
-      entry with neither tempo nor key is flagged `one-shot`.
-- **Excluded by design:** StreamMachine files (never enter the pool — no PCM in
-  RAM to analyse) and volatile REC/Loop captures (never serialized).
-  **Documented follow-up:** key-synced StretchMachine playback (pitch offset to
-  the project key) — the fused key metadata is the input it will consume.
-
----
-
-## Phase 5 — Performance Depth  *[partial: 5.1/5.2/5.7/5.7c/5.10 shipped; 5.3 next (active arc); 5.4/5.8/5.9 open]*
-
-The depth pass on top of the frozen surface: timing feel, scenes, pattern/part
-management, sampling, audition, special trigs, the remaining trig-grid modes, and
-the UI-polish/palette pass.
-
-### 5.1 — Microtiming + swing + quantize  *[shipped]*  *(was ML)*
-Completes the record-time capture story (gate / velocity / microtiming).
-- [x] `Step::microOffset ∈ [-0.5, +0.5]`; serializer v9 (`mo` property).
-- [x] Sample-accurate look-ahead scheduler: per-step emit, `pendingTrigs_`
-      deferral, combined ±0.5 cap (DESIGN §19.2). Also fixes the pre-existing
-      single-emit-per-block limitation.
-- [x] Realtime record writes `microOffset` (residual to nearest swung position).
-- [x] Signed additive swing (DESIGN §19.2): initial implementation: global
-      `swing` + per-track `track_t_swing` ∈ [-0.5, +0.5], both APVTS.
-- [x] Hierarchical swing v2 (serializer v10): swing moved from APVTS into
-      Song/SongTrack/Scene musical state (Song-all + Song-track + Scene-all,
-      three additive levels, morph-style qualifier editing). v9→v10 upgrade
-      migrates legacy APVTS values. Swing is no longer host-automatable.
-- [x] `Quantize` verb (`<scope> + No`) zeroing microOffsets in scope.
-- [x] Authoring UI: MicroTime widget (TRIG band, P-lockable); Swing widget
-      in TRACK band — qualifier-driven (hold Song = song-track Δ, hold Scene =
-      scene-all Δ, no scope = song-all root); per-track effective-swing readout.
-- [x] Step-grid nudge-direction tick indicator (amber=late, cyan=early).
-
-### 5.2 — Morph + crossfader  *[shipped]*  *(was MI)*
-DESIGN §17. *(Morph A/B snapshot fields are carried on the Scene after Phase 7
-Stage G — shipped as `Section.sceneA/B`, renamed `Scene.morphA/B` in 7.9; a
-placeholder crossfader slider exists from 3.1. The full crossfader
-implementation ships here.)*
-- [x] `faderValue` `std::atomic<float>` + smoothed follower (RAM-only, not serialized; default f=0/A).
-- [x] Resolver: three-tier P-Lock ▷ morph-lerp ▷ kit-base; **mirror resolution** (absent pole = other pole ?? kit base); fader inert until A ≠ B. Both process paths (stopped + running).
-- [x] Modifier-gated sculpting: hold/latch `Morph` + encoder → normalised split `da=Δ(1-f)/D, db=Δf/D`; bare encoder → kit base (DESIGN §17.3/§17.6).
-- [x] `Morph + ^/v` pole-forcing + `Morph+Stop` removal; MZ A/B indicators.
-- [x] Stepped snap (f<0.5 → A, else B) + MIDI-out parity (channel/program snap + All-Notes-Off on channel flip).
-- [x] Fluid mute: `Morph+Mute` captures AMP `Level→silence` into near pole, unity into far pole.
-- [x] Fader MIDI-learn: `CCScope::Crossfader`; right-click on crossfader_ slider → learn.
-
-### 5.3 — Song/Scene management UI  *[planned]*  *(was MJ; re-scoped for Phase 7)*
-DESIGN §23 (re-derived for the Phase 7 model). The old Pattern/Part management UI
-is re-scoped to manage Songs and Scenes.
-- [ ] Song + Scene names (≤16 chars, inline editor).
-- [ ] Song + Scene colours + tags (palette tied to §24).
-- [ ] Non-modal browser overlay (Songs → Scenes), navigable while playing;
-      selection reuses the launch gesture.
-- [ ] Copy / move / duplicate Phrases across tracks or Songs.
-- [ ] In-browser Scene queue cue (`Yes` cues, `No` cancels).
-- [ ] Kit as a recall unit (DESIGN §4.7.2): Kit name (inline); save/load
-      against a Set-level Kit library; machine-vs-library paging in the
-      `Func+Track` picker. (Kit reload = `Track`-scope Checkpoint floor,
-      §13.6 — no separate gesture.)
-
-### 5.4 — Sampling + resampling  *[planned]*  *(was MN)*
-DESIGN §22.
-- [ ] Audio-input capture overlay; source picker `{Plugin input, Track 1..N,
-      Master}` (no system/device input).
-- [ ] Free-form capture (`Record`/`Stop` in the Sampling scope) → temp buffer →
-      naming flow.
-- [ ] Capture-N-bars; resample taps (`Track+Sampling`, `Song+Sampling`).
-- [ ] Naming flow (4 curated + 1 hash-derived) from a bundled wordlist.
-- [ ] Pool integration (`samples/recorded/`, standard `xxHash32` ref).
-- [ ] Resample-time stretch/pitch decision (preserve pitch / length / independent
-      ratios; baked, no realtime DSP here).
-
-### 5.5 — Audition (Cue scope) + cross-track record  *[audition shipped]*  *(was MO)*
-DESIGN §21.
-- [x] Audition gestures via the **Cue** scope on the freed `Func+3` compound (no
-      new physical key — hardware parity). `Cue+step` fires that step's resolved
-      trig once; `Cue` alone fires the focused track's base trig. Both bypass the
-      event stream (reuse `liveNoteOn/Off`) and write nothing.
-- [ ] Per-track record arms in Per-Track-MIDI mode; arm-all (`Func+RecordArm`).
-- [ ] Omni-mode arming behaviour documented.
-- [ ] Step-as-keyboard live record composing with the trig-grid modes.
-
-### 5.6 — Special trig types  *[lock-only + one-shot shipped]*  *(was MQ)*
-DESIGN §30.
-- [x] Trigless / lock-only trig: `Step::lockOnly`; the running path now advances
-      `firedStepIdx_` on a lock-only crossing so its FLTR/CHANNEL/ENV/insert
-      overrides ride onto the sustaining voice with **no** note. Toggle =
-      `Trig+step` (`off → note → lock-only`). `CellState::StepLockOnly` chrome.
-      Serializer "lo" (v24).
-- [x] One-shot trig (`TrigCondition::oneShot`): fires once then spent (RAM-only),
-      auto-rearm on transport (re)start + scene apply; `rearmOneShots()` per-track
-      arm-all. COND meta-band "1Shot" field. (Manual arm-all key binding deferred.)
-- [x] Step-state preview integration for lock-only (one-shot armed/spent chrome
-      pending a follow-up).
-- [x] Record trig (6.2) — contextual: a trig on a RecordMachine track is a
-      recorder trig (capture); one-shot composes; lock-only disallowed there.
-
-### 5.7 — Alternate trig modes: Retrig/ratchet + Sound Pool  *[shipped]*  *(was MG remainder + MM generic-role)*
-The trig-grid modal surface beyond CHROMATIC/LEVELS (which shipped in 3.9).
-- [x] Retrig / ratchet trig-grid mode (`Fill+TRIG` momentary hold): grid shows 8
-      ratchet rates (/4…/32T); ISliceable tracks show slice indices instead.
-      Step press live-stutters using the step's own note (fixes hardcoded note-60).
-      Record-arm or held-step authoring writes `hasRetrig`/`retrigRate` P-Lock.
-- [x] Sound Pool mode (`Fill+SRC` momentary hold): grid pages pool entries; step
-      press calls `liveSwapTrackSound` for live audition; record-arm bakes a
-      `sound_id` P-Lock (`hasSoundId`/`soundId`). Pre-existing serializer bug fixed.
-- [x] Mode-chord UX consistent with the surface model; clean exit on Fill release.
-- [x] Serializer bumped to v12 (retrig + soundId fields; `upgrade_v11_to_v12`).
-- [x] CellState tokens: `SoundPoolOccupied/Empty/Current`, `RetrigRate/Selected`,
-      `SlicePoint/Selected/Empty`; mapped on Push 1 and X-Touch Mini.
-- [ ] Generic role-tagged LEVELS sub-mode (extend 3.9's velocity-first LEVELS to
-      a closed eligible role set: cutoff, attack, pan, … — the surviving MM.1).
-
-### 5.7c — Sound Bank overlay completion  *[shipped]*
-Extends the `Fill+SRC` pool established by 5.7 with full management UI.
-- [x] Sound Bank overlay reworked to real Row components (single-click recall,
-      per-row Recall/Del buttons, double-click inline rename).
-- [x] Machine-mismatch guard on recall: emits status rather than silently failing.
-- [x] Delete: `remapSoundIdsAfterRemoval` traverses all songs × tracks × phrases × steps
-      + working sequence; fixes `trigOverride.soundId` and `fillTrigOverride.soundId`
-      under `withQuiescedEngine`.
-- [x] Rename: direct name write on message thread (no quiesce).
-- [x] Auto-naming: `saveTrackToSoundPool("")` generates `"<Engine> T<n>"`, uniquified.
-- [x] **Critical bug fixed:** `Project::soundPool` was never serialized; serializer
-      bumped to v16 (missing SoundPool node on load = empty pool, trivial upgrade).
-- [x] Status feedback for all operations (saved, recalled, deleted, renamed, mismatch).
-- [x] `tools/check.sh` format gate (clang-format `--dry-run -Werror` over src/tests).
-
-### 5.8 — UI polish: layout, palette, toggles, coarse-adjust  *[planned]*  *(was MP)*
-DESIGN §24, §25, §26.
-- [ ] Vertical / square-cell layout matching hardware key caps; constants in one
-      header.
-- [ ] State-colour palette (`StateColor` enum + single resolver) feeding grid /
-      sections / chrome / future LEDs.
-- [ ] Granular feedback toggles (Settings panel; defaults on); recovers the
-      Staggered/Ortholinear/Clean overlays as toggle presets.
-- [ ] Coarse-adjust modifier (`Func` + encoder, unit-derived step).
-- [ ] MZ size single constant verified at `kMZSlots = 8`.
-- [ ] MIDI-device preset-selection UI (deferred from 2.5).
-
-### 5.9 — Deterministic generators + performance macros (groovebox sweep)  *[planned]*
-From the competitive sweep (see `NON-GOALS.md`): the admitted, principle-clean
-additions. Each is authored against the frozen surface and must stay within
-scope+verb. Stochastic / generative authoring is explicitly *not* here (NON-GOALS).
-- [x] **Euclidean print-on-release** (DESIGN §13.5): `Phrase+Fill` chord enters
-      generator mode on the focused track; MZ shows `PULSE / OFSET / ACCNT` via
-      `MetaBand::Euclidean`; release replaces trigs in `[0, phrase.length)`;
-      checkpoint pushed first if phrase has existing trigs. Output is ordinary
-      hand-editable trig data. Accent layer Euclidean-distributes N accented
-      onsets over the K pulses (higher velocity). See `core/Euclidean.h`.
-- [x] **Density overlay** (replaces Chance macro): a live, subtractive trig-thinning
-      overlay strictly downstream of fill/iteration/prev-dep/probability — only
-      silences would-fire trigs, never re-enables them. Per-track density amounts +
-      master offset are ephemeral (reset on song change; ride scene sticky/floor
-      launch). Musicality (Uniform/Mixed/Metric) and Selection (Scrub/Reroll) are
-      durable per-song-per-track in TrackKit (serializer v18→v19). Gestures:
-      `Func`-held → 16-track Density band (paginated); `Func+Song+encoder` → master
-      offset; `Song`-held → durable mode editor. Visual: rotary = per-track value,
-      arc = master offset, tick = effective (sticks at rail with dimmed overshoot).
-      See DESIGN §39. *(Chance macro superseded.)*
-- [x] **Meter-aware metric weighting** (`MetricGrid.h`): replaced the 4/4-only
-      trailing-zero depth with Lerdahl–Jackendoff dot-counts; `densitySurvives`
-      and `metricDrop` now take `numerator`/`denominator` and produce musically
-      correct thinning in 3/4, 6/8, 7/8, 9/8, etc. Regression-safe: 4/4 behaviour
-      unchanged. See DESIGN §39.2. *(b29d1bf)*
-- [x] **Deterministic Scrub density selection** (`MetricSelect.h`, §39.3a): Scrub mode
-      is fully deterministic and loop-stable — no per-step hash. A fixed per-track
-      rotation offset (`densityScrubHash(track,0,0)`) de-correlates same-density tracks.
-      Metric importance tiers (from `MetricGrid::metricWeight`) are filled strongest-first;
-      the partially-included boundary tier uses `bjorklund(M, k)` — evenly spread,
-      per-count recomputed (not drop-point). Three independent modes: **Uniform** =
-      `euclidHit(loopPos, L, Tl, off)` over the whole loop (repeats exactly every
-      loop); **Metric** = `metric[T]` bitmask, global-bar scope, downbeats anchored;
-      **Mixed** = `metric[P]` core protected + `bjorklund(N-P, T-P, off)` fill on
-      unprotected positions, global-bar scope. Table gains `metric[]` + `mixed[]`;
-      `euclidHit()` (O(1), no allocation) added to `Euclidean.h`. Reroll path unchanged.
-      See DESIGN §39.3a. *(bbc2392, 2233b5f, 381f7a3, c811675)*
-- [x] **Accent velocity generator** (`Func+Fill` chord, §39.10): shipped then
-      **replaced** by the live velocity overlay (v20). See §39.10.
-      *(7fb3f01 → replaced by 427a5d7)*
-- [x] **Musical subdivision picker** (DIV band two-field — base note value +
-      flavour Straight/Dotted/Triplet; range 4/1 … 1/64; serializer v19→v20 remap).
-      See DESIGN §4.2. *(Commits 1-2, v20)*
-- [x] **Density Exempt detent** — third DensitySelection state; engine early-out;
-      Amount + Musicality cells greyed. See DESIGN §39.2. *(Commit 3, v20)*
-- [x] **Live velocity overlay** — **Func+AMP** entry (was double-tap AMP, which
-      collided with AMP page cycling); 4 sub-pages (Depth/Center/Mode/Blend);
-      Replace/Mix blend; Bar-metric weight at emit time; durable TrackKit fields;
-      serializer v20. See DESIGN §39.10. *(Commits 4-5, v20; entry gesture fixed v20+1)*
-- [ ] **Scale-aware CHROMATIC layout** (DESIGN §34.2): the per-phrase scale lock
-      remaps the CHROMATIC keyboard to scale degrees — a *playable layout*, never
-      note auto-correct (out-of-scale entry stays verbatim and reachable).
-- [ ] **Arpeggiator** — *design-stub only* (DESIGN §13.5 DRAFT). PRINCIPLES-cleared
-      as a performable engine; **gated**: must close the grammar-fit open questions
-      in DESIGN before it earns a checklist here.
-- [ ] **Retrig model redesign** (future): the current rate-picker overlay selects a
-      global ratchet rate per trigger event. A richer model — hold-steps-to-isolate
-      (step-isolate/solo gesture), step-held ratchet-on-hold, polymeter-safe per-step
-      ratchet — was intentionally deferred. Design must fit the scope+verb grammar
-      before this earns a checklist. (Deferred 2026-06-08.) **Flagged tension:**
-      the shipped live stutter sits knowingly close to NON-GOALS fence #11
-      ("Sonicware stutter") — see the close-calls note in `NON-GOALS.md`; the
-      redesign must resolve that tension, not extend it.
-- [ ] **Step-isolate/solo** live gesture (future): hold one or more steps to
-      temporarily isolate their tracks/voices during playback — a punch-in
-      performance verb. Grammar and exact scope deferred. (Deferred 2026-06-08.)
-
-> The **Animate** momentary insert-toggle (FX-held + step) shipped in 6.5.
-
-### 5.10 — Func-layer legibility + meta-section relocation  *[shipped]*
-DESIGN §6.1 rule 3 + §6.2. The `Func`-held section row only swapped *text*, never
-colour, so reachable secondaries were invisible (the §10 "chrome must announce
-state" failure). And two metas (`TRACK`, `GLOBAL`) sat on `Func` although DESIGN
-§6.2 assigns them to the scope that owns their domain. This item makes `Func`
-obey the same glow/dim grammar the scopes already use, and finishes the §6.2
-relocation. (`Phrase+LEN` length/divider access is left untouched — paused 3.11
-context.)
-- [x] Docs: DESIGN §6.1/§6.2 pin `Func` metas to `COND`/`NOTE`, relocate
-      `TRACK`→`Track+TRIG`, `GLOBAL`→`Song+FX`, and require the colour grammar.
-- [x] `Func`-held section keys glow in the secondary hue (`kScopeFunc`) when a
-      secondary is wired, dim to `Disabled` when not (mirrors scope-glow).
-- [x] Relocate `TRACK` (length/divider) to `Track+TRIG`; drop from `Func+FILTER`.
-      Split the meta predicate: `kMetaLabels` (Func-row label) vs
-      `metaContentExists()` (MZ content reached by scope gestures).
-- [x] Relocate `GLOBAL` (gain/sync/clock) to `Song+FX`; drop from `Func+FX`.
-
----
-
-## Phase 6 — Routing, FX & Platform  *[6.1/6.2/6.3/6.5 shipped; 6.4 next (active arc); 6.6 in progress; 6.7 waits for a second consumer; 6.8 open]*
-
-The audio-input boundary and the machines it unlocks, the effects system, the cue
-bus, external controller surfaces, the machine-module ABI, and the beta polish.
-
-### 6.1 — Audio-input boundary + routing + Route machine  *[shipped]*  *(was MR)*
-DESIGN §27, §29. Gates 6.2 / 6.3. Shipped phased: A1 outside-world sources +
-Route, then A2 output-directed track buses.
-- [x] Optional audio-input path at the machine boundary (sequencer fills `buffer`
-      from `input_source` before `process()`).
-- [x] `input_source` slot — outside-world tap `{None | External | Master}`
-      (inter-track routing moved to the CHANNEL "Out" slot below).
-- [x] **Output-directed routing** (model revised from input-select): per-track
-      CHANNEL "Out" `{Master | Track N | Off}`. A bus reads the sum of tracks
-      routed into it. Removes a track from master (mute can't). `core/OutputDest.h`.
-- [x] Per-block topological sort (`core/RoutingGraph.h`, pure/tested); cyclic
-      routing refused at the "Out" write (best-effort + authoritative engine guard).
-- [x] Master prior-block tap (`input_source = Master`).
-- [x] RouteMachine (unity pass-through; canonical FLTR/AMP/FX process it; defaults
-      to `None` so a fresh Route is a silent sub-bus).
-- [x] MIDI-out parity (no input source; no audible route).
-- [x] **Stem export (Workstream D):** capture is now a take directory —
-      `master.wav` + one `track-NN.wav` per non-empty Master-routed track (buses
-      fold in their feeders; routing IS the stem-grouping UI). Always-on. Reuses
-      the 9.16 tape-deck infra; tap is post-fader/post-FX in `processTrackChain`.
-
-### 6.2 — Record buffers + recorder trigs  *[shipped, freeze-to-disk deferred]*  *(was MS)*
-DESIGN §28, §29, §30. Depends on 6.1.
-- [x] Volatile pool entries (RAM-only, `REC`-badged, unified address space):
-      `SamplePool::addVolatile/prepareVolatile/nthVolatileIndex`; skipped on save.
-- [x] Fixed set of volatile buffer slots (8) reserved at the top of the pool,
-      re-seeded on load (`seedVolatileSlots`).
-- [x] RecordMachine (`input_source`, `target_buffer`, `rec_length`,
-      overwrite-only); V1 note-on capture edge; captured buffer immediately
-      playable from a Sample (live-resample round-trip test).
-- [x] Record trig is **contextual** (a trig on a Record track), not a stored
-      step field; lock-only disallowed there (`isRecorderTrack` guard).
-- [ ] Freeze-to-disk via the §22 naming flow — **deferred** to a later milestone
-      (captures are RAM-only / lost on quit, Octatrack parity).
-
-### 6.3 — Loop machine (overdub)  *[shipped]*  *(was MT)*
-DESIGN §29. Depends on 6.2.
-- [x] LoopMachine state machine (Idle→Record→Play→Overdub + Clear + one-level
-      Undo); internal RAM loop (kept machine-internal by design — the deliberate
-      path into the volatile pool is the post-FX resample flow, not auto-capture).
-- [x] Verb-driven while focused with no new grammar: `Track+Record` cycles
-      record→overdub, `Track+Play` toggles play/stop, `Track+Clear` empties
-      (shadowing the track clipboard on Loop tracks); lock-free command mailbox;
-      `LoopMachineTest` drives the full state machine.
-- [ ] Click-free overdub seams + transport-synced loop-length option — later
-      refinement (loop length is free-running for now).
-
-### 6.4 — Cue + Aux output buses + monitoring  *[in progress]*  *(was MU)*
-DESIGN §31 / §31.1. Static output complement + the `Cue` scope.
-
-> **Scope correction (2026-07-14 alignment review).** Two boxes below were stale:
-> the `Cue`-scope key *is* allocated (it shipped with 5.5 as `Func`+`3` →
-> `enterCueScope()`, `PrimaryScope::Cue`), and the Cue bus *is* fed — but only by
-> the metronome (`processMetronome`, the bus's sole writer). What is genuinely
-> missing is the **per-track cue send tap** (`Route` has no `Cue` member) and the
-> `Cue`+X gestures that ride the scope key that already exists.
-- [x] Static output complement: **Master + Cue + 6 Aux** stereo buses, non-main
-      declared disabled-by-default (`BusesPropertiesAccessor::make`). No dynamic
-      port rescan (host lottery — rejected). **CLAP/VST3 port exposure in a real
-      host (Bitwig/Reaper) is unverified in this environment — verify before UI.**
-- [x] **Aux mix routing**: the CHANNEL "Out" slot destination set grows to
-      `Off | Master | Bus(track) | Aux 1–6` (`OutputDest.h`); an Aux route whose
-      host bus is disabled **folds to Master** (never silent data loss). Master
-      processing confined to a main-bus view so aux buses never get master FX.
-      No serializer bump needed — the Aux encoding rides the existing v25
-      `channelState.out` float (old files decode as Master/Track unchanged).
-- [x] Cue bus **declared and fed** (standalone ch 3–4 / plugin Cue bus). The
-      metronome is currently its only writer (`processMetronome`), which is what
-      proves the bus is live end-to-end.
-- [x] `Cue`-scope key allocated: `Func`+`3` → `enterCueScope()` (`PrimaryScope::Cue`),
-      shipped with 5.5. `Cue`+step already auditions.
-- [ ] **Per-track cue send tap** — additive post-FLTR/AMP/Level, excluded from
-      `outputReachesMaster()` (cue-only audio must never count as "reaches master").
-      `Route` grows a `Cue` member.
-- [ ] `Cue + track` / `Cue + Scene` / `Cue + MIDI-out` **gestures** on the existing
-      `Cue` scope. New input modality ⇒ unit tests (resolution, scope routing,
-      round-trip).
-- [x] Live stem capture via Aux outs documented as the blessed stem-export path
-      (DESIGN §31.1) — the offline per-take stem-export item is demoted.
-
-### 6.5 — Insert + master effects (FX system)  *[shipped]*  *(was MV)*
-DESIGN §32. Depends on 2.4 + the §14 path (independent of 6.1–6.4).
-- [x] `IEffect` interface (reuses `ParamSpec`/`role`/P-Lock; stub fallback) +
-      starter catalogue (Delay, Reverb, Distortion, Chorus).
-- [x] Per-track 2-insert chain (post-AMP, Part-scope).
-- [x] FX canonical-section rendering + `Func+FX` effect-load picker gesture
-      (picker routes via CB::MetaSection; section key illuminates under Func).
-- [x] **Animate** momentary insert toggle (DESIGN §32.5): FX-held + step bypasses
-      insert for the hold duration; release restores. No dedicated performance-FX mode.
-- [x] Serializer v13: insert chains round-trip (effectId/baseParams/bypass per slot).
-- [x] Performance-grammar parity for inserts (P-Lock via namespaced IDs, Control-All, section-copy).
-- [x] **Two master FX slots** (post-sum, Song scope): `Func+Song+FX` picker; MZ shows params under `Song+FX` (`MetaBand::Global`); serializer v14.
-- [x] **FX-section clean separation:** `Song+FX` shows master insert params only;
-      transport globals (Gain / Sync / Chan) relocated to `Func+7`
-      (`MetaBand::Transport`).
-- [x] Send routing (per-track Send A/B in AMP slots 8–9; 2 send-return FX slots on the
-      master bus; HQ send-first candidates: verb, delay) — see **8.26**.
-- [x] MIDI-out tracks carry no inserts/sends (parity enforced at AMP CC-bank).
-
-### 6.6 — External controller surfaces  *[in progress]*  *(was MW)*
-DESIGN §35. Generic third-party MIDI controllers as augmentation surfaces (worked
-examples: Behringer X-Touch Mini — see `XTOUCHMINI_MCU.md` — and Ableton Push 1).
-The load-bearing piece is the surface model (§35.8): one pure `buildSurfaceModel()`
-both screen and controllers render from. **End-state:** contributors add
-controllers via `IControllerSurface` + `ControllerRegistry`; the JSON profile is
-the default data-driven impl.
-
-> **Architecture status (drift note).** The surface model and two concrete
-> controllers shipped **ahead of** the registry/JSON layer. Today
-> `Push1Surface` and `XTouchMiniSurface` are **hardcoded `IControllerSurface`
-> subclasses instantiated directly in `PluginEditor`** and driven by
-> `ControllerPortManager`; feedback is rendered inline from
-> `ControllerPortManager::drain` (no separate throttled emitter yet). This is
-> **interim** — the `ControllerRegistry`, the data-driven JSON profile loader
-> + schema validation, and the `ControllerFeedbackEmitter` remain the intended
-> end-state (they are what make third-party controllers a contributor surface
-> rather than a core code change). Items below mark what shipped vs. what the
-> end-state still needs.
-- [~] **6.6.1** `IControllerSurface` seam shipped (concrete subclasses).
-      **Still planned:** `ControllerRegistry` + profile loader + JSON schema +
-      validation; graceful unknown-device / malformed / unknown-token handling.
-- [x] **6.6.2** `ControllerPortManager` (dedicated MIDI port, disjoint from the
-      host bus; drains buffered input to the surface then renders).
-- [x] **6.6.3** Input routing (encoders→CC, buttons→`ControllerEvent`, fader→
-      interim slider) — handled inside the concrete surfaces.
-- [x] **6.6.4** X-Touch Mini built-in surface shipped (hardcoded C++).
-- [~] **6.6.5** Surface model + feedback. **(a) done** — pure
-      `buildSurfaceModel()` → `SurfaceModel` with the screen re-pointed at it
-      (slices 0–6: `SurfaceModel.{h,cpp}`, `CellState`, decoration channels,
-      `tests/SurfaceModelTest.cpp`) + the **6.6.5a UX-consistency pass** (unified
-      hint-band rule, note-edit → `Func+Src`, CPC under-scope relabel,
-      `TrigGridMode` removed, `Func+arrow` rotate/×2/÷2) + meta-band controller
-      exposure via `MetaBand`/`MetaRotary` (7.15–7.17). **(b) [pragmatic closeout]**
-      idle surface model rebuild gating added (`dirty || playing` guard in
-      `timerCallback`); per-surface shadow diffing in each concrete surface already
-      satisfies the diff intent — the separate `ControllerFeedbackEmitter` is deferred
-      to the JSON/registry end-state.
-- [~] **6.6.6** Feedback colour / state mirroring — **shipped for Push 1**
-      (static semantic→palette-index table, `Push1Surface.cpp`) and X-Touch.
-      **Still planned:** the generic token-aware + dumb-device fallback that the
-      JSON/registry path needs.
-- [x] **6.6.7** Crossfader binding — two-way: controller fader → `setCrossfader` →
-      `morphFader` (both Push 1 touch strip and X-Touch fader); Push touch strip
-      LED echoes on-screen fader position (shadow-diffed, echo suppressed on input
-      so the hardware is not fought by immediate feedback).
-- [ ] **6.6.8** Adaptive `layoutMode` (opt-in, deferred-most).
-- [x] **(unplanned, shipped)** **Push 1 surface** — full render/display/buttons,
-      static semantic→palette matcher, meta-band exposure. Not in the original
-      6.6 plan; added as a second worked example. (See memory
-      `project_push1_refinement`.)
-
-### 6.7 — Machine Module ABI  *[deferred — waits for a concrete second consumer (2026-07-12 decision)]*  *(was M10; supersedes the old MH.5)*
-> No longer gates the catalogue: 4.6/4.7 ship first-party statically (see the
-> revised locked decision). Freezing an add-only ABI with no third-party
-> consumer is a forever-cost with no payer; build 6.7 when one exists.
-DESIGN §36. One authoring model, two link paths: first-party statically linked,
-third-party loadable modules behind a JUCE-free C ABI fronted by `WrapperMachine`.
-Not a CLAP/VST3 sub-host; in-process, no IPC/sandbox.
-- [ ] **6.7.1** Registry + SDK base, static path only (`lockstep_machine_abi.h`,
-      `sdk::MachineBase`, `MachineRegistry`); port DrumSynth first as proof; POD
-      conversions unit-tested.
-- [ ] **6.7.2** Dynamic load + host-services + discovery (`WrapperMachine`,
-      `LsmHostVTable` bridging the shared SamplePool/transport/RNG/logging,
-      directory scan + manifest, `abiVersion` gating, the CI template module, the
-      missing-module `StubMachine` opaque round-trip).
-- [ ] **6.7.3** Template repo + install flow + ABI freeze (drag-drop install +
-      rescan, MIDI-out emit-only validation, port SampleMachine to host-services
-      sample access, freeze ABI v1 with a golden-header CI test). Author 4.5 / 4.6
-      against the SDK thereafter.
-
-### 6.8 — Polish, CI, beta  *[planned]*  *(was M9)*
-- [ ] Multi-platform GitHub Actions CI (Linux/macOS/Windows).
-- [ ] Performance pass (voice CPU profile, choke-fade SIMD, voice cap).
-- [ ] Factory patch library.
-- [ ] Final product name (replace "Lockstep"), bundle ids, icons, About box.
-- [ ] First public beta build.
-
----
-
 ## Phase 9 — Standalone & Files  *[active]*
 
 ### 9.1 — Project file flow  *[shipped]*
-`.lockstep` plain-XML project files sharing the v16 serializer + upgrade chain.
-- [x] `buildStateTree` / `applyStateTree` core helpers split from `writeTo`/`readFrom`.
-- [x] `writeToFile` / `readFromFile` on `PluginState` (fail-safe: returns false before
-      touching processor state on parse failure).
-- [x] `newProject`, `saveProjectFile`, `loadProjectFile`, `stateHash`, `savedStateHash_`,
-      `currentProjectFile_` on `LockstepProcessor`. `finishStateLoad()` extracted from
-      `setStateInformation` so both paths share the reinstall pass.
-- [x] `StandaloneFileBar`: New / Open / Save / Save As… + project-name label.
-      Three-way dirty guard (Save / Discard / Cancel) before New/Open.
-      Last-project persistence via `appProps_`; auto-opens on launch.
-- [x] Serializer v16: `Project::soundPool` (SoundPool/SE nodes); missing node on load =
-      empty pool (trivial upgrade from v15).
+`.lockstep` plain-XML project files over the shared serializer + upgrade
+chain: `writeToFile`/`readFromFile` (fail-safe on parse errors),
+new/save/load + state hash dirty tracking on the processor, the
+`StandaloneFileBar` with the three-way dirty guard and last-project
+auto-open, and `Project::soundPool` serialization (v16).
 
 ### 9.2 — Standalone quit guard  *[shipped]*
 Intercepts the standalone window's close button before the JUCE wrapper saves
@@ -903,100 +386,34 @@ so an undo survives unrelated work instead of expiring on any keypress.
       unrelated work; empty-stack restore never wipes.
 
 ### 9.5 — Velocity overlay polish  *[shipped]*
-Polish pass on the live velocity overlay (§39.10): Mix baseline fix, Phrase
-mode, and enable UX improvements. Serializer v21.
-
-- [x] **B1 — Mix baseline.** Mix blend swings around `velCenter` for steps with
-      no authored velocity (baseline = velCenter when `!trig.hasVelocity &&
-      !trig.hasNoteVelocities`). Mix ≡ Replace on flat material; diverges only
-      where steps carry authored velocities. See DESIGN §39.10.
-- [x] **B2 — Phrase velocity mode.** Extend `VelMode` to `{Off, Bar, Phrase}`;
-      Phrase anchors the coreTime bar grid to the phrase start
-      (`fmod(stepIdx * divPpq, barPpq)`) so accents don't drift against
-      bar-co-prime phrase lengths. MetaBand Mode labels: `OFF / BAR / PHRASE`.
-      Serializer v21 — confirm read path accepts value 2.
-- [x] **C — Skip-disabled sub-pages (general rule).** Modal-band sub-page cycle
-      and landing skip inapplicable pages. For velocity: Depth/Center/Blend
-      skipped when all tracks in scope have velMode == Off; Mode is always
-      reachable. Landing = Mode when none enabled, else Depth. `velAnyEnabled()` /
-      `nextVelSubPage()` in PluginEditor; `ScopeCtx.velAnyEnabled` wired to
-      `handleOverlayEvent`. *(716ed55)*
-      Per-cell `writable=false` greying removed from vel band builders
-      (Depth/Center/Blend); pages absent from cycle makes per-cell greying redundant.
-      *(Stage 7b)*
-- [x] **C — "Available-but-inert" affordance.** `Func+AMP` key uses `ModalEntryInert`
-      CellState (dim amber, §35.8.6) when all tracks have velMode==Off. *(716ed55)*
-      `Func+MOD` (density): assessed n/a — density amounts are ephemeral (reset on
-      overlay exit), so "no durable enabled content" has no meaningful state to read.
+Mix-blend baseline fix (swings around velCenter on unauthored steps), the
+Phrase velocity mode (accents anchored to the phrase start so they don't
+drift against bar-co-prime lengths), skip-disabled sub-pages as a general
+modal-band rule, and the `ModalEntryInert` dim-amber affordance for
+available-but-inert entries. Serializer v21.
 
 ### 9.6 — Contextual parameter-name aliasing  *[shipped]*
-`ParamSpec` hook for mode-dependent labels; applied to DrumSynth + Sample/Slice.
-See DESIGN §6.10.
-
-- [x] **D1 — Mechanism.** Add `juce::String (*contextLabel)(const ParamFrame&) = nullptr`
-      to `ParamSpec` (`IMachine.h`). Render hook in `ManipulationZone.cpp` at the
-      label-draw site: call `spec.contextLabel(frame)` when non-null.
-- [x] **D2 — DrumSynth.** Per-TYPE `contextLabel` for Tone/Body/Snap/Punch/Sweep/
-      SwpDec/NoiseDec slots (7 type-dependent slots × 8 types).
-- [x] **D2 — Sample/Slice.** `contextLabel` for LpStart/LpLen annotating active/auto/free
-      loop mode.
-- [x] **Tests.** Unit test: `contextLabel` returns expected string for representative
-      TYPE/loop-mode values. Also fixed latent bug: DrumSynth `punchLabel`/`bodyLabel`/
-      `snapLabel` used `return "—"` which asserts on JUCE's `const char*` path;
-      replaced with `juce::CharPointer_UTF8("\xe2\x80\x94")`. *(Stage 7c)*
+`ParamSpec::contextLabel` (mode-dependent labels), applied to DrumSynth's
+type-dependent slots and Sample/Slice loop annotations; also fixed the
+latent `return "—"` const-char assert.
 
 ### 9.7 — Hierarchical time signature  *[shipped]*
-Make time signature a first-class, grammar-editable, hierarchical value.
-See DESIGN §4.8. Serializer v21.
-
-- [x] **E1 — Data model.** `Project.defaultTimeSig`; `Song.hasTimeSig`/`Song.timeSig`;
-      `Scene.hasTimeSig` alongside existing `coreTime`. `effectiveTimeSig()` accessor
-      replaces direct `section().coreTime` reads in all consumers
-      (launch-quantize, metronome, velocity, density, phrase seeding). `sceneHasContent()`
-      updated. Serializer v21: Set default + Song/Scene presence flags. v20→v21 upgrade stamp.
-- [x] **E2 — Grammar editing UI.** `buildTimeSigBand` / `writeMetaField` in MetaBand.
-      Curated stepped list + INHERIT at Song/Scene levels. Scope selection via held-scope
-      flags (Func+Song = Set; Song = Song; Scene = Scene).
-- [x] **Tests.** Round-trip each level; resolution precedence; 4/4 default when absent.
+Time signature as a first-class hierarchical value (Set default +
+Song/Scene overrides, `effectiveTimeSig()` cascade consumed by
+launch-quantize/metronome/velocity/density/phrase seeding), grammar-edited
+via the TIME band. Serializer v21.
 
 ### 9.8 — Hierarchical tempo + top-display rework  *[shipped]*
-Make tempo a hierarchical peer of time signature; retire the mouse-driven
-standalone tempo bar. See DESIGN §4.8 (unified TIME page). Serializer v21.
-
-- [x] **F1 — Data model (highest risk).** `Song.hasTempo`/`Song.tempoRatio`;
-      `Scene.hasTempo`/`Scene.tempoRatio`. `effectiveTempoRatio()` multiplies song ×
-      scene ratios; feeds density/velocity metric math. DAW host BPM as root.
-      Serialize ratios under v21 (kHasTempo/kTempoRatio for Song and Scene nodes).
-      Density lookahead barIndex fixed to use musicalGridPpq.
-- [x] **F2 — Grammar editing.** Unified TIME page (`MetaBand::Time`) with two controls
-      (Tempo + Sig). `Song+TRIG` or `Scene+TRIG` opens the band; entry modifier sets
-      entry scope. Per-control INHERIT floor reverts; no hold-scope+Clear needed on
-      this band. Time-sigs ordered by ascending bar length.
-- [x] **F3 — Remove tempo bar + top readout.** `StandaloneTempoBar.*` deleted;
-      PluginEditor replaced with `juce::Label tempoReadout_` showing scope-coloured
-      effective BPM + time-sig.
-- [x] **Tests.** CUJ sequence tests (entry, retarget, latch, swing suppression,
-      sticky exclusivity); build/write round-trips; bar-length order assert;
-      v21 serializer round-trip; v20 projects load cleanly.
+Tempo as a hierarchical peer of time signature (Song x Scene ratios over
+the host/root BPM via `effectiveTempoRatio()`), edited on the unified TIME
+page; the mouse-driven standalone tempo bar deleted for a scope-coloured
+readout. Serializer v21.
 
 ### 9.8a — TIME page cleanup pass  *[shipped]*
-Structural cleanup: merge Tempo + Time-Sig into one TIME page; per-control INHERIT
-floor; bar-length-ordered time-sigs; pure transition layer; CUJ tests.
-See DESIGN §4.8 and §13.
-
-- [x] **Docs.** DESIGN §4.8/§4.9 merged; §13 grammar updated; README TIME row
-      collapsed; CLAUDE.md single-sticky invariant noted.
-- [x] **Collapse model.** `UiState`: `timeStickyMode` + `timeEntryScope` replace four
-      fields. `MetaBand::Time` replaces `Tempo` + `TimeSig`. `timeScopeFor` unifies
-      the two scope fns. `ScopedSectionMatrix` kSong[0] "TEMPO"→"TIME". `KeyLabel`
-      single relabel.
-- [x] **Pure transition layer.** `applyTimeEntry` / `escapeTimeSticky` /
-      `isTimeEntryChord` as pure fns. PluginEditor wired; VerbClear Tempo+TimeSig
-      blocks deleted; Swing block kept.
-- [x] **Single TIME band builder + writer.** Two fields (Tempo + Sig); `kTimeSigs`
-      ascending bar length; `writeMetaField` `case MetaBand::Time`; INHERIT floor.
-- [x] **CUJ + unit tests.** 7 sequence tests; INHERIT floor round-trip; bar-length
-      order assert; SurfaceModelTest label update. All tests pass.
+Structural cleanup of 9.7/9.8: one TIME page (Tempo + Sig), one
+`timeStickyMode` + entry scope, a pure transition layer
+(`applyTimeEntry`/`escapeTimeSticky`), per-control INHERIT floor,
+bar-length-ordered time-sigs, CUJ tests.
 
 ### 9.9 — README + verification  *[active]*
 - [x] **G — README.** TIME page grammar (single row), gesture tree updated.
@@ -1051,434 +468,67 @@ triad (resolution + scope-routing + round-trip); any moved overlay gets a
       *(deferred — needs separate review)*
 
 ### 9.11 — Gesture-affordance visual language + context inspector  *[shipped]*
-
-Closes the gap between the gesture grammar and the visual language; folds in two
-concrete bugs. Ships PRINCIPLES §19 affordance/inspector clauses, DESIGN §6.11,
-README affordances + inspector.
-
-- [x] **Bug A: stale Func+3 "MET" binding.** `KeyBindings.cpp` `Func+3 →
-      MetronomeToggle` row removed; bare TapTempo hint cleared. `KeyBindingTest`
-      updated. *(Stage 1 — ddb96eb)*
-- [x] **Bug B: generator hub cells had no paint block.** `paintStepRows` had no
-      early-return for `generatorHubHeld` — fell through to step-number renderer.
-      Added dedicated block consuming `model.step[].primary`. Model-driven text
-      also adopted for machine picker, TrackFxPicker, MasterFxPicker.
-      `SurfaceModelTest` covers `testGeneratorHubPrimary` + `testMachinePickerPrimary`.
-      *(Stage 2 — 7b7204a)*
-- [x] **Affordance data model.** `SurfaceCell` extended with `tapLabel`,
-      `holdLabel`, `doubleTapLabel`, `primaryIsHold`. New `KeyAffordances.{h,cpp}`
-      (14-entry seed table). `SurfaceModel` injects at rest only. `KeyAffordanceTest`.
-      *(Stage 3 — 8c56659)*
-- [x] **4-slot KeyButton rendering.** `paintCell` gains a 5-zone affordance path
-      (dbl-tap / tap / primary / hold / func); painted vector glyphs; faint access
-      glyph; fast-path for single-action keys. *(Stage 4 — 9a965f3)*
-- [x] **Full affordance table.** `KeyAffordances` extended to 22 entries: all 8
-      modifiers (hold=scope, dbl=LATCH; Func dbl=ESCAPE), verb keys (VerbPlay
-      dbl=STOP), nav keys (TRACK UP/DOWN, PAGE LEFT/RIGHT), RecordArm, PlayStop.
-      *(Stage 5 — b88ee51)*
-- [x] **Top-chrome consolidation.** `tempoReadout_` (28px) + `fileBar_` (24px)
-      merged onto one 28px row; 26px freed; `inspectorRow_` reserved.
-      *(Stage 6 — 82f4edd)*
-- [x] **Context inspector.** `InspectorModel.{h,cpp}` pure builder (KEY / HELD /
-      OVERLAY / EDIT, idle fallbacks, KEY reuses `KeyAffordances`). `InspectorBar.{h,cpp}`
-      slim JUCE component 4 columns. Wired into `PluginEditor` resized + 30Hz tick.
-      `InspectorModelTest` (5 tests). *(Stage 7 — 54c45c2)*
-- [x] **Docs.** PRINCIPLES §19 + in-cell affordance + inspector clauses. DESIGN §6.11
-      (§6.11.1 slots/glyphs, §6.11.2 chrome consolidation, §6.11.3 inspector regions).
-      README affordances + inspector in implemented list; shortcut map already correct.
-      *(Stage 8 — this commit)*
+The affordance data model (`tapLabel`/`holdLabel`/`doubleTapLabel` on
+`SurfaceCell`), 4-slot KeyButton affordance rendering, the full 22-entry
+affordance table, top-chrome consolidation, and the **context inspector**
+(`InspectorModel` pure builder + `InspectorBar`, KEY/HELD/OVERLAY/EDIT).
+Fixed the stale `Func+3` MET binding and the unpainted generator-hub cells.
+(The seed table this built, `KeyAffordances`, was deleted by 9.12 when
+display started deriving from the grammar.) PRINCIPLES §19, DESIGN §6.11.
 
 ### 9.12 — Unified Gesture Grammar (table-driven dispatch + derived affordance display)  *[SHIPPED 2026-07-13]*
-
-Closes the display–dispatch drift: every key's visual frame (five fixed
-slots, top→bottom: dbl-tap · tap · **PRIMARY** · hold · func) is derived from the
-same `resolveBinding(..., Gesture)` query that will dispatch behaviour, so
-they cannot silently disagree. `KeyAffordances` deleted; `Gesture` axis added to
-the grammar; grid picker cells share a common `paintGridCell*` renderer.
-
-- [x] **Stage 1 — Gesture axis in grammar.** `Gesture` enum (Tap / Hold /
-      DoubleTap) extracted to `src/command/Gesture.h` (breaks circular
-      dependency). `KeyBinding` grows `gesture` + `promoted` fields (appended,
-      positional rows unaffected). `resolveBinding` filtered by gesture;
-      `promotedGesture()` added. New Hold / DoubleTap / promoted rows for
-      modifiers, verbs, nav, TapTempo hub. `KeyBindingTest` extended.
-      *(Stage 1 — c394b1b)*
-- [x] **Stage 2 — Display derives from grammar; `KeyAffordances` deleted.**
-      `buildSurfaceModel` replaces `findAffordance` with a `deriveSlots` lambda
-      that queries `resolveBinding` per gesture for every cell. `SurfaceCell`
-      `primaryIsHold` → `primaryGesture`. `KeyAffordances.{h,cpp}` +
-      `KeyAffordanceTest.cpp` deleted; `InspectorModel` rebuilt from grammar.
-      Anti-drift test in `SurfaceModelTest`. *(Stage 2 — 8a01d8e)*
-- [x] **Stage 3 — Fixed-reserved 5-slot rendering.** `paintCell` always
-      reserves all four rail rows (dbl + tap + hold + func) so the primary locks
-      to the same centre band on every key. Blank space held when a slot is empty;
-      rail glyph + text drawn only when non-empty. `paintAffordanceSlot` gains
-      glyphType 3 (amber func chip via `theme::kFuncAccent`). *(Stage 3 — 3b1c0d4)*
-- [x] **Stage 4 — Shared grid-cell renderer; picker blocks migrated.**
-      `paintGridCellFill` / `paintGridCellText` (KeyButton.h/cpp) normalise
-      fill + press + primary text to 9 pt across grid cells. Five picker/hub
-      blocks in `paintStepRows` migrated (machine, FX insert [preserves masterOnly
-      dimming], master FX, generator hub, morph step). Complex modes with
-      screen-residual text left as-is (§35.8.1). *(Stage 4 — 7e75fd8)*
-- [x] **Stage 5 — Behavioural golden-test net.** *(2026-07-13.)* Done **in place**:
-      `tests/DispatchGoldenTest.cpp` (its own binary, `lockstep_dispatch_tests`)
-      drives a real **headless** `LockstepEditor` and records, for every row of
-      `kKeyBindings` (the matrix enumerates the grammar, so no family can be
-      forgotten), the UiState + processor fields each gesture changes — on **both
-      edges** (during the hold, and after release; a single post-tap snapshot
-      recorded "no change" for every held modifier and was nearly worthless).
-      107 rows. Verified by planting a real regression and watching it fail with
-      the field and edge named.
-      **9.13's "unviable headless (component-teardown segfault)" was a
-      misdiagnosis** — and it had shaped this whole item's plan. `LockstepProcessor`
-      embeds `Arrangement` (~47 MB), so a *stack-local* processor overflows the
-      stack in the enclosing function's **prologue**: the crash lands before the
-      function's first statement, presenting as "headless is impossible" instead of
-      the gotcha the project already documents. Heap-allocate it and dispatch runs.
-      **The extraction is therefore not a prerequisite** for the migration; if we
-      still want it, it is a cleanup the goldens now protect.
-      *Known blind spot:* the baseline is a fresh editor, so the net sees what a
-      gesture **sets**, not what it **clears** (a branch that only clears an
-      already-false flag has no delta). Widen the matrix with non-trivial prior
-      state as stages 6–8 touch those families.
-- [x] **Stage 6 — ActionIds wired + coverage guard.** *(2026-07-13.)* The ActionIds
-      existed since Stage 1 (display needed them) but **nothing wired them to
-      behaviour** — `handleAction` served 5 and `default:`-returned false for the
-      rest, so the table could name an action that did nothing. Now 24 are wired.
-      `CommandEffects` gains the gesture-axis effects (latch, escape, restore
-      pop/floor, rec-arm overdub, step latch, nav unlock, generator hub, trig-grid
-      mode); `EditorEffects` implements each by calling **the same editor code its
-      imperative branch calls** — never a second copy, or stages 7–8 would be
-      deleting one of two divergent implementations. Where no shared helper existed
-      the branch was extracted into one (`latchHeldSteps()`).
-      Two deliberate refusals: `PlayStopToggle` gets **no effect of its own**
-      (`CB::PlayStop` already routes through `transport(Play)`, the mode-aware
-      toggle — a second path to it would be the very drift this item kills), and
-      `stepLatch` does **not** latch "the step whose index arrived" (the real
-      gesture latches every *held* step; the plausible single-step version would
-      have invented semantics the surface never had).
-      **Guard** (`tests/ActionCoverageTest.cpp`): every `ActionId` is either handled
-      or named in `kNotYetMigrated` — no third state, and *both* is also a failure
-      (a stale list would hide the next unwired action). A new ActionId nobody wires
-      fails the suite instead of becoming a key that does nothing. **24 wired, 49
-      awaiting migration**; Stage 8 deletes the list when `handleAction` goes
-      exhaustive.
-- [x] **Stage 7 — Dispatch migration.** Family-by-family (7a modifiers → 7f
-      steps); each sub-step routes via `resolve(..., gesture).action →
-      handleAction`, deletes the imperative branch, and keeps goldens green.
-  - [x] **7a — modifiers** *(2026-07-13).* The eight scope modifiers route through
-        the table; their bodies moved (not rewritten) into `enterScopeHold`. Goldens
-        unchanged. `dispatchDown` 2,079 → 1,951 lines; coverage 24 → 32 wired.
-        **Finding — a modifier resolves on its BARE row (`kModNone`).** The table's
-        most-specific-wins rule is built for ordinary keys and fights the modifier's
-        own press: resolving `TrackScope` while Func is held returns the *compound*
-        row (`OpenMachinePicker`) and would **swallow the hold**, so the scope would
-        silently never be entered. A compound row says what a *pair* means for the
-        keys it qualifies — it is not the modifier's own action. Routing modifiers
-        through most-specific-wins is the obvious implementation, and it is wrong.
-        Per-scope differences stay in the effect (Func's escape + step-latch, Track's
-        Control-All, Scene's re-sync-when-Track-held — an early return, not a
-        compound, Morph's MZ hand-off): a modifier press is not one uniform thing.
-  - [x] **7b — verbs.** *(2026-07-13.)* Routed through the table via `routeVerb()`;
-        goldens unchanged. Coverage 32 → **43 wired, 30 pending**. Behaviour does not
-        move: every verb action delegates to the one existing implementation
-        (`verbs::*` via `handleVerb`), so routing joins the grammar without creating a
-        second copy of a verb to drift from the first. Confirm/Cancel stay imperative
-        (intercepted by `handleDown`'s pending-confirm gate, not dispatched as actions).
-        **Verbs resolve on the FULL held-mod set (most-specific-wins) — the exact
-        opposite of 7a's bare-row rule.** Not an inconsistency: a modifier press means
-        "enter this scope" whatever else is down; a verb press means something
-        *different* under a held scope. The two families must not share a routing rule.
-        *Pre-work (the reason this was safe):*
-        Checked what the net pinned for verbs before rewriting them: **almost
-        nothing.** `Track+VerbRecord` *is* "copy track", and the golden recorded only
-        that the Track modifier went down — the clipboard, the checkpoint stack and
-        the phrase content were not in the digest, so the net would have stayed green
-        through a total breakage of copy/paste/clear/snapshot. Fixed in three ways,
-        each of which changed what the golden says is true:
-        (i) **wider digest** — clipboard, per-scope checkpoint depth, per-track trig
-        census; (ii) **prior state + scripted scenarios** — a blank project makes
-        destructive verbs invisible, and a one-gesture-per-row matrix *structurally*
-        cannot see PASTE (empty clipboard ⇒ no-op), so the rig seeds trigs and five
-        scripts supply the history (copy→paste, snapshot→restore, clear→confirm);
-        (iii) **fidelity** — every real input path runs `resolveLayer()` *before*
-        dispatch (`ButtonLayers.h`, first line) and the probe skipped it, so `Func+Y`
-        never became `CB::Restore` and the golden recorded RESTORE as *"pushes a
-        second checkpoint"*. **Every Func-layer row was fiction.** A net that models a
-        different input path than the instrument is worse than no net — it is green
-        about fiction.
-        *Design note for the migration itself:* `ButtonLayers` already does the
-        Func-layer remap at the **event** level (`Func+Y → CB::Restore`), so verbs
-        need most-specific-wins for *scope* qualification only — the mirror image of
-        7a's bare-row rule, and the reason the two families must not share a routing
-        rule.
-  - [x] **7c — nav.** *(2026-07-13.)* **Net first:** rotate was invisible to a
-        trig-*census* digest and the step PAGE could not move at all on the probe's
-        16-step tracks, so the net was widened (trig positions, track length, page)
-        and re-blessed BEFORE any code moved — a net that cannot see the family it
-        protects is decoration. **Three rows were LYING**, and because display derives
-        from the table while dispatch re-derived by hand, each was a key frame showing
-        a label the key did not honour: `Func+Morph+Nav` said ×2 (it picks the morph
-        pole — the cascade checks morphHeld first); bare `↓` said NavOctaveDown (it
-        moves the focus track); `Track+←/→` said cycle-input-mode (it pages — the cycle
-        is up/down only). And `Phrase+Nav` = transpose (10.9) had **no row at all**:
-        dispatched since it shipped, never advertised, and routing nav through the
-        table without declaring it would have resolved `Phrase+↑` to the bare row and
-        changed track instead. Octave shift is declared as **layer rows** (NoteEdit /
-        ChromaticInput) — it is a layer, not a modifier — and `routeLayered` resolves
-        on the active layer, falling back to Base.
-  - [x] **7d — sections.** *(2026-07-13.)* Taps (`SelectSection` /
-        `SelectMetaSection`) move into effects. The picker **hold-arm stops being
-        hardcoded**: it was two blocks of index+scope `if`s restating rules the table
-        already carried (which is why 9.29's machine picker cost a new `if` in three
-        places). Dispatch now asks
-        `resolveBinding(Section, idx, mods, Gesture::Hold)` — **adding a picker is
-        adding a row**. Per-picker "firedMidHold" bools → one pair; two long-press
-        tokens → one. *Fourth divergence:* `Track+tap(FX)` **bypassed the section
-        resolver**, so it disagreed with the colour the key was painted in (9.21's
-        nearest-ceiling rule). Now routed through it: on a track with no insert loaded,
-        `Track+tap(FX)` pages the master FX — the nearest populated layer, which is the
-        colour the key was already showing.
-  - [x] **7e — confirm / quantize.** *(2026-07-13.)* *Fifth divergence:* the P key's
-        rows said `VerbConfirm` while **labelled QUANT** — the label was the honest
-        half. Rows now say `QuantizeHeld`. The step-scoped quantize (bare P while
-        holding steps) becomes a **layer row**: a held step is not a modifier, which is
-        exactly why it lived buried in an if-cascade and the frame never advertised it.
-  - [x] **7f — transport.** *(2026-07-13.)* TAP TEMPO + metronome route to the ONE
-        transport effect (the controller path already came through `handleDown`'s
-        button switch — two doors, one behaviour). The generator hub fires its row from
-        the timer instead of poking `generatorHubHeld`, so a controller can open it
-        through the same door (§19). The tap still resolves on RELEASE: the same key's
-        hold opens the hub.
-- [x] **Stage 8 — Exhaustiveness guard + cleanup.** *(2026-07-13.)*
-      `handleAction` is **exhaustive over `ActionId` with no `default:`**, so `-Wswitch`
-      (`-Werror`) makes a new action a BUILD failure rather than a key that silently
-      does nothing. That compile-time guarantee is what let `kNotYetMigrated` be
-      **deleted** — a list of debt you must remember to shrink is precisely the
-      hand-synced invariant this phase exists to remove (PRINCIPLES §20: structural,
-      not remembered). `ActionCoverageTest` deleted with it; the compiler is the guard.
-      Declining is now a stated answer: the display-only rows (the Play key's multi-tap,
-      Scene+Mute's view, the two compound scopes) `return false` with a comment saying
-      whose behaviour it is.
-      **`KeyBinding::hint` removed.** The secondary label was, by rule, "what this key
-      becomes with Func also held" — so storing it wrote the same fact twice (once as
-      the Func row's primary, once as the bare row's hint) with nothing to stop a row
-      contradicting its own Func variant. `hintFor()` derives it. 117 rows lost a
-      column; the painter's bespoke **QUANT override went with it** (the table says
-      QUANT now, under Track/Phrase as a Base row and under a held step as a layer row),
-      and the P key's *colour* is asked of the resolved row, so label and colour can no
-      longer disagree about whether the key quantizes.
-      Vestigial `CycleInputModeLeft/Right` swept.
-
-**Outcome.** Dispatch and display now read the same table. Across Stage 7 the
-migration found **five** places where they had already drifted — every one of them a
-key frame advertising something the key did not do — plus one gesture (`Phrase+Nav`
-transpose) that dispatch performed and the surface could never show. None of that was
-findable by reading either side alone, which is the argument for the phase.
-
-> **Shipped 2026-07-13.** Every stage landed. The discipline that made it safe:
-> widen the net *before* moving the code, read every golden diff (a re-bless without
-> reading the diff is the one way to make the net worthless), and move bodies rather
-> than rewrite them — so a diff that shows only action-ID changes is proof the
-> behaviour did not move.
+Display and dispatch now read the **same** binding table: every key frame is
+derived from `resolveBinding(..., Gesture)` and `handleAction` is exhaustive
+over `ActionId` with no `default:` (a new action is a build failure, not a
+dead key). The migration ran family-by-family behind a widened behavioural
+golden net (`lockstep_dispatch_tests` driving a real headless editor — the
+"headless is unviable" belief was a misdiagnosis of a stack-local ~47 MB
+`Arrangement`), and found **five live display/dispatch divergences** plus one
+undisplayable gesture — none findable by reading either side alone. Two
+routing rules coexist by design: a modifier resolves on its **bare** row (a
+press means "enter this scope" whatever else is held) while verbs resolve
+most-specific-wins on the full held set. `KeyBinding::hint` was deleted
+(derived via `hintFor()` from the Func row), and the discipline that made it
+safe is recorded: widen the net before moving code, read every golden diff,
+move bodies rather than rewrite them.
 
 ### 9.13 — Redundancy / SSOT consolidation + switch hygiene  *[shipped]*
-
-Eliminate the implicit "two things meant to stay in sync" defects (a class that
-caused several recent bugs) and make silent `switch` fall-through a compile error.
-
-- [x] **Stage 1 — Switch fall-through hygiene.** `-Wimplicit-fallthrough` on all
-      targets; PRINCIPLES §20 (no default-case mandate; exhaustive-enum carve-out).
-- [x] **Stage 2 — `refreshSurface()`** collapses the 20 hand-paired
-      `repaint()` + `keyboardArea_.repaint()` call sites.
-- [x] **Stage 3 — Track-length single writer.** All edits route through
-      `setTrackLength`; ownership comments on `Track.length` ↔ APVTS param.
-- [x] **Stage 4 — Euclid state moves as a unit** (restoreEuclidStash /
-      forgetEuclidEditorState; one teardown path).
-- [x] **Stage 5 — Remove dead mirrors** (`latch.anySteps`); document SurfaceModel
-      label authority.
-- [x] **Stage 6 — Document state-ownership invariants** (DESIGN §4.7a).
-- [x] **Stage 7/8 — Unified modal read SSOT.** Editor-dispatch harness was
-      *believed* unviable headless (component-teardown segfault); pivoted to a pure
-      seam. **Correction (2026-07-13, 9.12 st.5):** that diagnosis was wrong — the
-      segfault was a stack-local `LockstepProcessor` (embeds ~47 MB `Arrangement`)
-      overflowing the stack in the function prologue, not component teardown. A
-      headless editor harness works fine (`lockstep_dispatch_tests`). The pure seam
-      shipped here is still right on its own merits; only the stated reason was.
-      `activeModal(ui)` (`src/ui/mode/ModalState.h`) is the one modal-priority
-      query; inspector funnels through it; a drift test locks it to
-      `resolveActiveLayer`. **Finding:** held-chords coexist with entered modes,
-      so a single mutually-exclusive storage field is impossible — storage stays
-      multi-field, the *read* is single (PRINCIPLES §18 caveat, §20). Also fixed:
-      editor async self-refs now use `Component::SafePointer`.
-
-### Future (structural)
-- [x] **Collapse `timeStickyMode` / `densityStickyMode` / `velStickyMode` into a
-  single `Overlay overlay` field** in `UiState` so that coexistence is unrepresentable
-  at the type level. `Overlay` enum now defined in `state/UiState.h`; `Overlay.h`
-  is a shim. `activeOverlay()` returns `ui.overlay`; `escapeOverlay()` guards each
-  arm. *(Stage 6 — 5259b6a)*
+The two-things-in-sync defect class attacked structurally:
+`-Wimplicit-fallthrough` everywhere (PRINCIPLES §20), `refreshSurface()`
+replacing 20 hand-paired repaints, track-length writes single-routed through
+`setTrackLength`, Euclid state moving as a unit, dead mirrors removed, state
+ownership documented (DESIGN §4.7a), the three sticky-mode booleans collapsed
+into the single `UiState::overlay` field (illegal co-existence
+unrepresentable), and `activeModal(ui)` as the one modal-priority read
+(storage stays multi-field; held chords coexist with entered modes). Stage
+7/8's "headless dispatch unviable" diagnosis was later corrected by 9.12.
 
 ### 9.14 — Grammar-consistency pass: Clear/Delete, FX picker, per-step inspector, move-step  *[shipped]*
-
-One coherent **orchestra paradigm** (PRINCIPLES §21) makes destructive verbs
-predictable, puts the FX picker under its section, brings per-step note/P-Lock
-surgery to the surface, and adds a move-step primitive — all inside the
-existing scope+verb grammar. Organizing principle: **hold = reveal & edit;
-tap = navigate/toggle** (PRINCIPLES §5). Docs-first.
-
-- [x] **Stage 0 — Docs.** PRINCIPLES §21 (orchestra paradigm; Clear blanks /
-      Delete removes; actor = scope, stage = current phrase; `+Song` widens via
-      a legal cross-column compound — *no exception needed*; confirmation
-      scales by blast radius). §5 revised: section *tap* = params, section
-      *hold* = picker (grid re-skin, §17 long-press); held step reveals its
-      inspector. DESIGN §13.2 (Clear/Delete table + `Track+Song` all-phrases +
-      confirm tiers), §13.8 (held-step inspector), §19.1 (move-step +
-      Step-Position panel), §32.2/§32.3 (hold-FX picker; `Func+FX` freed).
-- [x] **Stage 1 — Clear/Delete consistency + confirm + preview.** Immediate vs
-      confirm tiers (immediate auto-snapshots; confirm via `PendingConfirm`).
-      `Track+Song+Clear` all-phrases (`kModTrack|kModSong` row +
-      `clearTrackAllPhrases`). Armed-preview banner names target + reach.
-      *(`7f08e55`…`41d5a50`: PendingConfirm + sticky rule set + live YES/NO +
-      Track/Phrase clear gated through confirm.)*
-- [x] **Stage 2 — Hold = picker.** `Gesture::Hold` on Section idx5 →
-      `OpenTrackFxPicker`; tap → params; `Song`+hold-FX → master picker;
-      retire `Func+FX` row. *(`3ed60c6`.)*
-- [x] **Stage 3 — Held-step inspector.** `StepInspector` layer; MZ lock badges
-      + tap-to-clear (absorbs `Func+step` PLockClear); tap SRC → note editor
-      (absorbs `Func+Src+step`). *(`cd585d8`, `462ee4c`, `c5c76eb`.)*
-- [x] **Stage 4 — Move-step + Step-Position panel.** `swapSteps` (full Step
-      travels); hold step + `←/→` bubble-swap; hold step + `Func+←/→`
-      microOffset; MZ flips to position panel (encoders = move + micro-time);
-      `QUANT` zeroes offset. *(`6c59a3b`, `a33f12d`, `8a4c719`;
-      `core/StepBlockMove.h`.)*
-- [x] **Stage 5 — Copy/paste discoverability.** *(Shipped 2026-07-14.)* The status
-      lane now carries the **armed-verb** half beside 9.30's clipboard-*content* badge:
-      `REC=COPY` when the held scope copies, and `PLAY=PASTE` **only when the clipboard
-      holds something that scope will actually accept**. State-derived per the §42
-      taxonomy; no clipboard-model change.
-      The stage did not wire the scaffolded `copyHint()`/`pasteHint()` — it **deleted**
-      them. They had no callers and named the wrong key (`P=COPY`; `P` is CONFIRM,
-      COPY is on Record), so wiring them would have shipped the exact defect 9.12
-      exists to prevent. The hint is derived from the **scope × verb matrix**
-      (`verbs::clipAffordance`) instead, which is the real authority: for the verb
-      family the key table carries only *labels* while `handleVerb` decides *behaviour*.
-      **That gap was hiding a live bug.** `Song` had COPY and PASTE rows for verbs
-      `verbs::song` never implemented, so both keys were silent no-ops wearing labels
-      (the old dispatch golden recorded the proof: the press mutated no clipboard).
-      Both rows are gone; the keys now dim under Song, like `P` does. One matrix now
-      feeds the paste guards, the key glow, and the lane, so they cannot drift.
-- [~] **Stage 6 — Tests + README.** Confirm-tier resolution; `Track+Song+Clear`
-      round-trip; move-step carries overrides round-trip; inspector lock-clear
-      + note edit; hold-FX picker entry. README shortcut table; remove retired
-      `Func+Src+step` / `Func+FX`. *(Partial: swapSteps round-trip in
-      EngineTest; README §5.8 documents hold-FX picker + inspector note-edit and
-      `Func+FX`-as-meta-section matches KeyBindings.)*
-      *(Closed 2026-07-14 with the st.6 audit. It found six `ConfirmKind` values with
-      **no** test coverage — DeleteScene, BakeScene, CreateScene, CreateBaselineScene,
-      PasteScene, ClearPhrase — which made 9.30's "an armed confirm can never be
-      invisible" true only for the kinds someone had remembered to test. The audit is
-      now an exhaustive test over the whole enum: every kind must arm the pop-over, name
-      itself, and be unable to fade. A new kind that forgets its prompt fails the build's
-      test run instead of shipping a blank dialog.)*
-
-> **Retired/relocated gestures (this item):** `Func+Src+step` (note edit) →
-> hold-step inspector + SRC; `Func+step` (P-Lock clear mode) → inspector tap-to-clear;
-> `Func+FX` / `Func+Song+FX` (effect pickers) → hold-FX / `Song`+hold-FX.
+The orchestra paradigm (PRINCIPLES §21): Clear blanks / Delete removes,
+confirmation scales by blast radius, **hold = reveal & edit, tap =
+navigate/toggle**. Shipped: confirm tiers + armed-preview,
+`Track+Song+Clear` all-phrases, hold-FX = picker (tap = params; `Func+FX`
+retired), the held-step inspector (absorbing `Func+step` P-Lock clear and
+`Func+Src+step` note edit), move-step + the Step-Position panel
+(`swapSteps`, micro-offset, QUANT), and copy/paste discoverability on the
+status lane. Load-bearing lesson (st.5): for the verb family the key table
+carries only labels — the **scope x verb matrix** (`verbs::clipAffordance`)
+is the authority, and it exposed Song COPY/PASTE rows as silent no-ops
+wearing labels; paste guards, key glow and the lane all read the one matrix
+now. St.6 closed with an exhaustive ConfirmKind audit (every kind must arm
+the pop-over, name itself, and be unable to fade).
 
 ### 9.15 — Unified surface invalidation (events redraw, the clock only animates)  *[shipped]*
-
-Recent draw fixes papered over missing redraws with per-mode "repaint every
-tick" timers (e.g. the MZ `StepPosition` `area_.repaint()`, `4817f57`). The
-cause: there is **no single "the surface may have changed" signal** — ~50
-synchronous `refreshSurface()` sites, several polling timers, and the
-controllers' brute-force 30 Hz rebuild all coexist. This item unifies *when* the
-surface redraws (the §35.8 model already unifies *what*): one coalescing
-invalidation channel for discrete events, one self-suspending clock for
-continuous animations. Docs-first.
-
-- [x] **Stage 0 — Docs.** PRINCIPLES §22 (one invalidation channel; discrete =
-      events, never polled; the lone animation clock owns only continuous decays
-      and suspends when settled). DESIGN §35.9 (`SurfaceDispatcher` +
-      `handleAsyncUpdate` single build → all sinks; §35.9.2 audio→UI discrete
-      bridge on active-step change, not PPQ; §35.9.3 the one animation clock).
-- [x] **Stage 1 — `SurfaceDispatcher` + on-screen path.** `AsyncUpdater`-based
-      dispatcher (`ui/SurfaceDispatcher.h`); `refreshSurface()` → `invalidate()`
-      (all 22 sites repointed via the one header method); `onFrame` repaints
-      chrome + grid (controller fold-in is Stage 2). `SurfaceDispatcherTest`
-      asserts the coalescing contract (N invalidate ⇒ 1 frame; idle ⇒ 0; re-arm
-      after delivery; pending-at-teardown cancelled). No behaviour change.
-- [x] **Stage 2 — Fold controllers in.** `ControllerPortManager::drain` split
-      into `drainInput()` (FIFO→onInput, every tick) + `renderSurface()`
-      (onConnect-once + LED render). `onFrame` → `renderSurfaceFrame()` repaints
-      chrome + grid then `renderControllers()` (one `buildSurfaceModel`, both
-      surfaces); the unconditional per-tick rebuild is gone. The editor tick now
-      `refreshSurface()`s on transport/morph/playhead change (interim ppq poll;
-      Stage 3 moves it to the audio bridge). **Discipline sweep:** every bare
-      `keyboardArea_.repaint()` and the `EditorEffects` `ed.repaint()` callbacks
-      (mutes, machine-assign, capture, generic `requestRepaint`) now route through
-      `refreshSurface()`, so a grid change can never leave a controller stale —
-      the §35.8 no-divergence invariant. The only direct paint left is inside
-      `renderSurfaceFrame`. Connect/disconnect triggers an initial render.
-- [x] **Stage 3 — Audio→UI discrete bridge.** `surfaceDirtyFromAudio_` set in
-      `drainEngineCmds` whenever the audio thread applies a queued param change
-      (CC / encoder / P-Lock writes — all async via the engine FIFO); the editor
-      reads-and-clears it (`takeSurfaceDirty()`) on its tick → `refreshSurface()`,
-      which *settles* the value on screen + controllers (incl. the final value
-      after the user stops turning). `KeyboardArea`'s PPQ/length poll **removed**
-      (no timer at all now); length/divider routed through the editor's APVTS
-      listener. **Refinement vs the original sketch:** no `lastActiveStep_[]` /
-      discrete-step computation — the playhead's sub-step phase
-      (`playheadPhase`, the X-Touch envelope) is *animation*, so playback frames
-      stay continuous; discrete-step-only would freeze that envelope. **Playhead
-      moved to the display vblank** (`juce::VBlankAttachment`): the 30 Hz tick
-      sampled the PPQ clock too coarsely (a 16th spans 4/3 ticks → visible "fast,
-      fast, slow"), so the playhead now recomputes from the live clock at refresh
-      rate, repainting only grid + controllers when the PPQ moved. Test:
-      `testSurfaceDirtyOnParamApply` (apply sets the flag once; idle blocks
-      don't; `takeSurfaceDirty` clears it).
-- [x] **Stage 4 — Eliminate the component timers.** Refined from the original
-      "single animation clock": the architecture settled on **two** clocks by
-      necessity (DESIGN §35.9.3) — the always-on ~30 Hz editor timer (slow chrome
-      decays + hardware-facing work that must survive screen-sleep) and the
-      display **vblank** (screen playhead). Component-timer disposition:
-      - [x] **`ManipulationZone` timer removed** (was a perpetual 30 Hz poll):
-        `refreshSliders()` is now frame-driven from `renderSurfaceFrame`; the
-        `StepPosition` `area_.repaint()` hack is deleted (the encoder write routes
-        through the channel — mouse via `onStepPositionChanged`, controller via
-        the input-drain `refreshSurface`); the timer now runs **only during
-        CC-learn** (pulse + completion) and self-suspends.
-      - [x] `InPluginTransport` (15 Hz timer) removed → its `pollState()` (shadow-
-        gated) is called from the editor's always-on tick, so host-driven
-        play/rec/metronome still surface.
-      - [x] `SamplePoolOverlay` (10 Hz) → self-suspends via `visibilityChanged`:
-        polls only while the manager is on screen (was polling even when closed).
-      - [x] Idle repaints: gated by `dirty`/`modelDirty`/`ppqMoved` + the vblank's
-        step-change check, so a stopped, idle surface issues none by construction
-        (hardware spot-check still worthwhile).
-      Surviving timers: the one always-on editor timer, the display vblank, and
-      the 1 Hz controller-hotplug poll. MZ + pool timers self-suspend to their
-      transient states (CC-learn / overlay-visible).
-- [x] **Stage 5 — Enforce the channel (the mechanism was built; the rule wasn't).**
-      Stages 1–4 built the one channel but left "use it" a convention, and an audit
-      found the convention broken in ~45 places: `KeyboardArea` self-repainted on
-      *surface-changing* state (active track, page, section, display mode, mouse
-      release), and `dispatchDown`/`dispatchUp` carried 29 bare `repaint()` calls on
-      state that is visible on a controller (holding Track/Mute scope, running a
-      verb, cancelling a queued scene, taking a snapshot, arming CONFIRM). Each
-      redrew the *window* and left a connected controller's LEDs stale until an
-      unrelated event happened to invalidate — invisible on screen, which is why it
-      survived. Fixes: `KeyboardArea` loses the right to self-repaint (an injected
-      `onSurfaceDirty` → `markSurfaceDirty()` routes every state edit through the
-      channel); the surface-changing editor sites now `refreshSurface()`; the
-      genuinely chrome-only sites (status line, missing-sample banner, capture
-      strip, file-drag overlay, track-button header) keep a bare `repaint()` **and
-      state why** on the line. **Guard:** `tests/SurfaceInvalidationGuardTest.cpp`
-      scans the surface-owning sources and fails the build on any `repaint()` that
-      is neither in a frame producer nor marked `// chrome only: <reason>` —
-      verified by planting a violation and watching it go red. Also deleted a
-      comment that explained a repaint as compensating for "the KeyboardArea timer",
-      which Stage 3 removed. PRINCIPLES §22 is now descriptive.
+One coalescing invalidation channel for discrete events
+(`SurfaceDispatcher`; `refreshSurface()` = invalidate; one build feeds
+screen + all controllers) plus two clocks by necessity (the always-on ~30 Hz
+editor timer and the display vblank playhead); the audio->UI bridge is a
+dirty flag set when the engine FIFO applies a change; every component
+timer was removed or self-suspends. Stage 5 made the rule **structural**:
+`tests/SurfaceInvalidationGuardTest.cpp` fails the build on any `repaint()`
+outside a frame producer not marked `// chrome only: <reason>` — the audit
+that motivated it found ~45 convention violations leaving controller LEDs
+stale. PRINCIPLES §22 is descriptive; DESIGN §35.9.
 
 ### 9.16 — Performance capture: the tape deck  *[shipped]*
 The 8.26 blind WAV toggle became a visible, transport-aware "separate
@@ -1513,198 +563,57 @@ DAW export.
   configurable silence threshold / tail (constants in `CaptureController`).
 
 ### 9.17 — Unified launch-quantize + per-track "clip" transport  *[shipped]*
-One quantize authority for every deferrable action, and a Session-View
-stop/restart built from mute + a phase-reset primitive (no per-track `Stopped`
-state). Docs shipped first: PRINCIPLES §25, DESIGN §4.8 / §13.4 / §16.1.
-- [x] **`LaunchQuant` enum** `{Instant, Beat, Bar, Bars2, Bars4, Bars8,
-      PhraseEnd}` replacing `Project.launchQuantizeBars`; generalise the
-      scene-launch bar engine (`PluginProcessor.cpp` `queueScene` /
-      `prepareSceneLaunch` / `stagedSwap_`, `boundary = ceil(blockStart/grid)*
-      grid` at ~L1798, applied at top-of-next-block ~L1541) into one shared
-      boundary helper covering beat / bar-multiple / phrase-end.
-- [x] **Route Song switch + Phrase deviation through the authority** — fixes the
-      §16 drift (`setActiveSong` is currently immediate; phrase deviation is
-      currently immediate). Double-tap = instant, phase-preserving.
-- [x] **Quantized mute/unmute** — arm `trackMute` toggles to the grid (reuse the
-      declick `muteGain_` path); **phase-reset primitive** (snap
-      `nextTriggerPpq_[t]` to the boundary + `rearmOneShots(track)`, mirroring
-      the transport-start `freshStartPending_ → nextTriggerPpq_.fill(0)`
-      pattern); **`Mute + Play + step`** relaunch/retrigger gesture. Bare unmute
-      resumes in phase.
-- [x] **Looper edge-arming onto the shared grid** — `loop_sync` becomes
-      *length-only* (`Free | Free Len | Sync`); REC/PLAY/overdub edges arm via
-      the shared authority (retire `quantPeriodSamples()` as the timing source,
-      keep it for synced *length*). Double-tap REC/PLAY = instant (unchanged).
-- [x] **Per-track `launchQuant` override** (`FollowGlobal` default; folds in the
-      old `launchMode PhraseEnd`) + Set-level grid value on the transport-globals
-      page (`Func + 7`). `PhraseEnd` is a **per-track-override-only** value —
-      the Set grid offers only `{Instant, Beat, Bar, Bars2, Bars4, Bars8}`, so
-      whole-band Scene/Song launches stay atomic on one shared boundary.
-      *Shipped:* both grids live on `Func + 7` — slot 4 = Set grid (`LaunchQ`),
-      slot 5 = focused-track override (`T-LnchQ`, Follow…Phrase), mirroring the
-      per-track Scale slot already there. A Track-scope TRIG tail-slot is a
-      possible later refinement.
-- [x] **Serializer v24 → v25:** `Project.launchQuant` (enum; legacy int
-      1/2/4/8 → `Bar/Bars2/Bars4/Bars8`), per-track `launchQuant`, `loop_sync`
-      re-interpretation. Round-trip test for legacy load.
-- [x] **Unit tests per modality** (CLAUDE.md rule): boundary resolution (right
-      grid → right instant), scope routing (held modifier lands in the right
-      scope), and a write→serialise→reload round-trip. Cover the phase-reset
-      relaunch and the instant-override double-tap.
+One quantize authority (`LaunchQuant {Instant .. Bars8, PhraseEnd}`) for
+every deferrable action — scene/song launch, phrase deviation, quantized
+mute/unmute with the phase-reset primitive (`Mute+Play+step` relaunch),
+looper edge-arming (loop_sync becomes length-only) — with per-track
+override + Set grid on `Func+7`, double-tap = instant. PhraseEnd is
+per-track-only so whole-band launches stay atomic. Serializer v25.
+PRINCIPLES §25, DESIGN §13.4/§16.1.
 
 ### 9.18 — Sample-pool identity re-architecture (stable ids + typed pickers)  *[shipped]*
-Fixed the flat-pool-index rot found in manual testing (the "fluttering-bumblebee"
-cleanup, Items 2 + 6): a sample reference was a raw array index, so it drifted when
-the pool reordered (reserved volatile REC slots + reload rebasing), and every
-picker showed every entry regardless of what the machine can use (a PCM-less Stream
-entry offered in the Sampler; a Stream track's default `sample_id=0` resolving to
-the wrong entry → silence). Plan file:
-`~/.claude/plans/sample-pool-identity-rearchitecture.md`. Shipped in 6 commits.
-- [x] **Two identity domains, one token.** Persistent entries (File/Stream) are
-      identified by content hash (`hashXX32`) — stable across reorder *and* file
-      moves (reload → hash matches → auto-relink). Volatile captures (Record/Loop)
-      get a **session-local monotonic id**. `SampleId {domain, key}`; the pool
-      resolves it via `idOf`/`indexOf`/`resolve`, decoupling identity from position.
-- [x] **Serializer routes refs by content hash.** Sample-ref P nodes are stamped
-      with `sh` (hash); `normalizeSampleRefs` (runs every load) re-resolves each to
-      the pool entry's current position. Serializer **v28 → v29**; the v28 bridge
-      resolves legacy flat indices via the pool node's `i` attribute. Round-trip +
-      legacy-load tests.
-- [x] **Capability-filtered pickers.** `IMachine::sampleClass()` (Pcm/Stream);
-      `sampleAcceptedByTrack()` gates the MZ picker + pool-overlay assign. Retired
-      the `ensurePcm`-on-pick path (Stream stays out of the PCM players).
-- [x] **Pool overlay grouping** into FILE / STREAM / RECORD / LOOP sections.
-- [x] **Save-and-promote** gesture (`promoteVolatileToFile`): write a volatile
-      capture to a WAV, reload it as a durable File entry, repoint references to it.
-- [x] **Missing-sample surfacing:** `missingSampleCount()` + `onStateLoaded` hook;
-      the editor posts a status hint to relink. Per-entry `relink()` already exists.
-- [x] **MZ slot order:** StreamMachine `sample_id` → slot 0 (Sample), `start` →
-      slot 1, so the picker button renders over the Sample param.
+Fixed flat-pool-index rot: `SampleId {domain, key}` — content hash for
+persistent entries (stable across reorder and file moves; reload
+auto-relinks), session-local monotonic ids for volatile captures. Serializer
+v29 routes refs by hash (`normalizeSampleRefs` on load; v28 bridge for
+legacy indices). Capability-filtered pickers (`IMachine::sampleClass()` —
+Stream stays out of PCM players), pool overlay grouped by origin,
+**save-and-promote** (volatile -> WAV -> durable File entry, references
+repointed), missing-sample surfacing.
 
 ### 9.19 — Loop-seam / runtime-sample / pool polish  *[shipped]*
-Post-9.18 follow-up from manual testing. Plan file:
-`~/.claude/plans/loop-seam-runtime-samples-pool-polish.md`. Six commits.
-- [x] **Loop-seam crossfade.** `SamplePlayer`'s forward loop hard-wrapped with
-      `fmod` (an audible click); it now crossfades the seam — **borrows real tail
-      material past `loopEnd`** when the sample has it (loop period preserved, right
-      for bar-synced loops), else **eats into the loop** at the sample end. New
-      SampleMachine SRC slot `samp_loop_xfade` (ms, default 8; `0` = old hard wrap).
-      StreamMachine, which hard-started/stopped with no declick, gained a ~5 ms
-      anti-click gate (Stretch already had one; neither actually loops through
-      `SamplePlayer`, so the plan's shared-path premise was corrected here).
-- [x] **Stream/Stretch loop-length sizing helper.** They stay trig-gated; assigning
-      a sample to a track with **no trigs** auto-fits it — sizes the track length to
-      the sample's musical bar-length and seeds one trig on step 1 (no bespoke
-      gesture; rides the sample-assign hook). A sequenced track is left untouched.
-- [x] **Runtime missing-sample handling.** `SamplePool::rescanMissing()` re-stats
-      path-backed entries on pool-manager open, so a sample deleted/moved *while
-      running* shows MISSING + Relink; a persistent editor banner replaces sole
-      reliance on the fading load-time toast. Decoded PCM is retained (a File keeps
-      playing from RAM — no mid-set dropout); a Stream with no reader falls silent.
-- [x] **Per-group stable pool numbering.** The in-machine picker numbers entries
-      within their origin group (`groupOrdinal`: FILE 1, STREAM 1, REC 1 …) instead
-      of the raw pool index, which jumped when the volatile REC slots re-seed at the
-      pool front on reload.
-- [x] **Looper default → Sync** (was Free; Free ignores tempo and is the hardest
-      mode to reason about). New tracks only.
-- [x] **SRC sample-picker first-paint fix.** The picker button is laid out the
-      instant it becomes visible (was waiting for the next `resized()`).
+Loop-seam crossfade (borrows real tail material past loopEnd when present,
+else eats into the loop; `samp_loop_xfade`, default 8 ms), Stream anti-click
+gate, trigless auto-fit on sample assign (sizes track length + seeds one
+trig; sequenced tracks untouched), runtime missing-sample rescan + banner
+(decoded PCM retained — no mid-set dropout), per-origin-group stable pool
+numbering (`groupOrdinal`), looper default -> Sync, picker first-paint fix.
 
 ### 9.20 — Section-stack unification (one resolver, four consumers)  *[shipped]*
-Item 7 of the "fluttering-bumblebee" cleanup
-(`~/.claude/plans/i-found-quite-a-fluttering-bumblebee.md`). The section-key
-behaviour was split across two systems — the schema-derived Machine/Track param
-stack (`ScopeSectionSelect`) and a separate static meta/sticky matrix
-(`ScopedSectionMatrix` + `MetaBand`) — so section-key tint, the MZ header colour,
-and dispatch could disagree. One resolver now feeds the editor dispatch, the
-section-bar painter, and the MZ banner. Six commits.
-- [x] **Pure model + static table.** `SecCandidate` gains an action
-      (Param/Meta/TimeSticky), a `metaIndex`, a `funcQualified` flag and a label;
-      `SectionStackTable.h` carries the non-param content a held scope maps a key
-      onto (Track DIV, Phrase LEN, Scene/Song TIME, Song master FX, Func
-      COND/NOTE/TRSP). Pure + unit-tested.
-- [x] **`SectionResolve` resolver drives dispatch.** `resolveSectionKey()` unions
-      the schema param candidates (shared with `sectionsForKey`) with the stack
-      rows and returns `{winner, action, metaIndex, label, groups}`; the editor's
-      Section-key dispatch collapses to resolve → switch on action.
-- [x] **The stack is a true underlay.** Each key shows the layer nearest the held
-      ceiling — **bare TRIG shows the Track layer's DIV** (and pressing it opens the
-      DIV band), Scene+FX shows the Song master-FX layer. *(Refined in 9.21: the
-      first cut fell only downward and pinned a scope-coloured param — see below.)*
-- [x] **Winner-colour painting.** Section buttons tint by the resolved winning
-      origin (`originColour`) — a track-DSP FILTER reads cyan, a meta row reads its
-      scope hue — not a blanket held-scope wash; the dim wash for contentless keys
-      generalises to every scope.
-- [x] **MZ banner from the page origin.** The MZ carries `pageOrigin_`, fed once
-      by the editor at selection time (never re-derived from `slotOffset_`); the
-      header word (MACHINE/TRACK/PHRASE/SCENE/SONG/GLOBAL) + colour + wash come from
-      it, so a scope-scoped page names its scope after the modifier releases.
-- [x] **Func outline never latches.** `funcOutlineActive(funcHeld, pageFunc)`:
-      the Func border shows only while Func is held and only on a func-qualified
-      key/page; a latched COND/TRANSPORT band keeps its body colour but drops the
-      outline on release.
+One `SectionResolve` resolver (`resolveSectionKey()`: schema param
+candidates unioned with the static `SectionStackTable` of meta/sticky rows)
+now feeds editor dispatch, the section-bar painter, and the MZ banner —
+section tint, header colour, and dispatch can no longer disagree.
+Winner-origin colour painting, the MZ `pageOrigin_` banner, and the
+never-latching Func outline shipped with it. (The underlay direction was
+refined by 9.21.)
 
 ### 9.21 — Section-stack underlay: final model (nearest, colour-by-winner)  *[shipped]*
-Corrects the 9.20 first cut after a design discussion pinned down the intended
-model (`~/.claude/plans/section-stack-underlay-final.md`). The taught **contract**
-is hold-scope + section = that scope's content (Track+TRIG=DIV, Song+FX=masterFX);
-fall-through is a **convenience + colour-teaching aid**, and every key is coloured
-by the scope its content *truly* comes from. Five code/test commits + this block.
-- [x] **Nearest, ties toward deeper — falls up OR down.** `resolveSectionKey`
-      picks the layer nearest the held ceiling (`abs(origin − floor)`, ties to the
-      larger `SecOrigin`). The ceiling's own layer is distance 0, so canonical
-      chords are always exact; off-ceiling keys fall to the nearest real layer in
-      either direction (Song+FILTER falls *up* to the machine filter; Scene+FX falls
-      *down* to Song master-FX). Replaces the 9.20 downward-only peel.
-- [x] **No per-scope param layer — the fiction is dead.** Params have only
-      step-override ELSE track-base (OEB); holding a scope never changes the write
-      target. The resolver no longer consults `ScopedSectionMatrix` and no longer
-      pins a scope-coloured param candidate. Scene+FILTER edited track-base while
-      painted scene-green — it now falls to a **real** layer (the machine filter, or
-      a track-DSP block) and is coloured by it.
-- [x] **Honest colours + up-fill.** Deep-scope keys that fall up are enabled, not
-      dim (no wasted real estate); a section coloured by a scope hue genuinely has
-      content in that scope. `SurfaceModel`/MZ code was already winner-driven — only
-      the resolver's honesty and the stale assertions/comments changed.
-- [x] **Editor pages the winner.** Section dispatch routes `selectSection(index,
-      winner==Track)` so a key pages the same layer it is coloured by.
-- [x] **Selected-section underlay locked.** A committed section survives entering +
-      exiting a sticky Vel/Density/Time overlay (test); single owner (overlay in
-      `UiState::overlay`, selection in `masterSection`).
-- Deferred: **section→scope association review** (DIV@Track / LEN@Phrase /
-      TIME@Scene·Song / masterFX@Song may be sub-optimal — the colour language now
-      makes a bad placement visible; a `SectionStackTable` row-move is a one-line
-      change) and **per-scope sections** (the table supports them; sparse scopes are
-      fine today).
+The taught contract: hold-scope + section = that scope's content;
+fall-through is a convenience that falls to the **nearest** real layer in
+either direction (ties toward deeper), and every key is coloured by the
+scope its content truly comes from. Killed the per-scope param-layer
+fiction (params are OEB only; holding a scope never changes the write
+target). Deferred: the section->scope association review and true per-scope
+sections.
 
 ### 9.22 — Func colour model + `Func+Song` = Global scope  *[shipped]*
-Makes the Func layer obey the 9.21 colour-by-winner rule and wires **Global** as a
-real scope. Plan: `~/.claude/plans/func-scope-promotion-global.md`. Five code/test
-commits + this block. Decisions: Func is context-split; promotion is Global-only
-for now; Global surfaces TRSP (Func+7 shortcut kept); Global gets its own hue.
-- [x] **Dedicated Global hue.** `kScopeGlobal` (azure) — `originColour(Global)` no
-      longer borrows the Song gold, so a promoted Global page is visibly distinct.
-- [x] **`Func` is context-split (one rule).** `sectionResolveMode(ui)` owns it:
-      `Func+Song` → `{Global, primary}`; bare `Func` → `{Machine, meta hierarchy}`
-      (COND/NOTE + the Func+7 TRSP shortcut); `Func` over an unwired scope falls back
-      to the meta hierarchy (promotion is Global-only). Painter, dispatch and MZ all
-      read this one function, so they cannot diverge.
-- [x] **Global scope content = TRSP, floor-only.** A non-funcQualified Global row
-      puts the transport globals on the FILTER key, reached by `Func+Song`. The
-      resolver gates Global as *floor-only* in the primary layer, so it never leaks
-      up into a shallower scope's FILTER (Scene/Song+FILTER keep the 9.21 machine
-      filter); the `Func+7` shortcut still reaches TRSP through the func-meta layer.
-- [x] **Colour-by-winner under Func + border as the modifier signal.** The section
-      painter drives the resolver under Func too: COND/NOTE read machine-neutral,
-      TRSP reads Global azure, `Func+Song` fall-up keys read their scope hue — with
-      the func-colour border layered on every non-dim key while Func is held (never
-      latched). The MZ meta bands (COND neutral, TRSP azure) + `pageOrigin_` match.
-- [x] **Editor + MZ routed through the resolver.** The Func+section (MetaSection)
-      dispatch resolves via `sectionResolveMode` and switches on the action, so
-      `Func+Song+TRIG` fires Song TIME (was wrongly COND). `Func+Song+Record`=CAPTURE
-      (VerbRecord path) is untouched.
-- Deferred: the **promotion ladder** (Scene→Song, Phrase→Scene, Track→Phrase — a
-      row per rung) and additional **Global / master-bus content** beyond TRSP.
+Global became a real scope with its own azure hue (`kScopeGlobal`):
+`sectionResolveMode(ui)` context-splits Func (`Func+Song` -> Global primary
+layer carrying TRSP floor-only; bare Func -> the meta hierarchy), the
+painter/dispatch/MZ all read that one function, and the func-colour border
+is the modifier signal (never latched). Deferred: the promotion ladder and
+more Global content.
 
 ### 9.23 — Sample-playback coherence: Bungee engine + player family + pool metadata  *[in progress]*
 Unify the sample-player param family, adopt a third-party stretch engine, make
@@ -1912,428 +821,500 @@ exists and this milestone does not add one).
       also wants a hands-on pass. Code + measured assertions are green under -Werror.
 
 ### 9.25 — Sample-rate correctness + bandlimited resampling  *[R1–R6 shipped; R4 varispeed texture pending ear-test]*
-Make sample playback **sample-rate-correct** and **anti-aliased** via one shared
-bandlimited resampler, and stop paying for fixed oversampling at high base rates.
-Surfaced during the 9.24 FOSS-DSP work: the
-Sample/Slice playback path ignores the file-vs-engine sample rate, and Hermite
-interpolation (9.24 S4) is anti-imaging only, so pitching a bright sample **up**
-still aliases. No serializer bump (playback-rate + DSP only; no new persistent
-state). Discipline: reuse the 9.24 `fx_audition` ear gate + `SpectralMeasure.h`
-alias/purity assertions; a 44.1 k-sample-in-48 k-session render is the acceptance
-case for the correctness fix.
-- [x] **R1 — Shared bandlimited `Resampler`** (`src/dsp/Resampler.h`) built on
-      Signalsmith `InterpolatorKaiserSincN` (windowed-sinc, min-phase variants —
-      already vendored in 9.24 S1). Rate-aware: the lowpass cutoff tracks the
-      playback rate so reads faster than unity are anti-aliased. Unit-tested
-      (pitch-up purity, unity passthrough, DC gain).
-- [x] **R2 — Sample-rate-correctness fix (bug).** Fold `fileRate/engineRate` into
-      the Sample/Slice playback rate (`SampleMachine.cpp:90`, `SliceMachine.cpp:130`
-      — currently `pow(2, semis/12)` only; the pool stores PCM at *file* rate with
-      no resample-on-load). Window/loop indices are file-sample based (unaffected).
-      Stream/Stretch already correct (Bungee native rate conversion, 9.23 S3).
-      Regression: a 44.1 k sample in a 48 k (and 96/192 k) session plays at correct
-      pitch/length; sync-slice alignment holds (analysis already uses file rate, so
-      today analysis and playback disagree at any mismatch).
-- [x] **R3 — Anti-aliased sample pitch-up on read.** Route `SamplePlayer`'s read
-      through R1 (or oversample-then-decimate) when rate > 1 so up-pitched bright
-      samples don't alias. Test: pitch a bright sample up an octave, `aliasRatioDb`
-      bounded. (Down-pitch / rate < 1 stays fine on Hermite.)
-- [x] **R4 — Looper varispeed write via the resampler (layered overdub).** The
-      overdub is now a bandlimited fractional **scatter-add** (the transpose of the
-      R1 read, `Resampler::scatterAddCircular`) into a **fresh overdub layer B**,
-      folded into the committed loop A once per iteration at the wrap
-      (`A = A·decayGain + B`). This decouples the fractional write from the decay
-      feedback — B is add-only, so a windowed scatter never multi-decays overlapping
-      slots — resolving the blocker that deferred this in the 9.26 pass (credit: the
-      "double-buffer + commit-the-oldest-layer" reframing). Costs 2× loop RAM and
-      negligible CPU (an O(loopLen) fold a few times/sec), not the 4× oversampled
-      buffer the fallback would have. Unity overdub stays bit-exact (rate 1 on
-      integer positions → the kernel is a delta ⇒ `+= in`); k passes give
-      `A = Σ gᵏ⁻ʲ·Bⱼ`, the classic feedback-looper sum. B is committed on exit from
-      Overdubbing / before Halve/Double, dropped on Undo/Clear.
-      **Ear-test note:** the varispeed overdub *texture* still wants a listen — the
-      correctness (add-only fold, unity bit-exactness, decay-per-iteration
-      equivalence) is unit-tested, but the feel of a bandlimited fractional overdub
-      is subjective. Flagged for the same parallel ear-test as 9.24 S18 / 9.23 S1.
-- [x] **R5 — SR-scaled oversampling factor.** Derive the `juce::dsp::Oversampling`
-      factor from base `sampleRate` in `prepare()` (e.g. 8×@48k → 4×@96k → 2×@192k)
-      for Saturation/Distortion (9.24 S5/S7) and any future OS effect, holding the
-      effective processed rate ~constant — avoids ~1.5 MHz internal processing at
-      192 k for no audible gain. May be pulled forward into 9.24.
-- [x] **R6 — SR-normalise remaining fixed one-pole corners** (minor): saturation
-      `preZ`/`lowZ` (and peers) use hardcoded coefficients whose corner drifts in Hz
-      with the sample rate; derive from `sr` so tonal character holds. Low priority.
-      (Done for the two structural one-poles — HF-emphasis pre-LP ~5.3 kHz and
-      low-shelf LP ~640 Hz. `toneCoef` is left as a user tone control, not a fixed
-      corner.)
-
----
+One shared bandlimited `Resampler` (`src/dsp/Resampler.h`, Signalsmith
+windowed-sinc; rate-aware cutoff) behind: the sample-rate-correctness bug
+fix (file rate folded into Sample/Slice playback rate — a 44.1k sample in a
+48k session finally plays true), anti-aliased pitch-up reads, the looper
+varispeed **scatter-add overdub** into a fresh add-only layer folded at the
+wrap (`A = A*decay + B` — decouples fractional writes from decay feedback;
+unity stays bit-exact), SR-scaled oversampling factors, and SR-normalised
+one-pole corners. The R4 varispeed overdub *texture* stays user-gated for
+the parallel ear test.
 
 ### 9.26 — Play-test fixes: live loop re-latch, held-step COND, universal page dots  *[Stages A–C shipped]*
-Three play-test findings, fixed as focused slices (commit per stage; no serializer
-bump):
-- [x] **Stage A — Live `player_loop` re-latch (bug).** `player_loop` was latched
-      only at note-on, but a sustaining voice never re-fires (one-shots re-arm on
-      transport / scene launch, not per pattern cycle), so toggling Loop on an
-      auto-fit loop track was inert. `StretchMachine`/`StreamMachine` now cache the
-      loop-window ingredients at note-on and re-apply the window math in `process()`
-      when the effective `player_loop` changes; `tsMode`/`reverse` stay note-on
-      latched. Tests: Off→On mid-voice keeps it sounding past the natural end,
-      On→Off stops it after the pass.
-- [x] **Stage B — Held-step COND promotion.** Trig conditions were only reachable
-      via `Func+TRIG`; with a step held, bare `TRIG` stayed on `DIV`. Added a
-      `stepQualified` COND row + a `stepHeld` input to `resolveSectionKey` (rides
-      `SectionResolveMode`, so all four consumers agree); the nearest-to-ceiling math
-      makes bare `TRIG`+step→COND while `Track+TRIG`→`DIV` and `Func+TRIG` are
-      unchanged. The COND band's held-step write path (fan across held steps, else
-      `baseCond`) is unchanged. Tests: resolver promotion cases + COND write target.
-- [x] **Stage C — Universal "re-press cycles" page dots.** Generalised the existing
-      `pageDots` channel: subpage overlays (VEL→AMP, DENSITY→MOD, TIME/KEY→TRIG)
-      publish `{count, active}` onto their owning section key, and the param-page dot
-      count now routes through the same `buildParamCandidates`+`selectScopeSections`
-      path the dispatcher pages with (fixes the raw-schema over-count). One
-      affordance for every re-press-to-cycle key.
+Live `player_loop` re-latch mid-voice (was note-on-latched and inert on
+sustaining auto-fit loops), held-step COND promotion (bare TRIG + held step
+-> COND via a stepQualified resolver row, all four consumers agree), and
+universal re-press page dots routed through the same section-selection path
+the dispatcher pages with.
 
 ### 9.27 — Capture-round: two bugs, four features  *[shipped]*
-The play-test round that produced the deck-engine design (DESIGN §40, Phase 11)
-also produced two bugs and four independent features. They are unrelated to each
-other and to the deck; one commit each, each with tests. Docs for the deck landed
-first (DESIGN §40, PRINCIPLES §25.1, `docs/partner-app-concept.md`).
-- [x] **A1 — Stretch/Stream start on the first transient.** Onset detection
-      existed (`findFirstOnsetSample`) but only the Slice SYNC grid called it, so an
-      auto-fit loop with silent pre-roll started before the 1. `SamplePool::firstOnset`
-      memoises the attack position per entry (PCM entries from the block analysis
-      load() already computes; PCM-less Stream entries from a decoded head window);
-      `seedStartFromOnset` seeds the player's `start` from it on assignment, but
-      **only when the onset is pre-roll-like** — inside the first beat *and* the
-      first tenth of the source — so a pad's swell is never trimmed. Under Tempo the
-      loop window stays the whole buffer, so a non-zero start rotates the loop
-      (hit at t=0, period unchanged) rather than shortening it. A volatile capture
-      reports zero by design: the punch defined its start.
-- [x] **A2 — Trigless (lock-only) trigs are inert until the step is re-held.**
-      Two gaps behind one symptom. (i) While stopped the idle render path resolved
-      with `resolveStep = -1` unless a step was physically held. `idleResolveStep()`
-      is now the single owner of that choice: held step, else the **parked** step.
-      Parking needed its own field — `firedStepIdx_` is live fire state that
-      `refloorAllCursors` clears on a locate/stop, so `parkedStepIdx_` rides beside
-      it and both are written only through `setFiredStep()`. A parked step past the
-      track's current length resolves to base. (ii) Note-on-latched slots
-      (`startSample_`, `reverse_`, `tsMode_`, the source) can never be moved by a
-      lock-only step, because it rides an already-sounding voice. Rather than
-      re-latch them mid-voice (a seek/reverse/mode flip cannot be done without a
-      crossfade — deferred), `ParamSpec::noteOnLatched` states the fact and the MZ
-      marks such a lock `*!` instead of `*`. Machines opt in as they are audited;
-      Stretch and Stream are done.
-- [x] **A3 — Live P-lock (motion) recording.** Record-armed + playing + no step
-      held: turning a knob opens a per-slot motion window that writes the live value
-      as a P-lock into each step the playhead crosses, closing ~150 ms after the last
-      motion. One gesture over one loop records one loop (the Volca / Liven idiom);
-      holding longer **overwrites** — that is the escape hatch, not a mode. Held-step
-      writes keep classic behaviour (§13, more-specific-wins). A pure, unit-tested
-      `core/MotionRecorder.h` is the single seam both the MZ and CC paths funnel
-      through (§20): `arm()` publishes a value from whichever thread wrote it, and
-      every painting decision happens on the audio thread inside the step scan, over
-      a fixed table of atomics. An override on a step that emits no note is inert
-      under OEB, so a recorded motion **promotes an empty step to a trigless trig** —
-      exactly what the grid's `off → note → lock-only` cycle prints by hand (a Record
-      track, where lock-only is meaningless, is left alone). MZ record-red slot tint
-      ships in the same commit (§10). No serializer bump: locks and lock-only are
-      already state.
-- [x] **A4 — HQ delay: divisions on a bare turn, continuous with `Func`.** One
-      continuous **beat-fraction** axis replaces the stepped division index. The
-      schema carries it: `ParamSpec::detents` is a static, ascending lattice on a
-      *continuous* slot, with `valueLabels` naming each detent in parallel; the pure
-      `snapToDetents(spec, v, funcHeld)` is the single owner of the snap, so a bare
-      turn is musical and a `Func`-turn is free, and a slot with no lattice passes
-      through untouched. Readout is the division name on-lattice and derived ms off
-      it (`ParamSpec::Unit::Beats`, appended last). The tape-bend slew and >50 ms
-      crossfade already in the effect absorb both the sweep and the jump. The plain
-      `DelayEffect` stays free-ms — it is the absolute/character delay.
-      **Serializer v31→v32**: `upgrade_v31_to_v32` rewrites the stored index to the
-      beats it named. Old docs at the default never wrote the slot, and both defaults
-      are 1/4.
-- [x] **A5 — Volatile slots: 16, adjustable, lazily committed.** 8×12 s fixed
-      becomes 16 slots with a project-set maximum length (`Project::volatileMaxSeconds`,
-      default 60 s, on the `Func+7` transport-globals page), allocated without
-      zero-fill so RSS tracks what was recorded. **Used length** is now the invariant:
-      `prepareVolatile` reserves the capacity and reports length 0, and
-      `beginVolatileCapture(index, len)` is the only way a slot becomes readable —
-      it claims the length and clears exactly that region, refusing a claim past the
-      capacity rather than reallocating under the audio thread. Nothing reads past
-      it, because past it the memory is uninitialised, not silent. `nextFreeCaptureSlot`
-      returns **-1** on exhaustion instead of silently handing back slot 0, and the
-      MZ marks a shared `target_buffer` with `!` — sharing stays legal, never
-      accidental. `kVolatileBufferLabels` is static-asserted against the slot count.
-      Serialization is additive (`volatileSecs`, written only when non-default), so
-      no version bump. DESIGN §28.
-- [x] **A6 — Metronome + pre-roll.** The bar-synced accented click already existed
-      and already honoured the time signature (9.10); what it lacked was a **Level**
-      and a home other than the master bus. It now scales, and it lands on the **Cue**
-      output bus when the host has one enabled. **Pre-roll** is new: `Off / 1 / 2 / 4
-      Bar`, and with the sequencer record-armed, `Play` clicks for that many bars
-      before the transport starts (a second `Play`, or `Stop`, aborts). The count-in
-      runs on its own ppq, because the sequencer's has not started, and ends by
-      going through the ordinary fresh-start path — so the downbeat lands where the
-      last click did. Hosted, the host owns transport start (§3): a count-in is a
-      standalone/Auto affair and never delays host play. `processMetronome()` is the
-      single home for the click, called from both the running and the idle path (the
-      count-in *is* the idle path). Both controls join `CLICK` on the TIME band —
-      they are the click; no bespoke key (§2/§4). Chrome: the inspector reads
-      `COUNT-IN — bar 1 of 2`. Serialization is additive (`metroLevel`,
-      `preRollBars`), so no version bump.
+The play-test round that produced the deck-engine design (DESIGN §40) also
+shipped: onset-seeded start for Stretch/Stream (pre-roll-like onsets only —
+a pad's swell is never trimmed), lock-only trigs made live while stopped
+(`idleResolveStep()` single owner + the parked step; `noteOnLatched` marks
+un-movable locks `*!`), **live P-lock motion recording** (pure
+`core/MotionRecorder.h`, one seam for MZ + CC paths; a recorded motion
+promotes an empty step to a trigless trig), HQ-delay musical detents
+(`ParamSpec::detents` + `snapToDetents` — bare turn snaps, Func-turn free;
+v32), 16 adjustable lazily-committed volatile slots (used-length as the
+invariant; exhaustion returns -1, never silently slot 0), and metronome
+Level/Cue-bus routing + record pre-roll count-in (standalone/Auto only).
 
 ### 9.28 — Varispeed head-law correctness (deck pre-work)  *[shipped]*
-An audit of every read/write path against the head signal law (DESIGN §40.10 —
-one law across the whole signed rate axis) found the shipped code partially
-compliant: the sample players' reads are law-abiding, but the looper reads
-alias above unity rate and the scatter write has the right cutoff with the
-wrong gain. Small, in-place fixes that de-risk the Phase 11 head design; one
-commit each, each with tests.
-- [x] **9.28.1 — Scatter-write |rate| gain.** `Resampler::scatterAddCircular`
-      deposits at kernel density 1/rate, so a rate-2 overdub lands −6 dB, a
-      half-speed overdub +6 dB, and a stalled head (rate→0) piles unbounded
-      energy onto one spot. Scaling the deposit by |rate| fixes all three at
-      once and makes a write through zero fade at the turnaround for free.
-      Tests: DC amplitude ≈ 1 on readback at rates 0.5 / 2.0; near-zero rate
-      deposits near-zero; negative-rate write is the mirror of positive.
-- [x] **9.28.2 — Looper bandlimited reads above unity.** `loopSample` /
-      `readLayer` use Hermite unconditionally, and the looper's rate exceeds 1
-      whenever a take is longer than its sync window (`loopLen/tOut > 1`) or
-      the post-tape-FX resync overshoots — those reads alias. Route |rate| > 1
-      through the shared polyphase (a circular-wrap read variant), passing the
-      **effective per-sample advance** (including the tape-FX multiplier, which
-      the overdub scatter call should also honour).
-- [x] **9.28.3 — `Resampler::readCircular` + rate-axis coverage.** The wrapping
-      twin of `read()` (the scatter path already wraps), plus tests pinning the
-      previously untested corners: zero rate, negative rate, and seam
-      continuity on a circular read.
+Audit of every read/write path against the head signal law (DESIGN §40.10)
+before Phase 11 built on it: scatter-write gain scaled by |rate| (fixes
+-6 dB at rate 2, +6 dB at half speed, unbounded pile-up at rate->0),
+looper reads above unity routed through the shared polyphase (they aliased
+on Hermite), and `Resampler::readCircular` + rate-axis coverage (zero,
+negative, seam continuity).
 
 ### 9.29 — The Machine scope (naming the operand the grammar lost)  *[SHIPPED 2026-07-13]*
-
-Fell out of the 9.12 Stage 7a migration: `Func+Track` opened the machine picker,
-making it the **only** place a scope modifier opens an editor — which is why the
-modifier family needed a bare-row special case to stop the compound swallowing the
-hold. Pulling that thread found something bigger. Section keys have always edited
-the **machine** (`section()` reads `machines_[track]`'s schema), but no modifier
-could *say* "machine", so no verb could act on one: **you could not copy, paste, or
-init a sound.** The grammar was not missing a feature, it was missing an
-**operand**. Docs: PRINCIPLES §2, DESIGN §13.9.
-
-- [x] **Stage 0 — Docs.** PRINCIPLES §2 (unqualified is a *declared default*, not a
-      scope; `Func` reaches the unkeyed rung). DESIGN §13.9 (the Machine/Set scopes,
-      the identity-vs-sound split, the picker rule, the compound-scope latch).
-- [x] **Stage 1 — `Func+Track` = Machine scope.** `sectionResolveMode()` promotes it
-      to `floor=Machine` on the **primary** layer, exactly as `Func+Song` promotes to
-      Set/Global — so the section keys resolve to the machine's own param pages
-      instead of falling back to the Func meta hierarchy (COND/NOTE/TRSP). That
-      fall-back was the visible symptom: *"the section area shows the Func context,
-      not the machine context"*. One resolver serves the painter, the section bar and
-      dispatch, so all three moved together. `Func+Song` relabelled **SET**.
-      *Deviation from plan:* **no new `SurfaceLayer`.* SurfaceLayer is the *step-grid*
-      layer, and the Machine scope does not re-skin the grid (Track is still held, so
-      the grid is still the track selector). A layer that rendered identically to
-      `ScopeSelector` would be a lie in the one table that must not lie. The scope
-      announces itself through the **banner** instead (`layerBanner`'s ScopeSelector
-      case) and the inspector's HELD region.
-- [x] **Stage 2 — Picker moves to the section.** `Track` + hold(`SRC`) = choose the
-      machine, exactly parallel to `Track`+hold(`FX`) / `Song`+hold(`FX`) (9.14's
-      rule: *tap = navigate, hold = picker, scope-gated*). Bare hold(`SRC`) is
-      untouched — it is the OnDemand machine console, and the scope gate is the whole
-      separation. `funcTrackHeld` (which was doing two jobs) split into
-      `machineScopeHeld` + `machinePickerOpen`.
-- [x] **Stage 3 — Verbs on the machine.** `Machine+Record` = copy sound,
-      `Machine+Play` = paste, `Machine+Clear` = init. `Machine+Snapshot` stays
-      **reserved and inert** (a preset *library* is a subsystem, not a free
-      consequence of a chord).
-      **The grammar change this forced:** `Machine` **is** `Func+Track`, so
-      `Func+Track+Clear` could not be both "delete the track" and "init the machine",
-      and DESIGN's `Machine + Func + Clear` row was never expressible (a compound
-      scope cannot be qualified by the key that formed it). **Delete therefore moved
-      off the `Func` qualifier and onto the gesture axis, uniformly**:
-      `scope + tap(Clear)` = clear the contents, `scope + hold(Clear)` = delete the
-      entity. The destructive verb now costs the deliberate gesture, and — the real
-      prize — **`Trig+Func+Clear` (clear the P-Locks, keep the trig) works again**: it
-      was dead code, because the Func layer rewrote `Clear`→`VerbDelete` before
-      `verbs::trig` could ever read the Func flag, while both README and DESIGN
-      documented it as working.
-- [x] **Stage 4 — Compound-scope latch.** `Func` + double-tap a scope key latches the
-      compound (`Machine`, `Set`); the latch **survives releasing `Func`** — the first
-      latch that outlives a key used to enter it. `Func` is held *virtually* while it
-      stands, which is load-bearing: the binding table resolves Machine's verbs from
-      `kModFunc|kModTrack`, so a latch that did not hold Func virtually would give you
-      working section keys and dead verbs. Rule lives in `LatchOps::compoundLatchFor`
-      (pure, unit-tested); `physHeld_.func` lets the latch owner tell a real key from a
-      virtual one.
-- [x] **Stage 5 — Fallout.** The machine picker now dispatches **through the table**
-      (`OpenMachinePicker` → `fx.openOverlay`), one action off the 9.12 burn-down list.
-      `KIT` retired as a user-facing term (README glossary). Golden net re-blessed with
-      the diff read — `Func+Track` = action 10 → 74, `Func+Track+Clear` = 39 → 77, the
-      three `Func+scope+Clear` delete scenarios gone, scoped clear now resolving on
-      key-**up** (the tap/hold deferral).
-      *Deviation from plan:* the **7a bare-row special case stays.** It was written as
-      a workaround for the picker, but it encodes a real rule — *a modifier press means
-      "enter this scope" whatever else is held* — and the compound rows
-      (`HoldMachineScope`, `FocusGlobal`) are display-only precisely because of it.
-      Removing it would make the hold depend on those rows *staying* unwired, which is
-      a trap for the next person.
-      *Known gap (9.12 st.7d):* the picker holds are still **armed** by hardcoded index
-      checks (`ev.index == kSrcSecIdx && scope == Track`), like the FX pickers. The
-      general form — *ask the table whether a Hold row exists for this (button, index,
-      mods)* — belongs to the section-family migration, not here.
+Fell out of 9.12 st.7a: section keys always edited the machine, but no
+modifier could *say* "machine", so no verb could act on one — the grammar
+was missing an **operand**. Shipped: `Func+Track` = Machine scope (promoted
+on the primary layer exactly like `Func+Song` = Set/Global; announced via
+banner, not a fake grid layer), the machine picker moved to `Track` +
+hold(`SRC`) (tap = navigate, hold = picker), verbs on the machine
+(copy/paste/init; `Machine+Snapshot` reserved), and the compound-scope
+latch (`Func` + double-tap survives releasing Func, holding it virtually —
+load-bearing for verb resolution). **Grammar change it forced:** Delete
+moved off the Func qualifier onto the gesture axis uniformly — `scope +
+tap(Clear)` clears contents, `scope + hold(Clear)` deletes the entity —
+which revived the dead `Trig+Func+Clear` (clear P-Locks, keep trig). `KIT`
+retired as a user-facing term. PRINCIPLES §2, DESIGN §13.9. Known gap: the
+picker holds are still armed by hardcoded index checks (section-family
+migration territory).
 
 ### 9.30 — Chrome regroup: one concern per band, one status organ  *[SHIPPED 2026-07-13]*
-
-The five bands above the MZ were grouped by **accretion order, not concern**. Time was
-shredded across three non-adjacent bands; the header was a junk drawer of three usage
-frequencies; and status had **six** homes, which is another way of saying none. Worst
-finding: **the confirm prompt was a 1.5 s fading toast guarding a sticky state** — 1.5 s
-after arming a delete there were zero pixels saying the next `P` destroys a track.
-Prominence was the symptom; *event-rendering a state* was the bug. Docs: DESIGN §42.
-
-- [x] **Stage 0 — Docs.** DESIGN §42: the band map, the **status taxonomy** (*state* /
-      *alert* / *event*, distinguished by what makes them go away), the rule —
-      **anything that changes what the next key press does is STATE and must render
-      while armed** — and the pop-over's occlusion rule.
-- [x] **Stage 1 — Inspector 2.0.** Moved **directly above the MZ** (it is the MZ's
-      caption) and grew a full-width **STATUS lane**. `InspectorModel` gained a typed
-      status (pure, unit-tested, dual-target §19). **The confirm no longer fades:** the
-      prompt is *derived from the state* (`confirmPromptFor(kind, target)`), not from a
-      message captured at arm time, so armed-but-invisible is now unrepresentable rather
-      than merely unlikely (§20). It renders as a **double-height pop-over** over the
-      MZ's top edge — occluding **by contract**, since while pending every key confirms
-      or cancels. `paintStatus` deleted (two renderers each deciding for itself when to
-      show, in the busiest pixels on the surface, beside the animating mini-seq).
-- [x] **Stage 2 — Duplicate status homes deleted.** ~320 lines: the hand-placed header
-      badge dashboard (x 420–640) and the held-context preview, which re-narrated the
-      inspector's HELD + OVERLAY regions *and* painted a hint pill on top of the
-      animating mini-sequencer. The badges were real state, so they moved: CPY / CK /
-      input-mode now **qualify the HELD text** (`TRACK` + `CPY:TRK` = "a paste right now
-      would stamp a track"). Input mode shows only when it is *not* the default — PLAY on
-      all sixteen tracks is noise, and noise is why the dashboard was invisible.
-- [x] **Stage 3 — The transport+time block.** One hot band: `Play`/`Stop`/`Rec`/`Click` ·
-      BPM · time-sig · **key-sig** (displayed nowhere before, despite Phase 10 building a
-      whole key hierarchy behind it) · `Sg:Sc` · the **capture indicator**, moved off the
-      master VU strip — the highest-stakes status in the core CUJ was sitting in
-      peripheral vision on the element the eye treats as decoration. Timeline **fused**
-      beneath. The info row dies.
-- [x] **Stage 4 — The project rail.** One cold top row (file ops · library · sync ·
-      channel · display) plus the **controller-connection indicator**, which kills the
-      bottom banner — status home number six.
-- [x] **Stage 5 — Master VU vertical**, in the MZ's right flank: the output column, read
-      top-to-bottom as the signal flows (sculpt → blend → level). The top strip's one
-      real virtue was being the only full-width attention lane — the role the STATUS lane
-      now serves *on purpose*.
-- [x] **Stage 6 — Height reconciliation, measured.** Chrome above the MZ: 136 px → 128 px.
-      A headless-editor test lays out **all three `GridDisplayMode`s** and measures the
-      result (grid keeps real estate; inspector sits directly above the MZ; the pop-over
-      actually reaches over it). It earned its keep at once: the first version ran at the
-      golden rig's 1400×900 and passed with a 300 px rail planted in it — a layout test at
-      the wrong size cannot fail. It now measures at the shipping 990×626.
-
-**Outcome.** Three bands ordered by frequency, one status organ, and the sharpest defect
-on the surface fixed *structurally* rather than cosmetically.
-
----
+The bands above the MZ were grouped by accretion order, and status had six
+homes. DESIGN §42 wrote the **status taxonomy** (*state / alert / event*,
+distinguished by what makes them go away; anything that changes what the
+next key press does is STATE and must render while armed). Shipped:
+Inspector 2.0 directly above the MZ with the full-width STATUS lane — the
+confirm prompt is now *derived from the armed state*
+(`confirmPromptFor(kind, target)`) as a double-height pop-over, so
+armed-but-invisible is unrepresentable (the old 1.5 s fading toast guarded a
+sticky delete); the duplicate status homes deleted (~320 lines; badges
+became HELD-text qualifiers); the hot transport+time block (with key-sig
+displayed at last, and the capture indicator off the VU strip); the cold
+project rail (+ controller indicator, killing status home six); the master
+VU gone vertical; and a headless layout test that measures at the shipping
+window size.
 
 ### 9.31 — Play-test batch: levels, seeds, outline, tempo-relative time, two bugs  *[SHIPPED 2026-07-13]*
-
-Six items off one play-test session. Two are outright bugs; two are features that were
-*specified* but only ever built on one instance; two are UX corrections.
-
-- [x] **Stage 1 — Fractional trig conditions mean what they say.** `m:n` read the
-      numerator as a *phase offset* (`iter % n == m - 1`), so `2:3` fired once per three
-      cycles at an offset instead of twice — the numerator's musical meaning was
-      unreachable, and a `n:n` condition never all-fired. Now: **m fires per n cycles,
-      maximally evenly distributed** (the Euclid/Bresenham rule the generator already
-      uses). One helper — `TrigEvaluator::iterCyclePasses` — owns the rule; the grid
-      preview (`SurfaceModel.cpp`) had a *second copy* of the buggy formula and now calls
-      the same helper, so audio and display cannot diverge. Property tests over all
-      `1 ≤ m ≤ n ≤ 8`. DESIGN §4.4.
-- [x] **Stage 2 — The dropped trig: legato slid a dead envelope.** In LEGATO an
-      overlapping note-on re-uses the running envelope instead of re-gating it — which is
-      silence if that envelope is already spent. And a **sustain-0 patch spends it while
-      the note is still held**: `dsp::Envelope` decays to zero and then parks in
-      `Sustain` — level 0, but `isActive()` forever, because the gate is down. So every
-      "is this voice still sounding?" guard in the codebase was asking the wrong question.
-      Analog had no guard at all; **FM's guard (`!voice.active`) had the same hole** and
-      dropped the note too — the user's report that FM was clean was the patch, not the
-      code. Fixed at the source: `Envelope::isSilent()` ("makes no sound and will not
-      rise on its own"), used by Analog's mono legato **and** its paraphonic path (the
-      chord's shared envelope has the identical hole), plus a carrier-aware
-      `FMMachine::voiceIsSilent` — a modulator with a live envelope and no mixer level is
-      not audibility. The test is **table-driven across the pitched machines** (VA mono /
-      VA para / FM) with a vacuity guard on each row, so the next machine joins the table
-      rather than re-learning the bug.
-- [x] **Stage 3 — The MZ Func outline latches.** The outline is a property of *how the
-      shown page was reached*, not of what is held right now: it survives the Func release
-      and clears on any page change. Surface keys keep their live behaviour (7e).
-- [x] **Stage 4 — Levels: visible, playable, and on the wire.** The track-VU drag gesture
-      was invisible *and* mouse-centric; it dies. In its place: a **level tick** on each
-      track VU (display), a **mixer MZ page** (`Track` + hold `AMP`) that puts the bank's
-      eight track levels and the master under the encoders, a **master-VU drag** on
-      `output_gain` (double-click = 0 dB), and **CC7 main volume** for MIDI-out tracks
-      (sent on load, on change, on reassignment — the level means the same thing whether
-      the track ends in a machine or a synth).
-- [x] **Stage 5 — Generator seeds stop cloning.** The melodic/harmonic seed was the SEED
-      encoder alone, so the same SEED gave the same melody on every track, in every scene,
-      in every project. The effective RNG seed is now
-      `hash(track, machine, song, scene, phrase, projectEpoch, SEED)` — a **project epoch**
-      stamped at creation and serialized (state **v33**). SEED stays the musical dial:
-      same project + same placement + same SEED still reproduces exactly.
-- [x] **Stage 6 — Temporal FX are tempo-relative.** Only the HQ/master delay had the
-      beats+detents treatment; the track delay showed a raw `0.25`. Delay time now stores
-      **beats**, and modulation rates store **period-in-beats** (chorus / flanger / phaser
-      / the Analog LFO), following the shipped A4 convention: **bare turn snaps to musical
-      divisions, `Func`+turn sweeps free** — and a Func-swept value is *still* tempo-
-      relative, so nothing drifts when the BPM moves. Machines get BPM through a new
-      `IMachine::setTimeInfo`, mirroring `IEffect`. State **v34** migrates old
-      seconds/Hz values through the project's saved BPM (base params, P-Locks and
-      fill-P-Locks alike).
-
----
+Six items: fractional trig conditions now mean what they say (`m:n` = m
+fires per n cycles, maximally even — one helper owns the rule for audio AND
+the grid preview, which carried a second copy of the buggy formula); the
+legato dropped-trig bug fixed at the source (`Envelope::isSilent()` — a
+spent sustain-0 envelope parked active; Analog mono + para and FM all had
+the hole); the MZ Func outline latches with the page; **levels made
+visible/playable/on-the-wire** (VU level tick, `Track`+hold(`AMP`) mixer
+page, master-VU drag, CC7 for MIDI-out); generator seeds stopped cloning
+(effective seed = hash of placement + a serialized **project epoch**, v33;
+SEED stays the musical dial); and temporal FX went **tempo-relative**
+(delay in beats, mod rates in period-beats, detent snapping, migration
+through saved BPM, v34; `IMachine::setTimeInfo` added).
 
 ### 9.32 — The status lane at rest: the MZ's write target  *[SHIPPED 2026-07-13]*
-
-The STATUS lane (9.30) went blank whenever it had no confirm, alert or toast to show
-— a strip of dead pixels directly above the encoders, which is the one place on the
-surface with room to say the thing the encoders cannot say about themselves: **which
-layer they are about to write to.** Override-ELSE-Base is *the* rule (DESIGN §4.1) —
-the single fact that decides what every knob does — and it was displayed nowhere.
-"MZ → TRACK 3 base params" and "MZ → STEP 5 override (P-LOCK)" are the same eight
-knobs pointed at two different stores, and nothing in the knobs tells them apart.
-
-- [x] A fourth `StatusKind`, **`Idle`** (DESIGN §42.2): quiet by construction, because
-      it is *always* true and so must never compete with the kinds that are only
-      sometimes true. Any state / alert / event outranks it.
-- [x] `mzWriteTarget()` names **every** destination the MZ's dispatch can reach, in
-      that dispatch's own precedence order — fill → morph → control-all → held step →
-      base, plus the meta bands (whose knobs are not writing params at all). The
-      precedence *is* the correctness argument: a caption that claims to name the write
-      target and gets the order wrong is worse than none, because it is believed. Two
-      of those legs were invisible before: **Morph** (the knob writes a *deviation*
-      into the A/B layer, not a value), and **Control-All** (one knob writes sixteen
-      tracks). A third is a trap the lane now announces: **Fill held with no step
-      held** — `writeFillParam` has nowhere to put the value and silently drops it.
+A fourth `StatusKind::Idle` (always true, so always outranked) captions the
+MZ's **write target** in dispatch-precedence order — fill -> morph ->
+control-all -> held step -> base, plus the meta bands — surfacing the OEB
+rule where it is decided and announcing the traps (Morph writes a
+deviation; Control-All writes sixteen tracks; Fill with no step held drops
+the value). DESIGN §42.2.
 
 ### 9.33 — The chrome look has one owner  *[SHIPPED 2026-07-13]*
+`ChromeLookAndFeel` — one font/height/radius/border/hover installed on the
+editor so every chrome child inherits it; a base, not a straitjacket
+(semantic colour ids still win). `ChromeStyleGuardTest` fails the build on
+a per-component colour override that doesn't claim `// semantic colour:
+<reason>`. DESIGN §42.2a.
 
-The buttons in the three bands at the top of the window looked like three different
-widgets, because each group was styled where it happened to be **constructed**: the
-file bar hard-coded a fill, the rail buttons and combo boxes took raw JUCE defaults,
-and the transport read its resting colours from the *default* `LookAndFeel` — not the
-one the editor installs — so it could not inherit anything. `Click` even rendered as
-`Cli…`: the transport's font was large enough to truncate its own label.
+## Phase 5 — Performance Depth  *[partial: 5.1/5.2/5.7/5.7c/5.10 shipped; 5.3 next (active arc); 5.4/5.8/5.9 open]*
 
-- [x] `ChromeLookAndFeel`: one font, one control height, one radius, one border, one
-      hover, installed on the editor so every child inherits it. DESIGN §42.2a.
-- [x] A **base, not a straitjacket** — every draw reads the button's own colour ids, so
-      semantic colour still wins (transparent track cells over the VU; the transport
-      lighting up when armed; green-recall / red-delete in the sound bank).
-- [x] `ChromeStyleGuardTest`: a per-component colour override must claim to be
-      semantic (`// semantic colour: <reason>`) or the build fails. Decoration belongs
-      to the look; only meaning belongs to the call site.
+The depth pass on top of the frozen surface: timing feel, scenes, pattern/part
+management, sampling, audition, special trigs, the remaining trig-grid modes, and
+the UI-polish/palette pass.
+
+### 5.1 — Microtiming + swing + quantize  *[shipped]*  *(was ML)*
+`Step::microOffset` with a sample-accurate look-ahead scheduler (also fixed
+the single-emit-per-block limitation), record-time microtiming capture,
+signed additive **hierarchical swing** (Song-all + Song-track + Scene-all,
+moved out of APVTS into musical state — no longer host-automatable, v10),
+the `Quantize` verb (`scope+No`), and the qualifier-driven authoring UI +
+nudge-direction ticks.
+
+### 5.2 — Morph + crossfader  *[shipped]*  *(was MI)*
+DESIGN §17. The full crossfader: three-tier resolution (P-Lock > morph-lerp >
+kit base) with **mirror resolution** for absent poles, modifier-gated
+sculpting (normalised split writes), pole-forcing, stepped snap + MIDI-out
+parity, **fluid mute** (`Morph+Mute` captures level->silence into the near
+pole), and fader MIDI-learn. RAM-only fader; inert until A != B.
+
+### 5.3 — Song/Scene management UI  *[planned]*  *(was MJ; re-scoped for Phase 7)*
+DESIGN §23 (re-derived for the Phase 7 model). The old Pattern/Part management UI
+is re-scoped to manage Songs and Scenes.
+- [ ] Song + Scene names (≤16 chars, inline editor).
+- [ ] Song + Scene colours + tags (palette tied to §24).
+- [ ] Non-modal browser overlay (Songs → Scenes), navigable while playing;
+      selection reuses the launch gesture.
+- [ ] Copy / move / duplicate Phrases across tracks or Songs.
+- [ ] In-browser Scene queue cue (`Yes` cues, `No` cancels).
+- [ ] Kit as a recall unit (DESIGN §4.7.2): Kit name (inline); save/load
+      against a Set-level Kit library; machine-vs-library paging in the
+      `Func+Track` picker. (Kit reload = `Track`-scope Checkpoint floor,
+      §13.6 — no separate gesture.)
+
+### 5.4 — Sampling + resampling  *[planned]*  *(was MN)*
+DESIGN §22.
+- [ ] Audio-input capture overlay; source picker `{Plugin input, Track 1..N,
+      Master}` (no system/device input).
+- [ ] Free-form capture (`Record`/`Stop` in the Sampling scope) → temp buffer →
+      naming flow.
+- [ ] Capture-N-bars; resample taps (`Track+Sampling`, `Song+Sampling`).
+- [ ] Naming flow (4 curated + 1 hash-derived) from a bundled wordlist.
+- [ ] Pool integration (`samples/recorded/`, standard `xxHash32` ref).
+- [ ] Resample-time stretch/pitch decision (preserve pitch / length / independent
+      ratios; baked, no realtime DSP here).
+
+### 5.5 — Audition (Cue scope) + cross-track record  *[audition shipped]*  *(was MO)*
+DESIGN §21.
+- [x] Audition gestures via the **Cue** scope on the freed `Func+3` compound (no
+      new physical key — hardware parity). `Cue+step` fires that step's resolved
+      trig once; `Cue` alone fires the focused track's base trig. Both bypass the
+      event stream (reuse `liveNoteOn/Off`) and write nothing.
+- [ ] Per-track record arms in Per-Track-MIDI mode; arm-all (`Func+RecordArm`).
+- [ ] Omni-mode arming behaviour documented.
+- [ ] Step-as-keyboard live record composing with the trig-grid modes.
+
+### 5.6 — Special trig types  *[lock-only + one-shot shipped]*  *(was MQ)*
+DESIGN §30. Trigless/lock-only trigs (`Trig+step` cycles off -> note ->
+lock-only; the running path advances the fired step so overrides ride onto a
+sustaining voice with no note; v24), one-shot trigs (RAM-only spent flag,
+auto-rearm on transport/scene, COND "1Shot" field), and the contextual
+Record trig (a trig on a Record track captures; lock-only disallowed there).
+One-shot armed/spent chrome remains a follow-up.
+
+### 5.7 — Alternate trig modes: Retrig/ratchet + Sound Pool  *[shipped]*  *(was MG remainder + MM generic-role)*
+The trig-grid modal surface beyond CHROMATIC/LEVELS (which shipped in 3.9).
+- [x] Retrig / ratchet trig-grid mode (`Fill+TRIG` momentary hold): grid shows 8
+      ratchet rates (/4…/32T); ISliceable tracks show slice indices instead.
+      Step press live-stutters using the step's own note (fixes hardcoded note-60).
+      Record-arm or held-step authoring writes `hasRetrig`/`retrigRate` P-Lock.
+- [x] Sound Pool mode (`Fill+SRC` momentary hold): grid pages pool entries; step
+      press calls `liveSwapTrackSound` for live audition; record-arm bakes a
+      `sound_id` P-Lock (`hasSoundId`/`soundId`). Pre-existing serializer bug fixed.
+- [x] Mode-chord UX consistent with the surface model; clean exit on Fill release.
+- [x] Serializer bumped to v12 (retrig + soundId fields; `upgrade_v11_to_v12`).
+- [x] CellState tokens: `SoundPoolOccupied/Empty/Current`, `RetrigRate/Selected`,
+      `SlicePoint/Selected/Empty`; mapped on Push 1 and X-Touch Mini.
+- [ ] Generic role-tagged LEVELS sub-mode (extend 3.9's velocity-first LEVELS to
+      a closed eligible role set: cutoff, attack, pan, … — the surviving MM.1).
+
+### 5.7c — Sound Bank overlay completion  *[shipped]*
+Full management UI over the 5.7 pool (recall/delete/inline-rename rows,
+machine-mismatch guard, `remapSoundIdsAfterRemoval` under
+`withQuiescedEngine`, auto-naming). Critical bug fixed: `Project::soundPool`
+was never serialized (v16). Also added the `tools/check.sh` format gate.
+
+### 5.8 — UI polish: layout, palette, toggles, coarse-adjust  *[planned]*  *(was MP)*
+DESIGN §24, §25, §26.
+- [ ] Vertical / square-cell layout matching hardware key caps; constants in one
+      header.
+- [ ] State-colour palette (`StateColor` enum + single resolver) feeding grid /
+      sections / chrome / future LEDs.
+- [ ] Granular feedback toggles (Settings panel; defaults on); recovers the
+      Staggered/Ortholinear/Clean overlays as toggle presets.
+- [ ] Coarse-adjust modifier (`Func` + encoder, unit-derived step).
+- [ ] MZ size single constant verified at `kMZSlots = 8`.
+- [ ] MIDI-device preset-selection UI (deferred from 2.5).
+
+### 5.9 — Deterministic generators + performance macros (groovebox sweep)  *[planned]*
+From the competitive sweep (see `NON-GOALS.md`): the admitted, principle-clean
+additions. Each is authored against the frozen surface and must stay within
+scope+verb. Stochastic / generative authoring is explicitly *not* here (NON-GOALS).
+- [x] **Euclidean print-on-release** (DESIGN §13.5): `Phrase+Fill` chord enters
+      generator mode on the focused track; MZ shows `PULSE / OFSET / ACCNT` via
+      `MetaBand::Euclidean`; release replaces trigs in `[0, phrase.length)`;
+      checkpoint pushed first if phrase has existing trigs. Output is ordinary
+      hand-editable trig data. Accent layer Euclidean-distributes N accented
+      onsets over the K pulses (higher velocity). See `core/Euclidean.h`.
+- [x] **Density overlay** (replaces Chance macro): a live, subtractive trig-thinning
+      overlay strictly downstream of fill/iteration/prev-dep/probability — only
+      silences would-fire trigs, never re-enables them. Per-track density amounts +
+      master offset are ephemeral (reset on song change; ride scene sticky/floor
+      launch). Musicality (Uniform/Mixed/Metric) and Selection (Scrub/Reroll) are
+      durable per-song-per-track in TrackKit (serializer v18→v19). Gestures:
+      `Func`-held → 16-track Density band (paginated); `Func+Song+encoder` → master
+      offset; `Song`-held → durable mode editor. Visual: rotary = per-track value,
+      arc = master offset, tick = effective (sticks at rail with dimmed overshoot).
+      See DESIGN §39. *(Chance macro superseded.)*
+- [x] **Meter-aware metric weighting** (`MetricGrid.h`): replaced the 4/4-only
+      trailing-zero depth with Lerdahl–Jackendoff dot-counts; `densitySurvives`
+      and `metricDrop` now take `numerator`/`denominator` and produce musically
+      correct thinning in 3/4, 6/8, 7/8, 9/8, etc. Regression-safe: 4/4 behaviour
+      unchanged. See DESIGN §39.2. *(b29d1bf)*
+- [x] **Deterministic Scrub density selection** (`MetricSelect.h`, §39.3a): Scrub mode
+      is fully deterministic and loop-stable — no per-step hash. A fixed per-track
+      rotation offset (`densityScrubHash(track,0,0)`) de-correlates same-density tracks.
+      Metric importance tiers (from `MetricGrid::metricWeight`) are filled strongest-first;
+      the partially-included boundary tier uses `bjorklund(M, k)` — evenly spread,
+      per-count recomputed (not drop-point). Three independent modes: **Uniform** =
+      `euclidHit(loopPos, L, Tl, off)` over the whole loop (repeats exactly every
+      loop); **Metric** = `metric[T]` bitmask, global-bar scope, downbeats anchored;
+      **Mixed** = `metric[P]` core protected + `bjorklund(N-P, T-P, off)` fill on
+      unprotected positions, global-bar scope. Table gains `metric[]` + `mixed[]`;
+      `euclidHit()` (O(1), no allocation) added to `Euclidean.h`. Reroll path unchanged.
+      See DESIGN §39.3a. *(bbc2392, 2233b5f, 381f7a3, c811675)*
+- [x] **Accent velocity generator** (`Func+Fill` chord, §39.10): shipped then
+      **replaced** by the live velocity overlay (v20). See §39.10.
+      *(7fb3f01 → replaced by 427a5d7)*
+- [x] **Musical subdivision picker** (DIV band two-field — base note value +
+      flavour Straight/Dotted/Triplet; range 4/1 … 1/64; serializer v19→v20 remap).
+      See DESIGN §4.2. *(Commits 1-2, v20)*
+- [x] **Density Exempt detent** — third DensitySelection state; engine early-out;
+      Amount + Musicality cells greyed. See DESIGN §39.2. *(Commit 3, v20)*
+- [x] **Live velocity overlay** — **Func+AMP** entry (was double-tap AMP, which
+      collided with AMP page cycling); 4 sub-pages (Depth/Center/Mode/Blend);
+      Replace/Mix blend; Bar-metric weight at emit time; durable TrackKit fields;
+      serializer v20. See DESIGN §39.10. *(Commits 4-5, v20; entry gesture fixed v20+1)*
+- [ ] **Scale-aware CHROMATIC layout** (DESIGN §34.2): the per-phrase scale lock
+      remaps the CHROMATIC keyboard to scale degrees — a *playable layout*, never
+      note auto-correct (out-of-scale entry stays verbatim and reachable).
+- [ ] **Arpeggiator** — *design-stub only* (DESIGN §13.5 DRAFT). PRINCIPLES-cleared
+      as a performable engine; **gated**: must close the grammar-fit open questions
+      in DESIGN before it earns a checklist here.
+- [ ] **Retrig model redesign** (future): the current rate-picker overlay selects a
+      global ratchet rate per trigger event. A richer model — hold-steps-to-isolate
+      (step-isolate/solo gesture), step-held ratchet-on-hold, polymeter-safe per-step
+      ratchet — was intentionally deferred. Design must fit the scope+verb grammar
+      before this earns a checklist. (Deferred 2026-06-08.) **Flagged tension:**
+      the shipped live stutter sits knowingly close to NON-GOALS fence #11
+      ("Sonicware stutter") — see the close-calls note in `NON-GOALS.md`; the
+      redesign must resolve that tension, not extend it.
+- [ ] **Step-isolate/solo** live gesture (future): hold one or more steps to
+      temporarily isolate their tracks/voices during playback — a punch-in
+      performance verb. Grammar and exact scope deferred. (Deferred 2026-06-08.)
+
+> The **Animate** momentary insert-toggle (FX-held + step) shipped in 6.5.
+
+### 5.10 — Func-layer legibility + meta-section relocation  *[shipped]*
+The `Func`-held section row gained the same glow/dim colour grammar the
+scopes use (reachable secondaries were invisible), and the §6.2 relocations
+landed: `TRACK` meta -> `Track+TRIG`, `GLOBAL` -> `Song+FX`, with `Func`
+pinned to COND/NOTE.
+
+## Phase 6 — Routing, FX & Platform  *[6.1/6.2/6.3/6.5 shipped; 6.4 next (active arc); 6.6 in progress; 6.7 waits for a second consumer; 6.8 open]*
+
+The audio-input boundary and the machines it unlocks, the effects system, the cue
+bus, external controller surfaces, the machine-module ABI, and the beta polish.
+
+### 6.1 — Audio-input boundary + routing + Route machine  *[shipped]*  *(was MR)*
+DESIGN §27, §29. The audio-input path at the machine boundary
+(`input_source` outside-world tap), **output-directed routing** (per-track
+CHANNEL "Out" `{Master | Track N | Off}`; a bus reads the sum routed into
+it; cycles refused at the write), the per-block topological sort
+(`core/RoutingGraph.h`), the master prior-block tap, the unity RouteMachine,
+MIDI-out parity — and **stem export** (Workstream D): every capture take is
+a directory of `master.wav` + one `track-NN.wav` per non-empty Master-routed
+track; routing IS the stem grouping.
+
+### 6.2 — Record buffers + recorder trigs  *[shipped, freeze-to-disk deferred]*  *(was MS)*
+DESIGN §28, §29, §30. Depends on 6.1.
+- [x] Volatile pool entries (RAM-only, `REC`-badged, unified address space):
+      `SamplePool::addVolatile/prepareVolatile/nthVolatileIndex`; skipped on save.
+- [x] Fixed set of volatile buffer slots (8) reserved at the top of the pool,
+      re-seeded on load (`seedVolatileSlots`).
+- [x] RecordMachine (`input_source`, `target_buffer`, `rec_length`,
+      overwrite-only); V1 note-on capture edge; captured buffer immediately
+      playable from a Sample (live-resample round-trip test).
+- [x] Record trig is **contextual** (a trig on a Record track), not a stored
+      step field; lock-only disallowed there (`isRecorderTrack` guard).
+- [ ] Freeze-to-disk via the §22 naming flow — **deferred** to a later milestone
+      (captures are RAM-only / lost on quit, Octatrack parity).
+
+### 6.3 — Loop machine (overdub)  *[shipped]*  *(was MT)*
+DESIGN §29. Depends on 6.2.
+- [x] LoopMachine state machine (Idle→Record→Play→Overdub + Clear + one-level
+      Undo); internal RAM loop (kept machine-internal by design — the deliberate
+      path into the volatile pool is the post-FX resample flow, not auto-capture).
+- [x] Verb-driven while focused with no new grammar: `Track+Record` cycles
+      record→overdub, `Track+Play` toggles play/stop, `Track+Clear` empties
+      (shadowing the track clipboard on Loop tracks); lock-free command mailbox;
+      `LoopMachineTest` drives the full state machine.
+- [ ] Click-free overdub seams + transport-synced loop-length option — later
+      refinement (loop length is free-running for now).
+
+### 6.4 — Cue + Aux output buses + monitoring  *[in progress]*  *(was MU)*
+DESIGN §31 / §31.1. Static output complement + the `Cue` scope.
+
+> **Scope correction (2026-07-14 alignment review).** Two boxes below were stale:
+> the `Cue`-scope key *is* allocated (it shipped with 5.5 as `Func`+`3` →
+> `enterCueScope()`, `PrimaryScope::Cue`), and the Cue bus *is* fed — but only by
+> the metronome (`processMetronome`, the bus's sole writer). What is genuinely
+> missing is the **per-track cue send tap** (`Route` has no `Cue` member) and the
+> `Cue`+X gestures that ride the scope key that already exists.
+- [x] Static output complement: **Master + Cue + 6 Aux** stereo buses, non-main
+      declared disabled-by-default (`BusesPropertiesAccessor::make`). No dynamic
+      port rescan (host lottery — rejected). **CLAP/VST3 port exposure in a real
+      host (Bitwig/Reaper) is unverified in this environment — verify before UI.**
+- [x] **Aux mix routing**: the CHANNEL "Out" slot destination set grows to
+      `Off | Master | Bus(track) | Aux 1–6` (`OutputDest.h`); an Aux route whose
+      host bus is disabled **folds to Master** (never silent data loss). Master
+      processing confined to a main-bus view so aux buses never get master FX.
+      No serializer bump needed — the Aux encoding rides the existing v25
+      `channelState.out` float (old files decode as Master/Track unchanged).
+- [x] Cue bus **declared and fed** (standalone ch 3–4 / plugin Cue bus). The
+      metronome is currently its only writer (`processMetronome`), which is what
+      proves the bus is live end-to-end.
+- [x] `Cue`-scope key allocated: `Func`+`3` → `enterCueScope()` (`PrimaryScope::Cue`),
+      shipped with 5.5. `Cue`+step already auditions.
+- [ ] **Per-track cue send tap** — additive post-FLTR/AMP/Level, excluded from
+      `outputReachesMaster()` (cue-only audio must never count as "reaches master").
+      `Route` grows a `Cue` member.
+- [ ] `Cue + track` / `Cue + Scene` / `Cue + MIDI-out` **gestures** on the existing
+      `Cue` scope. New input modality ⇒ unit tests (resolution, scope routing,
+      round-trip).
+- [x] Live stem capture via Aux outs documented as the blessed stem-export path
+      (DESIGN §31.1) — the offline per-take stem-export item is demoted.
+
+### 6.5 — Insert + master effects (FX system)  *[shipped]*  *(was MV)*
+DESIGN §32. `IEffect` (reuses ParamSpec/role/P-Lock) + the starter
+catalogue, per-track 2-insert chains, the **Animate** momentary bypass
+(FX-held + step), two master FX slots + two send buses (see 8.26),
+performance-grammar parity for inserts (P-Lock, Control-All, section-copy),
+transport globals relocated to `Func+7`, serializers v13/v14. MIDI-out
+tracks carry no inserts/sends.
+
+### 6.6 — External controller surfaces  *[in progress]*  *(was MW)*
+DESIGN §35. Generic third-party MIDI controllers as augmentation surfaces (worked
+examples: Behringer X-Touch Mini — see `XTOUCHMINI_MCU.md` — and Ableton Push 1).
+The load-bearing piece is the surface model (§35.8): one pure `buildSurfaceModel()`
+both screen and controllers render from. **End-state:** contributors add
+controllers via `IControllerSurface` + `ControllerRegistry`; the JSON profile is
+the default data-driven impl.
+
+> **Architecture status (drift note).** The surface model and two concrete
+> controllers shipped **ahead of** the registry/JSON layer. Today
+> `Push1Surface` and `XTouchMiniSurface` are **hardcoded `IControllerSurface`
+> subclasses instantiated directly in `PluginEditor`** and driven by
+> `ControllerPortManager`; feedback is rendered inline from
+> `ControllerPortManager::drain` (no separate throttled emitter yet). This is
+> **interim** — the `ControllerRegistry`, the data-driven JSON profile loader
+> + schema validation, and the `ControllerFeedbackEmitter` remain the intended
+> end-state (they are what make third-party controllers a contributor surface
+> rather than a core code change). Items below mark what shipped vs. what the
+> end-state still needs.
+- [~] **6.6.1** `IControllerSurface` seam shipped (concrete subclasses).
+      **Still planned:** `ControllerRegistry` + profile loader + JSON schema +
+      validation; graceful unknown-device / malformed / unknown-token handling.
+- [x] **6.6.2** `ControllerPortManager` (dedicated MIDI port, disjoint from the
+      host bus; drains buffered input to the surface then renders).
+- [x] **6.6.3** Input routing (encoders→CC, buttons→`ControllerEvent`, fader→
+      interim slider) — handled inside the concrete surfaces.
+- [x] **6.6.4** X-Touch Mini built-in surface shipped (hardcoded C++).
+- [~] **6.6.5** Surface model + feedback. **(a) done** — pure
+      `buildSurfaceModel()` → `SurfaceModel` with the screen re-pointed at it
+      (slices 0–6: `SurfaceModel.{h,cpp}`, `CellState`, decoration channels,
+      `tests/SurfaceModelTest.cpp`) + the **6.6.5a UX-consistency pass** (unified
+      hint-band rule, note-edit → `Func+Src`, CPC under-scope relabel,
+      `TrigGridMode` removed, `Func+arrow` rotate/×2/÷2) + meta-band controller
+      exposure via `MetaBand`/`MetaRotary` (7.15–7.17). **(b) [pragmatic closeout]**
+      idle surface model rebuild gating added (`dirty || playing` guard in
+      `timerCallback`); per-surface shadow diffing in each concrete surface already
+      satisfies the diff intent — the separate `ControllerFeedbackEmitter` is deferred
+      to the JSON/registry end-state.
+- [~] **6.6.6** Feedback colour / state mirroring — **shipped for Push 1**
+      (static semantic→palette-index table, `Push1Surface.cpp`) and X-Touch.
+      **Still planned:** the generic token-aware + dumb-device fallback that the
+      JSON/registry path needs.
+- [x] **6.6.7** Crossfader binding — two-way: controller fader → `setCrossfader` →
+      `morphFader` (both Push 1 touch strip and X-Touch fader); Push touch strip
+      LED echoes on-screen fader position (shadow-diffed, echo suppressed on input
+      so the hardware is not fought by immediate feedback).
+- [ ] **6.6.8** Adaptive `layoutMode` (opt-in, deferred-most).
+- [x] **(unplanned, shipped)** **Push 1 surface** — full render/display/buttons,
+      static semantic→palette matcher, meta-band exposure. Not in the original
+      6.6 plan; added as a second worked example. (See memory
+      `project_push1_refinement`.)
+
+### 6.7 — Machine Module ABI  *[deferred — waits for a concrete second consumer (2026-07-12 decision)]*  *(was M10; supersedes the old MH.5)*
+> No longer gates the catalogue: 4.6/4.7 ship first-party statically (see the
+> revised locked decision). Freezing an add-only ABI with no third-party
+> consumer is a forever-cost with no payer; build 6.7 when one exists.
+DESIGN §36. One authoring model, two link paths: first-party statically linked,
+third-party loadable modules behind a JUCE-free C ABI fronted by `WrapperMachine`.
+Not a CLAP/VST3 sub-host; in-process, no IPC/sandbox.
+- [ ] **6.7.1** Registry + SDK base, static path only (`lockstep_machine_abi.h`,
+      `sdk::MachineBase`, `MachineRegistry`); port DrumSynth first as proof; POD
+      conversions unit-tested.
+- [ ] **6.7.2** Dynamic load + host-services + discovery (`WrapperMachine`,
+      `LsmHostVTable` bridging the shared SamplePool/transport/RNG/logging,
+      directory scan + manifest, `abiVersion` gating, the CI template module, the
+      missing-module `StubMachine` opaque round-trip).
+- [ ] **6.7.3** Template repo + install flow + ABI freeze (drag-drop install +
+      rescan, MIDI-out emit-only validation, port SampleMachine to host-services
+      sample access, freeze ABI v1 with a golden-header CI test). Author 4.5 / 4.6
+      against the SDK thereafter.
+
+### 6.8 — Polish, CI, beta  *[planned]*  *(was M9)*
+- [ ] Multi-platform GitHub Actions CI (Linux/macOS/Windows).
+- [ ] Performance pass (voice CPU profile, choke-fade SIMD, voice cap).
+- [ ] Factory patch library.
+- [ ] Final product name (replace "Lockstep"), bundle ids, icons, About box.
+- [ ] First public beta build.
 
 ---
+
+## Phase 4 — Machine Catalogue  *[partial]*
+
+DESIGN §1 (lineage), §29. Each machine is a contributor-sized engine inheriting
+the SDK base. 4.1–4.4 shipped; 4.5+ are authored against the frozen surface and
+the Machine Module ABI (6.7), so they ship as loadable modules.
+
+### 4.1 — FMMachine  *[shipped]*  *(was MH.1)*
+4-op FM with a free 4x4 matrix, per-op ADSR/ratio/fine/mix, macro scalars,
+Mono/Poly (4-voice pool, oldest-steal).
+
+### 4.2 — AnalogMachine  *[shipped]*  *(was MH.2)*
+Dual PolyBLEP oscs + sub + noise, SVF with drive, filter + amp ADSR, 6-shape
+LFO, portamento, Mono/Para-4 — and the polyphonic-trig infrastructure
+(<=4 notes/step, chord capture, gate auto-write) the rest of the catalogue
+rides on.
+
+### 4.3 — DrumMachine  *[shipped]*  *(was MH.3)*
+Rytm-style per-track drum synthesis; the `type` stepped slot selects the
+voice, each with dedicated DSP (expanded to eight voices in 4.8).
+
+### 4.4 — Sample depth + SliceMachine  *[shipped]*  *(was MH.4; absorbs the old MK)*
+Sample trim window, four loop modes, edit-time zero-crossing snap, the shared
+`SamplePlayingMachineBase`, and `SliceMachine` (SLICE/SCRUB dual mode,
+16-slice cap, transient detection, MONO/POLY, reverse below rate 0).
+
+### 4.5 — StreamMachine (disk-stream)  *[shipped]*  *(was MH.6)*
+Disk-streaming player for long-form audio via a background
+`BufferingAudioReader` — audio never decoded wholesale into RAM; gated
+stream with level/pan via CHANNEL. (Pool metadata wiring and native-rate
+stretch landed later in 9.23.)
+
+### 4.6 — PercussionMachine (physical model)  *[planned — unblocked 2026-07-12: ships first-party, no longer waits on 6.7]*  *(was MH.7)*
+- [ ] Volca-Drum-style two-layer percussion: excitation osc (+FM/ring + pitch
+      env) → waveguide / modal resonator (Tube/String/Membrane/Modal); layer A↔B
+      crossfade + bit/SR reduce + drive. Canonical FLTR/AMP downstream. Algorithm
+      presets ship as Sound Pool entries, not schema variants.
+
+### 4.7 — DigitalMachine (Monomachine archetype)  *[planned — unblocked 2026-07-12: ships first-party, no longer waits on 6.7]*  *(was MH.8)*
+- [ ] Model-based digital monosynth (`model` stepped slot): SWAVE (supersaw),
+      SID (PWM+ring+sync), WAVE (single-cycle wavetable/PWM), VO (formant).
+      `V1` + live Mono/Poly; canonical FLTR/AMP (no opt-out). Monomachine
+      GND/FM/drum engines subsumed (Route / FMMachine / DrumSynth). Authored
+      against the 6.7 SDK + post-3.11 contract.
+
+### 4.8 — DrumSynth voice expansion  *[shipped]*  *(was MH.9)*
+The DrumSynth `type` enum grew to eight voices (KICK, SNARE, HAT, TOM, CLAP,
+COWBELL, CYMBAL, RIMSHOT). Boundary rule kept: 808/909 analog/FM-metal lives
+here; modal/waveguide struck-metal stays in PercussionMachine (4.6).
+
+### 4.9 — Sample analysis metadata  *[shipped]*
+Key + tuning detection (`dsp/KeyEstimate.h`: chroma over 60-2000 Hz, A440
+deviation, circle-of-fifths scoring — root + brightness only, Unknown when
+unconfident), filename/ACID hints fused detection-first, the v26 per-entry
+analysis cache keyed by sample hash, the SliceMachine SYNC source (beat-grid
+slicing at the detected tempo, anchored on the first transient), and pool
+hint display ("128 bpm  Amin" / "one-shot"). Excluded by design: Stream
+files (no PCM in RAM) and volatile captures. Documented follow-up:
+key-synced Stretch playback.
 
 ## Phase 10 — Melodic & Harmonic Authoring  *[mostly shipped: 10.1–10.4, 10.7–10.10 done; 10.5 partial; 10.6, 10.11 open]*
 
@@ -2371,72 +1352,33 @@ Opt-in, default-off transform at note-emit + live play-in; serializer flag;
 audio-path test.
 
 ### 10.7 — Melodic generator ✅
-Generator Hub cell 3 (MELODY); `src/core/MelodyGen.h` (deterministic/seeded);
-density / core-bias / contour / octaves / step-leap / seed; prints mono line.
-Metric strength is the spine: onsets land strongest-beat first, strong beats get
-strong (low-tier) notes and longer durations, and a short weak note leaves the
-rest that bridges into the next stronger onset. Euclid-style stash → live
-preview → P prints / Func+P (or escape) reverts. `MetaBand::Melodic`,
-`Overlay::Melodic` / `Modal::Melodic`, `CellState::GeneratorMelodic`.
-Tests: `tests/MelodyGenTest.cpp` (determinism, in-`pcMask`, core-bias narrowing,
-strong-beat→strong-note/longer, rest-bridge) + `MetaBandTest` band round-trip.
-**SRC field** (lock-one-dimension transform): *Gen* generates the rhythm too;
-*Keep* locks onsets to the track's existing trigs and generates pitch only
-(`generateMelody` `fixedOnsets`; onset set read from the pre-entry stash).
+Generator Hub cell 3 (MELODY); `src/core/MelodyGen.h`, deterministic/seeded.
+**Metric strength is the spine**: onsets land strongest-beat first, strong
+beats get strong (low-tier) notes and longer durations, short weak notes
+leave rests that bridge to the next stronger onset. Euclid-style stash ->
+live preview -> print/revert. The SRC field is a lock-one-dimension
+transform: *Gen* generates rhythm too, *Keep* locks onsets to existing
+trigs and generates pitch only.
 
 ### 10.8 — Harmonic voice-mover ✅
-Generator Hub cell 4 (**CHORD**) → sticky `Overlay::Harmony`; `src/core/HarmonyGen.h`
-(no chord theory — a scale-constrained multi-voice buffer). Operates on a
-progression of up to 8 chord slots, each ≤4 voices. Voices are indices into the
-diatonic **ladder** (the scale across octaves), so every voice stays in-key. The
-8-field MZ band shows the cursor chord's four voices (`V1` bass … `V4` top; off-
-detent removes the top voice, the first empty slot adds one) plus structure:
-`LEN` (chord count, **growing clones the last chord**), `CUR` (cursor), `MOVE`
-(shift the whole chord one scale degree) and `OCT` (octave-shift the chord) —
-the last two are relative nudgers that rebuild to neutral. Euclid-style stash →
-live preview (chords printed onto evenly-spaced steps, auditioned via transport)
-→ **P** prints / **Func+P** (or escape / section press) reverts. `MetaBand::Harmony`,
-`Overlay::Harmony` / `Modal::Harmony`, `CellState::GeneratorHarmonic`. Tests:
-`tests/HarmonyGenTest.cpp` (ladder in-scale, per-slot print, even placement,
-voice-count/removal, clamp-stays-in-scale, dedup, degenerate) + `MetaBandTest`
-band round-trip (voice add/remove, LEN-clone, CUR, MOVE).
-**Refined in 10.10:** per-voice chromatic nudge (Func+voice) and immediate
-re-strike audition shipped; the idle context loop was dropped (the live preview
-carries context). See 10.10 for the reel visual + bar placement + lossless grow.
+Generator Hub cell 4 (CHORD) -> sticky `Overlay::Harmony`;
+`src/core/HarmonyGen.h` — no chord theory, a scale-constrained multi-voice
+buffer: up to 8 chord slots x 4 voices, each voice an index into the
+diatonic **ladder** so everything stays in-key. MZ band = the cursor
+chord's voices + LEN/CUR/MOVE/OCT structure fields; stash -> live preview ->
+print/revert. Refined in 10.10 (reel visual, chroma, bar placement).
 
 ### 10.9 — Phrase transpose ✅
-`Phrase + ↑/↓` transposes the focused track's phrase ±octave; `Func+Phrase+↑/↓`
-±semitone. `LockstepProcessor::transposeTrack(track, semitones)` shifts the base
-note + both trig layers' authored notes, clamped to 0–127, snapshot-undoable.
-Octave-default/Func=semitone per user (scale-degree transpose deferred). Test:
-`EngineTest::testTransposeTrack`.
+`Phrase + Up/Down` transposes the focused track's phrase +-octave;
+`Func+Phrase+Up/Down` +-semitone (`transposeTrack` shifts base note + both
+trig layers, snapshot-undoable; scale-degree mode deferred).
 
 ### 10.10 — Harmonic voice-mover refinement ✅
-A UX pass on 10.8 across four axes:
-- **Voice reel + half-knobs.** The `V1`–`V4` cells drop the confusing absolute
-  ring for a **note-name reel** (prev/now/next, bright centre) with a half-knob
-  alternating top (V1/V3) / bottom (V2/V4) so the chord reads straight across.
-  Same gesture — bare turn = diatonic rung step; **`Func`+turn = a chromatic
-  borrowed tone** (`HarmonyChord::chroma` per-voice semitone offset; resolved MIDI
-  = `ladder[rung] + chroma`; `canonicalizeVoice` snaps an in-scale landing back to
-  a rung). New `MetaFieldView`/`MetaRotary::View` reel metadata + a
-  `MetaRotaryLookAndFeel` branch (mirrors `densityCell`); `nudgeHarmonyChroma`
-  routes Func+voice as an incremental delta.
-- **Bar-aligned placement.** `printHarmony(…, stepsPerBar)` prints one chord per
-  bar of the in-scope time sig (chord *k* → bar *k*), even-spacing fallback when
-  bars < K. `applyHarmonyLive` computes `stepsPerBar = round(barPpq / stepPpq)`.
-- **Lossless clone-previous grow.** Progression `length` starts at 1; growing
-  clones the **previous** chord into a genuinely-new slot (past `reach`),
-  shrinking never overwrites so shrink→grow restores.
-- **Immediate re-strike audition.** Any cursor-chord change re-strikes through
-  the live-note engine (`auditionHarmonyCursorChord` / `liveNoteOn`/`Off`);
-  released at the single exit chokepoint `forgetHarmonyEditorState`.
-
-Tests: `HarmonyGenTest` (bar onsets + even fallback, borrowed-tone
-resolve/canonicalize, MOVE-slides-offset), `MetaBandTest` (reel cells + knob
-parity + add slot, Func→chromatic reel, Func+voice semitone nudge, bare-write
-clears offset, lossless shrink/grow). No serializer bump — `harmonyProg` is
-ephemeral and printed steps are already absolute MIDI.
+The 10.8 UX pass: note-name **reel** cells with half-knobs (bare turn =
+diatonic rung; `Func`+turn = a chromatic borrowed tone via per-voice
+`chroma`, canonicalized back to a rung on in-scale landings), bar-aligned
+placement (chord k -> bar k), lossless clone-previous grow, and immediate
+re-strike audition through the live-note engine. No serializer bump.
 
 ### 10.11 — Harmonic existing-rhythm placement — planned
 A placement mode that keeps the track's existing trigs in place and assigns each
@@ -3163,14 +2105,3 @@ Dissolved: old MG Keyboard mode → 3.9 (CHROMATIC); old MM 16-levels → 3.9
 (LEVELS); their remainders → 5.7. Bank / Pattern / Part / Chain model (2.2 /
 MC) → Phase 7 re-architecture (`Set / Song / Scene / Phrase`; shipped as
 `Set / Piece / Section / Phrase`, renamed in 7.9).
-
----
-
-## Play-test notes
-
-**2026-05-08 — 1.2:** 16-step pattern, kick on every step. No clicks, stable
-amplitude. Choke micro-fade working. Phase 1 sampler complete.
-
-**1.3 test procedure:** Load one sample. Set track 1 length 16, track 2 length 7
-via the step-grid length sliders. Switch tracks and observe the amber playhead
-cycling at different rates; phasing is audible when both tracks share pool index 0.
