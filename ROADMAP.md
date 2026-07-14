@@ -1163,7 +1163,7 @@ the grammar; grid picker cells share a common `paintGridCell*` renderer.
       fails the suite instead of becoming a key that does nothing. **24 wired, 49
       awaiting migration**; Stage 8 deletes the list when `handleAction` goes
       exhaustive.
-- [ ] **Stage 7 — Dispatch migration.** Family-by-family (7a modifiers → 7f
+- [x] **Stage 7 — Dispatch migration.** Family-by-family (7a modifiers → 7f
       steps); each sub-step routes via `resolve(..., gesture).action →
       handleAction`, deletes the imperative branch, and keeps goldens green.
   - [x] **7a — modifiers** *(2026-07-13).* The eight scope modifiers route through
