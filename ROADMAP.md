@@ -1809,10 +1809,14 @@ so an undo survives unrelated work instead of expiring on any keypress.
   to nothing. (The *hold*, DEL SCENE, works — different path.)
 
 **Build items:**
-- [ ] **A — Kill the silent wipe.** `restoreOne` on an empty stack is a **no-op**
-      that says `NOTHING TO RESTORE`. The floor stays reachable, but only via the
-      deliberate hold, never via one tap too many. (Do this first — it is live data
-      loss and it is independent of everything below.)
+- [x] **A — Kill the silent wipe.** *(Shipped 2026-07-14.)* `restoreOne` on an empty
+      stack is now a **no-op** that says `NOTHING TO RESTORE`. The floor stays
+      reachable, but only via the deliberate hold, never via one tap too many.
+      The dispatch golden had been recording the data loss as expected behaviour —
+      `Func+VerbSnapshot ... up seq.trigsPerTrack: 4,4,4,4,... -> 0,0,0,0,...` — every
+      trig on every track, gone on key-up, from a clean project, in one press. The
+      floor-idempotence test asserted the wipe as its contract, so the bug was written
+      down twice; both now assert the fix.
 - [ ] **B — Wire scoped snapshot.** `Y` means snapshot in *every* scope: add the
       Snapshot rows + `verbs::track` / `verbs::phrase` / `verbs::scene` handlers, so
       the key that has said "SNAP" for months finally does it.
