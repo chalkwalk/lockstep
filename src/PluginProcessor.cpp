@@ -3827,6 +3827,37 @@ namespace lockstep
         editContext_.markParamWritten();
     }
 
+    // 9.31: "which slot is this track's fader?" -- one owner, because the mixer, the
+    // VU tick and the CC7 sender must all mean the same slot. An audio track's fader
+    // is its CHANNEL block level; a MIDI-out track has no CHANNEL block (there is no
+    // audio to pan or send), so its fader is the machine's own Level-role param,
+    // which goes out as CC7. Internal-audio and MIDI-out tracks are equal citizens
+    // (CLAUDE.md) -- so "the track's level" must resolve for both or the mixer would
+    // need a special case, which is the tell that a design is wrong.
+    int LockstepProcessor::levelSlotForTrack(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return -1;
+
+        const auto* m = machines_[static_cast<std::size_t>(track)].get();
+        if (m == nullptr)
+            return -1;
+
+        if (!m->isMidiOut())
+            return slotForId(track, "lockstep.amp.level");
+
+        // A MIDI-out track's level is the machine's own Level-role param (CC7).
+        // NOTE: slotForId's "lockstep.amp." branch does NOT check isMidiOut (its
+        // "lockstep.fltr." branch does), so asking it for the CHANNEL level here
+        // returns a PHANTOM slot past numParams() -- an index nothing reads and no
+        // write path delivers. Resolve by role instead; the phantom is why this
+        // helper exists rather than a slotForId call at each site.
+        for (int s = 0; s < m->numParams(); ++s)
+            if (m->paramSpec(s).role == ParamSpec::Role::Level)
+                return s;
+        return -1;
+    }
+
     // 9.31: the base write, split out of writeParam so the MIXER band can reach it.
     // writeParam decides WHERE a value lands (held step / control-all fan-out / base);
     // this is the base leg, and the only way to write a track base value while a step

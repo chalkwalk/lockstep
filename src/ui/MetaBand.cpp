@@ -1401,7 +1401,7 @@ namespace lockstep
             const int trackIdx = pageOffset + i;
             if (trackIdx >= static_cast<int>(kNumTracks)) break;
 
-            const int slot = proc.slotForId(trackIdx, "lockstep.amp.level");
+            const int slot = proc.levelSlotForTrack(trackIdx);
             if (slot < 0) continue;  // inactive slot: this machine has no level
 
             const auto spec = proc.paramSpec(trackIdx, slot);
@@ -1946,7 +1946,7 @@ namespace lockstep
             const int target = pageOffset + field;
             if (target < 0 || target >= static_cast<int>(kNumTracks))
                 return;
-            const int slot = proc.slotForId(target, "lockstep.amp.level");
+            const int slot = proc.levelSlotForTrack(target);
             if (slot < 0)
                 return;
             const auto spec = proc.paramSpec(target, slot);

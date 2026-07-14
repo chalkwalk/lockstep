@@ -251,8 +251,92 @@ namespace lockstep
     }
 
     // ------------------------------------------------------------------------
+    // 5. CC7 (9.31): a MIDI-out track's level goes out as channel volume -- on the
+    //    first block (which is what a project LOAD is), whenever it moves, and again
+    //    on a channel/port reassignment. Never otherwise: a level that is not moving
+    //    must not spray CC7 at every block, which is the failure mode that makes
+    //    people turn features like this off.
+    static void testMidiOutLevelSendsCC7()
+    {
+        // Collect the CC7 values emitted over `blocks` rendered blocks.
+        auto scanCC7 = [](EngineHarness& h, int blocks) {
+            std::vector<int> out;
+            for (int b = 0; b < blocks; ++b)
+            {
+                h.renderBlocks(1);
+                for (const auto meta : h.midiOut())
+                {
+                    const auto msg = meta.getMessage();
+                    if (msg.isController() && msg.getControllerNumber() == 7)
+                        out.push_back(msg.getControllerValue());
+                }
+            }
+            return out;
+        };
+
+        EngineHarness h;
+        installMidiOut(h.processor(), 0);
+        auto& proc = h.processor();
+
+        const int lvl = proc.levelSlotForTrack(0);
+        CHECK(lvl >= 0, "CC7: a MIDI-out track resolves a level slot (it has no CHANNEL block)");
+
+        // First block after install/reset: the level announces itself (the load case).
+        {
+            const auto ccs = scanCC7(h, 1);
+            CHECK(ccs.size() == 1 && ccs[0] == 127,
+                  "CC7: the level is announced on the first block (unity = 127)");
+        }
+
+        // Quiet while nothing moves.
+        {
+            const auto ccs = scanCC7(h, 8);
+            CHECK(ccs.empty(), "CC7: an unmoved level must not re-send every block");
+        }
+
+        // A move sends the new value, once.
+        {
+            proc.writeParam(0, lvl, 0.5f);
+            const auto ccs = scanCC7(h, 4);
+            CHECK(ccs.size() == 1, "CC7: a level move sends exactly one CC7");
+            CHECK(!ccs.empty() && std::abs(ccs[0] - 64) <= 1,
+                  "CC7: level 0.5 maps to ~64 (0..1 -> 0..127)");
+        }
+
+        // A channel reassignment re-announces the level on the new channel: the synth
+        // listening there has never been told what level this track is at.
+        {
+            const int chanSlot = proc.slotForId(0, "channel");
+            CHECK(chanSlot >= 0, "CC7: the MIDI-out channel slot resolves (precondition)");
+            proc.writeParam(0, chanSlot, 5.0f);
+
+            std::vector<std::pair<int, int>> chanAndValue;  // (channel, cc value)
+            for (int b = 0; b < 4; ++b)
+            {
+                h.renderBlocks(1);
+                for (const auto meta : h.midiOut())
+                {
+                    const auto msg = meta.getMessage();
+                    if (msg.isController() && msg.getControllerNumber() == 7)
+                        chanAndValue.emplace_back(msg.getChannel(), msg.getControllerValue());
+                }
+            }
+            CHECK(!chanAndValue.empty(),
+                  "CC7: a channel reassignment must re-announce the level");
+            if (!chanAndValue.empty())
+            {
+                CHECK(chanAndValue.front().first == 5,
+                      "CC7: the re-announcement goes out on the NEW channel");
+                CHECK(std::abs(chanAndValue.front().second - 64) <= 1,
+                      "CC7: the re-announced value is the current level, not the default");
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------------
     void runTransportGateTests()
     {
+        testMidiOutLevelSendsCC7();
         testArmGateSilencesAndPreservesPhase();
         testForwardRestartRefloorsAndFires();
         testArmSerializationRoundTrip();

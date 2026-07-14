@@ -91,8 +91,22 @@ namespace lockstep
         // Section 3 (repurposed AMP key → CC bank B): cc[8..15]
         // cc[8] is at index 11, cc[15] at index 18.
 
-        static constexpr int kNumSlots = 3 + kNumCCs;   // 19
+        // 9.31: the track's LEVEL. A MIDI-out track has no CHANNEL block (no audio to
+        // pan or send), so it had no level at all -- "turn that track down" was a
+        // question the surface could not even ask of a synth. The level lives on the
+        // machine and goes out as CC7 (channel volume), which is what the hardware
+        // (an MPC, say) does. Role::Level lets the MIXER find it without knowing
+        // whether a track ends in a machine or in a wire.
+        //
+        // APPENDED past the CC bank on purpose: the slot indices are a schema the
+        // ParamSpec golden pins, and inserting mid-schema would renumber all sixteen
+        // CCs to no purpose (P-Locks are id-keyed on disk, but the churn buys nothing).
+        static constexpr int kSlotLevel = 3 + kNumCCs;   // 19
+
+        static constexpr int kNumSlots = 4 + kNumCCs;    // 20
         static constexpr int kNumSections = 4;
+
+        static constexpr int kVolumeCC = 7;   // MIDI channel volume (coarse)
 
         void openDevice(int destIdx);
 
@@ -104,6 +118,15 @@ namespace lockstep
         std::array<int, kNumCCs> ccNumbers_{};
         std::array<juce::String, kNumCCs> ccLabels_{};
         std::array<int, kNumCCs> prevCC_{};   // change-detection cache
+
+        // 9.31: last CC7 value sent, and the channel it went out on. -1 forces a
+        // (re-)send: on reset -- which is what a project LOAD and a machine
+        // re-install both do -- and on any port or channel reassignment, because the
+        // synth on the other end of a freshly opened wire knows nothing about the
+        // level we think it has. Otherwise identical values are suppressed: a level
+        // that has not moved must not spray CC7 at every block.
+        int prevLevelCC_ = -1;
+        int prevLevelChannel_ = -1;
 
         // MF.4: destination-specific CC name table; keyed by CC number.
         std::unordered_map<int, juce::String> nameTable_;

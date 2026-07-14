@@ -37,6 +37,8 @@ namespace lockstep
     {
         prevCC_.fill(-1);    // force full CC re-emission next block
         prevProgram_ = -2;   // force program re-emit next note-on
+        prevLevelCC_ = -1;   // 9.31: force CC7 re-send (this is also the load path)
+        prevLevelChannel_ = -1;
         activeNote_ = -1;
         activeChannel_ = 1;
     }
@@ -105,11 +107,33 @@ namespace lockstep
             }
         }
 
+        // 9.31: the track LEVEL as CC7 (channel volume). Sent when it moves, when the
+        // channel or port is reassigned (the synth on a freshly opened wire has no
+        // idea what level we think it is at), and on the first block after a reset --
+        // which is what a project load is. Suppressed when nothing changed: a level
+        // that is not moving must not spray CC7 every block.
+        if (kSlotLevel < static_cast<int>(params.size()))
+        {
+            const float level = juce::jlimit(0.0f, 1.0f, params[kSlotLevel]);
+            const int cc7 = juce::jlimit(0, 127, juce::roundToInt(level * 127.0f));
+            if (cc7 != prevLevelCC_ || channel != prevLevelChannel_)
+            {
+                midiOut.addEvent(juce::MidiMessage::controllerEvent(channel, kVolumeCC, cc7), 0);
+                prevLevelCC_ = cc7;
+                prevLevelChannel_ = channel;
+            }
+        }
+
         // Emit CC messages for any slot whose value has changed since last block.
         for (int ci = 0; ci < kNumCCs; ++ci)
         {
             const int slot = kSlotCC0 + ci;
             if (slot >= static_cast<int>(params.size())) break;
+            // 9.31: CC7 has exactly one owner -- the track LEVEL, above. A bank slot
+            // pointed at CC7 would fight it, and by default cc[7] IS CC7: every
+            // project load used to open by announcing CC7 = 0, i.e. telling the synth
+            // on channel 1 to turn itself off. The level speaks for CC7 now.
+            if (ccNumbers_[static_cast<std::size_t>(ci)] == kVolumeCC) continue;
             const int value = juce::jlimit(0, 127,
                                            static_cast<int>(params[static_cast<std::size_t>(slot)]));
             const auto sz = static_cast<std::size_t>(ci);
@@ -137,6 +161,15 @@ namespace lockstep
         {
             destinationId_ = devices_[destIdx].identifier.toStdString();
             currentDestIdx_ = destIdx;
+
+            // 9.31: a new wire is a new listener -- re-announce the level (and the
+            // CCs) rather than assume the device downstream shares our idea of them.
+            // Only on a SUCCESSFUL open: with no devices present (a headless host, a
+            // machine with nothing plugged in) this is retried every block, and
+            // clearing the caches there would spray CC7 forever.
+            prevLevelCC_ = -1;
+            prevLevelChannel_ = -1;
+            prevCC_.fill(-1);
         }
     }
 
@@ -188,6 +221,16 @@ namespace lockstep
             p.minValue = -1.0f;
             p.maxValue = 127.0f;
             p.defaultValue = -1.0f;  // -1 = no program change
+            p.sectionIndex = 1;
+        }
+        else if (index == kSlotLevel)
+        {
+            p.id = "midiout_level";
+            p.label = "Level";
+            p.minValue = 0.0f;
+            p.maxValue = 1.0f;
+            p.defaultValue = 1.0f;  // a wire starts open; CC7 127 is "unattenuated"
+            p.role = ParamSpec::Role::Level;
             p.sectionIndex = 1;
         }
         else if (index >= kSlotCC0 && index < kNumSlots)

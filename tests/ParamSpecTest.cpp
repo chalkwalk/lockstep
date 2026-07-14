@@ -291,8 +291,10 @@ namespace lockstep
             (void)i;
         }
 
-        // Check count and fixed-slot ids.
-        CHECK(m.numParams() == 19, "MidiOutMachine: numParams() should be 19");
+        // Check count and fixed-slot ids. 9.31 added the track LEVEL (CC7) at the
+        // END of the schema: appended, not inserted, so the sixteen CC slots keep
+        // their indices.
+        CHECK(m.numParams() == 20, "MidiOutMachine: numParams() should be 20");
         CHECK(m.paramSpec(0).id == "dest", "MidiOutMachine slot 0: id == dest");
         CHECK(m.paramSpec(1).id == "channel", "MidiOutMachine slot 1: id == channel");
         CHECK(m.paramSpec(2).id == "program", "MidiOutMachine slot 2: id == program");
@@ -302,6 +304,15 @@ namespace lockstep
             CHECK(m.paramSpec(3 + i).id == expected,
                   "MidiOutMachine slot " + juce::String(3 + i) + ": id == " + expected);
         }
+        // 9.31: the level. It is what makes a MIDI-out track mixable at all -- the
+        // MIXER finds it by ROLE, not by id, which is what lets one mixer address a
+        // track whether it ends in a machine or in a wire.
+        CHECK(m.paramSpec(19).id == "midiout_level", "MidiOutMachine slot 19: id == midiout_level");
+        CHECK(m.paramSpec(19).role == ParamSpec::Role::Level,
+              "MidiOutMachine level carries Role::Level (the mixer resolves it by role)");
+        CHECK(feq(m.paramSpec(19).defaultValue, 1.0f),
+              "MidiOutMachine level defaults to unity (a wire starts open)");
+
         // Invariants for the fixed slots only (CC slots have dynamic ranges).
         checkInvariants(m, "MidiOutMachine");
     }

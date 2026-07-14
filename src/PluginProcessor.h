@@ -579,6 +579,10 @@ namespace lockstep
         // active for the given track, the value lands in the held step's
         // P-Lock; otherwise it updates the track's base params.
         void writeParam(int track, int slot, float value);
+        // 9.31: the slot carrying this track's LEVEL -- the CHANNEL block level for an
+        // audio track, the machine's Level-role param for a MIDI-out track (which has
+        // no CHANNEL block and sends its level as CC7). -1 if the track has none.
+        [[nodiscard]] int levelSlotForTrack(int track) const;
         // 9.31: write a track's BASE value even while a step is held -- the mixer's
         // write path. Everything else must use writeParam, which is where the
         // "a held step captures" rule lives.

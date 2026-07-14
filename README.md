@@ -1127,7 +1127,11 @@ keyboard, an encoder, or a controller.
 sends its level as **CC7** (channel volume) on its own channel — on project load,
 whenever the level changes, and again if the track is re-pointed at another port,
 channel, or machine. So "turn that track down" means the same thing whether the
-track ends in a machine or in a synth across the room.
+track ends in a machine or in a synth across the room. **CC7 has one owner:** a
+MIDI-out track's `Level` param. A CC-bank slot pointed at CC7 is skipped rather
+than allowed to fight it — and since `cc7` mapped to CC7 by default, this also
+means a project no longer opens by telling the synth on channel 1 that its volume
+is zero.
 
 State round-trips in serializer v21 (hierarchical time-sig + tempo).
 

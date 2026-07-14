@@ -2229,7 +2229,7 @@ namespace lockstep
             // to be answerable only by paging to the AMP section, or by feeling for
             // an invisible drag gesture. Readout only: the MIXER band plays it.
             {
-                const int lvlSlot = processor_.slotForId(t, "lockstep.amp.level");
+                const int lvlSlot = processor_.levelSlotForTrack(t);
                 if (lvlSlot >= 0)
                 {
                     const auto spec = processor_.paramSpec(t, lvlSlot);
