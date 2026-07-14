@@ -1773,17 +1773,69 @@ and dogfooding (8.28 era). Docs shipped in the same pass; code follows.
 - [x] **B3** — Value-label clarity per §6.9: "Trk N" density labels;
       "EXEMPT"/"SCRUB"/"RE-ROLL"/"REPLACE"/"UNIFM"/"METRIC"/"SUS+REL".
 
-### 9.4 — Snapshot design session  *[planned — unscheduled]*
-Dedicated session to resolve the snapshot dual-purpose tension (J1 safety-net
-vs J2 performance scratch) and produce shippable CUJ docs and restore-semantics
-spec. Seeded by the study brief in the plan that shipped 9.3.
+### 9.4 — Snapshot / undo model  *[specced 2026-07-14 — build open]*
+The design session ran on 2026-07-14. **Spec: DESIGN §13.6** (rewritten). The
+session did not merely resolve the J1/J2 tension — it found that the half of the
+feature the tension was about **had never been wired**, and that the shipped half
+could silently destroy work. Both findings are below; the build items follow.
 
-Prerequisites: 9.3 B2 shipped (MZ header provides the feedback surface for
-restore-label display). **Intent decided (9.x usability pass): _both_ — Snapshot
-is a safety-net *and* a performance scratchpad (DESIGN §13.6).** The session no
-longer chooses among A/B/C *purposes*; it specs restore-semantics + CUJ docs for
-the "both" model. Output lands in `README.md` (workflow) and `DESIGN.md` §13.6
-(rationale + UX).
+**What the session decided.** Marks and undo are separated. *Explicit beats
+implicit*: Snapshot/Restore are yours and must always do what you expect; undo is
+the system's and must never interfere with them, nor eat work you did after it was
+armed. Undo *is* scoped — by the operation that armed it, not by your fingers —
+and it lands on `Func+O`, the Func-layer verb seat 9.29 vacated (the Func layer is
+the counter-verb layer, and undo counters `Clear`). One overlap rule governs both
+mechanisms: every entry carries a scope + epoch, and **applying an entry
+invalidates every entry that overlaps it and is newer than it**. Restore (explicit)
+*drops* those entries — you abandoned that branch deliberately. Undo (implicit)
+*refuses* when something newer overlaps it (`UNDO EXPIRED — track 3 changed since`)
+rather than dropping anything. `Scene` and `Track` are disjoint in the state tree,
+so an undo survives unrelated work instead of expiring on any keypress.
+
+**Bugs the session found (all live, all in the snapshot family):**
+- `Track+Y` and `Phrase+Y` are **no-ops.** No `kModTrack`/`kModPhrase` row exists
+  for Snapshot, so the bare row matches and the key *says* "SNAP", but `handleVerb`
+  lands in `verbs::track` / `verbs::phrase`, neither of which handles `VerbSnapshot`
+  — it returns false and nothing happens. **The scoped snapshot half of the feature
+  has never existed**, which is why the J1/J2 "collision" was partly a phantom.
+- **Restore *is* scope-aware** (`ckScope()` maps the held modifier), so you can pop
+  a Track/Phrase stack you can never manually push to. Those stacks hold only
+  auto-captures, and `restoreOne` on an empty stack falls through to `floorSong_` —
+  **silently reverting that track to the project baseline.** One keypress, no
+  confirm, no message. (The `DESIGN-DEBT(undo-model)` comment at `Arrangement.h:637`
+  understated it: the push side isn't merely debatable, it's absent.)
+- `Scene+O` (Clear) is a **third phantom label** — the frame says CLEAR but
+  `verbs::scene` requires Func and handles only Record/Play, so the tap dispatches
+  to nothing. (The *hold*, DEL SCENE, works — different path.)
+
+**Build items:**
+- [ ] **A — Kill the silent wipe.** `restoreOne` on an empty stack is a **no-op**
+      that says `NOTHING TO RESTORE`. The floor stays reachable, but only via the
+      deliberate hold, never via one tap too many. (Do this first — it is live data
+      loss and it is independent of everything below.)
+- [ ] **B — Wire scoped snapshot.** `Y` means snapshot in *every* scope: add the
+      Snapshot rows + `verbs::track` / `verbs::phrase` / `verbs::scene` handlers, so
+      the key that has said "SNAP" for months finally does it.
+- [ ] **C — Rehome SYNC.** `Scene+Y` → `Scene+O`, filling the phantom CLEAR with the
+      verb that already means discard (`Scene+U` bakes deviations; Clear discards
+      them). Frees `Y` for a uniform grammar.
+- [ ] **D — Epoch + overlap.** Global monotonic epoch bumped on every mutation;
+      per-entity touch watermarks; the ancestor-or-self overlap predicate over the
+      `Song > {Track > Phrase, Scene}` tree. Pure and unit-testable.
+- [ ] **E — Undo stack + `Func+O`.** Entries armed by the destructive ops (which
+      already know their scope — the auto-captures push Track/Phrase/Song correctly
+      today). Guard: applies only if nothing newer overlaps. Refuses, loudly, when
+      stale.
+- [ ] **F — Restore drops newer overlapping entries** (the explicit half of the one
+      rule), so a Song restore cannot leave a Track mark that would graft a state
+      which never existed.
+- [ ] **G — Surface.** Mark-depth pip on each scope key (marks only — undo is not a
+      mark); status lane names the pending undo and the reason a stale one refused.
+      Retire/repoint the Song-only `CK:N` chip.
+- [ ] **H — Tests.** Per the input-modality mandate: resolution, scope routing, and
+      round-trip. Plus the model's own invariants — the Frankenstein graft is
+      unrepresentable; a stale undo never mutates; an untouched-scope undo survives
+      unrelated work; empty-stack restore never wipes.
 
 ### 9.5 — Velocity overlay polish  *[shipped]*
 Polish pass on the live velocity overlay (§39.10): Mix baseline fix, Phrase

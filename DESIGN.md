@@ -2189,11 +2189,11 @@ The verb set is small and uniform:
 
 | Key | Idle (no scope) | Under scope | Func-secondary |
 |---|---|---|---|
-| `Y` | **Snapshot** — push checkpoint; **Yes** in dialog contexts | scope-specific snapshot (confirm) | *(same as bare — push checkpoint)* |
+| `Y` | **Snapshot** — push a mark (Song scope) | scope-specific **snapshot** (§13.6) | **Restore** — pop one mark (tap) / **floor** (hold) |
 | `U` | **Record** — arm / toggle overdub | **Copy** — clipboard capture | *(fork Part, placeholder)* |
 | `I` | **Play/Pause** — double-tap = Stop-to-top | **Paste** — clipboard write | **Panic** — kill voices + hard stop |
-| `O` | **Clear** — clear active P-Lock; inert if nothing to clear | tap = **Clear** scope contents · **hold = Delete** the entity (+ confirm) | *(qualifies the clear: `Trig+Func+O` = clear P-Locks only)* |
-| `P` | **No** — cancel a pending action | *(reserved / dim)* | **Pop** checkpoint (tap) / **Floor** (hold+release) |
+| `O` | **Clear** — clear active P-Lock; inert if nothing to clear | tap = **Clear** scope contents · **hold = Delete** the entity (+ confirm) · `Scene+O` = **SYNC** | **Undo** — revert the last destructive op (§13.6); `Trig+Func+O` = clear P-Locks only |
+| `P` | **No** — cancel a pending action | *(reserved / dim)* | **Cancel** — a pending confirm |
 
 - Under any section-suite scope (Track / Phrase / Scene / Song / Morph), `Y U I O` glow
   in the scope colour and take their scoped meaning. `P` dims (reserved for the
@@ -2656,30 +2656,138 @@ set-and-forget noodler (PRINCIPLES *"Reward mastery"*). Any spec must satisfy:
   or stays a live transform; interaction with retrig (§13.5) and microtiming
   (§5.1).
 
-### 13.6 Checkpoint Stack
+### 13.6 Checkpoint Stack — marks, undo, and the one overlap rule
+
+> **Status:** specced at the 9.4 design session (2026-07-14); implementation is
+> filed as ROADMAP 9.4. The model below supersedes the older "one stack serves
+> both purposes" ruling, which the session retired — see *Why two mechanisms*.
 
 Snapshot is **not** a bespoke global feature — it is a scope-respecting
 verb, exactly like every other gesture on the surface (PRINCIPLES §13).
 The bare **`Y` (SNAP)** verb snapshots **whatever scope is currently
 held**, onto *that scope's own* LIFO stack; **`Func+Y` (RESTORE)** walks
 that same scope's stack back down. With **no scope held, the scope is the
-Song** — the default working unit. (The `Y` key owns both halves —
-snapshot and restore; `P` is the confirm/cancel key and plays no part in
-checkpoints.)
+Song** — the default working unit.
 
-**Intent (9.x ruling): both safety-net _and_ scratchpad.** The dual purpose is
-deliberate, not a tension to collapse. Snapshot is a live-undo **safety net**
-(capture a known-good state; restore if a live edit goes wrong) *and* a
-performance **scratchpad** (stash the current state, try a variation live, walk
-back to the floor). The same scope-respecting LIFO serves both; restore semantics
-for the "both" model are specced in ROADMAP 9.4. Neither reading is privileged.
+#### Why two mechanisms
 
-| Held scope | `Y` (SNAP) snapshots | `Func+Y` (RESTORE) restores |
+One stack was being asked to serve two journeys whose needs differ: a **safety
+net** ("undo the last thing", near-automatic, linear) and a **performance
+scratchpad** ("return to *my* mark", explicit, gestural). They collide on a
+shared stack — a flurry of marks buries the pre-destruction point, and "restore"
+cannot mean both *pop one* and *return to my mark*.
+
+The 9.4 ruling separates them, with a strict priority:
+
+> **Explicit beats implicit.** Snapshot and Restore are things you *asked for*, and
+> they must always do exactly what you expect given your marks. Undo is something
+> the system did *on your behalf*, and it must never interfere with them — nor
+> silently destroy work you did after it was armed.
+
+- **Marks** — per-scope LIFO stacks, pushed by `Y`, walked by `Func+Y`. Yours.
+- **Undo** — a stack of entries armed *automatically* before destructive ops,
+  reached by `Func+O`. Each entry carries **the scope of the operation that armed
+  it** (the op already knows what it touched). Undo therefore *is* scoped — what
+  makes it feel unscoped is that your fingers never have to name the scope.
+
+`Func+O` (Func+Clear) is the seat 9.29 vacated when DELETE moved to the hold rail,
+and it is the right one: the Func layer is the **counter-verb layer** (Restore
+counters Snapshot, Paste counters Copy, Cancel counters Confirm), and undo is the
+counter of `Clear` — the destructive verb it exists to reverse.
+
+#### The state tree, and what "overlap" means
+
+Checkpoint payloads are whole-struct copies at a granularity, so two entries
+collide exactly when one **contains** the other. The state nests like this:
+
+```
+              Song           (tracks + scenes + song swing / time-sig)
+             /    \
+        Track      Scene     Scene = activeMask, time-sig, key-sig
+          |                   Track = kit + phrases[]
+       Phrase
+```
+
+**`Scene` and `Track` are disjoint.** A Scene records *who plays* and the musical
+grid — it does **not** contain phrase content, which lives under tracks. So:
+
+> Two entries **overlap** iff one scope is an ancestor of the other (or they are
+> the same scope and target). `Track 3` and `Track 7` never overlap. `Track` and
+> `Scene` never overlap. `Song` overlaps everything.
+
+That disjointness is load-bearing: it is what lets an undo *survive unrelated
+work* instead of expiring the moment you touch anything.
+
+#### The one rule
+
+Every entry — mark or undo — carries a **scope**, a **target**, and an **epoch**
+(a global monotonic counter bumped on every state mutation).
+
+> **Applying an entry invalidates every entry that overlaps it and is newer than
+> it.** Those entries are pre-states of a branch you just abandoned; keeping them
+> would let you graft a state that never existed.
+
+The two mechanisms then differ only in *policy*, and the difference follows
+directly from "explicit beats implicit":
+
+| | Guard (may it apply?) | Effect on newer overlapping entries |
+|---|---|---|
+| **Restore** (explicit) | always — it is your mark | **drops them.** You deliberately abandoned that branch. |
+| **Undo** (implicit) | **only if nothing newer overlaps it** | none — if it cannot apply cleanly it *refuses*. |
+
+Worked example. Snapshot the Song (epoch 1; its payload contains track 3 as `S0`),
+then snapshot Track 3 (epoch 5, holding `S1`).
+
+- **Restore the Song mark** → the whole song returns to epoch 1, so track 3 is `S0`
+  again. The Track-3 mark (newer, overlapping) is **dropped**, because popping it
+  would graft an epoch-5 track into an epoch-1 song. The Track key's depth pip goes
+  dark, so the surface *tells you* it happened.
+- **Restore the Track-3 mark** → track 3 becomes `S1`. The Song mark is *older*, so
+  it survives: your whole-project safe point is still a meaningful place to go.
+- **Undo after editing track 3** → the pre-clear entry for track 3 is now stale (a
+  newer mutation overlaps it), so `Func+O` **refuses** and says so:
+  `UNDO EXPIRED — track 3 changed since`. It does not eat the edits.
+- **Undo after editing track 7, or a scene** → no overlap, so the track-3 undo is
+  still perfectly safe and stays live.
+
+An ordinary edit *advances* the branch rather than abandoning it, so edits never
+invalidate marks — but they do expire an overlapping undo, which is exactly the
+asymmetry the rule is there to produce.
+
+#### The gestures
+
+`Y` means **snapshot** in every scope, uniformly. (Before 9.4 it did not: `Scene+Y`
+was SYNC, and `Track+Y` / `Phrase+Y` dispatched to nothing at all — see 9.4 in the
+roadmap.) SYNC — *discard live deviations, snap back to the scene as stored* — moves
+to **`Scene+O` (Clear)**, where it belongs: `Scene+U` (Record) **bakes** deviations
+into the scene, and Clear **discards** them. Commit and discard, on the two verbs
+that already mean commit and discard.
+
+| Gesture | Meaning |
+|---|---|
+| `Y` (+ scope) | **SNAP** — push a mark onto that scope's stack |
+| `Func+Y` tap | **RESTORE** — pop one *mark* (never an undo entry) |
+| `Func+Y` hold | **RESTORE → FLOOR** — all the way down (§13.0 "hold = all the way") |
+| `Func+O` | **UNDO** — revert the last destructive op, wherever it happened |
+| `Scene+O` | **SYNC** — discard live deviations (was `Scene+Y`) |
+
+| Held scope | `Y` (SNAP) marks | `Func+Y` (RESTORE) restores |
 |---|---|---|
 | *(none)* | the whole **Song** | the Song |
-| `Track` | that track's Kit + current Phrase + base params | that track |
-| `Scene` | that Scene's saved floor (`globalPattern`, `activeMask[]`, `coreTime`, Morph snapshot) | that Scene |
+| `Track` | that track's Kit + phrases + base params | that track |
+| `Scene` | that Scene (`activeMask[]`, time-sig, key-sig) | that Scene |
 | `Phrase` | that Phrase (steps, P-Locks, defaults) | that Phrase |
+
+**An empty stack is a no-op, not a wipe.** `Func+Y` on a scope with no marks does
+**nothing** and says so (`NOTHING TO RESTORE`). It must never fall through to the
+floor: that made one keypress too many silently revert the scope to the project
+baseline, discarding everything since. The floor stays reachable — but only by the
+deliberate **hold**, never by a tap that ran out of stack.
+
+**Depth is shown at the key you would press.** Each scope key carries a small pip
+with its *mark* count when its stack is non-empty (the global `CK:N` chip only ever
+spoke for Song). Undo entries are not marks and are not counted there; the status
+lane names the pending undo instead.
 
 Why these scopes and no finer: content is **Song-owned** and only
 *referenced* by Scenes (§4.7), so each scope above captures a distinct,
@@ -2719,13 +2827,14 @@ Behaviour notes:
 - A pop is a **deliberate, exact restore** of its scope — it is *exempt*
   from the §13 "broadcast skips deviated tracks" rule (that rule governs
   launch/unison gestures, not explicit undo). You get back exactly what
-  the entry held, even if it clobbers a finer edit made afterward.
+  the entry held, even if it clobbers a finer edit made afterward. What it
+  does **not** do is leave behind marks that could graft a state which never
+  existed: applying it drops every newer overlapping entry (the one rule).
 - A restore never reaches above its scope: a Song-scope pop restores the
   whole Song but never the Set-level sample pool, CC maps, or global
   mute mask — those sit above Song.
-- A small UI chip in the transport bar shows the **currently-scoped**
-  stack's depth (`CK:N`), so the user sees how many undos remain for
-  whatever they are holding.
+- Each scope key carries its own **mark-depth pip**; the transport bar's `CK:N`
+  chip spoke only for Song and never for the scope under the finger.
 
 Checkpoints emerge naturally as a live performance undo: experiment with
 a destructive copy/paste or a Control-All sweep, then revert with

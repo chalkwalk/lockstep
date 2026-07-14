@@ -322,7 +322,8 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Out routing** | The CHANNEL "Out" slot sets a track's **single** destination (out-degree ≤ 1): `Master` (default), `Track N`, `Aux N` (host aux output — the DAW mixes it), or `Off`. Picking one **replaces** the previous — a track is never on Master and an aux at once. Route into a **Route** track to build an aux/sub-bus (the bus reads the sum of its feeders, plus its own input if any). The Out rotary steps only through valid destinations (Off / Master / current buses / aux) with a live label — synths, MIDI-out, self and cycle targets never appear. If a target's machine is later swapped to a non-bus, or an `Aux N` host bus is disabled, the edge **folds back to Master** (no audio lost) and revives when the target becomes valid again. A bus and its feeders share a colour on the track/VU row. See §2.5. |
 | **Lock-only trig** | A step cycled `Trig+step` through `off → note → lock-only`. A lock-only step emits no note but applies its P-Locks (filter, channel, env, insert) onto the *sustaining* voice as the playhead crosses it — parameter motion without retriggering. Its locks keep applying after you stop the transport (the playhead parks where it stopped). A few slots are bound when a note starts — a player's `Start`, `Rev`, `Stretch`, `Sample` — so a lock on one of those cannot move a voice that is already sounding; the MZ marks such a lock `*!` instead of the usual `*`. |
 | **One-shot trig** | A trig condition (COND meta-band "1Shot") that fires once then is **spent** until re-armed. Re-arms automatically on transport (re)start and on scene switch; armed/spent is RAM-only (not saved). |
-| **Checkpoint** | A RAM-only snapshot for live undo. Bare `Y` (SNAP) pushes before a risky idea; `Func+Y` (RESTORE) tap=pop/hold=floor. The `Y` key owns both halves. **Scope-respecting:** the snapshot captures whichever scope is held (none=Song, Track, Scene, Phrase). Up to 8 deep per scope; floor = saved state. |
+| **Mark** | A RAM-only snapshot *you* pushed. Bare `Y` (SNAP) pushes before a risky idea; `Func+Y` (RESTORE) tap=pop one/hold=floor. **Scope-respecting:** captures whichever scope is held (none=Song, Track, Scene, Phrase). Up to 8 deep per scope; floor = saved state. Distinct from **Undo** — see §5.15. |
+| **Undo** | The *system's* safety net, armed automatically before a destructive op and reached with `Func+O`. Carries the scope of the operation that armed it, so it never has to be told one — and it refuses rather than eating work you did afterwards (§5.15, DESIGN §13.6). |
 | **Launch model** | Performance is launch-based, not arrangement-based: queue a **Scene** (`Scene+step`) to fire at the next core-time boundary, or switch **Songs** (`Song+step`). There is no written timeline or pattern chain. |
 | **Sample pool** | The project-wide library of samples, stored as `{path, hash}` references rather than embedded audio. A reference is identified by **content hash**, not array position (9.18), so it survives a pool reorder and a file move (reload → hash matches → auto-relink); a missing file flags the entry for **Relink**. Missing samples are surfaced by a **persistent banner** ("N samples missing — Manage to relink") that stays until they are relinked, not just a fading load-time toast. Files are **re-checked at runtime** too: opening the pool manager re-stats every path-backed entry, so a sample deleted or moved *while the app is running* shows as MISSING with Relink enabled. A File already decoded into RAM keeps playing even after its file disappears (no mid-performance dropout) — only the flag updates; a disk **Stream** whose file is gone falls silent cleanly. The pool manager groups entries as **FILE / STREAM / RECORD / LOOP**; a **Save…** action promotes a volatile Record/Loop capture into a durable File. Entries are numbered **within their group** (FILE 1, FILE 2, STREAM 1, REC 1 …) in the in-machine sample picker, so the number stays put across a reload even though the reserved volatile REC slots re-seed at the front of the raw pool. |
 | **Sound Pool** | A project-scope library of saved per-track sounds (machine + base params + sample refs). `Fill+SRC` re-skins the step grid to the pool for live-swap audition; with a step held the swap bakes as a `sound_id` P-Lock (5.7). |
@@ -585,10 +586,10 @@ historically called "Yes" is the `Y`/SNAP key; the confirm action lives on
 
 | Key | Legend | No scope | Under a scope | `Func + key` |
 |---|---|---|---|---|
-| `Y` | **SNAP** | Push a checkpoint (scope-respecting) | Scope snapshot (`Scene`=re-sync; most scopes reserved/dim) | **Restore** — tap = pop one, hold = jump to floor |
+| `Y` | **SNAP** | Push a mark (Song scope) | **Snapshot** that scope (§5.15) | **Restore** — tap = pop one mark, hold = jump to floor |
 | `U` | **REC** | Toggle record-arm (double-tap = overdub) | **Copy** scope → clipboard | **Omni copy** (scene + track + phrase) |
 | `I` | **PLAY** | Play / Stop transport (double-tap = stop-to-top) | **Paste** clipboard → scope | **Unqualified paste** (stamp the one captured layer) |
-| `O` | **CLEAR** | Clear active P-Lock slot (`Scene`/`Phrase` held = cancel queued scene; `Song` held = Panic) | **Clear** scope contents | **Delete** — opens deletion picker (see §5.4a) |
+| `O` | **CLEAR** | Clear active P-Lock slot (`Song` held = Panic) | **Clear** scope contents · **hold** = delete the entity · `Scene+O` = **SYNC** (discard live deviations) | **Undo** — revert the last destructive op (§5.15) |
 | `P` | **CONFIRM** | Confirm a pending prompt (green = CONFIRM / red under Func = CANCEL) | **Quantize** (Trig/Track/Phrase scope: zero microOffset on held steps / whole track / all tracks); scope confirm (dims on Scene/Morph/Song/Mute/Fill) | **Cancel** a pending prompt |
 
 > **Checkpoint push/restore.** Push is the bare `Y`(SNAP) key; restore is
@@ -1321,21 +1322,50 @@ Scenes and switch Songs live.
 | `Scene + Phrase (Q) + step key` | **Deviate all tracks** to that phrase. Landing on the Scene's diagonal row (row N for Scene N) clears all deviations. |
 | `Song (S) + step key` | Switch Songs (quantized) — a full reset; live deviations clear. |
 
-### 5.15 Checkpoints (live undo)
+### 5.15 Marks and undo (live undo)
+
+> **Planned — specced, not yet built (ROADMAP 9.4; rationale in DESIGN §13.6).**
+> Today only the bare `Y` (Song) snapshot is wired: `Track+Y` and `Phrase+Y` are
+> no-ops, `Scene+Y` is SYNC, and a restore on an empty stack silently reverts to
+> the project baseline. The model below is what replaces all of that.
+
+There are two mechanisms, and the distinction is the whole point:
+
+- **Marks** are *yours*. You push them with `Y`, you walk them back with `Func+Y`.
+- **Undo** is the *system's*. It arms itself before anything destructive, and you
+  reach it with `Func+O`.
+
+They never interfere. A restore always takes you to **your mark** — it will never
+land you on some auto-capture you didn't ask for — and an undo will never quietly
+swallow work you did after it was armed.
 
 | Gesture | Action |
 |---|---|
-| `Yes` (`Y`, SNAP) | Push the **currently-held scope** onto its checkpoint stack. |
-| `Func + Yes` (`Func + Y`, RESTORE — tap) | Pop one entry from the scoped stack (restore last snapshot). |
-| `Func + Yes` (`Func + Y`, RESTORE — hold+release) | Jump straight to the floor (= the saved state at last load). |
+| `Y` (SNAP) | Push a **mark** for the currently-held scope. |
+| `Func + Y` (RESTORE — tap) | Pop one **mark** from that scope's stack. |
+| `Func + Y` (RESTORE — hold+release) | Jump straight to the **floor** (the saved state at last load). |
+| `Func + O` (UNDO) | Revert the **last destructive operation**, wherever it happened. |
+| `Scene + O` (SYNC) | Discard live deviations — snap the tracks back to the scene as stored. |
 
-**Scope-respecting:** the snapshot captures whichever modifier is held — none = Song,
-`Track` = that track's Kit + current Phrase, `Scene` = that Scene's floor,
-`Phrase` = that Phrase's steps + P-Locks. Each scope has its own LIFO up to 8 deep;
-the floor (= on-disk saved state) is always present and can never be popped.
+**Scope-respecting:** the mark captures whichever modifier is held — none = Song,
+`Track` = that track's Kit + phrases, `Scene` = that Scene (who plays, time-sig,
+key-sig), `Phrase` = that Phrase's steps + P-Locks. Each scope has its own LIFO up
+to 8 deep, and each scope key shows a **pip with its mark count** so you can see
+what's there without pressing anything.
 
-**RAM-only** — scratch pushes do *not* survive save/reload; the floor is re-seeded
-from disk so "reload saved" always works. The `CK:N` badge shows the scoped depth.
+**An empty stack does nothing.** `Func+Y` with no marks says `NOTHING TO RESTORE`
+and leaves your state alone. The floor is still reachable — but only by the
+deliberate hold, never by one tap too many.
+
+**Undo knows what it touched.** You never have to tell it a scope; the operation
+that armed it already knew. What that buys you: if you clear track 3 and then work
+on *track 7*, the undo for track 3 is still sitting there, perfectly safe. But if
+you clear track 3 and then edit *track 3*, undoing would eat those edits — so it
+refuses, and says why (`UNDO EXPIRED — track 3 changed since`). Your marks are
+still there if you want to go further back on purpose.
+
+**RAM-only** — marks do *not* survive save/reload; the floor is re-seeded
+from disk so "reload saved" always works.
 
 ### 5.16 MIDI input
 
