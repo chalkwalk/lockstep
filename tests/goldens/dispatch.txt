@@ -207,6 +207,15 @@ L22 | Scene+VerbSnapshot idx=-1 | action=38
 L22 | Func+VerbSnapshot idx=-1 | action=33
     down funcHeld: false -> true
 
+L22 | Track+VerbSnapshot idx=-1 | action=32
+    down ckpt.Track: 0 -> 1
+    down swingDismissed: false -> true
+    down trackHeld: false -> true
+
+L22 | Phrase+VerbSnapshot idx=-1 | action=32
+    down ckpt.Phrase: 0 -> 1
+    down phraseScopeHeld: false -> true
+
 L22 | VerbSnapshot idx=-1 | action=32
     down ckpt.Song: 0 -> 1
 

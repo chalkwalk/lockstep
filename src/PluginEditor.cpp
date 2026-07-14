@@ -5709,7 +5709,6 @@ namespace lockstep
             }
 
             case ControllerButton::VerbSnapshot: {
-                using PS = EditMode::PrimaryScope;
                 // 5.5: Euclid modal armed → Y is inert (commit is on bare P).
                 if (uiState_.euclidHeld)
                     return true;
@@ -5720,16 +5719,13 @@ namespace lockstep
                     refreshSurface();
                     return true;
                 }
-                // Non-trivial scope → scope-specific snapshot.
-                if (editMode_.primaryScope() != PS::None && editMode_.primaryScope() != PS::Func)
-                    return routeVerb(ev);   // 9.12 st.7b: the table names the action
-                // No scope → Song-scope snapshot.
-                {
-                    int ckTrk = 0;
-                    processor_.snapshot(ckScope(ckTrk), ckTrk);
-                }
-                refreshSurface();
-                return true;
+                // 9.4 item B: EVERY scope routes, including no-scope. Y used to fork here
+                // -- a scope routed to the table while a bare Y snapshotted the Song
+                // inline -- so the Song snapshot had a second implementation that
+                // verbs::noScope shadowed but never ran, and no status message reached
+                // the player. One verb, one path, one place that decides the scope.
+                // (Func+Y cannot arrive: ButtonLayers remaps it to CB::Restore upstream.)
+                return routeVerb(ev);   // 9.12 st.7b: the table names the action
             }
 
             case ControllerButton::VerbConfirm: {

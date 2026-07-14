@@ -136,6 +136,16 @@ namespace lockstep
         // Scene+Y = SYNC (re-sync all tracks to scene floor).
         { CB::VerbSnapshot, -1, kModScene, SL::Base, AId::VerbConfirm, u8"SYNC", CS::Resting },
         { CB::VerbSnapshot, -1, kModFunc, SL::Base, AId::VerbRestore, u8"RESTORE", CS::Resting },
+        // 9.4 item B: Track and Phrase name themselves, even though the bare row below
+        // would resolve to the same action and the same label by the subset rule. They
+        // are here because THE TABLE IS THE GOLDEN'S ENUMERATION DOMAIN -- DispatchGolden
+        // renders one scenario per row, so a gesture with no row is a gesture the net
+        // never presses. That is exactly how Track+Y and Phrase+Y sat dead for months:
+        // the bare row lent them a "SNAP" label, dispatch funnelled them to verbs::track /
+        // verbs::phrase, neither had a Snapshot arm, and nothing was watching. A scope
+        // that a verb genuinely serves gets a row, and the row buys the coverage.
+        { CB::VerbSnapshot, -1, kModTrack, SL::Base, AId::VerbSnapshot, u8"SNAP", CS::Resting },
+        { CB::VerbSnapshot, -1, kModPhrase, SL::Base, AId::VerbSnapshot, u8"SNAP", CS::Resting },
         { CB::VerbSnapshot, -1, kModNone, SL::Base, AId::VerbSnapshot, u8"SNAP", CS::Resting },
 
         // ── VerbRecord / REC (key U) ──────────────────────────────────────────

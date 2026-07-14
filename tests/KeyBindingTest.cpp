@@ -150,8 +150,14 @@ namespace lockstep
     // ── Verb row Y-P ──────────────────────────────────────────────────────────
     static void testVerbRow()
     {
-        // Y: SNAP / RESTORE
-        CHECK(resolve(CB::VerbSnapshot, kModNone) == AId::VerbSnapshot, "Y bare = SNAP");
+        // Y: SNAP / RESTORE. 9.4 item B: Y snapshots in EVERY scope, so Track and Phrase
+        // carry their own rows. The subset rule means the bare row would resolve to the
+        // same action anyway -- these rows exist to put the gesture inside the dispatch
+        // golden's net, which renders one scenario per ROW. Without them nothing pressed
+        // Track+Y, which is how it stayed a no-op behind an honest-looking "SNAP" label.
+        CHECK(resolve(CB::VerbSnapshot, kModNone) == AId::VerbSnapshot, "Y bare = SNAP (Song)");
+        CHECK(resolve(CB::VerbSnapshot, kModTrack) == AId::VerbSnapshot, "Track+Y = SNAP");
+        CHECK(resolve(CB::VerbSnapshot, kModPhrase) == AId::VerbSnapshot, "Phrase+Y = SNAP");
         CHECK(resolve(CB::VerbSnapshot, kModFunc) == AId::VerbRestore, "Func+Y = RESTORE");
 
         // U: REC / COPY under scope (not Morph). Scene bare = BAKE; Func+Scene = COPY.

@@ -188,6 +188,19 @@ namespace lockstep::verbs
         const int at = ctx.uiState.activeTrack;
         auto& trk = ctx.sequence.tracks[static_cast<std::size_t>(at)];
 
+        // 9.4 item B. The key has said SNAP under a held Track for months and done
+        // nothing: the bare row supplied the label, dispatch funnelled it here, and
+        // here there was no VerbSnapshot arm, so handleVerb returned false. Restore
+        // was scope-aware the whole time, so the Track stack was poppable but not
+        // pushable -- which is how a restore could only ever find it empty.
+        if (verb == CB::VerbSnapshot)
+        {
+            ctx.arrangement.snapshot(CheckpointScope::Track, at);
+            fx.status(status::markedTrack(
+                at, ctx.arrangement.checkpointDepth(CheckpointScope::Track, at)));
+            return true;
+        }
+
         if (verb == CB::VerbRecord)
         {
             ctx.clipboard.clipTrack = trk;
@@ -228,6 +241,19 @@ namespace lockstep::verbs
     bool phrase(ControllerButton verb, CommandContext& ctx, CommandEffects& fx)
     {
         using CB = ControllerButton;
+
+        // 9.4 item B — the Phrase half of the same phantom (see verbs::track). The
+        // checkpoint targets the track's ACTIVE phrase, which is what Arrangement's
+        // Phrase stack is keyed by; the held Phrase modifier names the scope, the
+        // focused track names which phrase.
+        if (verb == CB::VerbSnapshot)
+        {
+            const int at = ctx.uiState.activeTrack;
+            ctx.arrangement.snapshot(CheckpointScope::Phrase, at);
+            fx.status(status::markedPhrase(
+                ctx.arrangement.checkpointDepth(CheckpointScope::Phrase, at)));
+            return true;
+        }
 
         if (verb == CB::VerbRecord)
         {
@@ -320,12 +346,17 @@ namespace lockstep::verbs
         return false;
     }
 
-    bool noScope(ControllerButton verb, CommandContext& ctx, CommandEffects&)
+    // No scope held = the Song scope. That is the grammar's default working unit
+    // (DESIGN §13.6), not a special case -- which is why a bare Y belongs here and not
+    // in an editor branch of its own.
+    bool noScope(ControllerButton verb, CommandContext& ctx, CommandEffects& fx)
     {
         using CB = ControllerButton;
         if (verb == CB::VerbSnapshot)
         {
             ctx.arrangement.snapshot(CheckpointScope::Song, ctx.uiState.activeTrack);
+            fx.status(status::markedSong(
+                ctx.arrangement.checkpointDepth(CheckpointScope::Song, 0)));
             return true;
         }
         return false;

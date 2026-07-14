@@ -361,9 +361,19 @@ so an undo survives unrelated work instead of expiring on any keypress.
       trig on every track, gone on key-up, from a clean project, in one press. The
       floor-idempotence test asserted the wipe as its contract, so the bug was written
       down twice; both now assert the fix.
-- [ ] **B — Wire scoped snapshot.** `Y` means snapshot in *every* scope: add the
-      Snapshot rows + `verbs::track` / `verbs::phrase` / `verbs::scene` handlers, so
-      the key that has said "SNAP" for months finally does it.
+- [x] **B — Wire scoped snapshot.** *(Shipped 2026-07-14.)* `Y` now snapshots in every
+      scope: `verbs::track` / `verbs::phrase` gained the missing Snapshot arms (Scene's
+      lands with C, once SYNC vacates the key), and the bare Y stopped forking into an
+      editor branch of its own — no-scope routes through the table like the rest, so
+      `verbs::noScope` is the one Song snapshot and every mark now says so in the status
+      lane. **Why the rows matter (the load-bearing lesson):** the binding table is the
+      **dispatch golden's enumeration domain** — it renders one scenario per *row*. A
+      verb that leans on the bare row's label has no row, so the net never presses it.
+      That is the whole reason `Track+Y` could wear an honest "SNAP" and do nothing for
+      months with a green build. A scope a verb genuinely serves gets a row, and the row
+      buys the coverage. Also fixed en route: `Func+Y` is remapped to `CB::Restore`
+      upstream, so the keyboard never reached `restorePop()` — item A's NOTHING TO
+      RESTORE was live on the table path and unreachable from the actual keys.
 - [ ] **C — Rehome SYNC.** `Scene+Y` → `Scene+O`, filling the phantom CLEAR with the
       verb that already means discard (`Scene+U` bakes deviations; Clear discards
       them). Frees `Y` for a uniform grammar.

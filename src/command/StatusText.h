@@ -164,6 +164,33 @@ namespace lockstep::status
     inline juce::String nothingToRestore() { return "Nothing to restore"; }
     inline juce::String pastePickScope() { return "Paste: pick a scope"; }
 
+    // ---- marks (9.4 item B) -------------------------------------------------
+    //
+    // "Mark" is DESIGN §13.6's term for an explicit snapshot -- the one you asked for,
+    // as against the undo the system arms behind you. The depth is the scope's stack
+    // depth after the push, so the message answers the question the pip will answer
+    // too: how many deep am I? The scope is named because Y snapshots in EVERY scope
+    // now, and the only thing telling them apart is the modifier under the other hand.
+    inline juce::String markedSong(int depth)
+    {
+        return "Marked Song [" + juce::String(depth) + "]";
+    }
+
+    inline juce::String markedTrack(int track, int depth)
+    {
+        return "Marked Track " + juce::String(track + 1) + " [" + juce::String(depth) + "]";
+    }
+
+    inline juce::String markedPhrase(int depth)
+    {
+        return "Marked Phrase [" + juce::String(depth) + "]";
+    }
+
+    inline juce::String markedScene(int sceneNumber, int depth)
+    {
+        return "Marked Scene " + juce::String(sceneNumber) + " [" + juce::String(depth) + "]";
+    }
+
     // ---- confirm prompts (shown in the status band) -------------------------
 
     inline juce::String confirmDelete(const juce::String& entityName)
