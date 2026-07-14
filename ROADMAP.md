@@ -490,7 +490,9 @@ press means "enter this scope" whatever else is held) while verbs resolve
 most-specific-wins on the full held set. `KeyBinding::hint` was deleted
 (derived via `hintFor()` from the Func row), and the discipline that made it
 safe is recorded: widen the net before moving code, read every golden diff,
-move bodies rather than rewrite them.
+move bodies rather than rewrite them. (The execution plan lived at
+`docs/dispatch-migration-plan.md`; folded here and deleted per the
+Maintenance convention — git blame this line for the full text.)
 
 ### 9.13 — Redundancy / SSOT consolidation + switch hygiene  *[shipped]*
 The two-things-in-sync defect class attacked structurally:
