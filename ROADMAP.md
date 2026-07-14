@@ -85,6 +85,37 @@ near-term phase.
 > below. Historical commit messages and notes use the old codes; the
 > **Legacy code → new id** appendix at the bottom maps every one.
 
+## Maintenance — how shipped history is compressed
+
+This file is forward-looking; shipped work is **compressed in place** so the
+live plan stays small. Git history is the archive — `git log -p ROADMAP.md`
+and the blame view recover any compressed detail. The rules:
+
+- **The seam.** One marker line containing the token `SHIPPED-HISTORY-SEAM`
+  divides the file: everything above is the live plan (phases with open
+  work, active first), everything below is shipped history. It is unique and
+  greppable — `sed -n '/SHIPPED-HISTORY-SEAM/,$p' ROADMAP.md` tails the
+  history, `sed '/SHIPPED-HISTORY-SEAM/,$d' ROADMAP.md` heads the live plan.
+- **Compression rule.** A milestone is compressed only when *every* checkbox
+  in it is checked. Keep the `### id — title *[shipped]* *(was …)*` header
+  exactly (stable ids keep cross-references and git archaeology working);
+  replace the body with 1–3 sentences: the intent, what actually shipped, and
+  any load-bearing decision made along the way. Unchecked and user-gated
+  items survive **verbatim** — compression never deletes an open box.
+- **Phase moves.** When a phase's last open item closes, compress the
+  stragglers and move the whole phase below the seam (typically during an
+  alignment review — see `/align-roadmap`). A phase keeps its intro
+  paragraph; it already carries the intent.
+- **External plan docs.** While a milestone is pending, a plan too detailed
+  for this file lives as its own doc in `docs/`, referenced from one line in
+  the milestone. When the milestone completes, fold a one-paragraph summary
+  into the compressed milestone and **delete the doc** — the commit that
+  deletes it is the archive pointer.
+- **Invariants to verify before committing a compression pass:** the set of
+  unchecked `- [ ]` lines is unchanged; no `## Phase` or `### <id>` header is
+  lost; the seam token appears exactly once; the Legacy-code appendix is
+  untouched.
+
 ## Locked design decisions
 
 Each decision below has a one-line statement and its authoritative home in
