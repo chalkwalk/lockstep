@@ -1,6 +1,7 @@
 #include "SurfaceModel.h"
 #include "MetaBand.h"
 #include "../core/Subdivision.h"
+#include "../core/TrigEvaluator.h"
 #include "UITheme.h"
 #include "KeyLabel.h"
 #include "../command/SurfaceLayer.h"
@@ -227,14 +228,10 @@ namespace lockstep
             if (fires)
             {
                 const auto& cond = stp.condition.isTrivial() ? track.baseCond : stp.condition;
-                bool iterPass = true;
-                if (cond.iterDenominator > 1)
-                {
-                    const auto len = static_cast<std::int64_t>(std::max(trackLen, 1));
-                    const auto denom = static_cast<std::int64_t>(cond.iterDenominator);
-                    const auto iter = (loopBase + static_cast<std::int64_t>(i)) / len;
-                    iterPass = (iter % denom == static_cast<std::int64_t>(cond.iterNumerator) - 1);
-                }
+                const auto len = static_cast<std::int64_t>(std::max(trackLen, 1));
+                const auto iter = (loopBase + static_cast<std::int64_t>(i)) / len;
+                const bool iterPass = TrigEvaluator::iterCyclePasses(
+                    iter, cond.iterNumerator, cond.iterDenominator);
                 if (iterPass)
                 {
                     prob = std::clamp(static_cast<float>(cond.probabilityPercent) / 100.0f, 0.0f, 1.0f);

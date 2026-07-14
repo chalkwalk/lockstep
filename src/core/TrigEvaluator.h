@@ -17,6 +17,25 @@ namespace lockstep::TrigEvaluator
         return static_cast<int>(h % 100u);
     }
 
+    // The iteration rule (m:n), DESIGN §4.4 — single owner.
+    // Fires on `numerator` cycles of every `denominator`, maximally evenly
+    // distributed over the cycle index (the same Bresenham/Euclid rule the
+    // generator uses). n=1 reduces to "first of every m"; n=m always fires.
+    // Both the audio path (shouldFire) and the grid preview (SurfaceModel)
+    // call this — the formula must exist exactly once.
+    [[nodiscard]] inline bool iterCyclePasses(std::int64_t iter,
+                                              int numerator,
+                                              int denominator) noexcept
+    {
+        if (denominator <= 1)
+            return true;
+
+        const auto den = static_cast<std::int64_t>(denominator);
+        const auto num = static_cast<std::int64_t>(std::clamp(numerator, 1, denominator));
+        const auto phase = ((iter % den) + den) % den;  // negative-safe
+        return (phase * num) % den < num;
+    }
+
     // Returns true if the step should fire.
     // step         — the full Step (for base trig + fill layer).
     // absoluteStep — track-local step counter (nextTriggerPpq / divPpq).
@@ -50,13 +69,11 @@ namespace lockstep::TrigEvaluator
         if (!step.trig)
             return false;
 
-        // Iteration rule.
-        if (cond.iterDenominator > 1)
+        // Iteration rule (m:n) — m fires per n cycles, evenly distributed.
         {
             const auto len = static_cast<std::int64_t>(std::max(trackLen, 1));
-            const auto denom = static_cast<std::int64_t>(cond.iterDenominator);
             const auto iter = absoluteStep / len;
-            if (iter % denom != static_cast<std::int64_t>(cond.iterNumerator) - 1)
+            if (!iterCyclePasses(iter, cond.iterNumerator, cond.iterDenominator))
                 return false;
         }
 

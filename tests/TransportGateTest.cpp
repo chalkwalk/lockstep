@@ -213,10 +213,49 @@ namespace lockstep
     }
 
     // ------------------------------------------------------------------------
+    // 4. Fractional iteration through the real engine (9.31). TrigConditionTest
+    //    owns the rule's properties; this asserts the *engine* honours them --
+    //    a 2:3 trig fires on two of every three pattern cycles (phases 0 and 2),
+    //    not once at an offset. The old formula fired once per three cycles, so
+    //    this counts note-ons rather than merely checking "something fired".
+    static void testFractionalIterationFiresNofM()
+    {
+        EngineHarness h;
+        installMidiOut(h.processor(), 0);
+        h.processor().setTrackLength(0, 4);  // 4 steps x 1/16 = 1.0 ppq per cycle
+        armStepZeroNote(h.processor(), 0);
+        auto& s0 = h.processor().sequence().tracks[0].steps[0];
+        s0.condition.iterNumerator = 2;
+        s0.condition.iterDenominator = 3;
+
+        // Cover cycles 0..5 (two full 3-cycle windows) plus a margin block.
+        const double perBlock = h.playHead().ppqPerBlock();
+        const int blocks = static_cast<int>(6.0 / perBlock) + 1;
+        const auto scan = scanOns(h, blocks);
+
+        // Which cycles fired? Note-ons land at ppq == cycle index (period 1.0).
+        std::array<int, 6> hits{};
+        for (double p : scan.ppqs)
+        {
+            const int cycle = static_cast<int>(std::llround(p));
+            if (cycle >= 0 && cycle < 6) ++hits[static_cast<std::size_t>(cycle)];
+        }
+
+        // 2:3 -> phases 0 and 2 of every 3: cycles 0, 2, 3, 5 fire; 1 and 4 rest.
+        const std::array<int, 6> expect { 1, 0, 1, 1, 0, 1 };
+        for (std::size_t c = 0; c < hits.size(); ++c)
+            CHECK(hits[c] == expect[c],
+                  juce::String("iter 2:3 through the engine: cycle ") + juce::String(int(c))
+                      + " fired " + juce::String(hits[c]) + " times, expected "
+                      + juce::String(expect[c]));
+    }
+
+    // ------------------------------------------------------------------------
     void runTransportGateTests()
     {
         testArmGateSilencesAndPreservesPhase();
         testForwardRestartRefloorsAndFires();
         testArmSerializationRoundTrip();
+        testFractionalIterationFiresNofM();
     }
 }

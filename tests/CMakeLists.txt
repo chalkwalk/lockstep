@@ -51,6 +51,7 @@ add_executable(lockstep_tests
     SampleIdRoundTripTest.cpp
     MultiStepHoldTest.cpp
     TransportGateTest.cpp
+    TrigConditionTest.cpp
     PluginStateUpgradeTest.cpp
     GestureTest.cpp
     StatusTextTest.cpp

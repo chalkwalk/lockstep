@@ -461,7 +461,7 @@ a *count*, not a phase offset. The iteration counter is the absolute step
 counter divided by track length, so it increments every complete pattern
 cycle. The m fires are **maximally evenly distributed** over the n cycles
 (the same Bresenham/Euclid rule the Euclid generator uses:
-`(cycle * m) % n < m`), so `2:3` fires on cycles 0 and 1 of every 3 — never
+`(cycle * m) % n < m`), so `2:3` fires on cycles 0 and 2 of every 3 — never
 two in a row followed by a long gap where an even split exists. `1:n`
 reduces to "fire on the first of every n" (the historic behaviour), and
 `n:n` always fires. Both levels are valid musically, though track-level

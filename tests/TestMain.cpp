@@ -65,6 +65,8 @@ int main()
     lockstep::runEngineTests();
     // v27 transport AND-gate + deterministic restart re-floor
     lockstep::runTransportGateTests();
+    // 9.31 iteration rule (m:n) properties
+    lockstep::runTrigConditionTests();
     // Serializer upgrade-chain guard (ported off the plugin load path)
     lockstep::runPluginStateUpgradeTests();
     // 8.21 Controller-surface shared helpers
