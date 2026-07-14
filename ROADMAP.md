@@ -10,37 +10,32 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus (set at the 2026-07-12 alignment review):** two arcs, in
-priority order:
+**Active focus (set at the 2026-07-14 alignment review):** the 2026-07-12 arcs are
+**both closed** — structural debt (`9.12` dispatch migration, `9.15` invalidation
+enforcement) cleared on 2026-07-13, and the grammar/usability arc shipped `9.29`
+(Machine scope) and `9.30` (chrome regroup) with it. This review cross-referenced
+every remaining claim against the code; the corrections are folded into the
+milestones below. Next orders of business, in order:
 
-1. **Structural debt — CLEARED (2026-07-13).** Both items shipped.
-   `9.15`: the invalidation channel is now build-enforced, so PRINCIPLES §22
-   describes code rather than a target.
-   `9.12`: **dispatch and display now read the same table.** Display already derived
-   from the grammar; dispatch re-derived it by hand, and the migration proved the two
-   had drifted in **five** places — every one a key frame advertising a label the key
-   did not honour (`Func+Morph+Nav` said ×2 but picked the morph pole; bare `↓` said
-   octave but moved the track; `Track+←/→` said cycle but paged; `Track+tap(FX)`
-   bypassed the resolver it was coloured by; `scope+P` said confirm but quantized) —
-   plus one gesture (`Phrase+Nav` transpose) that dispatch performed and the surface
-   could never show. `handleAction` is exhaustive with no `default:`, so a new action
-   that reaches no handler is a *build* failure; the burn-down list is deleted because
-   the compiler is now the guard.
-2. **Grammar.** `9.29` — the **Machine scope** — **shipped 2026-07-13**. Section keys
-   had always edited the machine, but no modifier could *say* "machine", so no verb
-   could act on one. `Func` now reaches both unkeyed rungs (`Machine` inside Track,
-   `Set` above Song), the machine picker moved to `Track`+hold(`SRC`) with the FX
-   pickers, and the verbs reached the sound (copy / paste / init). Two knock-ons:
-   **delete moved to the gesture axis** (`scope`+hold(`Clear`)) because `Machine` *is*
-   `Func+Track` and one chord cannot be two things — which incidentally revived
-   `Trig+Func+Clear` (clear P-Locks, keep the trig), dead since the Func layer began
-   rewriting `Clear`→`VerbDelete`.
-3. **Performance usability.** `9.30` — the chrome regroup — **shipped 2026-07-13**:
-   three bands ordered by frequency, one status organ, and the confirm prompt fixed
-   *structurally* (it was a 1.5 s fading toast guarding a sticky state; it is now
-   derived from that state and cannot be invisible while armed). Still open: `5.3`
-   Song/Scene management UI (names, colours, browser, sound recall — "Kit" is retired
-   as a term by `9.29`), `9.4` snapshot restore-semantics session, `6.4` Cue bus.
+0. **Housekeeping sweep** *(in flight)* — this bookkeeping pass; the pool
+   content-hash stub (`SamplePool.cpp`, "real xxHash32 lands in M7", still stubbed
+   despite 9.18 shipping "content-hash refs"); and `9.14` stage 5 + the stage 6
+   close-out, which finishes `9.14`.
+1. **`9.23` gap — Stream→pool wiring.** The one *functional* gap the review found
+   hiding behind shipped prose: `StreamMachine` hardcodes `effBpm = 0.0` and so
+   ignores the pool's effective tempo / one-shot / A440 metadata that 9.18's S5
+   shipped for it.
+2. **`9.4` — snapshot restore-semantics session.** Docs-first, interactive. Extra
+   motivation found: `restoreOne()` on an empty stack silently falls back to the
+   project baseline (flagged `DESIGN-DEBT(undo-model)` in `Arrangement.h`).
+3. **`6.4` — Cue completion.** Smaller than the roadmap claimed (see the scope
+   correction in 6.4): the scope key and the bus are live; what is missing is the
+   per-track cue send tap and the `Cue`+X gestures.
+4. **`5.3` — Song/Scene management UI.** The big arc: names, colours, browser,
+   sound recall. Needs its own brainstorm/design session first — "Kit" is retired
+   as a term (`9.29`), so the recall-unit story is re-derived, likely atop
+   `SoundPool`. Must fit the picker paradigm (step grid is the selection surface;
+   no popups) and the scope+verb grammar.
 
 **Capture arc closed 2026-07-12.** `11.10` (the CUJ session — DESIGN §41 +
 README §5.23) and `11.11` (the stems completion) are both shipped: stem
@@ -58,7 +53,9 @@ closed; nothing in it is outstanding.
 tail (chase-locked Tape, i16 reel, §19 proxies, scrub/wind, multi-sub overdub),
 and all four play-test rounds. Phase 10 is shipped through 10.10 except `10.5`
 (diatonic nav — partial), `10.6` (scale-quantize) and `10.11`. `9.14` shipped
-stages 0–4 (stage 5 copy/paste banners open).
+stages 0–4 (stage 5 copy/paste banners open). The 2026-07-14 review also flipped
+five milestones whose `[active]` flag had gone stale — `9.5`, `9.6`, `9.8a`,
+`9.13`, `9.27` are all complete in code.
 
 **Gated on the user (schedule a dogfooding session or mark waived):** ear
 tests (`9.23` S1 Bungee, `9.24` A/B matrix, `9.25` R4 varispeed texture);
@@ -1193,7 +1190,14 @@ DESIGN §29. Depends on 6.2.
       refinement (loop length is free-running for now).
 
 ### 6.4 — Cue + Aux output buses + monitoring  *[in progress]*  *(was MU)*
-DESIGN §31 / §31.1. Static output complement + the `Cue` scope (key TBD).
+DESIGN §31 / §31.1. Static output complement + the `Cue` scope.
+
+> **Scope correction (2026-07-14 alignment review).** Two boxes below were stale:
+> the `Cue`-scope key *is* allocated (it shipped with 5.5 as `Func`+`3` →
+> `enterCueScope()`, `PrimaryScope::Cue`), and the Cue bus *is* fed — but only by
+> the metronome (`processMetronome`, the bus's sole writer). What is genuinely
+> missing is the **per-track cue send tap** (`Route` has no `Cue` member) and the
+> `Cue`+X gestures that ride the scope key that already exists.
 - [x] Static output complement: **Master + Cue + 6 Aux** stereo buses, non-main
       declared disabled-by-default (`BusesPropertiesAccessor::make`). No dynamic
       port rescan (host lottery — rejected). **CLAP/VST3 port exposure in a real
@@ -1204,11 +1208,17 @@ DESIGN §31 / §31.1. Static output complement + the `Cue` scope (key TBD).
       processing confined to a main-bus view so aux buses never get master FX.
       No serializer bump needed — the Aux encoding rides the existing v25
       `channelState.out` float (old files decode as Master/Track unchanged).
-- [ ] Cue/monitor output bus DSP (standalone ch 3–4 / plugin Cue bus), additive
-      post-FLTR/AMP/Level send; excluded from `outputReachesMaster()`. (Cue bus is
-      *declared* but not yet fed — awaits the send tap + Cue-scope key.)
-- [ ] `Cue + track` / `Cue + Scene` / `Cue + MIDI-out` **gestures** — await the
-      `Cue`-scope key allocation (Aux DSP + Out-slot routing shipped first).
+- [x] Cue bus **declared and fed** (standalone ch 3–4 / plugin Cue bus). The
+      metronome is currently its only writer (`processMetronome`), which is what
+      proves the bus is live end-to-end.
+- [x] `Cue`-scope key allocated: `Func`+`3` → `enterCueScope()` (`PrimaryScope::Cue`),
+      shipped with 5.5. `Cue`+step already auditions.
+- [ ] **Per-track cue send tap** — additive post-FLTR/AMP/Level, excluded from
+      `outputReachesMaster()` (cue-only audio must never count as "reaches master").
+      `Route` grows a `Cue` member.
+- [ ] `Cue + track` / `Cue + Scene` / `Cue + MIDI-out` **gestures** on the existing
+      `Cue` scope. New input modality ⇒ unit tests (resolution, scope routing,
+      round-trip).
 - [x] Live stem capture via Aux outs documented as the blessed stem-export path
       (DESIGN §31.1) — the offline per-take stem-export item is demoted.
 
@@ -1774,7 +1784,7 @@ longer chooses among A/B/C *purposes*; it specs restore-semantics + CUJ docs for
 the "both" model. Output lands in `README.md` (workflow) and `DESIGN.md` §13.6
 (rationale + UX).
 
-### 9.5 — Velocity overlay polish  *[active]*
+### 9.5 — Velocity overlay polish  *[shipped]*
 Polish pass on the live velocity overlay (§39.10): Mix baseline fix, Phrase
 mode, and enable UX improvements. Serializer v21.
 
@@ -1801,7 +1811,7 @@ mode, and enable UX improvements. Serializer v21.
       `Func+MOD` (density): assessed n/a — density amounts are ephemeral (reset on
       overlay exit), so "no durable enabled content" has no meaningful state to read.
 
-### 9.6 — Contextual parameter-name aliasing  *[active]*
+### 9.6 — Contextual parameter-name aliasing  *[shipped]*
 `ParamSpec` hook for mode-dependent labels; applied to DrumSynth + Sample/Slice.
 See DESIGN §6.10.
 
@@ -1851,7 +1861,7 @@ standalone tempo bar. See DESIGN §4.8 (unified TIME page). Serializer v21.
       sticky exclusivity); build/write round-trips; bar-length order assert;
       v21 serializer round-trip; v20 projects load cleanly.
 
-### 9.8a — TIME page cleanup pass  *[active]*
+### 9.8a — TIME page cleanup pass  *[shipped]*
 Structural cleanup: merge Tempo + Time-Sig into one TIME page; per-control INHERIT
 floor; bar-length-ordered time-sigs; pure transition layer; CUJ tests.
 See DESIGN §4.8 and §13.
@@ -2154,7 +2164,7 @@ findable by reading either side alone, which is the argument for the phase.
 > than rewrite them — so a diff that shows only action-ID changes is proof the
 > behaviour did not move.
 
-### 9.13 — Redundancy / SSOT consolidation + switch hygiene  *[active]*
+### 9.13 — Redundancy / SSOT consolidation + switch hygiene  *[shipped]*
 
 Eliminate the implicit "two things meant to stay in sync" defects (a class that
 caused several recent bugs) and make silent `switch` fall-through a compile error.
@@ -2225,8 +2235,10 @@ tap = navigate/toggle** (PRINCIPLES §5). Docs-first.
       `QUANT` zeroes offset. *(`6c59a3b`, `a33f12d`, `8a4c719`;
       `core/StepBlockMove.h`.)*
 - [ ] **Stage 5 — Copy/paste discoverability.** Armed banners/preview for
-      Record/Play; no clipboard-model change. *(Verified unbuilt 2026-07-12 —
-      no clipboard chrome in InspectorModel/SurfaceLayer.)*
+      Record/Play; no clipboard-model change. *(Re-verified 2026-07-14: 9.30 added
+      a `CPY:` clipboard-**content** badge to the status lane, but the **armed-verb**
+      half is still missing — `copyHint()`/`pasteHint()` in `StatusText.h` have zero
+      callers. Per the 9.30 taxonomy the banner is state-derived, not a fading toast.)*
 - [~] **Stage 6 — Tests + README.** Confirm-tier resolution; `Track+Song+Clear`
       round-trip; move-step carries overrides round-trip; inspector lock-clear
       + note edit; hold-FX picker entry. README shortcut table; remove retired
@@ -2832,7 +2844,7 @@ bump):
       path the dispatcher pages with (fixes the raw-schema over-count). One
       affordance for every re-press-to-cycle key.
 
-### 9.27 — Capture-round: two bugs, four features  *[active]*
+### 9.27 — Capture-round: two bugs, four features  *[shipped]*
 The play-test round that produced the deck-engine design (DESIGN §40, Phase 11)
 also produced two bugs and four independent features. They are unrelated to each
 other and to the deck; one commit each, each with tests. Docs for the deck landed
