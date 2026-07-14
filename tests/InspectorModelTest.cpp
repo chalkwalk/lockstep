@@ -265,7 +265,102 @@ namespace lockstep
 
         si.toastAgeMs = 2000;
         m = buildInspectorModel(ui, ec, h.processor(), ControllerButton::None, -1, si);
-        CHECK(m.statusKind == StatusKind::None, "and then it is gone");
+        CHECK(m.statusKind == StatusKind::Idle,
+              "and then it is gone -- the lane falls back to its RESTING state, not to blank");
+        CHECK(m.status.startsWith("MZ ->"), "which is the MZ's write target");
+    }
+
+    // The lane at rest captions the MZ: it says where the knobs are about to write.
+    // That is the Override-ELSE-Base rule made visible -- the single fact that decides
+    // what every encoder does, and one that the knobs cannot say about themselves.
+    static void testIdleLaneShowsTheWriteTarget()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        {   // At rest: the focused track's BASE params.
+            EditContext ec;
+            UiState ui;
+            ui.activeTrack = 2;
+            const auto m = buildInspectorModel(ui, ec, proc, ControllerButton::None, -1, {});
+            CHECK(m.statusKind == StatusKind::Idle, "at rest the lane is a resting STATE");
+            CHECK(m.status.contains("TRACK 3") && m.status.containsIgnoreCase("base"),
+                  "writes land on the track's base params");
+        }
+        {   // A held step flips the write target to that step's override. Same knobs,
+            // different layer -- the difference is invisible in the knobs themselves.
+            EditContext ec;
+            ec.hold(0, 4);
+            UiState ui;
+            const auto m = buildInspectorModel(ui, ec, proc, ControllerButton::None, -1, {});
+            CHECK(m.statusKind == StatusKind::Idle, "still a resting state");
+            CHECK(m.status.contains("STEP 5") && m.status.containsIgnoreCase("P-LOCK"),
+                  "writes now land in the held step's override, and the lane says so");
+        }
+    }
+
+    // The lane must follow the MZ's REAL write dispatch, in its real precedence order
+    // (fill -> morph -> control-all -> held step -> base). Each case below is one the
+    // naive "held step or base" reading gets WRONG -- and a caption that claims to name
+    // the write target and misnames it is worse than none, because it is believed.
+    static void testIdleLaneNamesEveryWriteLayer()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        const auto target = [&](const UiState& ui, const EditContext& ec) {
+            return buildInspectorModel(ui, ec, proc, ControllerButton::None, -1, {}).status;
+        };
+
+        // FILL: a second set of per-step locks, live only while Fill is down. The same
+        // knob authors a different lock than it did a moment ago.
+        {
+            proc.setFillActive(true);
+            EditContext ec;
+            ec.hold(0, 2);
+            UiState ui;
+            CHECK(target(ui, ec).containsIgnoreCase("FILL"),
+                  "Fill held + a step: the knob authors a FILL override, not a P-Lock");
+
+            // Fill with NO step held: writeFillParam has nowhere to put the value and
+            // drops it. A knob that silently does nothing is precisely what this lane
+            // exists to catch.
+            EditContext none;
+            const auto s = target(ui, none);
+            CHECK(s.containsIgnoreCase("FILL") && s.containsIgnoreCase("drop"),
+                  "Fill held with no step: the lane says the writes go nowhere");
+            proc.setFillActive(false);
+        }
+
+        // MORPH: the knob writes a DEVIATION into the morph layer, split across the
+        // A/B poles -- not a value into the track's base.
+        {
+            EditContext ec;
+            UiState ui;
+            ui.morphHeld = true;
+            CHECK(target(ui, ec).containsIgnoreCase("MORPH"),
+                  "Morph held: writes land in the morph layer, and the lane says so");
+        }
+
+        // CONTROL-ALL fans one knob across every track with the same slot id...
+        {
+            proc.setControlAllActive(true);
+            EditContext ec;
+            UiState ui;
+            const auto s = target(ui, ec);
+            CHECK(s.containsIgnoreCase("ALL TRACKS"),
+                  "Control-All: one knob writes every track, and the lane says so");
+
+            // ...unless a step is held on this track, where writeParam's own precedence
+            // sends the write to the held step instead. The lane mirrors that precedence
+            // rather than inventing its own.
+            EditContext heldEc;
+            heldEc.hold(0, 6);
+            const auto s2 = target(ui, heldEc);
+            CHECK(s2.contains("STEP 7") && !s2.containsIgnoreCase("ALL TRACKS"),
+                  "Control-All + a held step: the held step wins, exactly as writeParam does");
+            proc.setControlAllActive(false);
+        }
     }
 
     static void testAlertSurvivesTheToast()
@@ -303,6 +398,8 @@ namespace lockstep
         testStateOutranksToast();
         testEventFadesAndExpires();
         testAlertSurvivesTheToast();
+        testIdleLaneShowsTheWriteTarget();
+        testIdleLaneNamesEveryWriteLayer();
 
         juce::Logger::writeToLog("Completed tests in InspectorModel / 9.11 context inspector");
     }

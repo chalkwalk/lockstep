@@ -46,6 +46,17 @@ namespace lockstep
                 g.fillRect(area);
                 return;
 
+            case StatusKind::Idle:
+                // State at rest: where the MZ's knobs are about to write. Quiet on
+                // purpose — it is always true, so it must never compete with the kinds
+                // that are only sometimes true.
+                g.setColour(juce::Colour(0xFF0E1116u));
+                g.fillRect(area);
+                g.setColour(juce::Colour(0xFF6E8496u));
+                g.setFont(juce::FontOptions(9.5f));
+                g.drawText(m.status, text, juce::Justification::centredLeft, true);
+                return;
+
             case StatusKind::Confirm:
                 // The lane itself only shows the danger band; the PROMPT is the pop-over,
                 // painted by the editor over the MZ. Both are re-derived every frame.

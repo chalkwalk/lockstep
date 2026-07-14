@@ -40,6 +40,7 @@ namespace lockstep
     enum class StatusKind : std::uint8_t
     {
         None,
+        Idle,     // state AT REST: where the MZ's knobs are about to write (see below)
         Event,    // fading toast
         Alert,    // persistent until cleared
         State,    // re-derived from UiState; never fades
@@ -97,6 +98,18 @@ namespace lockstep
                                        ControllerButton focusedButton,
                                        int focusedIndex,
                                        const StatusInput& si = {}) noexcept;
+
+    // The lane's RESTING content: where the Manipulation Zone's knobs are about to
+    // write. This is the Override-ELSE-Base rule made visible — the single fact that
+    // decides what every encoder does, and it was displayed nowhere on the surface.
+    //
+    // It is also what earns the inspector its position: the lane sits directly above the
+    // MZ, so it captions it. "MZ -> TRACK 3 base" and "MZ -> STEP 5 override (P-LOCK)"
+    // are the same knobs pointed at two different layers, and the difference is
+    // invisible in the knobs themselves.
+    [[nodiscard]] juce::String mzWriteTarget(const UiState& ui,
+                                             const EditContext& ec,
+                                             const LockstepProcessor& proc) noexcept;
 
     // The pending-confirm prompt, derived from the CONFIRM STATE itself rather than
     // from a message captured when it was armed. That is the structural half of the fix:

@@ -3130,6 +3130,29 @@ Six items off one play-test session. Two are outright bugs; two are features tha
 
 ---
 
+### 9.32 — The status lane at rest: the MZ's write target  *[SHIPPED 2026-07-13]*
+
+The STATUS lane (9.30) went blank whenever it had no confirm, alert or toast to show
+— a strip of dead pixels directly above the encoders, which is the one place on the
+surface with room to say the thing the encoders cannot say about themselves: **which
+layer they are about to write to.** Override-ELSE-Base is *the* rule (DESIGN §4.1) —
+the single fact that decides what every knob does — and it was displayed nowhere.
+"MZ → TRACK 3 base params" and "MZ → STEP 5 override (P-LOCK)" are the same eight
+knobs pointed at two different stores, and nothing in the knobs tells them apart.
+
+- [x] A fourth `StatusKind`, **`Idle`** (DESIGN §42.2): quiet by construction, because
+      it is *always* true and so must never compete with the kinds that are only
+      sometimes true. Any state / alert / event outranks it.
+- [x] `mzWriteTarget()` names **every** destination the MZ's dispatch can reach, in
+      that dispatch's own precedence order — fill → morph → control-all → held step →
+      base, plus the meta bands (whose knobs are not writing params at all). The
+      precedence *is* the correctness argument: a caption that claims to name the write
+      target and gets the order wrong is worse than none, because it is believed. Two
+      of those legs were invisible before: **Morph** (the knob writes a *deviation*
+      into the A/B layer, not a value), and **Control-All** (one knob writes sixteen
+      tracks). A third is a trap the lane now announces: **Fill held with no step
+      held** — `writeFillParam` has nowhere to put the value and silently drops it.
+
 ## Phase 10 — Melodic & Harmonic Authoring  *[mostly shipped: 10.1–10.4, 10.7–10.10 done; 10.5 partial; 10.6, 10.11 open]*
 
 The tonal layer: a key-signature system built on the **circle-of-fifths

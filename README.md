@@ -1925,6 +1925,19 @@ majority of **Phase 10** (key signatures + generators), and all of
 - **Generator hub** (`3` held ≥350 ms → momentary picker EUCLID / DENSITY / VEL; short tap = tap tempo retained).
 - **In-cell gesture affordances** (9.11/9.12): each key cell shows its full gesture set in a fixed-slot layout (double-tap · tap · PRIMARY · hold · func hint) with painted vector glyphs (dot = tap, two dots = double-tap, ring = hold, amber chip = func). PRIMARY is the strongest action. `3` shows PRIMARY = GEN HUB (ring), tap slot above = TAP TEMPO. Slot content is **derived from the grammar table** — the same `resolveBinding` query that dispatches — so display and behaviour cannot silently diverge (the earlier `KeyAffordances` side-table was deleted in 9.12).
 - **Context inspector** (9.11): always-on 4-region strip below the top info row. Regions: KEY (focused key + gesture list), HELD (active modifier scope + grammar note), OVERLAY (active picker or mode name + cancel hint), EDIT (held-step overrides). Each region has an idle fallback; built by `buildInspectorModel()` — unit-tested and dual-target. The **timeline strip** (Phase 11) sits below it: bars + wall-clock rulers, tape end lugs, markers, cursor — read-only.
+- **The STATUS lane captions the MZ.** The lane sits directly above the Manipulation Zone, and when it has no confirm / alert / toast to show it says **where the eight knobs are about to write** — the one thing the knobs cannot say about themselves:
+
+  | Held | Where a knob writes |
+  |---|---|
+  | *(nothing)* | the focused track's **base** params |
+  | a step | that step's **P-Lock** override |
+  | `Fill` + a step | that step's **fill** override (a second set of locks) |
+  | `Fill`, no step | **nowhere** — the write is dropped, and the lane tells you |
+  | `Morph` | a deviation into the **morph** layer (A/B) |
+  | Control-All | **every track** with the same parameter |
+  | a meta band | that band's own controls (COND, MIXER, DENSITY …) |
+
+  It is quiet on purpose: it is always true, so it must never compete with the things that are only sometimes true — any confirm, alert or toast outranks it.
 - **Hierarchical time** — per-Song/per-Scene tempo ratios and time signatures
   on the unified TIME page; **key signatures** (root + brightness + functional
   modifiers) on its KEY sub-page (§5.21).

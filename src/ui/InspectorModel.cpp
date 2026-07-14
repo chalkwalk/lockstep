@@ -5,6 +5,7 @@
 #include "../command/KeyBindings.h"
 #include "../core/MusicalGate.h"
 #include "mode/ModalState.h"
+#include "MetaBand.h"
 
 namespace lockstep
 {
@@ -254,9 +255,113 @@ namespace lockstep
         return {};
     }
 
+    // Exhaustive over MetaBand (no `default:`), so a new band that forgets to say what
+    // the knobs are doing is a -Wswitch build error rather than a blank caption.
+    static const char* metaBandCaption(MetaBand b) noexcept
+    {
+        switch (b)
+        {
+            case MetaBand::Mixer:            return "MIXER - bank levels";
+            case MetaBand::Cond:             return "TRIG CONDITION";
+            case MetaBand::Trig:             return "TRIG / NOTE defaults";
+            case MetaBand::Divider:          return "TRACK DIVIDER";
+            case MetaBand::PhraseLen:        return "PHRASE LENGTH";
+            case MetaBand::Global:           return "MASTER / GLOBAL";
+            case MetaBand::Swing:            return "SWING";
+            case MetaBand::Density:          return "DENSITY";
+            case MetaBand::DensityMode:      return "DENSITY - musicality";
+            case MetaBand::DensitySelection: return "DENSITY - selection";
+            case MetaBand::MasterFx:         return "MASTER FX";
+            case MetaBand::Euclidean:        return "EUCLID";
+            case MetaBand::Melodic:          return "MELODY";
+            case MetaBand::Harmony:          return "CHORD";
+            case MetaBand::Transport:        return "TRANSPORT globals";
+            case MetaBand::Vel:              return "VELOCITY - depth";
+            case MetaBand::VelCenter:        return "VELOCITY - centre";
+            case MetaBand::VelMode:          return "VELOCITY - mode";
+            case MetaBand::VelBlend:         return "VELOCITY - blend";
+            case MetaBand::Time:             return "TIME";
+            case MetaBand::Key:              return "KEY";
+            case MetaBand::StepPosition:     return "STEP POSITION";
+            case MetaBand::SampleProps:      return "SAMPLE properties";
+            case MetaBand::None:             break;
+        }
+        return "";
+    }
+
+    // The branches below are in the SAME ORDER the MZ's own write dispatch takes
+    // (ManipulationZone.cpp: fill -> morph -> writeParam, and inside writeParam:
+    // control-all -> held step -> base). That ordering is the whole correctness
+    // argument: a caption that claims to name the write target and gets the
+    // precedence wrong is worse than no caption, because it is believed.
+    juce::String mzWriteTarget(const UiState& ui, const EditContext& ec,
+                               const LockstepProcessor& proc) noexcept
+    {
+        // 1. A META BAND has taken the MZ. The knobs are not writing params at all --
+        //    they are that band's own controls -- so name the band, not a track.
+        const auto band = resolveMetaBand(ui);
+        if (band != MetaBand::None)
+            return juce::String("MZ -> ") + juce::String(metaBandCaption(band));
+
+        const int t = ui.activeTrack;
+        if (t < 0 || t >= static_cast<int>(kNumTracks))
+            return "MZ -> --";
+
+        const bool held = ec.isActiveForEditing() && ec.heldTrackIndex() == t;
+        const int nHeld = held ? static_cast<int>(ec.heldSteps().size()) : 0;
+        const int step  = held ? ec.heldStepIndex() : -1;
+
+        // A held-step phrase, reused by the fill and P-Lock legs.
+        const auto stepPhrase = [&]() -> juce::String {
+            if (nHeld > 1) return juce::String(nHeld) + " HELD STEPS";
+            return "STEP " + juce::String(step + 1);
+        };
+
+        // 2. FILL. The fill layer is a SECOND set of per-step locks, live only while
+        //    the Fill modifier is down -- so with Fill held the same knob authors a
+        //    different lock than it did a moment ago. It also needs a step: with no
+        //    step held, writeFillParam has nowhere to put the value and DROPS it. A
+        //    knob that silently does nothing is exactly what this lane exists to catch.
+        if (proc.fillActive())
+        {
+            if (step >= 0)
+                return "MZ -> " + stepPhrase() + "  FILL override";
+            return "MZ -> FILL  (hold a step -- writes are dropped otherwise)";
+        }
+
+        // 3. MORPH. With Morph held the knob does not write a value at all: it writes a
+        //    DEVIATION into the morph layer, split across the A/B poles at the fader's
+        //    position. Same knob, same page, entirely different store.
+        if (ui.morphHeld)
+            return "MZ -> TRACK " + juce::String(t + 1) + "  MORPH layer (A/B)";
+
+        // 4. CONTROL-ALL fans one knob across every track whose schema has the same
+        //    slot id -- unless a step is held on this track, in which case the held-step
+        //    write wins (writeParam's own precedence, mirrored here).
+        if (proc.controlAllActive() && !held)
+            return "MZ -> ALL TRACKS  base params (CONTROL-ALL)";
+
+        // 5. A HELD (or latched) step: writes land in the STEP's override, not the
+        //    track's base. That is the Override-ELSE-Base rule, and it is the difference
+        //    between "change the sound" and "change this one hit" -- from one turn of the
+        //    same knob, with nothing on the knob to tell you which you just did.
+        if (step >= 0)
+            return "MZ -> " + stepPhrase() + "  override (P-LOCK)";
+
+        // 6. At rest: the focused track's BASE params, and the section page the knobs are
+        //    pointed at.
+        juce::String out = "MZ -> TRACK " + juce::String(t + 1) + "  base params";
+        const int sec = ui.trackSection[static_cast<std::size_t>(t)];
+        if (sec >= 0 && sec < IMachine::kMaxSections)
+            out += juce::String("  ")
+                 + juce::String(IMachine::kCanonicalSectionNames[static_cast<std::size_t>(sec)]);
+        return out;
+    }
+
     // Precedence IS the taxonomy: State outranks Alert outranks Event. A fading toast
     // must never be able to hide something that is armed and waiting for the next key.
     static void buildStatusLane(InspectorModel& m, const UiState& ui,
+                                const EditContext& ec, const LockstepProcessor& proc,
                                 const StatusInput& si) noexcept
     {
         // 1. STATE — an armed confirm. Rendered as the pop-over (§42.3).
@@ -306,7 +411,11 @@ namespace lockstep
             return;
         }
 
-        m.statusKind = StatusKind::None;
+        // At rest the lane is NOT blank: it captions the MZ below it. A strip of dead
+        // pixels directly above the knobs was the one place on the surface with room to
+        // say the thing the knobs cannot say about themselves — which layer they write to.
+        m.statusKind = StatusKind::Idle;
+        m.status = mzWriteTarget(ui, ec, proc);
     }
 
     // ── Public builder ────────────────────────────────────────────────────────
@@ -323,7 +432,7 @@ namespace lockstep
         m.held    = buildHeldRegion(ui, proc) + buildHeldBadges(ui, si);
         m.overlay = buildOverlayRegion(ui, proc);
         m.edit    = buildEditRegion(ui, ec, proc);
-        buildStatusLane(m, ui, si);
+        buildStatusLane(m, ui, ec, proc, si);
         return m;
     }
 

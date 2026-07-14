@@ -8061,16 +8061,48 @@ looking there.
 
 The six status homes were not just untidy — they were **untyped**, and the
 untyped-ness is what produced the worst bug on the surface. There are exactly
-three kinds of status, and they differ in *what makes them go away*:
+four kinds of status, and they differ in *what makes them go away*:
 
 | Kind | Lives until | Rendering | Examples |
 |---|---|---|---|
 | **state** | the state changes | **re-derived from `UiState` every frame; NEVER fades** | pending confirm · held scope · armed capture · delete picker |
 | **alert** | the condition is cleared | persistent; distinct colour | "3 samples missing" |
 | **event** | a timer expires | fading toast (~1.5 s) | "Copied phrase 3" · "Quantized" |
+| **idle** | something louder arrives | quiet; always present | "MZ → STEP 5 override (P-LOCK)" |
 
 > **The rule: anything that changes what the next key press does is STATE, and it
 > must render for as long as it is armed.**
+
+**The idle kind: the lane captions the MZ.** At rest the STATUS lane is *not*
+blank — a strip of dead pixels directly above the encoders was the one place on
+the surface with room to say the thing the encoders cannot say about themselves:
+**which layer they are about to write to**. That is the Override-ELSE-Base rule
+made visible (§4.1) — the single fact that decides what every knob does, and it
+was displayed nowhere. "MZ → TRACK 3 base params" and "MZ → STEP 5 override
+(P-LOCK)" are the same eight knobs pointed at two different stores, and nothing in
+the knobs distinguishes them.
+
+`mzWriteTarget()` names **every** destination the MZ's write dispatch can reach,
+in that dispatch's own precedence order — fill → morph → control-all → held step →
+base, plus the meta bands, whose knobs are not writing params at all:
+
+| Held | Where the knob writes |
+|---|---|
+| *(nothing)* | the focused track's **base** params |
+| a step | that step's **P-Lock** override |
+| `Fill` + a step | that step's **fill** override — a *second* set of locks |
+| `Fill`, no step | **nowhere** — the write is dropped, and the lane says so |
+| `Morph` | a **deviation** into the morph layer, split across the A/B poles |
+| Control-All | **every track** whose schema carries the same slot id |
+| a meta band | the band's own controls (COND, MIXER, DENSITY …) |
+
+The precedence *is* the correctness argument: a caption that claims to name the
+write target and gets the order wrong is worse than no caption, because it is
+believed. It mirrors `ManipulationZone`'s and `writeParam`'s branch order rather
+than re-deriving one, and a test pins each leg.
+
+Idle is quiet by construction — it is *always* true, so it must never compete with
+the kinds that are only sometimes true, and any state / alert / event outranks it.
 
 The confirm prompt broke this rule, and the break was invisible because *nothing
 in the code knew there was a rule*. `uiState.confirm` is **sticky** — it survives
