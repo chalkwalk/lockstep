@@ -301,16 +301,17 @@ namespace lockstep
         // 8.26 Animate: master unit (0=FX1, 1=FX2, 2=SndA, 3=SndB); -1=none.
         int animateBypassMasterUnit_ = -1;
 
-        // Item 7 — meter drag: vertical drag on a track button adjusts its AMP level
-        // (left-click drag) or sendA (right-click drag).
-        struct MeterDrag
+        // 9.31 — master-VU drag: vertical drag on the master meter sets output_gain
+        // (double-click resets to 0 dB). The per-track VU drags this replaces were
+        // deleted: invisible, mouse-only, and a mixer in all but name (the MIXER
+        // band is the mixer). The master meter earns a gesture because it is the
+        // one level with no cell of its own on the surface.
+        struct MasterDrag
         {
-            int track = -1;
-            int paramSlot = -1;
-            float startValue = 0.0f;
-            float paramMax = 1.0f;
+            bool active = false;
+            float startDb = 0.0f;
             int startY = 0;
-        } meterDrag_;
+        } masterDrag_;
         juce::Component* keyListenerTarget_ = nullptr;
 
         InPluginTransport transport_;

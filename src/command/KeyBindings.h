@@ -137,6 +137,13 @@ namespace lockstep
         TransposeUp,         // Phrase+↑ (bare = +octave, Func = +1 semitone)
         TransposeDown,       // Phrase+↓
 
+        // 9.31: Track+hold(AMP) — the MIXER page (the bank's eight track levels).
+        // Appended rather than filed beside the other pickers on purpose: the
+        // dispatch golden records actions by ORDINAL, so inserting mid-enum
+        // renumbers every action after it and buries a real dispatch change in a
+        // wall of noise. New actions go here.
+        OpenMixer,
+
         // Sentinel — keep last. Lets the Stage 6 guard test enumerate every action
         // and assert each one is either handled by CommandCore::handleAction or
         // explicitly listed as not-yet-migrated, so a new ActionId cannot be added

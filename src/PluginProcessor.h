@@ -579,12 +579,21 @@ namespace lockstep
         // active for the given track, the value lands in the held step's
         // P-Lock; otherwise it updates the track's base params.
         void writeParam(int track, int slot, float value);
+        // 9.31: write a track's BASE value even while a step is held -- the mixer's
+        // write path. Everything else must use writeParam, which is where the
+        // "a held step captures" rule lives.
+        void writeBaseParam(int track, int slot, float value);
 
         // Part 2 multi-step holds: fan a P-Lock write across every held step on
         // `track`. Continuous slots nudge relative (each step keeps its own offset,
         // shifted by the primary's delta); stepped/enum slots write absolute to all.
         // The primary held step always lands the exact `value`. Marks paramWritten.
         void writeHeldStepOverrides(int track, int slot, float value);
+
+        // 9.31: the two legs writeParam is built from, so writeBaseParam can reuse
+        // them rather than re-implement (and drift from) the hygiene and side effects.
+        [[nodiscard]] float sanitizeParamWrite(int track, int slot, float value);
+        void writeBaseValue(int track, int slot, float value);
 
         // 5.2: Morph overlay write paths (message thread; DESIGN §17.3).
         // writeMorph: normalised proportional split at fader position f.

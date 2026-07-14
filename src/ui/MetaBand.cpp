@@ -114,6 +114,7 @@ namespace lockstep
             case 3:  return MetaBand::Divider;
             case 4:  return MetaBand::PhraseLen;
             case 5:  return MetaBand::Global;     // Song+FX: master insert params
+            case 6:  return MetaBand::Mixer;      // Track+hold(AMP): the bank's track levels
             default: break;
         }
         return MetaBand::None;
@@ -1381,6 +1382,48 @@ namespace lockstep
         return result;
     }
 
+    // 9.31 MIXER band — the bank's eight track levels under the eight encoders.
+    //
+    // Reads `lockstep.amp.level` per track through the normal param path, so a
+    // track whose machine has no CHANNEL block (none today) simply renders its slot
+    // inactive rather than lying about a level it does not have. The bank follows
+    // the focused track (1-8 / 9-16), exactly as the DENSITY band's transient page
+    // does -- no new paging state, and "focus a track in the other bank" is already
+    // the gesture a performer has.
+    static std::array<MetaFieldView, 8> buildMixerBand(LockstepProcessor& proc,
+                                                       int focusedTrack)
+    {
+        std::array<MetaFieldView, 8> result{};
+        const int pageOffset = ((focusedTrack >= 8) ? 1 : 0) * 8;
+
+        for (int i = 0; i < 8; ++i)
+        {
+            const int trackIdx = pageOffset + i;
+            if (trackIdx >= static_cast<int>(kNumTracks)) break;
+
+            const int slot = proc.slotForId(trackIdx, "lockstep.amp.level");
+            if (slot < 0) continue;  // inactive slot: this machine has no level
+
+            const auto spec = proc.paramSpec(trackIdx, slot);
+            const float value = proc.baseParamValue(trackIdx, slot);
+
+            auto& v = result[static_cast<std::size_t>(i)];
+            v.active   = true;
+            v.label    = "Trk " + juce::String(trackIdx + 1);
+            v.minValue = spec.minValue;
+            v.maxValue = spec.maxValue;
+            v.value    = value;
+            v.stepped  = false;
+            v.writable = true;
+            v.valueText = juce::String(juce::roundToInt(
+                              100.0f * (spec.maxValue > spec.minValue
+                                            ? (value - spec.minValue) / (spec.maxValue - spec.minValue)
+                                            : value))) + "%";
+            v.ringMode = RingMode::UnipolarFill;
+        }
+        return result;
+    }
+
     // §39 DensityMode band — Musicality (3-state stepped) per track.
     static std::array<MetaFieldView, 8> buildDensityModeBand(LockstepProcessor& proc,
                                                               const UiState& ui,
@@ -1685,6 +1728,8 @@ namespace lockstep
     {
         if (band == MetaBand::SampleProps)
             return buildSamplePropsBand(proc, ui.samplePropsPoolIndex);
+        if (band == MetaBand::Mixer)
+            return buildMixerBand(proc, track);
         if (band == MetaBand::Density)
             return buildDensityBand(proc, ui, track);
         if (band == MetaBand::DensityMode)
@@ -1885,6 +1930,30 @@ namespace lockstep
                         EditContext& ctx,
                         UiState& ui)
     {
+        // 9.31: MIXER — the bank's track levels. Two rules make this a mixer rather
+        // than another param page:
+        //   1. slot i addresses TRACK i of the bank, not the focused track. The band
+        //      is the one place where the eight encoders are eight tracks.
+        //   2. writes land on the track BASE value even while a step is held --
+        //      writeBaseParam, never writeParam (which captures into the step's
+        //      P-Lock under an active EditContext). A P-Locked balance is not a
+        //      balance; you cannot mix a kit whose faders move under the playhead.
+        //      This is the only deliberate exception to "a held step captures", so
+        //      it is asserted in MetaBandTest rather than left to be re-discovered.
+        if (band == MetaBand::Mixer)
+        {
+            const int pageOffset = ((track >= 8) ? 1 : 0) * 8;
+            const int target = pageOffset + field;
+            if (target < 0 || target >= static_cast<int>(kNumTracks))
+                return;
+            const int slot = proc.slotForId(target, "lockstep.amp.level");
+            if (slot < 0)
+                return;
+            const auto spec = proc.paramSpec(target, slot);
+            proc.writeBaseParam(target, slot, std::clamp(value, spec.minValue, spec.maxValue));
+            return;
+        }
+
         // 5.5: Euclidean params — update UiState staging area.
         if (band == MetaBand::Euclidean)
         {
@@ -2655,6 +2724,7 @@ namespace lockstep
         switch (band)
         {
             case MetaBand::None:           return {};
+            case MetaBand::Mixer:          return "MIXER";
             case MetaBand::Cond:           return "COND";
             case MetaBand::Trig:           return "TRIG";
             case MetaBand::Divider:        return "DIVIDER";

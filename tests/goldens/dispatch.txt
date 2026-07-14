@@ -388,6 +388,11 @@ L22 | Song+Section idx=5 | action=12
     down swingDismissed: false -> true
     up   masterSection: -1 -> 5
 
+L22 | Track+Section idx=3 | action=78
+    down swingDismissed: false -> true
+    down trackHeld: false -> true
+    up   trackSection: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+
 L22 | Func idx=-1 | action=1
     down funcHeld: false -> true
     up   funcHeld: true -> false

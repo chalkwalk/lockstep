@@ -67,6 +67,8 @@ int main()
     lockstep::runTransportGateTests();
     // 9.31 iteration rule (m:n) properties
     lockstep::runTrigConditionTests();
+    // 9.31 meter tick + master drag mapping
+    lockstep::runMeterMathTests();
     // Serializer upgrade-chain guard (ported off the plugin load path)
     lockstep::runPluginStateUpgradeTests();
     // 8.21 Controller-surface shared helpers

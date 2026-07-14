@@ -249,6 +249,12 @@ namespace lockstep
           Gesture::Hold, false },
         { CB::Section, 5, kModSong, SL::Base, AId::OpenMasterFxPicker, u8"PICK MASTER FX", CS::Resting,
           Gesture::Hold, false },
+        // 9.31: the same rule one key over. Track+AMP *tap* pages this track's AMP
+        // section (unchanged); Track + HOLD(AMP) asks the question the tap cannot --
+        // "what fills AMP across the whole bank" -- and gives you the eight tracks'
+        // levels on the eight encoders.
+        { CB::Section, 3, kModTrack, SL::Base, AId::OpenMixer, u8"MIXER", CS::Resting,
+          Gesture::Hold, false },
 
         // ── 9.12: Gesture-axis rows ─────────────────────────────────────────────
         // These rows carry explicit gesture + promoted fields (last two columns).

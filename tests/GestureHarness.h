@@ -26,6 +26,7 @@ namespace lockstep::test
         std::vector<CommandEffects::TransportAction> transportActions;
         std::vector<std::string> machineAssigns;  // "track:id"
         std::vector<std::pair<CommandEffects::OverlayId, int>> overlays;
+        std::vector<CommandEffects::MetaBandId> metaBands;   // 9.31: latched meta pages
         std::vector<float> crossfaders;
 
         void status(const juce::String& msg) override { statuses.push_back(msg); }
@@ -43,6 +44,7 @@ namespace lockstep::test
             machineParamWrites.emplace_back(t, p);
         }
         void openOverlay(OverlayId id, int p) override { overlays.push_back({ id, p }); }
+        void selectMetaBand(MetaBandId id) override { metaBands.push_back(id); }
         void crossfader(float v) override { crossfaders.push_back(v); }
         void releaseLatch(ControllerButton) override {}
         void sceneFloorPaste() override {}

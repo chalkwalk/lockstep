@@ -3827,6 +3827,20 @@ namespace lockstep
         editContext_.markParamWritten();
     }
 
+    // 9.31: the base write, split out of writeParam so the MIXER band can reach it.
+    // writeParam decides WHERE a value lands (held step / control-all fan-out / base);
+    // this is the base leg, and the only way to write a track base value while a step
+    // is held. It exists for exactly one caller today -- the mixer, where a held step
+    // must NOT capture the fader (DESIGN §32: a P-Locked balance is not a balance).
+    void LockstepProcessor::writeBaseParam(int track, int slot, float value)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks))
+            return;
+        if (slot < 0 || slot >= numParams(track))
+            return;
+        writeBaseValue(track, slot, sanitizeParamWrite(track, slot, value));
+    }
+
     void LockstepProcessor::writeParam(int track, int slot, float value)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))
@@ -3835,6 +3849,36 @@ namespace lockstep
         if (slot < 0 || slot >= np)
             return;
 
+        value = sanitizeParamWrite(track, slot, value);
+
+        // MD.10 Control-All: when active and no step is held on the source track,
+        // broadcast to every track whose schema has the same slot id.
+        if (controlAllActive_ && !(editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == track))
+        {
+            const juce::String srcId = idForSlot(track, slot);
+            if (srcId.isEmpty()) return;
+            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
+            {
+                const int dstSlot = slotForId(t, srcId);
+                if (dstSlot < 0) continue;
+                if (editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == t)
+                    writeHeldStepOverrides(t, dstSlot, value);  // fan across all held steps
+                else
+                    writeParamQueued(*this, t, dstSlot, value);
+            }
+            return;
+        }
+
+        if (editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == track)
+            writeHeldStepOverrides(track, slot, value);  // fan across all held steps
+        else
+            writeBaseValue(track, slot, value);
+    }
+
+    // Value hygiene shared by every param write, wherever it lands: pool-index
+    // clamping, routing-cycle refusal, zero-crossing snap.
+    float LockstepProcessor::sanitizeParamWrite(int track, int slot, float value)
+    {
         // Clamp sample index to the actual pool size so a full-throw CC can
         // never select a beyond-pool entry on tracks with a sample slot.
         if (idForSlot(track, slot) == "sample_id" || idForSlot(track, slot) == "slicer_sample_id")
@@ -3893,37 +3937,14 @@ namespace lockstep
             }
         }
 
-        // MD.10 Control-All: when active and no step is held on the source track,
-        // broadcast to every track whose schema has the same slot id.
-        if (controlAllActive_ && !(editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == track))
-        {
-            const juce::String srcId = idForSlot(track, slot);
-            if (srcId.isEmpty()) return;
-            for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
-            {
-                const int dstSlot = slotForId(t, srcId);
-                if (dstSlot < 0) continue;
-                const auto ti = static_cast<std::size_t>(t);
-                if (editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == t)
-                {
-                    writeHeldStepOverrides(t, dstSlot, value);  // fan across all held steps
-                }
-                else
-                {
-                    writeParamQueued(*this, t, dstSlot, value);
-                }
-                (void)ti;
-            }
-            return;
-        }
+        return value;
+    }
 
+    // The base leg of a param write: the track's own value, plus everything a base
+    // write implies (motion recording, slice recompute, sample/reel side effects).
+    void LockstepProcessor::writeBaseValue(int track, int slot, float value)
+    {
         const auto ti = static_cast<std::size_t>(track);
-
-        if (editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == track)
-        {
-            writeHeldStepOverrides(track, slot, value);  // fan across all held steps
-        }
-        else
         {
             // A3: record-armed + running + no step held = the knob is *recording*.
             // Open (or refresh) this slot's motion window; the audio thread paints

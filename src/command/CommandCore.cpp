@@ -300,6 +300,14 @@ namespace lockstep
             case AId::OpenTrackFxPicker:  fx.openFxPicker(false); return true;
             case AId::OpenMasterFxPicker: fx.openFxPicker(true); return true;
 
+            // 9.31: the MIXER is a latched meta page, not an overlay -- it survives
+            // the modifier release like COND or DIVIDER, and a re-press of the same
+            // chord toggles it away. selectMetaSection is the existing owner of that
+            // latch, so the mixer needs no new modal state (and no new boolean).
+            case AId::OpenMixer:
+                fx.selectMetaBand(CommandEffects::MetaBandId::Mixer);
+                return true;
+
             case AId::MachineCopy:  return verbs::machine(CB::VerbRecord, ctx, fx);
             case AId::MachinePaste: return verbs::machine(CB::VerbPlay, ctx, fx);
             case AId::MachineInit:  return verbs::machine(CB::VerbClear, ctx, fx);

@@ -18,6 +18,7 @@
 #include "machine/RouteMachine.h"
 #include "machine/EffectPickerModel.h"
 #include "ui/KeyLabel.h"
+#include "ui/MeterMath.h"
 #include "ui/MetaBand.h"
 #include "ui/ScopedSectionMatrix.h"
 #include "ui/SectionResolve.h"
@@ -114,6 +115,18 @@ namespace lockstep
                     break;
                 case OverlayId::MachinePicker:
                     ed.uiState_.machinePickerOpen = (param != 0);
+                    ed.refreshSurface();
+                    break;
+            }
+        }
+        void selectMetaBand(MetaBandId id) override
+        {
+            switch (id)
+            {
+                case MetaBandId::Mixer:
+                    // Toggle: the chord that opens the mixer closes it, like every
+                    // other latched meta page.
+                    ed.keyboardArea_.selectMetaSection(kMetaContentMixer, true);
                     ed.refreshSurface();
                     break;
             }
@@ -944,7 +957,6 @@ namespace lockstep
                                      juce::Colours::transparentBlack);
             trackBtns_[ti].setColour(juce::TextButton::textColourOffId, juce::Colours::white);
             trackBtns_[ti].setColour(juce::TextButton::textColourOnId, juce::Colours::white);
-            trackBtns_[ti].addMouseListener(this, false);  // meter drag
             addAndMakeVisible(trackBtns_[ti]);
 
             muteBtns_[ti].setButtonText("M");
@@ -1413,9 +1425,9 @@ namespace lockstep
         g.fillRect(strip);
 
         // The VOL chip sits under the meter: the level you are giving away, beneath the
-        // level you are getting. (There is no on-screen master fader by design — the
-        // level is set from the keyboard / encoders via the Func+7 band — so this chip
-        // is how the value stays discoverable at all.)
+        // level you are getting. 9.31: the meter is also the master fader — drag it,
+        // double-click to return to 0 dB — so the chip is now the readout of a control
+        // you can see, rather than the only trace of one you could not.
         constexpr int kChipH = 12;
         auto column = strip.reduced(1, 2);
         const auto chip = column.removeFromBottom(kChipH);
@@ -1472,6 +1484,17 @@ namespace lockstep
         drawBar(column.getX() + barW + 1, levelR, masterPeakHoldR_, masterClipR_);
 
         const float gainDb = processor_.apvts().getRawParameterValue(ParamIDs::outputGain)->load();
+
+        // Gain tick across the meter, on the meter's own dB scale — so "where the
+        // fader is" and "how hot the signal is" are read against one ruler. A boosted
+        // gain (> 0 dB) pins to the top, where the scale runs out; the chip has the
+        // number.
+        {
+            const int ty = meter::gainTickY(gainDb, column.getY(), meterH, kMeterFloorDb);
+            g.setColour(juce::Colour::fromRGBA(235, 240, 245, 190));
+            g.fillRect(column.getX(), ty, column.getWidth(), 2);
+        }
+
         g.setColour(juce::Colour::fromRGBA(10, 12, 15, 205));
         g.fillRect(chip);
         g.setFont(juce::Font(juce::FontOptions(8.0f)));
@@ -2200,6 +2223,23 @@ namespace lockstep
                 g.fillRect(r.getX(), r.getY(), fillW, r.getHeight());
             }
 
+            // Level tick (9.31): where this track's fader sits, as opposed to how
+            // loud it happens to be playing. The VU fill answers "is it making
+            // sound"; the tick answers "how far down did I turn it" -- which used
+            // to be answerable only by paging to the AMP section, or by feeling for
+            // an invisible drag gesture. Readout only: the MIXER band plays it.
+            {
+                const int lvlSlot = processor_.slotForId(t, "lockstep.amp.level");
+                if (lvlSlot >= 0)
+                {
+                    const auto spec = processor_.paramSpec(t, lvlSlot);
+                    const int tx = meter::levelTickX(processor_.baseParamValue(t, lvlSlot),
+                                                     spec.maxValue, r.getWidth());
+                    g.setColour(juce::Colour::fromRGBA(235, 240, 245, 170));
+                    g.fillRect(r.getX() + tx, r.getY() + 1, 2, r.getHeight() - 2);
+                }
+            }
+
             // Routing-group underline (always-on channel) — visible regardless
             // of the mute/solo background so a muted feeder still shows its group.
             if (hasGroup)
@@ -2290,24 +2330,31 @@ namespace lockstep
 
     void LockstepEditor::mouseDown(const juce::MouseEvent& e)
     {
-        // Meter drag: vertical drag on a track button sets AMP level (left) or sendA (right).
-        meterDrag_ = {};
-        for (int i = 0; i < static_cast<int>(kNumTracks); ++i)
+        // Master-VU drag (9.31): the master level is the one level with no cell of
+        // its own, so its meter is its fader. The per-track VU drags this replaced
+        // are gone -- the MIXER band is where track levels are played.
+        masterDrag_ = {};
+        if (e.eventComponent == this && masterChromeRegion_.contains(e.getPosition()))
         {
-            if (e.eventComponent != &trackBtns_[static_cast<std::size_t>(i)])
-                continue;
-            const juce::String paramId = e.mods.isRightButtonDown()
-                                             ? "lockstep.amp.sendA"
-                                             : "lockstep.amp.level";
-            const int slot = processor_.slotForId(i, paramId);
-            if (slot < 0) break;
-            const auto spec = processor_.paramSpec(i, slot);
-            meterDrag_.track = i;
-            meterDrag_.paramSlot = slot;
-            meterDrag_.startValue = processor_.baseParamValue(i, slot);
-            meterDrag_.paramMax = spec.maxValue > spec.minValue ? spec.maxValue : 1.0f;
-            meterDrag_.startY = e.getScreenY();
-            break;
+            if (auto* p = processor_.apvts().getParameter(ParamIDs::outputGain))
+            {
+                if (e.getNumberOfClicks() >= 2)
+                {
+                    // Double-click = back to unity. A gain you can push is a gain you
+                    // need to be able to un-push without hunting for zero.
+                    p->beginChangeGesture();
+                    p->setValueNotifyingHost(p->convertTo0to1(0.0f));
+                    p->endChangeGesture();
+                    repaint(masterChromeRegion_);  // chrome only: gain tick follows the reset
+                    return;
+                }
+                masterDrag_.active = true;
+                masterDrag_.startDb =
+                    processor_.apvts().getRawParameterValue(ParamIDs::outputGain)->load();
+                masterDrag_.startY = e.getScreenY();
+                p->beginChangeGesture();
+                return;
+            }
         }
 
         if (e.eventComponent != &crossfader_ || !e.mods.isRightButtonDown())
@@ -2350,18 +2397,25 @@ namespace lockstep
 
     void LockstepEditor::mouseDrag(const juce::MouseEvent& e)
     {
-        if (meterDrag_.track < 0) return;
-        const float kDragScale = 200.0f;  // pixels for full range
-        const int dy = meterDrag_.startY - e.getScreenY();
-        const float delta = static_cast<float>(dy) / kDragScale * meterDrag_.paramMax;
-        const float newVal = juce::jlimit(0.0f, meterDrag_.paramMax,
-                                          meterDrag_.startValue + delta);
-        processor_.writeParam(meterDrag_.track, meterDrag_.paramSlot, newVal);
+        if (!masterDrag_.active) return;
+        auto* p = processor_.apvts().getParameter(ParamIDs::outputGain);
+        if (p == nullptr) return;
+
+        const auto range = processor_.apvts().getParameterRange(ParamIDs::outputGain);
+        const int dy = masterDrag_.startY - e.getScreenY();  // up = louder
+        const float db = meter::masterDragDb(masterDrag_.startDb, dy, range.start, range.end);
+        p->setValueNotifyingHost(p->convertTo0to1(db));
+        repaint(masterChromeRegion_);  // chrome only: gain tick tracks the master drag
     }
 
     void LockstepEditor::mouseUp(const juce::MouseEvent& /*e*/)
     {
-        meterDrag_ = {};
+        if (masterDrag_.active)
+        {
+            if (auto* p = processor_.apvts().getParameter(ParamIDs::outputGain))
+                p->endChangeGesture();
+        }
+        masterDrag_ = {};
     }
 
     void LockstepEditor::paint(juce::Graphics& g)

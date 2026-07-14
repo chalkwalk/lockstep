@@ -6,6 +6,7 @@
 #include "ScopedSectionMatrix.h"
 #include "ScopeSectionSelect.h"
 #include "SectionResolve.h"
+#include "MetaBand.h"
 #include "UITheme.h"
 #include "../command/ButtonLayers.h"
 #include "../PluginProcessor.h"
@@ -318,10 +319,10 @@ namespace lockstep
     bool KeyboardArea::metaContentExists(int contentIndex)
     {
         // Meta CONTENT groups wired in ManipulationZone (MetaBand enum):
-        //   0=COND  1=TRIG  2=TRANSPORT  3=DIV  4=PHRASELEN  5=GLOBAL(master FX).
-        // Reached by: Func+TRIG/SRC, Track+TRIG, Phrase+LEN, Func+7, Song+FX.
-        // Distinct from the Func-row label set in kMetaLabels.
-        return contentIndex == 0 || contentIndex == 1 || contentIndex == 2 || contentIndex == 3 || contentIndex == 4 || contentIndex == 5;
+        //   0=COND 1=TRIG 2=TRANSPORT 3=DIV 4=PHRASELEN 5=GLOBAL(master FX) 6=MIXER.
+        // Reached by: Func+TRIG/SRC, Track+TRIG, Phrase+LEN, Func+7, Song+FX,
+        // Track+hold(AMP). Distinct from the Func-row label set in kMetaLabels.
+        return contentIndex >= 0 && contentIndex <= kMetaContentMixer;
     }
 
     void KeyboardArea::notifySectionChanged(int sectionIndex, int track, bool trackScope)

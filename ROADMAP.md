@@ -3105,7 +3105,7 @@ Six items off one play-test session. Two are outright bugs; two are features tha
 - [x] **Stage 3 — The MZ Func outline latches.** The outline is a property of *how the
       shown page was reached*, not of what is held right now: it survives the Func release
       and clears on any page change. Surface keys keep their live behaviour (7e).
-- [ ] **Stage 4 — Levels: visible, playable, and on the wire.** The track-VU drag gesture
+- [ ] **Stage 4 — Levels: visible, playable, and on the wire.** *(tick + master drag + mixer shipped; CC7 next)* The track-VU drag gesture
       was invisible *and* mouse-centric; it dies. In its place: a **level tick** on each
       track VU (display), a **mixer MZ page** (`Track` + hold `AMP`) that puts the bank's
       eight track levels and the master under the encoders, a **master-VU drag** on

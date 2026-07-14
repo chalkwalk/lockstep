@@ -31,6 +31,15 @@ namespace lockstep
             MachinePicker,  // step-grid re-skin, not a floating overlay
         };
 
+        // Latched meta pages a command can open by name. Unlike an overlay these
+        // survive the modifier release (and toggle off on a re-press) -- they are
+        // pages, not modes. Named rather than numbered so the binding table never
+        // carries a bare masterSection index (9.31).
+        enum class MetaBandId : std::uint8_t
+        {
+            Mixer,  // Track+hold(AMP): the bank's eight track levels
+        };
+
         virtual ~CommandEffects() = default;
 
         virtual void status(const juce::String& msg) = 0;
@@ -44,6 +53,8 @@ namespace lockstep
         // ignored -- a paste onto a smaller schema fills what it can.
         virtual void machineParams(int track, const std::vector<float>& params) = 0;
         virtual void openOverlay(OverlayId id, int param = 0) = 0;
+        // Latch (or un-latch, on a re-press) a named meta page.
+        virtual void selectMetaBand(MetaBandId id) = 0;
         virtual void crossfader(float value) = 0;
     // Auto-release a transient modifier latch after its terminal action.
     // No-op when the modifier is not latched (physically held is unaffected).

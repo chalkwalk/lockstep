@@ -8,6 +8,7 @@
 #include "../src/state/PluginState.h"
 #include "../src/io/EditContext.h"
 #include "../src/machine/SamplePool.h"
+#include "../src/machine/DrumMachine.h"
 #include "../src/core/Scale.h"
 
 namespace lockstep
@@ -1704,6 +1705,118 @@ namespace lockstep
     // 9.26: the COND band write target. This is the destination the held-step
     // promotion (bare TRIG → COND) routes to: with a step held, a COND write fans
     // onto every held Step::condition; with none, it edits the track baseCond.
+    // -------------------------------------------------------------------------
+    // 9.31 MIXER band. Three legs, per the new-modality rule:
+    //   resolution   — slot i shows track i of the bank (not the focused track);
+    //   scope routing— a write lands on the track BASE even with a step held;
+    //   round-trip   — the level survives serialise → deserialise.
+    // The scope-routing leg is the load-bearing one: the mixer is the single
+    // deliberate exception to "a held step captures the write", and an exception
+    // that lives only in a comment is an exception that gets refactored away.
+    static void testMixerBand()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+
+        // Real machines on the mixed tracks: a default project's tracks carry the
+        // stub machine, whose schema has no CHANNEL block to mix (and nothing to
+        // hear). The mixer is about tracks that make sound.
+        {
+            DrumMachine tmp;
+            const int np = tmp.numParams();
+            for (int t : { 0, 2, 9 })
+            {
+                auto& k = proc.kit(t);
+                k.machineId = DrumMachine::kMachineId;
+                k.baseParams.resize(static_cast<std::size_t>(np));
+                for (int i = 0; i < np; ++i)
+                    k.baseParams[static_cast<std::size_t>(i)] = tmp.paramSpec(i).defaultValue;
+            }
+            proc.reinstallMachinesFromActiveKit();
+        }
+
+        UiState ui;
+        ui.masterSection = kMetaContentMixer;
+        CHECK(resolveMetaBand(ui) == MetaBand::Mixer, "masterSection 6 → MIXER (precondition)");
+
+        const int slotT0 = proc.slotForId(0, "lockstep.amp.level");
+        const int slotT2 = proc.slotForId(2, "lockstep.amp.level");
+        CHECK(slotT0 >= 0 && slotT2 >= 0, "MIXER: tracks carry a CHANNEL level slot");
+
+        EditContext none;
+
+        // Base param writes are enqueued for the audio thread (enqueueBaseParam), so
+        // a block must be rendered before the value is readable -- exactly as in
+        // production, where the fader lands on the next block.
+        auto settle = [&h] { h.renderBlocks(1); };
+
+        // --- Resolution: the eight slots are the eight TRACKS of the bank. ---
+        proc.writeParam(2, slotT2, 0.25f);
+        settle();
+        {
+            const auto fields = buildMetaBand(MetaBand::Mixer, 0, proc, 0, none, ui);
+            CHECK(fields[2].active, "MIXER: slot 2 is live");
+            CHECK(feq(fields[2].value, 0.25f, 1e-4f),
+                  "MIXER: slot i reads TRACK i's level, not the focused track's");
+            CHECK(fields[0].label == "Trk 1" && fields[7].label == "Trk 8",
+                  "MIXER: bank 0 labels tracks 1-8");
+        }
+
+        // Bank follows the focused track: focusing track 9 (index 8) pages to 9-16.
+        {
+            const auto fields = buildMetaBand(MetaBand::Mixer, 0, proc, 8, none, ui);
+            CHECK(fields[0].label == "Trk 9" && fields[7].label == "Trk 16",
+                  "MIXER: focusing the upper bank pages the band to tracks 9-16");
+        }
+
+        // --- Scope routing: writes address the bank's track, and land on BASE. ---
+        writeMetaField(MetaBand::Mixer, 0, 2, 0.5f, proc, 0, none, ui);
+        settle();
+        CHECK(feq(proc.baseParamValue(2, slotT2), 0.5f, 1e-4f),
+              "MIXER: slot 2 writes TRACK 2's base level");
+
+        // Upper bank: focused track 8 (=track 9), slot 1 → track 10 (index 9).
+        {
+            const int slotT9 = proc.slotForId(9, "lockstep.amp.level");
+            writeMetaField(MetaBand::Mixer, 0, 1, 0.3f, proc, 8, none, ui);
+            settle();
+            CHECK(feq(proc.baseParamValue(9, slotT9), 0.3f, 1e-4f),
+                  "MIXER: the write follows the same bank paging the display does");
+        }
+
+        // THE EXCEPTION: a held step must not capture a mixer move. Hold a step on
+        // track 0 and mix track 0 -- the base must move and the step must stay clean.
+        {
+            auto& trk = proc.sequence().tracks[0];
+            const float before = proc.baseParamValue(0, slotT0);
+            CHECK(!feq(before, 0.7f, 1e-4f), "MIXER: precondition (level is not already 0.7)");
+
+            EditContext held;
+            held.hold(0, 4);
+            writeMetaField(MetaBand::Mixer, 0, 0, 0.7f, proc, 0, held, ui);
+            settle();
+
+            CHECK(feq(proc.baseParamValue(0, slotT0), 0.7f, 1e-4f),
+                  "MIXER: a held step must not divert the write -- the BASE level moves");
+            CHECK(!trk.steps[4].overrides.has(slotT0),
+                  "MIXER: a held step must not capture the fader as a P-Lock "
+                  "(a P-Locked balance is not a balance)");
+        }
+
+        // --- Round-trip: the mixed level survives save/load. ---
+        {
+            juce::MemoryBlock blob;
+            proc.getStateInformation(blob);
+
+            EngineHarness h2;
+            h2.processor().setStateInformation(blob.getData(), static_cast<int>(blob.getSize()));
+            h2.renderBlocks(1);
+            const int slot = h2.processor().slotForId(2, "lockstep.amp.level");
+            CHECK(slot >= 0 && feq(h2.processor().baseParamValue(2, slot), 0.5f, 1e-3f),
+                  "MIXER: a mixed level round-trips through save/load");
+        }
+    }
+
     static void testCondBandWriteTarget()
     {
         EngineHarness h;
@@ -1748,6 +1861,7 @@ namespace lockstep
         testKeyBandSongOverrideAndInherit();
         testResolveMetaBandMasterSection();
         testCondBandWriteTarget();
+        testMixerBand();
         testResolveMetaBandTransientOutranksMasterSection();
         testResolveMetaBandEuclid();
         testTransportLaunchQuantField();
