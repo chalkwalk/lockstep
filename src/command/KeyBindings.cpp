@@ -133,8 +133,10 @@ namespace lockstep
         { CB::NavRight, -1, kModNone, SL::ChromaticInput, AId::NavOctaveUp, u8"OCT+", CS::Resting },
 
         // ── VerbSnapshot / SNAP (key Y) ────────────────────────────────────────────
-        // Scene+Y = SYNC (re-sync all tracks to scene floor).
-        { CB::VerbSnapshot, -1, kModScene, SL::Base, AId::VerbConfirm, u8"SYNC", CS::Resting },
+        // 9.4 item C: Scene+Y was SYNC. It is SNAP now, like every other scope -- SYNC
+        // moved to Scene+O, where discard already lives (Scene+U bakes deviations, so
+        // Clear discards them). Y is the snapshot verb, uniformly, with no exceptions to
+        // remember.
         { CB::VerbSnapshot, -1, kModFunc, SL::Base, AId::VerbRestore, u8"RESTORE", CS::Resting },
         // 9.4 item B: Track and Phrase name themselves, even though the bare row below
         // would resolve to the same action and the same label by the subset rule. They
@@ -146,6 +148,7 @@ namespace lockstep
         // that a verb genuinely serves gets a row, and the row buys the coverage.
         { CB::VerbSnapshot, -1, kModTrack, SL::Base, AId::VerbSnapshot, u8"SNAP", CS::Resting },
         { CB::VerbSnapshot, -1, kModPhrase, SL::Base, AId::VerbSnapshot, u8"SNAP", CS::Resting },
+        { CB::VerbSnapshot, -1, kModScene, SL::Base, AId::VerbSnapshot, u8"SNAP", CS::Resting },
         { CB::VerbSnapshot, -1, kModNone, SL::Base, AId::VerbSnapshot, u8"SNAP", CS::Resting },
 
         // ── VerbRecord / REC (key U) ──────────────────────────────────────────
@@ -200,7 +203,12 @@ namespace lockstep
           Gesture::Tap, true },
         { CB::VerbClear, -1, kModPhrase, SL::Base, AId::VerbScopedClear, u8"CLEAR", CS::Resting,
           Gesture::Tap, true },
-        { CB::VerbClear, -1, kModScene, SL::Base, AId::VerbScopedClear, u8"CLEAR", CS::Resting,
+        // 9.4 item C: Scene's tap is SYNC -- discard the live deviations and snap back to
+        // the scene as stored. It was labelled CLEAR and dispatched to nothing (verbs::scene
+        // required Func and handled only Record/Play), so this row was the third phantom
+        // the 9.4 session turned up. It is a clear, in the sense Clear already carries on
+        // this scope's other verb: Scene+U BAKES deviations in, so Scene+O throws them away.
+        { CB::VerbClear, -1, kModScene, SL::Base, AId::VerbScopedClear, u8"SYNC", CS::Resting,
           Gesture::Tap, true },
         { CB::VerbClear, -1, kModMorph, SL::Base, AId::VerbMorphBake, u8"BAKE", CS::Resting },
         { CB::VerbClear, -1, kModSong, SL::Base, AId::VerbScopedClear, u8"PANIC", CS::Resting },

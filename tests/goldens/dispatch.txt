@@ -200,10 +200,6 @@ L12 | Func+NavRight idx=-1 | action=20
 L12 | NavRight idx=-1 | action=20
     (no observable state change)
 
-L22 | Scene+VerbSnapshot idx=-1 | action=38
-    down sceneHeld: false -> true
-    down swingDismissed: false -> true
-
 L22 | Func+VerbSnapshot idx=-1 | action=33
     down funcHeld: false -> true
 
@@ -215,6 +211,11 @@ L22 | Track+VerbSnapshot idx=-1 | action=32
 L22 | Phrase+VerbSnapshot idx=-1 | action=32
     down ckpt.Phrase: 0 -> 1
     down phraseScopeHeld: false -> true
+
+L22 | Scene+VerbSnapshot idx=-1 | action=32
+    down ckpt.Scene: 0 -> 1
+    down sceneHeld: false -> true
+    down swingDismissed: false -> true
 
 L22 | VerbSnapshot idx=-1 | action=32
     down ckpt.Song: 0 -> 1
@@ -279,7 +280,7 @@ L22 | Track+VerbClear idx=-1 | action=42
 
 L22 | Phrase+VerbClear idx=-1 | action=42
     down phraseScopeHeld: false -> true
-    up   phraseScopeUsed: false -> true
+    up   confirm.kind: 0 -> 10
 
 L22 | Scene+VerbClear idx=-1 | action=42
     down sceneHeld: false -> true
@@ -303,7 +304,7 @@ L22 | Track+VerbClear idx=-1 | action=37
 
 L22 | Phrase+VerbClear idx=-1 | action=37
     down phraseScopeHeld: false -> true
-    up   phraseScopeUsed: false -> true
+    up   confirm.kind: 0 -> 10
 
 L22 | Scene+VerbClear idx=-1 | action=37
     down sceneHeld: false -> true
@@ -501,6 +502,20 @@ SCENARIO copy phrase -> paste phrase onto track 5
     trackSection: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,
 
 SCENARIO snapshot, then restore (Func+Snapshot pops it)
+    (no observable state change)
+
+SCENARIO deviate track 0 to phrase 2 (persists)
+    scene.deviated: 0000000000000000 -> 1000000000000000
+    seq.focusPattern: x...x...x...x... -> ................
+    seq.trigsPerTrack: 4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0, -> 0,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,
+
+SCENARIO deviate track 0 to phrase 2, then Scene+Clear (SYNC) reverts it
+    (no observable state change)
+
+SCENARIO queue a scene (persists)
+    queued.scene: false -> true
+
+SCENARIO queue a scene, then Func+Scene+P (CANCEL) drops it
     (no observable state change)
 
 SCENARIO clear track (arms confirm), then confirm

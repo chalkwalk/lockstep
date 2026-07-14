@@ -374,9 +374,22 @@ so an undo survives unrelated work instead of expiring on any keypress.
       buys the coverage. Also fixed en route: `Func+Y` is remapped to `CB::Restore`
       upstream, so the keyboard never reached `restorePop()` — item A's NOTHING TO
       RESTORE was live on the table path and unreachable from the actual keys.
-- [ ] **C — Rehome SYNC.** `Scene+Y` → `Scene+O`, filling the phantom CLEAR with the
-      verb that already means discard (`Scene+U` bakes deviations; Clear discards
-      them). Frees `Y` for a uniform grammar.
+- [x] **C — Rehome SYNC.** *(Shipped 2026-07-14.)* `Scene+Y` → `Scene+O`, filling the
+      phantom CLEAR with the verb that already means discard (`Scene+U` bakes
+      deviations; Clear discards them), and freeing `Y` for a uniform grammar. **Bigger
+      than the spec drew it:** `Scene+O` was not the empty phantom the session assumed —
+      an editor intercept ahead of the table used it (and `Phrase+O`) to *cancel a queued
+      Scene launch*, which shadowed **two** real verbs into dead code: `Scene+O`'s SYNC
+      **and** `Phrase+O`'s CLEAR PHRASE (fully written in `verbs::phrase`, never reached
+      — the fourth phantom of the family). Resolved per the user's call: cancel-a-pending-
+      launch is the **Cancel** verb's job, so it moved to `Func+P` (scoped to a held
+      Scene/Phrase); Clear now means *discard content* on both keys, uniformly. Also
+      taught the golden two new senses it was blind to — `scene.deviated` (so SYNC's whole
+      effect is visible instead of reading as a no-op, exactly how the dead `Scene+Y`
+      hid) and `queued.scene` — plus a processor-`setup` hook on `renderScenario` for the
+      states no headless button-press can reach (a queued launch needs a playing
+      transport). Decisive pairs prove each: the deviation/queue persists alone and
+      vanishes only when SYNC/CANCEL follows.
 - [ ] **D — Epoch + overlap.** Global monotonic epoch bumped on every mutation;
       per-entity touch watermarks; the ancestor-or-self overlap predicate over the
       `Song > {Track > Phrase, Scene}` tree. Pure and unit-testable.

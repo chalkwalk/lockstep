@@ -68,6 +68,13 @@ namespace lockstep::status
     inline juce::String pastedScene() { return "Pasted Scene"; }
     inline juce::String pastedSceneFloor() { return "Pasted Scene floor"; }
 
+    // 9.4 item C: SYNC, rehomed from Scene+Y to Scene+O. Says what it threw away, because
+    // that is the part you cannot get back -- the deviations were live-only.
+    inline juce::String sceneSynced(int sceneNumber)
+    {
+        return "Synced to Scene " + juce::String(sceneNumber) + " -- deviations discarded";
+    }
+
     inline juce::String sceneCreated(int sceneNumber)
     {
         return "Scene " + juce::String(sceneNumber) + " created";

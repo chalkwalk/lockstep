@@ -2133,7 +2133,7 @@ cluster in the left two columns of the 10×4 QWERTY layout (see §5.5,
 | `Morph` | `A` (col 1) | Morph assignment; `Morph + ^/v` picks endpoint A/B (§17.5). | Nav, encoder, `Song`, `Fill`. |
 | `Mute` | `Z` (col 1) | Live global mute layer (hold and tap many); `Scene + Mute + step` = per-scene mute. | Track/step keys, `Scene`. |
 | `Track` | `2` (col 2) | One or more track slots; none selected = Control-All. `Func+Track` = the **Machine** scope — the unkeyed rung *inside* Track (§13.9). | Verb, encoder, or a col-1 modifier. |
-| `Scene` | `W` (col 2) | Scene launch + commit/revert (§16): `Scene + step` on a *different* Scene = carry overlay; on the *active* Scene = revert to floor; on an *empty* slot = create a **baked copy** (current effective layout, deviations included). `Func + Scene + step` = **baseline** (existing Scene → floor-only launch; *empty* slot → create a fresh default/empty Scene). `Scene + Clear` = revert active Scene; `Scene + Record` = **commit-and-bake** (confirm-gated): folds global-pattern + mask into the floor and bakes per-track deviations into home-row phrase content (§16, §23.3). *(Undeviated duplication lives on the clipboard, not a create chord — `Mute + Scene + step` is reserved for scene-mute; §23.3.)* | Verb, step key, `Track`. |
+| `Scene` | `W` (col 2) | Scene launch + commit/revert (§16): `Scene + step` on a *different* Scene = carry overlay; on the *active* Scene = revert to floor; on an *empty* slot = create a **baked copy** (current effective layout, deviations included). `Func + Scene + step` = **baseline** (existing Scene → floor-only launch; *empty* slot → create a fresh default/empty Scene). `Scene + Clear` = **SYNC** (discard live deviations; §13.6), and `Func + Scene + Confirm` cancels a queued launch; `Scene + Record` = **commit-and-bake** (confirm-gated): folds global-pattern + mask into the floor and bakes per-track deviations into home-row phrase content (§16, §23.3). *(Undeviated duplication lives on the clipboard, not a create chord — `Mute + Scene + step` is reserved for scene-mute; §23.3.)* | Verb, step key, `Track`. |
 | `Song` | `S` (col 2) | Song select: `Song + step` queues a Song change (§16). `Func+Song` = the **Set** scope (Global/project params, incl. master-bus / FX focus, §32.3) — the unkeyed rung *above* Song (§13.9). | Verb, step key, section key, `Morph`. |
 | `Fill` | `X` (col 2) | "While I'm holding this, fill conditions evaluate true." | Step keys; (no verb needed — it's the state itself). |
 | `Trig` (hold a step) | `D–;` / `C–/` | The held step(s); multi-step hold is allowed. | Verb, encoder, or note key. |
@@ -2446,8 +2446,9 @@ Func + Clear`) routes through the deletion picker (§16); it removes the slot
 > `Scene + Record` = **author** (commit-and-bake live state into the Scene —
 > folds global/mask into the floor and bakes deviations into home-row content,
 > confirm-gated; §16),
-> `Scene + Play` = **launch now**, `Scene + Clear` = **revert to stored**
-> (§16). `Func` therefore *lifts* the clipboard triad up one level
+> `Scene + Play` = **launch now**, `Scene + Clear` = **SYNC** (discard live
+> deviations, snap back to the stored Scene — the mirror of the Record bake;
+> §13.6). `Func` therefore *lifts* the clipboard triad up one level
 > (`Func + Scene + Record/Play/Clear` = copy/paste/clear of a Scene as
 > data), exactly as `Func` narrows `Trig + Clear` (clear step) to
 > `Trig + Func + Clear` (clear locks only). The clipboard is typed: a
@@ -2763,6 +2764,16 @@ to **`Scene+O` (Clear)**, where it belongs: `Scene+U` (Record) **bakes** deviati
 into the scene, and Clear **discards** them. Commit and discard, on the two verbs
 that already mean commit and discard.
 
+Freeing `Scene+O` for SYNC displaced a squatter that turned out to be part of the
+same defect: `Scene+O` and `Phrase+O` had been intercepted, before the table, to
+*cancel a queued Scene launch* — which shadowed **two** real verbs into dead code
+(`Scene+O`'s SYNC and `Phrase+O`'s CLEAR PHRASE, the latter fully implemented in
+`verbs::phrase` and never once reached). Cancelling a pending launch is what the
+**Cancel** verb is for, so it moves to **`Func+P`** (scoped to a held Scene/Phrase,
+so the fingering lengthens by one key rather than relocating): Clear now means
+*discard content* everywhere, Cancel means *cancel a pending action* everywhere, and
+neither key wears a label the other verb owns.
+
 | Gesture | Meaning |
 |---|---|
 | `Y` (+ scope) | **SNAP** — push a mark onto that scope's stack |
@@ -2770,6 +2781,8 @@ that already mean commit and discard.
 | `Func+Y` hold | **RESTORE → FLOOR** — all the way down (§13.0 "hold = all the way") |
 | `Func+O` | **UNDO** — revert the last destructive op, wherever it happened |
 | `Scene+O` | **SYNC** — discard live deviations (was `Scene+Y`) |
+| `Phrase+O` | **CLEAR PHRASE** — clear the phrase on every track, confirm-gated (was shadowed) |
+| `Func+P` (+ `Scene`/`Phrase`) | **CANCEL** a queued Scene launch (was `Scene+O` / `Phrase+O`) |
 
 | Held scope | `Y` (SNAP) marks | `Func+Y` (RESTORE) restores |
 |---|---|---|

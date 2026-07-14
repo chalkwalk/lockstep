@@ -35,6 +35,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../src/ui/mode/GestureRecognizer.h"
 #include <cstdio>
+#include <functional>
 #include <map>
 #include <memory>
 
@@ -308,6 +309,21 @@ namespace
         put(d, "ckpt.Scene", p.checkpointDepth(CheckpointScope::Scene, ft));
         put(d, "ckpt.Phrase", p.checkpointDepth(CheckpointScope::Phrase, ft));
 
+        // Live scene deviations. SYNC (9.4 item C) exists to CLEAR these, and nothing
+        // else it touches lands anywhere the digest could see -- so without this line the
+        // net watches SYNC fire and records "no observable state change", which is what
+        // it recorded for the old Scene+Y right up until the 9.4 session found that key
+        // dispatching to nothing at all. A verb whose whole effect is invisible to the
+        // golden is a verb the golden cannot protect.
+        juce::String dev;
+        for (std::size_t t = 0; t < kNumTracks; ++t)
+            dev += p.arrangement().deviated[t] ? "1" : "0";
+        d["scene.deviated"] = dev;
+
+        // Queued scene launch. Cancel-queued-scene (9.4 item C) moved from the Clear key
+        // to Func+P; making the queue observable is what lets the golden watch it clear.
+        put(d, "queued.scene", p.hasQueuedScene());
+
         // Sequence content: a trig census per track, so Clear / Paste / init are
         // visible as content changes rather than as nothing at all.
         juce::String trigs;
@@ -457,9 +473,15 @@ namespace
     };
 
     juce::String renderScenario(const char* name, const std::vector<Press>& script,
-                                const Digest& base)
+                                const Digest& base,
+                                const std::function<void(LockstepProcessor&)>& setup = {})
     {
         Rig rig;
+        // Some gestures act on state no button can reach in a headless rig (a queued
+        // scene needs a playing transport to arm). The setup hook stages that state on
+        // the processor directly, so the SCRIPT under test is the only behaviour the
+        // diff attributes to the keys.
+        if (setup) setup(*rig.proc);
         bool first = true;
         for (const auto& p : script)
         {
@@ -592,6 +614,33 @@ void runDispatchGoldenTests(int& failed)
                           { { {}, CB::VerbSnapshot },
                             { { CB::Func }, CB::VerbSnapshot } },
                           base)
+        << "\n";
+    // 9.4 item C: SYNC only does anything when there is a deviation to discard, so the
+    // per-row case (which starts from a clean project) cannot see it work. This PAIR is
+    // decisive where a single net-diff is not: the first scenario deviates and the change
+    // PERSISTS (deviated flag up, focus phrase swapped); the second does the same deviation
+    // and then SYNCs, and nets back to the base -- so SYNC is what erased it, not a no-op.
+    out << renderScenario("deviate track 0 to phrase 2 (persists)",
+                          { { { CB::PhraseScope }, CB::Step, 2 } },
+                          base)
+        << "\n";
+    out << renderScenario("deviate track 0 to phrase 2, then Scene+Clear (SYNC) reverts it",
+                          { { { CB::PhraseScope }, CB::Step, 2 },
+                            { { CB::SceneScope }, CB::VerbClear } },
+                          base)
+        << "\n";
+    // 9.4 item C: cancel-queued-scene moved from Scene+O / Phrase+O to Func+P. Same
+    // decisive pair as SYNC -- the queue (staged directly, since a headless rig has no
+    // playing transport to arm it) PERSISTS on its own, and Func+Scene+P clears it.
+    out << renderScenario("queue a scene (persists)",
+                          {},
+                          base,
+                          [](LockstepProcessor& p) { p.queueScene(1, false); })
+        << "\n";
+    out << renderScenario("queue a scene, then Func+Scene+P (CANCEL) drops it",
+                          { { { CB::Func, CB::SceneScope }, CB::VerbConfirm } },
+                          base,
+                          [](LockstepProcessor& p) { p.queueScene(1, false); })
         << "\n";
     out << renderScenario("clear track (arms confirm), then confirm",
                           { { { CB::TrackScope }, CB::VerbClear },

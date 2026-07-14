@@ -305,7 +305,31 @@ namespace lockstep::verbs
     {
         using CB = ControllerButton;
 
-        // Scene verbs require Func held (bare Scene+Record = bake, handled in dispatchDown).
+        // 9.4 items B+C. These two sit ABOVE the Func guard on purpose: they are the
+        // scope's BARE verbs, and the guard below is what kept Scene's half of the
+        // snapshot grammar out of reach. Scene's clipboard needs Func (bare Scene+Record
+        // is BAKE, a different verb on the same key) -- its mark and its sync do not.
+        if (verb == CB::VerbSnapshot)
+        {
+            ctx.arrangement.snapshot(CheckpointScope::Scene, ctx.uiState.activeTrack);
+            fx.status(status::markedScene(
+                ctx.arrangement.sceneIdx + 1,
+                ctx.arrangement.checkpointDepth(CheckpointScope::Scene, 0)));
+            return true;
+        }
+
+        // SYNC, rehomed from Scene+Y. Discard the live deviations; snap every track back
+        // to the scene as stored. Clear is the right seat: Scene+Record BAKES deviations
+        // into the scene, so Scene+Clear is the one that throws them away.
+        if (verb == CB::VerbClear)
+        {
+            ctx.arrangement.resyncAllToScene();
+            fx.status(status::sceneSynced(ctx.arrangement.sceneIdx + 1));
+            return true;
+        }
+
+        // Scene's CLIPBOARD verbs require Func held (bare Scene+Record = bake, handled in
+        // dispatchDown).
         if (!ctx.editMode.scopeState().func) return false;
 
         if (verb == CB::VerbRecord)

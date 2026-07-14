@@ -1311,7 +1311,8 @@ Scenes and switch Songs live.
 | `Scene (W) + step key` | Launch a Scene (quantized when playing). On a *different* occupied Scene: carries the live overlay. On the *active* Scene: reverts to floor. On an **empty** slot: **baked-copy create** + launch (current effective content, including deviations). Conflict-gated when target phrase row has content; no-op skip when identical. |
 | `Func + Scene + step key` | On an occupied Scene: **floor launch**. On an **empty** slot: **baseline-copy create** (floor diagonal row only, no deviations) + launch. Conflict-gated. |
 | `Mute + Scene + empty-step` | **Blank create** — a fresh empty Scene, no content copied. |
-| `Scene + Clear` | Revert the active Scene to its saved floor (same as re-launching it). |
+| `Scene + Clear` | **SYNC** — discard every track's live phrase deviation and snap back to the Scene as stored. The mirror of `Scene + Record`, which *bakes* deviations in. (To revert the Scene's saved mask/sig too, re-launch it, or walk `Func + Y` down to the Scene floor — §5.15.) |
+| `Scene + Func + Confirm` (`Func+P`) | Cancel a queued Scene launch before it fires. Cancel is the verb for pending actions; it used to sit on `Scene + Clear`, which shadowed SYNC. |
 | `Scene + Record` | **Commit-and-bake** (confirm-gated): for each deviated track, copy its effective phrase content into the Scene's diagonal row (`sceneIdx`), then clear the deviation. If no deviations, no-op. |
 | `Func + Scene + Record` | Copy the active Scene (floor + all effective phrases) to the typed clipboard. Badge: `CPY:SCN`. |
 | `Func + Scene + Play` | Paste clipboard Scene onto the active Scene (baked layout). Conflict-gated. |
@@ -2181,10 +2182,12 @@ Phrase (Q)
 ├─ + step            → deviate focused track to that phrase (same as Track+Phrase+step) — §5.14
 ├─ Track + Phrase + step → deviate the focused track to that phrase — §5.14
 ├─ Scene + Phrase + step → deviate all tracks; diagonal row = clear all deviations — §5.14
-├─ + U / I / O       → copy / paste / clear the whole phrase (all tracks) — §5.9
-├─ + Func + O        → deletion picker: step grid shows phrase slots on the focused track; tap to choose → named confirm — §5.4a
+├─ + U / I           → copy / paste the whole phrase (all tracks) — §5.9
+├─ + O (CLEAR)       → clear this phrase (all tracks), confirm-gated — §5.9
+├─ + Y (SNAP)        → mark this phrase onto its checkpoint stack — §5.15
+├─ + hold O          → deletion picker: step grid shows phrase slots on the focused track; tap to choose → named confirm — §5.4a
 ├─ + P (QUANT)       → Quantize: zero microOffset across every step on every track — §5.1
-├─ + O (queued scene pending) → cancel the queued scene — §5.14
+├─ + Func + P        → cancel a queued Scene launch (Cancel = the pending-action verb) — §5.14
 └─ + Fill (X, held together) → Euclidean generator on the focused track:
                        encoders = PULSE / OFSET / ACCNT; release prints the rhythm — §5.18
 ```
@@ -2202,11 +2205,12 @@ Scene (W)
 ├─ Func + Scene + step (occupied) → floor launch (arrive at saved floor) — §5.14
 ├─ Func + Scene + step (empty)    → default-create (blank) + launch — §5.14
 ├─ + U (REC)                → **commit-and-bake** deviations (confirm-gated) — §5.14
-├─ + O (CLEAR)              → revert the active scene to its floor / cancel a queued scene — §5.14
-├─ + Y (SNAP)               → re-sync all tracks to the active scene — §5.14
+├─ + O (CLEAR)              → **SYNC**: discard live deviations, snap back to the stored scene — §5.14
+├─ + Y (SNAP)               → mark the active scene onto its checkpoint stack — §5.15
+├─ + Func + P               → cancel a queued Scene launch (Cancel = the pending-action verb) — §5.14
 ├─ Func + Scene + U         → copy the active scene to the clipboard (CPY:SCN) — §5.14
 ├─ Func + Scene + I         → paste the clipboard scene (baked; conflict-gated) — §5.14
-├─ Func + Scene + O         → deletion picker: step grid shows scene slots; tap to choose → named confirm — §5.4a
+├─ + hold O                 → deletion picker: step grid shows scene slots; tap to choose → named confirm — §5.4a
 ├─ Mute + Func + Scene + I  → paste floor only (strip the content overlay) — §5.14
 ├─ + (held)                 → shows scene-all delta swing in band (SwScn + (D)) — §5.8
 └─ Scene + Mute + step      → per-scene mute (this track's active-mask) — §5.11

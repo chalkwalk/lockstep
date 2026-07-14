@@ -3900,21 +3900,11 @@ namespace lockstep
                 return true;
             }
         }
-        // Scene scope held → cancel queued scene.
-        if (uiState_.sceneHeld)
-        {
-            processor_.cancelQueuedScene();
-            refreshSurface();
-            return true;
-        }
-        // Phrase scope → cancel queued scene.
-        if (uiState_.phraseScopeHeld)
-        {
-            processor_.cancelQueuedScene();
-            uiState_.phraseScopeUsed = true;
-            refreshSurface();
-            return true;
-        }
+        // 9.4 item C: the Scene+O / Phrase+O "cancel queued scene" intercepts that sat
+        // here are gone -- cancel is a Cancel-verb gesture now (Func+P), not a Clear one.
+        // Removing them lets both keys reach the table: Scene+O is SYNC (verbs::scene) and
+        // Phrase+O is CLEAR PHRASE (verbs::phrase's confirm arm, which this intercept had
+        // been shadowing into dead code since it was written).
         // Non-trivial scope → grammar verb (Clear scope contents).
         if (editMode_.primaryScope() != PS::None && editMode_.primaryScope() != PS::Func)
             return routeVerb(ev);   // 9.12 st.7b: the table names the action
@@ -5712,13 +5702,9 @@ namespace lockstep
                 // 5.5: Euclid modal armed → Y is inert (commit is on bare P).
                 if (uiState_.euclidHeld)
                     return true;
-                // Y = Snapshot. Under scene scope → re-sync all to scene (scope-specific snapshot).
-                if (uiState_.sceneHeld)
-                {
-                    processor_.resyncAllToScene();
-                    refreshSurface();
-                    return true;
-                }
+                // 9.4 item C: the Scene+Y → SYNC intercept that sat here is gone. SYNC is
+                // Scene+O now (verbs::scene), so Y is the snapshot verb in every scope with
+                // no exception carved out of it -- and Scene finally gets a mark of its own.
                 // 9.4 item B: EVERY scope routes, including no-scope. Y used to fork here
                 // -- a scope routed to the table while a bare Y snapshotted the Song
                 // inline -- so the Song snapshot had a second implementation that
@@ -5800,6 +5786,23 @@ namespace lockstep
                     uiState_.resetHarmony();
                     forgetHarmonyEditorState();
                     refreshMetaBand();
+                    refreshSurface();
+                    return true;
+                }
+
+                // 9.4 item C: CANCEL a queued scene launch. This used to live on the Clear
+                // key (Scene+O / Phrase+O), where it shadowed two real verbs -- Scene's SYNC
+                // and Phrase's CLEAR PHRASE both dispatched to nothing because this intercept
+                // ran first. A queued launch is a PENDING action, and Cancel (Func+P) is the
+                // grammar's verb for pending actions -- the same seat that cancels the route
+                // console, Euclid, and the generators just above. Scoped to the two modifiers
+                // that used to carry it, so the fingering is one key longer, not relocated.
+                if (funcHeld && (uiState_.sceneHeld || uiState_.phraseScopeHeld)
+                    && processor_.hasQueuedScene())
+                {
+                    processor_.cancelQueuedScene();
+                    setStatus(status::cancelled());
+                    if (uiState_.phraseScopeHeld) uiState_.phraseScopeUsed = true;
                     refreshSurface();
                     return true;
                 }
