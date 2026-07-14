@@ -456,12 +456,27 @@ probability mutes the entire track stochastically on a per-loop basis —
 useful for fills or variation patterns. Step-level probability applies
 to individual trigs only.
 
-**Iteration rule (m:n).** Fire on loop m of every n pattern repeats. The
-iteration counter is the absolute step counter divided by track length,
-so it increments every complete pattern cycle. Both levels are valid
-musically, though track-level m:n ("whole track fires on the 1st pass of
-every 4") tends to be the more immediately useful mapping. Step-level
-m:n addresses individual trig density over multiple loops.
+**Iteration rule (m:n).** Fire on **m loops of every n** pattern repeats —
+a *count*, not a phase offset. The iteration counter is the absolute step
+counter divided by track length, so it increments every complete pattern
+cycle. The m fires are **maximally evenly distributed** over the n cycles
+(the same Bresenham/Euclid rule the Euclid generator uses:
+`(cycle * m) % n < m`), so `2:3` fires on cycles 0 and 1 of every 3 — never
+two in a row followed by a long gap where an even split exists. `1:n`
+reduces to "fire on the first of every n" (the historic behaviour), and
+`n:n` always fires. Both levels are valid musically, though track-level
+m:n ("whole track fires on the 1st pass of every 4") tends to be the more
+immediately useful mapping. Step-level m:n addresses individual trig
+density over multiple loops.
+
+> The numerator was historically read as a *phase* (`iter % n == m - 1`),
+> so any m > 1 fired once per n cycles at an offset — the numerator's
+> musical meaning ("how many") was unreachable. The rule above is the
+> intended one; the fix corrects the meaning of existing m > 1 conditions
+> in place (no data migration — the stored values keep, the reading of
+> them changes). One helper, `TrigEvaluator::iterCyclePasses`, is the
+> single owner of the rule: both the audio path and the grid preview call
+> it, so they cannot diverge.
 
 **Previous-step dependency.** Fire only if the preceding step in the
 same track's sequence did (or did not) fire. This is inherently a
@@ -476,7 +491,8 @@ and targets `step.condition`. See §6.1 for the COND section layout.
 The probability check is a pure function of `(trackIndex, absoluteStep)`
 — the same pair always produces the same result, reproducibly across
 plays (`TrigEvaluator::deterministicPercent`). The m:n check is
-similarly pure (`absoluteStep / trackLen % denominator`). This means
+similarly pure (`TrigEvaluator::iterCyclePasses(absoluteStep / trackLen,
+m, n)`). This means
 the fire state of every step visible in the grid can be pre-computed for
 the current pattern loop and displayed before the sequencer reaches those
 steps:

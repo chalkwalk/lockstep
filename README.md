@@ -317,7 +317,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Control-All** | Holding `Track` with no track selected broadcasts the next parameter edit to every track that has a matching control. |
 | **Mute** | Suppresses a track's trigs non-destructively. `Mute+step` = global mute (survives scene/song changes); `Scene+Mute+step` = per-scene mute (the scene's active-mask). |
 | **Fill** | A momentary modifier: while held, fill-conditioned steps fire. Used for live variation. |
-| **Trig condition** | A per-step (or per-track) firing rule: probability, iteration (m:n), previous-step dependency, fill rule, and **one-shot**. |
+| **Trig condition** | A per-step (or per-track) firing rule: probability, iteration (m:n — fire on *m* of every *n* loops, evenly spread), previous-step dependency, fill rule, and **one-shot**. |
 | **Audition (`Cue`)** | Pre-listen without writing anything. Enter the `Cue` scope with `Func+3`: holding it fires the focused track's base trig; `Cue+step` fires that step's resolved trig (note/vel/gate + P-Locks). Off-schedule, post-machine FILTER/AMP applies, pattern untouched. |
 | **Out routing** | The CHANNEL "Out" slot sets a track's **single** destination (out-degree ≤ 1): `Master` (default), `Track N`, `Aux N` (host aux output — the DAW mixes it), or `Off`. Picking one **replaces** the previous — a track is never on Master and an aux at once. Route into a **Route** track to build an aux/sub-bus (the bus reads the sum of its feeders, plus its own input if any). The Out rotary steps only through valid destinations (Off / Master / current buses / aux) with a live label — synths, MIDI-out, self and cycle targets never appear. If a target's machine is later swapped to a non-bus, or an `Aux N` host bus is disabled, the edge **folds back to Master** (no audio lost) and revives when the target becomes valid again. A bus and its feeders share a colour on the track/VU row. See §2.5. |
 | **Lock-only trig** | A step cycled `Trig+step` through `off → note → lock-only`. A lock-only step emits no note but applies its P-Locks (filter, channel, env, insert) onto the *sustaining* voice as the playhead crosses it — parameter motion without retriggering. Its locks keep applying after you stop the transport (the playhead parks where it stopped). A few slots are bound when a note starts — a player's `Start`, `Rev`, `Stretch`, `Sample` — so a lock on one of those cannot move a voice that is already sounding; the MZ marks such a lock `*!` instead of the usual `*`. |
@@ -1250,7 +1250,9 @@ condition types, each valid at track level (no step held) or step level
 (step held):
 
 - **Probability (1–100%)** — stochastic firing.
-- **Iteration (m:n)** — fire on pass *m* of every *n* loops.
+- **Iteration (m:n)** — fire on *m* of every *n* loops, spread as evenly as
+  the numbers allow (the Euclid rule). `1:4` fires once every four passes;
+  `2:3` fires on two passes of every three; `4:4` always fires.
 - **Previous-step dependency** — fire only if the previous step did (or
   didn't) fire. Step-level only.
 

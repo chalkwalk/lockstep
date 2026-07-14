@@ -3073,6 +3073,53 @@ on the surface fixed *structurally* rather than cosmetically.
 
 ---
 
+### 9.31 — Play-test batch: levels, seeds, outline, tempo-relative time, two bugs  *[active]*
+
+Six items off one play-test session. Two are outright bugs; two are features that were
+*specified* but only ever built on one instance; two are UX corrections.
+
+- [ ] **Stage 1 — Fractional trig conditions mean what they say.** `m:n` read the
+      numerator as a *phase offset* (`iter % n == m - 1`), so `2:3` fired once per three
+      cycles at an offset instead of twice — the numerator's musical meaning was
+      unreachable, and a `n:n` condition never all-fired. Now: **m fires per n cycles,
+      maximally evenly distributed** (the Euclid/Bresenham rule the generator already
+      uses). One helper — `TrigEvaluator::iterCyclePasses` — owns the rule; the grid
+      preview (`SurfaceModel.cpp`) had a *second copy* of the buggy formula and now calls
+      the same helper, so audio and display cannot diverge. Property tests over all
+      `1 ≤ m ≤ n ≤ 8`. DESIGN §4.4.
+- [ ] **Stage 2 — Analog stops dropping trigs.** In mono LEGATO, an overlapping note-on
+      after the shared amp envelope had already died slid the pitch but never re-gated the
+      envelope — an audible dropped trig (FM has the revival guard Analog lacked). The
+      dead-env test is **table-driven across pitched machines**, so the next machine joins
+      the table rather than re-learning the bug.
+- [ ] **Stage 3 — The MZ Func outline latches.** The outline is a property of *how the
+      shown page was reached*, not of what is held right now: it survives the Func release
+      and clears on any page change. Surface keys keep their live behaviour (7e).
+- [ ] **Stage 4 — Levels: visible, playable, and on the wire.** The track-VU drag gesture
+      was invisible *and* mouse-centric; it dies. In its place: a **level tick** on each
+      track VU (display), a **mixer MZ page** (`Track` + hold `AMP`) that puts the bank's
+      eight track levels and the master under the encoders, a **master-VU drag** on
+      `output_gain` (double-click = 0 dB), and **CC7 main volume** for MIDI-out tracks
+      (sent on load, on change, on reassignment — the level means the same thing whether
+      the track ends in a machine or a synth).
+- [ ] **Stage 5 — Generator seeds stop cloning.** The melodic/harmonic seed was the SEED
+      encoder alone, so the same SEED gave the same melody on every track, in every scene,
+      in every project. The effective RNG seed is now
+      `hash(track, machine, song, scene, phrase, projectEpoch, SEED)` — a **project epoch**
+      stamped at creation and serialized (state **v33**). SEED stays the musical dial:
+      same project + same placement + same SEED still reproduces exactly.
+- [ ] **Stage 6 — Temporal FX are tempo-relative.** Only the HQ/master delay had the
+      beats+detents treatment; the track delay showed a raw `0.25`. Delay time now stores
+      **beats**, and modulation rates store **period-in-beats** (chorus / flanger / phaser
+      / the Analog LFO), following the shipped A4 convention: **bare turn snaps to musical
+      divisions, `Func`+turn sweeps free** — and a Func-swept value is *still* tempo-
+      relative, so nothing drifts when the BPM moves. Machines get BPM through a new
+      `IMachine::setTimeInfo`, mirroring `IEffect`. State **v34** migrates old
+      seconds/Hz values through the project's saved BPM (base params, P-Locks and
+      fill-P-Locks alike).
+
+---
+
 ## Phase 10 — Melodic & Harmonic Authoring  *[mostly shipped: 10.1–10.4, 10.7–10.10 done; 10.5 partial; 10.6, 10.11 open]*
 
 The tonal layer: a key-signature system built on the **circle-of-fifths
