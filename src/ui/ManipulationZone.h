@@ -53,7 +53,14 @@ namespace lockstep
         // Fed from the selection notification (the single owner) — never
         // re-derived from slotOffset_. Drives the banner word + header/wash colour
         // so a Scene-scoped FILTER page reads SCENE, a track-DSP page reads TRACK.
-        void setPageOrigin(SecOrigin origin) { pageOrigin_ = origin; }
+        // `enteredViaFunc` (9.31) latches the Func border for as long as this page
+        // is shown: every page selection passes through here, so a bare selection
+        // writes false and the border clears on page change without a second owner.
+        void setPageOrigin(SecOrigin origin, bool enteredViaFunc)
+        {
+            pageOrigin_ = origin;
+            pageFuncOrigin_ = enteredViaFunc;
+        }
 
         // Switch the zone to a MetaBand (resolveMetaBand result) with the given swing scope.
         // MetaBand::None = normal machine params; anything else renders the meta surface.
@@ -136,6 +143,7 @@ namespace lockstep
         int slotOffset_ = 0;
         MetaBand band_ = MetaBand::None;
         SecOrigin pageOrigin_ = SecOrigin::Machine;  // scope origin of the shown param page (7d)
+        bool pageFuncOrigin_ = false;                // shown page was reached via Func (9.31)
         int swingScope_ = 0;   // 0=none, 1=song-all, 2=scene-all delta, 3=song-track delta
         juce::String normalTitle_;   // section name for normal (band==None) mode
         int normalPage_ = 0;         // 0-based current page index

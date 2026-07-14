@@ -1082,10 +1082,40 @@ namespace lockstep
                   "7e: Func released → no Func border on TRIG even with COND latched");
         }
 
-        // 7e helper: outline requires both the held layer and a func-qualified page.
+        // 7e helper (SURFACE KEYS): outline requires both the held layer and a
+        // func-qualified key -- on a key the outline previews the next press.
         CHECK(!funcOutlineActive(false, true), "outline off when Func not held");
         CHECK(!funcOutlineActive(true, false), "outline off on a non-func page");
         CHECK(funcOutlineActive(true, true), "outline on: Func held + func page");
+
+        // 9.31 (THE MZ): the same question, asked of a page rather than a key,
+        // has the opposite answer. The border is a property of how the shown page
+        // was reached, so it must be independent of what is held right now --
+        // otherwise it vanishes the moment you release Func to reach an encoder,
+        // which is exactly when the MZ is being read. Assert the independence
+        // directly: no live-state input may re-enter this decision.
+        for (bool funcHeldNow : { false, true })
+        {
+            (void) funcHeldNow;  // deliberately not an input -- that IS the assertion
+            CHECK(funcOutlineLatched(true),
+                  "9.31: a page entered via Func keeps its MZ border after the release");
+            CHECK(!funcOutlineLatched(false),
+                  "9.31: a page entered without Func has no MZ border, whatever is held");
+        }
+
+        // The clear-on-page-change leg: page selection is the single writer of the
+        // latch, so a bare selection (funcLayer == false) clears it by construction.
+        // Model the transition script the editor performs via setPageOrigin().
+        {
+            bool pageFuncOrigin = false;
+            auto selectPage = [&pageFuncOrigin](bool viaFunc) { pageFuncOrigin = viaFunc; };
+
+            selectPage(true);
+            CHECK(funcOutlineLatched(pageFuncOrigin), "9.31: Func selection latches the border");
+            CHECK(funcOutlineLatched(pageFuncOrigin), "9.31: border survives the Func release");
+            selectPage(false);
+            CHECK(!funcOutlineLatched(pageFuncOrigin), "9.31: a bare page change clears the border");
+        }
     }
 
     // -------------------------------------------------------------------------

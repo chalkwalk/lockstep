@@ -991,12 +991,16 @@ namespace lockstep
                 }
             }
         }
-        // Item 7 (7e): the Func outline never latches. A COND/TRANSPORT band
-        // reached via Func+TRIG / Func+7 keeps its body colour after Func releases,
-        // but the outline is drawn only while Func is actually held.
-        const bool funcHeldNow = (uiState_ != nullptr && uiState_->funcHeld);
+        // 9.31: the MZ's Func border belongs to the shown PAGE, not to the key.
+        // A meta band's Func origin is intrinsic (COND is only ever reached by
+        // Func+TRIG); a normal param page carries the flag the selection latched.
+        // Either way the border survives the Func release — you let Func go to
+        // reach an encoder, which is precisely when you read the MZ — and clears
+        // on the next page change. (Surface keys keep the live funcOutlineActive:
+        // there the outline previews what the next press does.)
         const bool funcOriginPage =
-            isMetaPage && funcOutlineActive(funcHeldNow, bs.funcOrigin);
+            isMetaPage ? funcOutlineLatched(bs.funcOrigin)
+                       : funcOutlineLatched(pageFuncOrigin_);
 
         // §26.4.1 — Persistent header strip: always visible, shows active band / section.
         {

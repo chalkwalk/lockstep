@@ -1460,6 +1460,16 @@ drives colour on both surfaces (`ScopeSectionSelect.h::SecOrigin`,
   *origin* is Func, mirroring the section-key marker — it is not tied to
   the transient Func hold (that governs the section-key *preview* row,
   which is a distinct surface).
+- **The MZ's Func border latches with the page, not with the key.** It is
+  a property of *how the shown page was reached*: it appears when the page
+  is selected through the Func layer, **survives the Func release**, and is
+  cleared by the next page change (any bare selection clears it, because a
+  bare selection is a page reached without Func). The alternative — drawing
+  it only while Func is physically down — meant the border was never visible
+  at the moment you actually read the MZ, since you release Func to reach
+  for an encoder. **Surface keys keep the live behaviour**: their outline
+  tracks the held modifier, because there the outline *is* the preview of
+  what the next press does.
 
 **Reality note.** Only `Machine` and `Track` own per-section parameters
 today; `Phrase`/`Scene`/`Song`/`Global` are wired into the stack but

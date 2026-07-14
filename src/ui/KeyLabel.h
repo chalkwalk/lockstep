@@ -71,13 +71,23 @@ namespace lockstep
         return col(kScopeStep);
     }
 
-    // Item 7 (7e): the Func outline is shown iff the Func layer is *currently*
-    // held AND the shown page/key is func-qualified. It never latches: a COND /
-    // TRANSPORT band reached via Func+TRIG / Func+7 keeps its body colour after
-    // Func releases, but the outline drops. Pure so both surfaces + a test share it.
+    // Item 7 (7e): on a SURFACE KEY the Func outline is live — shown iff the Func
+    // layer is currently held AND the key is func-qualified. It must not latch
+    // there, because on a key the outline is the *preview* of what the next press
+    // does, and the next press changes when Func comes up.
     inline bool funcOutlineActive(bool funcHeld, bool pageFuncQualified) noexcept
     {
         return funcHeld && pageFuncQualified;
+    }
+
+    // 9.31: the MZ's outline is the opposite — a property of how the shown PAGE
+    // was reached, not of what is held now. It latches through the Func release
+    // (you let Func go to reach an encoder, which is exactly when you look at the
+    // MZ) and clears on the next page change: a page selected without Func is
+    // reached without Func, so the flag simply falls out of page selection.
+    inline bool funcOutlineLatched(bool pageEnteredViaFunc) noexcept
+    {
+        return pageEnteredViaFunc;
     }
 
     // Item 7: the banner word for a resolved page origin (MZ header + any

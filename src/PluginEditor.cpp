@@ -874,7 +874,10 @@ namespace lockstep
                                                        mode.stepHeld);
                     origin = res.hasContent ? res.winner : SecOrigin::Machine;
                 }
-                manipulationZone_.setPageOrigin(origin);
+                // mode.funcLayer is the single fact about *how this page was
+                // reached*; it latches the MZ's Func border until the next
+                // selection (9.31), which a bare selection clears by writing false.
+                manipulationZone_.setPageOrigin(origin, mode.funcLayer);
             }
             refreshMetaBand();
         };

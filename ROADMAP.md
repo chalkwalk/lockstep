@@ -3102,7 +3102,7 @@ Six items off one play-test session. Two are outright bugs; two are features tha
       not audibility. The test is **table-driven across the pitched machines** (VA mono /
       VA para / FM) with a vacuity guard on each row, so the next machine joins the table
       rather than re-learning the bug.
-- [ ] **Stage 3 — The MZ Func outline latches.** The outline is a property of *how the
+- [x] **Stage 3 — The MZ Func outline latches.** The outline is a property of *how the
       shown page was reached*, not of what is held right now: it survives the Func release
       and clears on any page change. Surface keys keep their live behaviour (7e).
 - [ ] **Stage 4 — Levels: visible, playable, and on the wire.** The track-VU drag gesture
