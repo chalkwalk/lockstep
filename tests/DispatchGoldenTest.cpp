@@ -635,9 +635,9 @@ void runCueGestureTests(int& failed)
     check(proc.getCueBalance(t) == 0.0f, "Cue+Mute again uncues the focused track");
 }
 
-// 6.4: the cue console overlay — Cue-held + NavRight opens it; on the flip page a
-// step key arms a track's cue flip (immediate here, transport stopped); Nav toggles
-// to the param page; a foreign scope exits.
+// 6.4: the cue console overlay — Cue + hold(AMP) opens it to the param page (the
+// MIXER twin); re-pressing AMP pages the track bank; Nav toggles to the flip page,
+// where a step key arms a track's cue flip; a foreign scope exits.
 void runCueConsoleTests(int& failed)
 {
     using CB = ControllerButton;
@@ -646,27 +646,44 @@ void runCueConsoleTests(int& failed)
         if (!ok) { std::fprintf(stderr, "FAIL [CueConsole] %s\n", what); ++failed; }
     };
     auto ev = [](CB b, int i = -1) { return CE{ CE::Type::ButtonDown, b, i, 0 }; };
+    const int kAmp = LockstepProcessor::kAmpSecIdx;
 
     Rig rig;
     auto& ed = *rig.editor;
     auto& proc = *rig.proc;
 
-    // Enter Cue scope, then open the console with NavRight.
+    // Enter Cue scope (Func+3), then open the console by HOLDING AMP past the long-
+    // press threshold (Func remaps Section→MetaSection, exactly as production does).
     DispatchProbe::down(ed, ev(CB::Func));
     DispatchProbe::down(ed, ev(CB::TapTempo));
-    DispatchProbe::down(ed, ev(CB::NavRight));
-    check(DispatchProbe::ui(ed).overlay == Overlay::Cue, "Cue+NavRight opens the console");
-    check(!DispatchProbe::ui(ed).cueParamPage, "console opens on the flip page");
+    check(DispatchProbe::ui(ed).cueHeld, "Func+3 enters the momentary Cue scope");
+    DispatchProbe::down(ed, ev(CB::Section, kAmp));
+    check(DispatchProbe::ui(ed).overlay != Overlay::Cue, "a short AMP press does not open yet");
+    juce::Thread::sleep(static_cast<int>(GestureRecognizer::kLongPressMs) + 60);
+    DispatchProbe::up(ed, ev(CB::Section, kAmp));
+    check(DispatchProbe::ui(ed).overlay == Overlay::Cue, "Cue+hold(AMP) opens the console");
+    check(DispatchProbe::ui(ed).cueParamPage, "console opens straight to the param (mixer) page");
     check(!DispatchProbe::ui(ed).cueHeld, "opening the console leaves the momentary scope");
 
-    // Flip page: a step key arms track N's cue flip (immediate, transport stopped).
+    // Release the Func+3 chord — the console is sticky and survives (real usage).
+    DispatchProbe::up(ed, ev(CB::TapTempo));
+    DispatchProbe::up(ed, ev(CB::Func));
+    check(DispatchProbe::ui(ed).overlay == Overlay::Cue, "console survives releasing Func+3");
+
+    // Re-press AMP pages the track bank 1-8 <-> 9-16 (only with a second bank).
+    if (kNumTracks > 8)
+    {
+        const int bank0 = DispatchProbe::ui(ed).cueBank;
+        DispatchProbe::down(ed, ev(CB::Section, kAmp));
+        check(DispatchProbe::ui(ed).cueBank == (bank0 ^ 1), "re-press AMP toggles the cue bank");
+    }
+
+    // Nav toggles to the flip page; a step there arms track N's cue flip.
+    DispatchProbe::down(ed, ev(CB::NavRight));
+    check(!DispatchProbe::ui(ed).cueParamPage, "Nav toggles to the flip page");
     check(proc.getCueBalance(2) == 0.0f, "track 2 starts uncued");
     DispatchProbe::down(ed, ev(CB::Step, 2));
     check(proc.getCueBalance(2) == 1.0f, "flip-page step arms/flips the track's cue");
-
-    // Nav toggles to the encoder param page.
-    DispatchProbe::down(ed, ev(CB::NavRight));
-    check(DispatchProbe::ui(ed).cueParamPage, "Nav toggles to the param page");
 
     // A foreign cluster scope exits the console.
     DispatchProbe::down(ed, ev(CB::TrackScope));

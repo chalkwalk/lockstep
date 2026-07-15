@@ -112,6 +112,11 @@ namespace lockstep
     // page that section's params, long-press = open/close the OnDemand console, 7b).
     static constexpr int kMachineConsoleLongPressToken = 6002;
 
+    // Token for Cue + hold(AMP) → open the cue console (6.4). The twin of
+    // Track+hold(AMP)=MIXER ("AMP is the mixer key"); armed while cueHeld, resolved
+    // on the AMP key-up.
+    static constexpr int kCueConsoleLongPressToken = 6003;
+
     // Token for the DELETE hold (9.29): scope + tap(Clear) clears that scope's
     // contents, scope + HOLD(Clear) deletes the entity. Delete left the Func
     // qualifier when Func+Track became the Machine scope; the gesture axis is the

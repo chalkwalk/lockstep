@@ -110,6 +110,9 @@ namespace lockstep
         // (DESIGN §31). The flag lets the Mute key-up be swallowed so the chord
         // never falls through to the normal mute-view up handler.
         bool cueMuteChordActive_ = false;
+        // 6.4: Cue + hold(AMP) opens the cue console (the MIXER twin). Armed on the
+        // AMP down while cueHeld; resolved on the AMP key-up (LongHold opens).
+        bool cueConsoleArmed_ = false;
         int auditionBaseTrack_ = -1;   // focused-track base-trig monitor (Cue, no step)
         int auditionBaseNote_ = -1;
         struct StepAudition { int track = -1; int count = 0;

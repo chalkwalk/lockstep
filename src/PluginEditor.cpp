@@ -3779,8 +3779,10 @@ namespace lockstep
         }
         // 6.4: re-press AMP (the key that opened the console) pages the track bank
         // 1-8 <-> 9-16 on the param page; pips under AMP advertise it. Consistent
-        // with MIXER's re-press-AMP paging. Only meaningful with >8 tracks.
-        if (btn == CB::Section && index == LockstepProcessor::kAmpSecIdx)
+        // with MIXER's re-press-AMP paging. Only meaningful with >8 tracks. Accept
+        // MetaSection too: while Func is still held the Func layer renames AMP.
+        if ((btn == CB::Section || btn == CB::MetaSection)
+            && index == LockstepProcessor::kAmpSecIdx)
         {
             if (kNumTracks > 8)
             {
@@ -4467,11 +4469,19 @@ namespace lockstep
             return true;
         }
 
-        // 6.4: Cue-held + NavRight opens the sticky cue console (DESIGN §31).
-        if (uiState_.cueHeld && uiState_.overlay != Overlay::Cue && ev.button == CB::NavRight)
+        // 6.4: Cue + hold(AMP) opens the sticky cue console — the twin of
+        // Track+hold(AMP)=MIXER ("AMP is the mixer key"; DESIGN §31). While cueHeld
+        // (Func+3) Func remaps Section→MetaSection, so the AMP key arrives as
+        // MetaSection. Armed here, resolved on the AMP key-up (a LongHold opens; a
+        // short tap is inert). Replaces the earlier NavRight promotion.
+        if (uiState_.cueHeld && uiState_.overlay != Overlay::Cue
+            && (ev.button == CB::MetaSection || ev.button == CB::Section)
+            && ev.index == LockstepProcessor::kAmpSecIdx)
         {
-            openCueConsole();
-            return true;
+            gesture_.armLongPress(kCueConsoleLongPressToken,
+                                  juce::Time::getMillisecondCounterHiRes());
+            cueConsoleArmed_ = true;
+            return true;  // deferred to key-up
         }
         // While the cue console is open it owns the step grid + Nav paging, before
         // any cueHeld audition / Func-layer step remap can claim them.
@@ -6238,6 +6248,25 @@ namespace lockstep
 
             case CB::Section:
             case CB::MetaSection: {
+                // 6.4: resolve Cue + hold(AMP) → open the cue console (to the param
+                // page, the "cue mixer"). A LongHold opens it; a short tap is inert
+                // (the momentary Cue scope keeps auditioning). Checked first so it
+                // owns the AMP key-up while armed.
+                if (cueConsoleArmed_)
+                {
+                    using LPR = GestureRecognizer::LongPressResult;
+                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    if (gesture_.checkLongPress(kCueConsoleLongPressToken, now) == LPR::LongHold)
+                    {
+                        openCueConsole();
+                        uiState_.cueParamPage = true;   // open straight to the mixer page
+                        refreshMetaBand();
+                        refreshSurface();
+                    }
+                    cueConsoleArmed_ = false;
+                    return;
+                }
+
                 // ── 9.12 st.7d: resolve the section tap-vs-hold ───────────────────
                 // One block for every picker. The action was decided BY THE TABLE at arm
                 // time (sectionHoldAction_), so the three ways a hold can end — fired by
