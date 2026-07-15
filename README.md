@@ -323,7 +323,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Lock-only trig** | A step cycled `Trig+step` through `off → note → lock-only`. A lock-only step emits no note but applies its P-Locks (filter, channel, env, insert) onto the *sustaining* voice as the playhead crosses it — parameter motion without retriggering. Its locks keep applying after you stop the transport (the playhead parks where it stopped). A few slots are bound when a note starts — a player's `Start`, `Rev`, `Stretch`, `Sample` — so a lock on one of those cannot move a voice that is already sounding; the MZ marks such a lock `*!` instead of the usual `*`. |
 | **One-shot trig** | A trig condition (COND meta-band "1Shot") that fires once then is **spent** until re-armed. Re-arms automatically on transport (re)start and on scene switch; armed/spent is RAM-only (not saved). |
 | **Mark** | A RAM-only snapshot *you* pushed. Bare `Y` (SNAP) pushes before a risky idea; `Func+Y` (RESTORE) tap=pop one/hold=floor. **Scope-respecting:** captures whichever scope is held (none=Song, Track, Scene, Phrase). Up to 8 deep per scope; floor = saved state. Distinct from **Undo** — see §5.15. |
-| **Undo** | The *system's* safety net, armed automatically before a destructive op and reached with `Func+O`. Carries the scope of the operation that armed it, so it never has to be told one — and it refuses rather than eating work you did afterwards (§5.15, DESIGN §13.6). |
+| **Undo** | The *system's* safety net, armed automatically before a destructive op and reached with `Func+O`. Carries the scope of the operation that armed it, so it never has to be told one; kept on its own shallow stack, separate from your marks (§5.15, DESIGN §13.6). |
 | **Launch model** | Performance is launch-based, not arrangement-based: queue a **Scene** (`Scene+step`) to fire at the next core-time boundary, or switch **Songs** (`Song+step`). There is no written timeline or pattern chain. |
 | **Sample pool** | The project-wide library of samples, stored as `{path, hash}` references rather than embedded audio. A reference is identified by **content hash**, not array position (9.18), so it survives a pool reorder and a file move (reload → hash matches → auto-relink); a missing file flags the entry for **Relink**. Missing samples are surfaced by a **persistent banner** ("N samples missing — Manage to relink") that stays until they are relinked, not just a fading load-time toast. Files are **re-checked at runtime** too: opening the pool manager re-stats every path-backed entry, so a sample deleted or moved *while the app is running* shows as MISSING with Relink enabled. A File already decoded into RAM keeps playing even after its file disappears (no mid-performance dropout) — only the flag updates; a disk **Stream** whose file is gone falls silent cleanly. The pool manager groups entries as **FILE / STREAM / RECORD / LOOP**; a **Save…** action promotes a volatile Record/Loop capture into a durable File. Entries are numbered **within their group** (FILE 1, FILE 2, STREAM 1, REC 1 …) in the in-machine sample picker, so the number stays put across a reload even though the reserved volatile REC slots re-seed at the front of the raw pool. |
 | **Sound Pool** | A project-scope library of saved per-track sounds (machine + base params + sample refs). `Fill+SRC` re-skins the step grid to the pool for live-swap audition; with a step held the swap bakes as a `sound_id` P-Lock (5.7). |
@@ -1359,11 +1359,20 @@ and leaves your state alone. The floor is still reachable — but only by the
 deliberate hold, never by one tap too many.
 
 **Undo knows what it touched.** You never have to tell it a scope; the operation
-that armed it already knew. What that buys you: if you clear track 3 and then work
-on *track 7*, the undo for track 3 is still sitting there, perfectly safe. But if
-you clear track 3 and then edit *track 3*, undoing would eat those edits — so it
-refuses, and says why (`UNDO EXPIRED — track 3 changed since`). Your marks are
-still there if you want to go further back on purpose.
+that armed it already knew — clear track 3 and `Func+O` reverts *that*.
+
+**Each scope is independent.** Restoring one scope's mark never touches another's.
+Restore the whole Song, then restore a Track mark you took at a different moment, and
+that track becomes exactly what you saved — a real, playable state, even if you never
+snapshotted that particular combination as a unit. The tool does what you press; it
+does not second-guess you with a consistency rule. (A more elaborate,
+globally-consistent model was designed and deliberately set aside as too clever for
+live use — DESIGN §13.6 and `docs/snapshot-undo-rejected-elaborate-model.md`.)
+
+**Restore never loses live work.** Because a snapshot overwrites live state, a
+restore first tucks what you had into a one-deep *unrestore* slot, so a mis-fired
+restore is a single press to reverse. (Unrestore and redo are designed but ship after
+the first cut.)
 
 **RAM-only** — marks do *not* survive save/reload; the floor is re-seeded
 from disk so "reload saved" always works.

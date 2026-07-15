@@ -323,18 +323,22 @@ session did not merely resolve the J1/J2 tension — it found that the half of t
 feature the tension was about **had never been wired**, and that the shipped half
 could silently destroy work. Both findings are below; the build items follow.
 
-**What the session decided.** Marks and undo are separated. *Explicit beats
-implicit*: Snapshot/Restore are yours and must always do what you expect; undo is
-the system's and must never interfere with them, nor eat work you did after it was
-armed. Undo *is* scoped — by the operation that armed it, not by your fingers —
-and it lands on `Func+O`, the Func-layer verb seat 9.29 vacated (the Func layer is
-the counter-verb layer, and undo counters `Clear`). One overlap rule governs both
-mechanisms: every entry carries a scope + epoch, and **applying an entry
-invalidates every entry that overlaps it and is newer than it**. Restore (explicit)
-*drops* those entries — you abandoned that branch deliberately. Undo (implicit)
-*refuses* when something newer overlaps it (`UNDO EXPIRED — track 3 changed since`)
-rather than dropping anything. `Scene` and `Track` are disjoint in the state tree,
-so an undo survives unrelated work instead of expiring on any keypress.
+**What the session decided (two passes).** The first pass specced a
+globally-consistent model — every entry carrying a scope + global epoch, an
+ancestor-overlap rule where applying an entry *invalidates every newer overlapping
+entry*, restore dropping them and undo *refusing* when stale (`UNDO EXPIRED`), plus a
+vim-style branch/chronological second axis. A **second pass rejected it**: every
+checkpoint payload is a complete, valid overlay for its scope, so a mixed restore is
+a real playable state, not a corrupt one — the overlap machinery solved a
+consistency problem a live performer never experiences, and would instead *stop* the
+player or silently drop a mark they can see. The rejected design is preserved in
+`docs/snapshot-undo-rejected-elaborate-model.md` (with the CUJs that would revive
+it). **What we build:** independent per-scope stacks, no epoch, no cross-scope rule.
+The one idea kept from the first pass is that *marks and undo stay separate* — marks
+are yours (`Y` / `Func+Y`), undo is the system's shallow safety net before
+destructive ops (`Func+O`, the counter-verb seat 9.29 vacated) — so a flurry of `Y`s
+never buries the pre-mistake point. Restore is non-destructive (a one-deep
+pre-restore slot); unrestore/redo are designed but deferred. Full model: DESIGN §13.6.
 
 **Bugs the session found (all live, all in the snapshot family):**
 - `Track+Y` and `Phrase+Y` are **no-ops.** No `kModTrack`/`kModPhrase` row exists
@@ -390,23 +394,40 @@ so an undo survives unrelated work instead of expiring on any keypress.
       states no headless button-press can reach (a queued launch needs a playing
       transport). Decisive pairs prove each: the deviation/queue persists alone and
       vanishes only when SYNC/CANCEL follows.
-- [ ] **D — Epoch + overlap.** Global monotonic epoch bumped on every mutation;
-      per-entity touch watermarks; the ancestor-or-self overlap predicate over the
-      `Song > {Track > Phrase, Scene}` tree. Pure and unit-testable.
-- [ ] **E — Undo stack + `Func+O`.** Entries armed by the destructive ops (which
-      already know their scope — the auto-captures push Track/Phrase/Song correctly
-      today). Guard: applies only if nothing newer overlaps. Refuses, loudly, when
-      stale.
-- [ ] **F — Restore drops newer overlapping entries** (the explicit half of the one
-      rule), so a Song restore cannot leave a Track mark that would graft a state
-      which never existed.
+**Re-scoped 2026-07-14 (second design pass).** The first pass specced a
+globally-consistent model (epoch counter, ancestor-overlap invalidation, a vim-style
+undo tree) and it was **rejected** for solving a cross-scope consistency problem a
+live performer never experiences — every payload is a complete valid overlay for its
+scope, so a mixed restore is a real playable state, not a corrupt one. The full
+rejected design (and the CUJs that would revive it) lives in
+`docs/snapshot-undo-rejected-elaborate-model.md`; the shipped model is DESIGN §13.6.
+Items D–H below are the **simpler** build: independent per-scope stacks, no epoch,
+no overlap rule.
+
+- [ ] **D — Independent per-scope stacks.** Marks are per-scope LIFO with no
+      interaction between scopes: drop the epoch/overlap/derived-validity axis
+      entirely. This is mostly *removing* the machinery the first pass would have
+      added, and hardening what `Arrangement` already has (the shipped B/C snapshot
+      arms) so `Track`/`Phrase`/`Scene`/`Song` stacks each stand alone.
+- [ ] **E — Undo stack + `Func+O`.** A *shallow* per-scope stack armed by the
+      destructive ops (which already know their scope — the auto-captures push
+      Track/Phrase/Song correctly today), kept separate from marks so a flurry of `Y`s
+      never buries the pre-mistake point. `Func+O` pops it. No overlap guard, no
+      "UNDO EXPIRED" — an undo just reverts its scope's last destructive op.
+- [ ] **F — Non-destructive restore.** Before a restore overwrites live state, stash
+      `copy(live)` in a single per-scope **pre-restore slot**, so nothing is silently
+      lost. `UNRESTORE`/`REDO` (one level) are **designed but deferred** — reserve the
+      slot and the redo entry so they ship without rework; the first build is
+      SNAP/RESTORE/UNDO only, and the redo gestures get their grammar seat when they
+      ship (§13.6).
 - [ ] **G — Surface.** Mark-depth pip on each scope key (marks only — undo is not a
-      mark); status lane names the pending undo and the reason a stale one refused.
-      Retire/repoint the Song-only `CK:N` chip.
+      mark); status lane names the pending undo. Retire/repoint the Song-only `CK:N`
+      chip.
 - [ ] **H — Tests.** Per the input-modality mandate: resolution, scope routing, and
-      round-trip. Plus the model's own invariants — the Frankenstein graft is
-      unrepresentable; a stale undo never mutates; an untouched-scope undo survives
-      unrelated work; empty-stack restore never wipes.
+      round-trip. Plus the model's own invariants — each scope's stack is independent
+      (a Song restore leaves Track marks untouched); a restore never loses live work
+      (the pre-restore slot holds it); undo reverts only its scope's last destructive
+      op; empty-stack restore never wipes (shipped in A, keep the guard).
 
 ### 9.5 — Velocity overlay polish  *[shipped]*
 Mix-blend baseline fix (swings around velCenter on unauthored steps), the
