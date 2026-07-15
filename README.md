@@ -292,7 +292,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Phrase** | A track's pure note content — the trig grid and per-step data. Each track has a pool of 16; Scenes reference them by index. |
 | **Scene** | A launchable cross-track row: a global phrase index (all tracks default to that row) + active-mask + core time + Morph snapshot. Per-track phrase deviations are live/RAM-only and never saved. |
 | **Song** | A self-contained song (Kits + Phrase pools + Scenes). The bank-sized unit. |
-| **Scope** | A held modifier declaring what the next verb operates on. Eight in the left cluster (`Func`, `Track`, `Phrase`, `Scene`, `Morph`, `Song`, `Mute`, `Fill`), plus a held step and a section key. `Cue` is the audition scope, entered as the compound `Func+3`; the cue *bus* (pre-listen) is still 6.4. |
+| **Scope** | A held modifier declaring what the next verb operates on. Eight in the left cluster (`Func`, `Track`, `Phrase`, `Scene`, `Morph`, `Song`, `Mute`, `Fill`), plus a held step and a section key. `Cue` is the audition + cue-balance scope, entered as the compound `Func+3`; the cue *bus* (pre-listen) crossfade shipped in 6.4. |
 | **Compound chord** | Two modifiers (one per column) held together to combine scopes. Cross-column only; never fires on its own — it just narrows the scope until a verb is pressed. `Func` composes with anything. |
 | **Verb** | The action applied to the scope. Verb row `Y U I O P` = `Snapshot / Record (=copy) / Play (=paste) / Clear / Yes`; under `Func` the same keys give `Restore / Panic / Delete / No` (7.12). |
 | **Section** | A grouping of parameters on the section bar (keys `5–0`). Canonical six: TRIG / SRC / FILTER / AMP / MOD / FX. Held scope modifiers reinterpret each key (e.g. `Track+FILTER` = post-machine filter, `Song+FX` = master FX). The Manipulation Zone shows eight parameters (4×2) of the active cell at a time. |
@@ -319,6 +319,7 @@ who is audible; the **Song** holds it all; the **Set** is the plugin.
 | **Fill** | A momentary modifier: while held, fill-conditioned steps fire. Used for live variation. |
 | **Trig condition** | A per-step (or per-track) firing rule: probability, iteration (m:n — fire on *m* of every *n* loops, evenly spread), previous-step dependency, fill rule, and **one-shot**. |
 | **Audition (`Cue`)** | Pre-listen without writing anything. Enter the `Cue` scope with `Func+3`: holding it fires the focused track's base trig; `Cue+step` fires that step's resolved trig (note/vel/gate + P-Locks). Off-schedule, post-machine FILTER/AMP applies, pattern untouched. |
+| **Cue balance** | Each track has a persistent **cue balance** `b ∈ [0,1]` (default 0) that crossfades its output between its normal route/sends (`× (1−b)`) and the **cue bus** / headphones (`× b`) — the DJ "cue on the phones, then bring it in" move. Applied *after* Level as a fan-out gain: a direct track→track tap bypasses cue (reads the full upstream signal), a Master/Bus tap reflects it, sends fade with it. It is a live performance overlay (not scene state), serialized, automatable. Set it with `Cue + Mute` (focused track), the **cue console** (arm several tracks to flip together on the next quantum, or ride the eight balances on the encoders), each with a ~5 ms declick. `Cue + Scene`, `Cue + MIDI-out`, and morph-cue are planned follow-ons. |
 | **Out routing** | The CHANNEL "Out" slot sets a track's **single** destination (out-degree ≤ 1): `Master` (default), `Track N`, `Aux N` (host aux output — the DAW mixes it), or `Off`. Picking one **replaces** the previous — a track is never on Master and an aux at once. Route into a **Route** track to build an aux/sub-bus (the bus reads the sum of its feeders, plus its own input if any). The Out rotary steps only through valid destinations (Off / Master / current buses / aux) with a live label — synths, MIDI-out, self and cycle targets never appear. If a target's machine is later swapped to a non-bus, or an `Aux N` host bus is disabled, the edge **folds back to Master** (no audio lost) and revives when the target becomes valid again. A bus and its feeders share a colour on the track/VU row. See §2.5. |
 | **Lock-only trig** | A step cycled `Trig+step` through `off → note → lock-only`. A lock-only step emits no note but applies its P-Locks (filter, channel, env, insert) onto the *sustaining* voice as the playhead crosses it — parameter motion without retriggering. Its locks keep applying after you stop the transport (the playhead parks where it stopped). A few slots are bound when a note starts — a player's `Start`, `Rev`, `Stretch`, `Sample` — so a lock on one of those cannot move a voice that is already sounding; the MZ marks such a lock `*!` instead of the usual `*`. |
 | **One-shot trig** | A trig condition (COND meta-band "1Shot") that fires once then is **spent** until re-armed. Re-arms automatically on transport (re)start and on scene switch; armed/spent is RAM-only (not saved). |
@@ -561,7 +562,8 @@ in the scope-section matrix); two are **performance specialists**
 (`Cue` is the **audition** scope, entered as the compound `Func+3` (it needs
 no dedicated cluster key — hardware parity). Holding it auditions the focused
 track's base trig; `Cue+step` auditions a step's resolved trig. Both write
-nothing. The cue *bus* / pre-listen feature is still 6.4.)
+nothing. The cue *bus* / pre-listen crossfade shipped in 6.4 — see the **cue
+balance** glossary entry and the `Cue + Mute` / cue-console shortcuts.)
 
 **Compound chords.** Hold one modifier from each column to combine
 scopes (e.g. `Scene + Mute` = fade a track across the crossfader). The
@@ -609,7 +611,8 @@ Transport and record-arm ride the verb row (no scope held — see §5.1):
 | `U` (Rec) | Toggle record-arm (overwrite). Double-tap = overdub (append); `Func + U` = **omni copy** (captures scene + active track + pattern in one grab; badge `CPY:ALL`). |
 | `Func + Song + U` | **CAPTURE** — the tape deck. tap = arm (rolls on Play) · double-tap = roll now · while recording tap = stop / double-tap = hard cut · long-press in the just-saved window = discard (see §5.20). |
 | `3` | Tap tempo (short tap). **Hold ≥350 ms** = generator hub: step cells show EUCLID / DENSITY / VEL / MELODY / CHORD; press one to enter that generator with its own lifetime; release `3` closes the picker. |
-| `Func + 3` | **Cue** (audition) scope. Hold = pre-listen the focused track's base trig; `Cue+step` = audition that step's resolved trig. Writes nothing (see §2.5 audition / glossary). |
+| `Func + 3` | **Cue** (audition + balance) scope. Hold = pre-listen the focused track's base trig; `Cue+step` = audition that step's resolved trig (writes nothing). **`Cue + Mute`** = toggle the focused track's **cue balance** (send it to the headphones / bring it back). **`Cue + NavRight`** = open the **cue console** (see below). |
+| `Cue + NavRight` → console | The **cue console** (sticky). **Flip page** — a step key arms that track's cue flip; the armed tracks cross to/from the headphones together on the next launch quantum (cyan strip = cued, hollow dot = armed). **Nav** → **param page** — the eight encoders set the bank's eight cue balances continuously. Foreign scope or double-tap `Func` exits. |
 | `4` | Navigate up (inverted-T above `E R T`). |
 | `E` / `R` / `T` | Navigate left / down / right. |
 
@@ -1987,7 +1990,8 @@ majority of **Phase 10** (key signatures + generators), and all of
   velocity overlay, the **melodic generator** (seeded, prints editable trigs,
   Keep-rhythm mode) and the **harmonic voice-mover** (in-key chord sculptor,
   one chord per bar) — §5.21.
-- **Morph + crossfader** (5.2), Cue-scope **audition** (`Func+3`),
+- **Morph + crossfader** (5.2), Cue-scope **audition** + **cue balance**
+  crossfade (`Func+3` / `Cue+Mute` / cue console, 6.4),
   **lock-only / one-shot / recorder trigs** (5.6), **per-take stem export**,
   the **capture tape deck** (§5.20), and the **sample pool** with content-hash
   identity, typed pickers, save-and-promote and missing-file relink (9.18).
@@ -1995,7 +1999,8 @@ majority of **Phase 10** (key signatures + generators), and all of
 **Planned / open** — the remaining catalogue synths (`4.6` Percussion, `4.7`
 Digital — unblocked, first-party); Song/Scene **management UI** (`5.3` — names,
 colours, browser, Kit recall) and the snapshot restore-semantics spec (`9.4`);
-the **Cue bus** DSP + gestures (`6.4`); UI polish + preset-selection leftovers
+the **cue** follow-ons (`6.4` — `Cue + Scene`, `Cue + MIDI-out`, morph-cue; the
+balance crossfade itself shipped); UI polish + preset-selection leftovers
 (`5.8`); the sampling-overlay remainder (`5.4`, largely superseded by the
 capture machines — being re-scoped); diatonic nav + per-track scale-quantize
 (`10.5`/`10.6`) and chord placement on existing rhythm (`10.11`); external
@@ -2053,9 +2058,10 @@ So "step last" is only true when the step is the target.
 The tree below roots each gesture under its **highest-priority held
 scope** (the resolution order is `Trig > Section > Track > Phrase > Scene >
 Mute > Morph > Song > Fill > Func`); `Func`-only gestures live under
-**Func**. `Cue` is a reserved scope with no key bound yet (6.4), and
+**Func**. `Cue` is the audition + cue-balance scope (`Func+3`; audition,
+`Cue+Mute` balance toggle, `Cue+NavRight` console — 6.4), and
 `Morph` is a fully live scope (5.2) with encoder, nav-qualifier, Clear,
-and Mute gestures; `Cue` is reserved with no key bound yet (6.4).
+and Mute gestures.
 
 Legends in parentheses are the on-screen key labels (see
 [§5.3](#53-verb-keys)).

@@ -22,9 +22,14 @@ milestones below. Next orders of business, in order:
    Stream→pool wiring gap (shipped as `9.23` S9), and **`9.4` snapshot/undo shipped
    in full** (A–H: phantom cluster fixed, simple per-scope model built, undo on
    `Func+O`; spec in DESIGN §13.6, elaborate model rejected-but-preserved).
-1. **`6.4` — Cue completion.** Smaller than the roadmap claimed (see the scope
-   correction in 6.4): the scope key and the bus are live; what is missing is the
-   per-track cue send tap and the `Cue`+X gestures.
+1. *(done since the review, 2026-07-15)* — **`6.4` cue balance core shipped.**
+   Re-specced from an additive send to a per-track cue *balance* crossfade
+   (DESIGN §31): `cueBalance` APVTS overlay, per-sample declick, `(1−b)`/`b`
+   fan-out split, direct `Cue`+`Mute` toggle, the two-page cue console (flip grid
+   + `Cue` MZ band), quantized flip (`queueCueFlip`), and the surface indicator —
+   all tested. The AMP-page cell was folded into the `Cue` band (a CHANNEL slot
+   would double-store the APVTS cue param). Three follow-ons deferred to their
+   own items: morph-cue integration, `Cue + Scene`, `Cue + MIDI-out`.
 2. **`5.3` — Song/Scene management UI.** The big arc: names, colours, browser,
    sound recall. Needs its own brainstorm/design session first — "Kit" is retired
    as a term (`9.29`), so the recall-unit story is re-derived, likely atop
@@ -1058,7 +1063,7 @@ scopes use (reachable secondaries were invisible), and the §6.2 relocations
 landed: `TRACK` meta -> `Track+TRIG`, `GLOBAL` -> `Song+FX`, with `Func`
 pinned to COND/NOTE.
 
-## Phase 6 — Routing, FX & Platform  *[6.1/6.2/6.3/6.5 shipped; 6.4 next (active arc); 6.6 in progress; 6.7 waits for a second consumer; 6.8 open]*
+## Phase 6 — Routing, FX & Platform  *[6.1/6.2/6.3/6.5 shipped; 6.4 balance core shipped (3 follow-ons deferred); 6.6 in progress; 6.7 waits for a second consumer; 6.8 open]*
 
 The audio-input boundary and the machines it unlocks, the effects system, the cue
 bus, external controller surfaces, the machine-module ABI, and the beta polish.
@@ -1099,7 +1104,7 @@ DESIGN §29. Depends on 6.2.
 - [ ] Click-free overdub seams + transport-synced loop-length option — later
       refinement (loop length is free-running for now).
 
-### 6.4 — Cue + Aux output buses + monitoring  *[in progress]*  *(was MU)*
+### 6.4 — Cue + Aux output buses + monitoring  *[balance core shipped 2026-07-15; 3 follow-ons deferred]*  *(was MU)*
 DESIGN §31 / §31.1. Static output complement + the `Cue` scope.
 
 > **Scope correction (2026-07-14 alignment review).** Two boxes below were stale:
@@ -1132,33 +1137,47 @@ DESIGN §31 / §31.1. Static output complement + the `Cue` scope.
       proves the bus is live end-to-end.
 - [x] `Cue`-scope key allocated: `Func`+`3` → `enterCueScope()` (`PrimaryScope::Cue`),
       shipped with 5.5. `Cue`+step already auditions.
-- [ ] **Per-track cue balance** overlay state (`b ∈ [0,1]`, default 0),
-      persistent across scene launches (not scene state), serialized + round-trip
-      test.
-- [ ] **Distribution-stage crossfade**: route (`sumRoutedToMaster` /
-      `depositToBus` / `depositRoutedToAux`) and sends (`sendBusBufs_`) scale by
-      `(1 − b)`; new `depositRoutedToCue` deposits `× b` into cue bus 1; ~5 ms
-      declick smoothing. `outputReachesMaster()` stays **static** (excluded from
-      cue; a cued Master track still counts as reaching master).
-- [ ] **Tap semantics verified**: direct track→track taps bypass cue (read
-      `trackBuffers_` upstream of the split); Master/Bus taps reflect it.
-- [ ] **`Cue + focused track`** direct gesture (rides the existing `Cue` scope
-      without disturbing the momentary `Cue+step` audition).
-- [ ] **Cue overlay (two pages)**: step-grid quantized-flip page (16 steps = 16
-      tracks; fire on next quantum via the 9.17 launch-quantize authority, with
-      the declick) + encoder param page for continuous balance.
-- [ ] **AMP/CHANNEL page** per-track balance param (edited in context like Level).
-- [ ] Surface **cue indicator** on cued cells (add-only `CellState`/decoration).
-- [ ] New-modality unit tests: resolution, scope routing, round-trip, plus
-      audio-path tests (`setRateAndBufferSizeDetails(44100,512)`) for crossfade /
-      send-fade / tap-bypass / master-tap-reflect.
+- [x] **Per-track cue balance** overlay state (`b ∈ [0,1]`, default 0):
+      `ParamIDs::cueBalance`, an APVTS param mirroring `trackMute` (persistent
+      performance overlay, free serialization round-trip). `get/set/toggleCueBalance`.
+- [x] **Distribution-stage crossfade**: `prepCueRamp` builds a per-sample `b`
+      trajectory (~5 ms declick); route sums + `depositRoutedToCue` split by
+      `(1 − b)` / `b` per-sample; sends fade block-rate by `(1 − b)`. Applied to
+      deposited copies only — never in place on `trackBuffers_`. `cueEngaged_`
+      keeps the uncued path at the pre-6.4 unity cost. `outputReachesMaster()`
+      stays static.
+- [x] **Tap semantics verified**: a RouteMachine tapping a fully-cued track still
+      relays its full signal to main (upstream bypass); master tap reflects cue
+      (crossfade test). Composition invariant asserted static.
+- [x] **`Cue + Mute` direct gesture**: while the `Cue` scope is held, the Mute
+      cluster key toggles the focused track's cue balance — a cross-column
+      compound that never opens mute-view; leaves the momentary `Cue+step`
+      audition untouched.
+- [x] **Cue console (two pages)**: `Overlay::Cue` (opened by `Cue`-held +
+      NavRight). Flip page — a step key arms that track's quantized cue flip
+      (`queueCueFlip`, next quantum via the 9.17 authority, with the declick);
+      param page — the MZ `Cue` band puts the bank's eight cue balances under the
+      encoders (mirrors MIXER, writes the overlay, never a P-Lock). Nav pages
+      between them; foreign scope / Func double-tap exits.
+- [x] ~~AMP/CHANNEL page per-track balance param~~ — **folded into the `Cue`
+      band** (2026-07-15). A CHANNEL slot would double-store cue (channelState
+      serialization *and* the APVTS param); the `Cue` band already gives per-track
+      continuous editing under the encoders, so no redundant conflict-prone cell.
+- [x] Surface **cue indicator**: non-frozen `SurfaceCell::cued` / `cuePending`;
+      on the console flip page the 16 step cells show cued (cyan top strip) +
+      armed-flip (hollow cyan dot). Controllers ignore the new fields.
+- [x] New-modality unit tests: state round-trip, crossfade / send-fade /
+      tap-bypass, quantized flip (immediate + armed), `Cue`+`Mute` gesture and
+      console entry/flip/page/exit (dispatch binary), `Cue` band build/write
+      (MetaBand), overlay entry/exit (ModeReducer), indicator (SurfaceModel).
 - [ ] *Deferred (own follow-on items):* **Morph-cue integration** — morph is
       per-scene + `(track,slot)`-keyed while cue is a persistent non-scene
       overlay, so driving the overlay from per-scene endpoints needs its own
       design session (the quantized flip covers "N cued tracks in at once"
       without it); `Cue + Scene` double-resolve pre-listen; `Cue + MIDI-out`
       copy to a cue MIDI destination.
-- Build plan: `docs/superpowers/plans/2026-07-14-cue-balance-6.4-build.md`.
+- Design spec (kept): `docs/superpowers/specs/2026-07-14-cue-balance-6.4-design.md`.
+      Build plan folded into the ticked boxes above and deleted (shipped 2026-07-15).
 - [x] Live stem capture via Aux outs documented as the blessed stem-export path
       (DESIGN §31.1) — the offline per-take stem-export item is demoted.
 
