@@ -144,6 +144,11 @@ namespace lockstep
         // wall of noise. New actions go here.
         OpenMixer,
 
+        // 9.4 item E: Func+O (no scope) = UNDO — the counter of Clear. Appended here
+        // (not filed beside VerbClear) per the ordinal-stability rule above: inserting
+        // mid-enum renumbers every later action and buries real dispatch changes.
+        VerbUndo,
+
         // Sentinel — keep last. Lets the Stage 6 guard test enumerate every action
         // and assert each one is either handled by CommandCore::handleAction or
         // explicitly listed as not-yet-migrated, so a new ActionId cannot be added

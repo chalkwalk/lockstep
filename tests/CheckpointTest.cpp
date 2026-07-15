@@ -309,6 +309,30 @@ namespace lockstep
               "the floor is still reachable through the deliberate gesture");
     }
 
+    // ── 9.4 item E: undo stack is separate from the mark stacks ───────────────
+    //
+    // Marks are the performer's (Y / Func+Y). Undo is the system's shallow safety net,
+    // armed automatically before a destructive op and walked by Func+O. They must not
+    // share a stack, or a flurry of Y-marks would bury the pre-mistake point.
+    static void testUndoStackIsSeparateFromMarks()
+    {
+        auto arr = makeArrangement();
+        arr->workingTrack(0).steps[1].trig = true;
+        arr->snapshot(CheckpointScope::Track, 0);            // a MARK
+        CHECK(arr->checkpointDepth(CheckpointScope::Track, 0) == 1, "one mark");
+        CHECK(arr->undoDepth(CheckpointScope::Track, 0) == 0,       "no undo yet");
+
+        arr->armUndo(CheckpointScope::Track, 0);             // a destructive op fires
+        arr->workingTrack(0).steps[1].trig = false;          // ...and mutates
+        CHECK(arr->checkpointDepth(CheckpointScope::Track, 0) == 1, "mark count unchanged");
+        CHECK(arr->undoDepth(CheckpointScope::Track, 0) == 1,       "undo armed");
+
+        CHECK(arr->popUndo(CheckpointScope::Track, 0), "undo applies");
+        CHECK(arr->workingTrack(0).steps[1].trig, "undo reverted the destructive edit");
+        CHECK(arr->checkpointDepth(CheckpointScope::Track, 0) == 1, "mark still there after undo");
+        CHECK(!arr->popUndo(CheckpointScope::Track, 0), "empty undo is a no-op");
+    }
+
     void runCheckpointTests()
     {
         testSongSnapshotRestoreOne();
@@ -325,6 +349,7 @@ namespace lockstep
         testSeedFloorClearsStacks();
         testSongSwitchReseeds();
         testEmptyStackRestoreIsANoOp();
+        testUndoStackIsSeparateFromMarks();
     }
 }
 

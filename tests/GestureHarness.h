@@ -102,6 +102,7 @@ namespace lockstep::test
         int escapes = 0;
         int restorePops = 0;
         int restoreFloors = 0;
+        int undos = 0;
         int overdubArms = 0;
         int stepLatches = 0;
         int navPageUnlocks = 0;
@@ -114,6 +115,7 @@ namespace lockstep::test
         void escapeOverlay() override { ++escapes; }
         void restorePop() override { ++restorePops; }
         void restoreFloor() override { ++restoreFloors; }
+        void undo() override { ++undos; }
         void recordArmOverdub() override { ++overdubArms; }
         void stepLatch(int) override { ++stepLatches; }
         void navPageUnlock() override { ++navPageUnlocks; }

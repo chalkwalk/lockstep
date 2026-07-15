@@ -581,6 +581,10 @@ namespace lockstep
             trackStack_.clear();
             sceneStack_.clear();
             phraseStack_.clear();
+            songUndo_.clear();
+            trackUndo_.clear();
+            sceneUndo_.clear();
+            phraseUndo_.clear();
         }
 
         void snapshot(CheckpointScope scope, int track)
@@ -762,6 +766,117 @@ namespace lockstep
             return std::size_t{ 0 };
         }
 
+        // ── Undo (DESIGN §13.6) ───────────────────────────────────────────────
+        // Armed automatically before a destructive op (clear / paste / delete / bake /
+        // generator print / transpose / restore), walked by Func+O. Kept SEPARATE from
+        // the mark stacks so a flurry of Y-marks never buries the pre-mistake point.
+        // Same byte budget, same front-eviction. Restore is itself a destructive op, so
+        // it arms undo too (item F) — Func+O then takes a mis-fired restore back.
+        void armUndo(CheckpointScope scope, int track)
+        {
+            writeBackWorkingToActive();
+            switch (scope)
+            {
+                case CheckpointScope::Song: {
+                    songUndo_.push_back(song());
+                    evictToBudget(songUndo_);
+                    break;
+                }
+                case CheckpointScope::Track: {
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) break;
+                    auto& stk = trackUndo_[track];
+                    stk.push_back(song().tracks[idx(track)]);
+                    evictToBudget(stk);
+                    break;
+                }
+                case CheckpointScope::Scene: {
+                    auto& stk = sceneUndo_[sceneIdx];
+                    stk.push_back(scene());
+                    evictToBudget(stk);
+                    break;
+                }
+                case CheckpointScope::Phrase: {
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) break;
+                    const int pIdx = activePhraseIdx(track);
+                    auto& stk = phraseUndo_[{ track, pIdx }];
+                    stk.push_back(activePhrase(track));
+                    evictToBudget(stk);
+                    break;
+                }
+            }
+        }
+
+        // Apply (and pop) the newest undo entry for the scope. Returns false if the undo
+        // stack is empty — an empty undo NEVER falls through to the floor (that path is
+        // restoreToFloor's alone). Mirrors restoreOne but reads the *Undo_ containers.
+        bool popUndo(CheckpointScope scope, int track)
+        {
+            switch (scope)
+            {
+                case CheckpointScope::Song: {
+                    if (songUndo_.empty()) return false;
+                    song() = songUndo_.back();
+                    songUndo_.pop_back();
+                    syncWorkingFromActive();
+                    return true;
+                }
+                case CheckpointScope::Track: {
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+                    auto it = trackUndo_.find(track);
+                    if (it == trackUndo_.end() || it->second.empty()) return false;
+                    song().tracks[idx(track)] = it->second.back();
+                    it->second.pop_back();
+                    syncWorkingTrackFromActive(track);
+                    return true;
+                }
+                case CheckpointScope::Scene: {
+                    auto it = sceneUndo_.find(sceneIdx);
+                    if (it == sceneUndo_.end() || it->second.empty()) return false;
+                    scene() = it->second.back();
+                    it->second.pop_back();
+                    deviated.fill(false);      // live deviations are relative to old scene
+                    syncWorkingFromActive();
+                    return true;
+                }
+                case CheckpointScope::Phrase: {
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+                    const int pIdx = activePhraseIdx(track);
+                    auto it = phraseUndo_.find({ track, pIdx });
+                    if (it == phraseUndo_.end() || it->second.empty()) return false;
+                    activePhrase(track) = it->second.back();
+                    it->second.pop_back();
+                    syncWorkingTrackFromActive(track);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        [[nodiscard]] int undoDepth(CheckpointScope scope, int track) const
+        {
+            switch (scope)
+            {
+                case CheckpointScope::Song:
+                    return static_cast<int>(songUndo_.size());
+                case CheckpointScope::Track: {
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0;
+                    auto it = trackUndo_.find(track);
+                    return (it != trackUndo_.end()) ? static_cast<int>(it->second.size()) : 0;
+                }
+                case CheckpointScope::Scene: {
+                    auto it = sceneUndo_.find(sceneIdx);
+                    return (it != sceneUndo_.end()) ? static_cast<int>(it->second.size()) : 0;
+                }
+                case CheckpointScope::Phrase: {
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0;
+                    const int pIdx = activePhraseIdx(track);
+                    auto it = phraseUndo_.find({ track, pIdx });
+                    return (it != phraseUndo_.end()) ? static_cast<int>(it->second.size()) : 0;
+                }
+            }
+            return 0;
+        }
+
     private:
         [[nodiscard]] static std::size_t idx(int i) noexcept
         {
@@ -788,5 +903,13 @@ namespace lockstep
         std::map<int, std::vector<Song::SongTrack>> trackStack_;
         std::map<int, std::vector<Scene>> sceneStack_;
         std::map<std::pair<int, int>, std::vector<Phrase>> phraseStack_;
+
+        // Undo stacks — armed before destructive ops, walked by Func+O (item E). Same
+        // shape and budget as the mark stacks above, but distinct so marks and undo
+        // never collide (DESIGN §13.6).
+        std::vector<Song> songUndo_;
+        std::map<int, std::vector<Song::SongTrack>> trackUndo_;
+        std::map<int, std::vector<Scene>> sceneUndo_;
+        std::map<std::pair<int, int>, std::vector<Phrase>> phraseUndo_;
     };
 }

@@ -281,7 +281,7 @@ namespace lockstep::verbs
         {
             // VerbDelete reaches verbs::phrase() only as a fallback — normal flow
             // routes Phrase+Delete through CommandCore::handleDown (DeletePicker).
-            ctx.arrangement.snapshot(CheckpointScope::Song, 0);
+            ctx.arrangement.armUndo(CheckpointScope::Song, 0);
             for (auto& trk : ctx.sequence.tracks)
             {
                 for (auto& s : trk.steps)

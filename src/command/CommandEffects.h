@@ -93,6 +93,7 @@ namespace lockstep
         virtual void escapeOverlay() = 0;                     // Func dbl-tap: leave overlay
         virtual void restorePop() = 0;                        // Func+Snapshot: pop one
         virtual void restoreFloor() = 0;                      // Func+Snapshot hold: to floor
+        virtual void undo() = 0;                              // Func+Clear: undo last destructive op (9.4 E)
         virtual void recordArmOverdub() = 0;                  // RecordArm dbl-tap
         // (PlayStopToggle deliberately has no effect of its own: it reuses
         //  transport(Play), which is already the mode-aware toggle. A second path to

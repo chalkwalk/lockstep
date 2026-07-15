@@ -71,10 +71,10 @@ L22 | TapTempo idx=-1 | action=14
     (no observable state change)
 
 L22 | Func+Phrase+NavUp idx=-1 | action=76
-    down ckpt.Phrase: 0 -> 1
     down funcHeld: false -> true
     down phraseScopeHeld: false -> true
     down phraseScopeUsed: false -> true
+    down undo.Phrase: 0 -> 1
 
 L22 | Func+Track+NavUp idx=-1 | action=26
     down funcHeld: false -> true
@@ -90,9 +90,9 @@ L22 | Func+Morph+NavUp idx=-1 | action=28
     up   morphNavQualifier: 1 -> 0
 
 L22 | Phrase+NavUp idx=-1 | action=76
-    down ckpt.Phrase: 0 -> 1
     down phraseScopeHeld: false -> true
     down phraseScopeUsed: false -> true
+    down undo.Phrase: 0 -> 1
 
 L22 | Func+NavUp idx=-1 | action=22
     down funcHeld: false -> true
@@ -137,10 +137,10 @@ L12 | NavLeft idx=-1 | action=21
     (no observable state change)
 
 L22 | Func+Phrase+NavDown idx=-1 | action=77
-    down ckpt.Phrase: 0 -> 1
     down funcHeld: false -> true
     down phraseScopeHeld: false -> true
     down phraseScopeUsed: false -> true
+    down undo.Phrase: 0 -> 1
 
 L22 | Func+Track+NavDown idx=-1 | action=27
     down funcHeld: false -> true
@@ -156,9 +156,9 @@ L22 | Func+Morph+NavDown idx=-1 | action=29
     up   morphNavQualifier: 2 -> 0
 
 L22 | Phrase+NavDown idx=-1 | action=77
-    down ckpt.Phrase: 0 -> 1
     down phraseScopeHeld: false -> true
     down phraseScopeUsed: false -> true
+    down undo.Phrase: 0 -> 1
 
 L22 | Func+NavDown idx=-1 | action=23
     down funcHeld: false -> true
@@ -293,6 +293,9 @@ L22 | Song+VerbClear idx=-1 | action=42
     down songHeld: false -> true
     down swingDismissed: false -> true
 
+L22 | Func+VerbClear idx=-1 | action=79
+    down funcHeld: false -> true
+
 L22 | VerbClear idx=-1 | action=36
     (no observable state change)
 
@@ -311,13 +314,13 @@ L22 | Scene+VerbClear idx=-1 | action=37
     down swingDismissed: false -> true
 
 L22 | Track+VerbConfirm idx=-1 | action=50
-    down ckpt.Track: 0 -> 1
     down swingDismissed: false -> true
     down trackHeld: false -> true
+    down undo.Track: 0 -> 1
 
 L22 | Phrase+VerbConfirm idx=-1 | action=50
-    down ckpt.Phrase: 0 -> 1
     down phraseScopeHeld: false -> true
+    down undo.Phrase: 0 -> 1
 
 L22 | Func+VerbConfirm idx=-1 | action=39
     down funcHeld: false -> true
@@ -519,9 +522,9 @@ SCENARIO queue a scene, then Func+Scene+P (CANCEL) drops it
     (no observable state change)
 
 SCENARIO clear track (arms confirm), then confirm
-    ckpt.Track: 0 -> 1
     seq.focusPattern: x...x...x...x... -> ................
     seq.trigsPerTrack: 4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0, -> 0,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,
+    undo.Track: 0 -> 1
 
 SCENARIO grow to 2 pages, then page right (clamps at the last page)
     kbd.page: 0 -> 1

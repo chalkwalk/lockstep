@@ -501,6 +501,15 @@ namespace lockstep
             return arrangement_.checkpointDepth(scope, track);
         }
 
+        // 9.4 item E: undo — armed automatically before destructive ops, walked by
+        // Func+O. Separate from the marks above.
+        void armUndo(CheckpointScope scope, int track) { arrangement_.armUndo(scope, track); }
+        bool undo(CheckpointScope scope, int track);   // impl in .cpp — reinstalls machines
+        [[nodiscard]] int undoDepth(CheckpointScope scope, int track) const
+        {
+            return arrangement_.undoDepth(scope, track);
+        }
+
         // 5.2: Morph crossfader — fader position f ∈ [0,1] (0=A, 1=B).
         // UI / message thread writes morphFaderTarget_; audio thread reads it
         // each block and advances a smoothed follower (DESIGN §17.2).

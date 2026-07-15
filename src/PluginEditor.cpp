@@ -248,6 +248,33 @@ namespace lockstep
             ed.refreshSurface();
         }
 
+        // 9.4 item E: Func+O = UNDO. Reverts the held scope's last destructive op
+        // (clear / paste / delete / bake / generator print / transpose / restore).
+        // Bare Func with no scope resolves to the Song scope via ckScope, which is the
+        // grammar default and where most destructive ops arm.
+        void undo() override
+        {
+            int ckTrk = 0;
+            const CheckpointScope scp = ed.ckScope(ckTrk);
+            if (!ed.processor_.undo(scp, ckTrk))
+            {
+                ed.setStatus(status::nothingToUndo());
+            }
+            else
+            {
+                const char* name = "Song";
+                switch (scp)
+                {
+                    case CheckpointScope::Song:   name = "Song";   break;
+                    case CheckpointScope::Track:  name = "Track";  break;
+                    case CheckpointScope::Scene:  name = "Scene";  break;
+                    case CheckpointScope::Phrase: name = "Phrase"; break;
+                }
+                ed.setStatus(status::undid(name));
+            }
+            ed.refreshSurface();
+        }
+
         void recordArmOverdub() override
         {
             auto& clk = ed.processor_.clock();
@@ -281,7 +308,7 @@ namespace lockstep
             {
                 const int t = ed.keyboardArea_.getActiveTrack();
                 if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
-                ed.processor_.snapshot(CheckpointScope::Track, t);
+                ed.processor_.armUndo(CheckpointScope::Track, t);
                 auto& trk = ed.processor_.sequence().tracks[static_cast<std::size_t>(t)];
                 for (const int si : heldSteps)
                     if (si >= 0 && si < kMaxStepsPerTrack)
@@ -291,14 +318,14 @@ namespace lockstep
             {
                 const int t = ed.keyboardArea_.getActiveTrack();
                 if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
-                ed.processor_.snapshot(CheckpointScope::Track, t);
+                ed.processor_.armUndo(CheckpointScope::Track, t);
                 for (auto& st : ed.processor_.sequence().tracks[static_cast<std::size_t>(t)].steps)
                     st.microOffset = 0.0f;
             }
             else if (scope == PS::Phrase)
             {
                 int ckTrk = 0;
-                ed.processor_.snapshot(ed.ckScope(ckTrk), ckTrk);
+                ed.processor_.armUndo(ed.ckScope(ckTrk), ckTrk);
                 for (auto& trk : ed.processor_.sequence().tracks)
                     for (auto& st : trk.steps)
                         st.microOffset = 0.0f;
@@ -515,7 +542,7 @@ namespace lockstep
             const int t = ed.keyboardArea_.getActiveTrack();
             if (t >= 0 && t < static_cast<int>(kNumTracks))
             {
-                ed.processor_.snapshot(CheckpointScope::Phrase, t);
+                ed.processor_.armUndo(CheckpointScope::Phrase, t);
                 ed.processor_.transposeTrack(t, semitones);
                 ed.setStatus(juce::String(semitones > 0 ? "TRANSPOSE +" : "TRANSPOSE -")
                              + (std::abs(semitones) == 12 ? "oct" : "1"));
@@ -553,7 +580,7 @@ namespace lockstep
             auto& cl = ed.clipboard_;
             if (ed.phraseConflictAndConfirm(destSlot, ConfirmKind::PasteScene))
                 return;  // waiting for Yes/No
-            ed.processor_.snapshot(CheckpointScope::Song, 0);
+            ed.processor_.armUndo(CheckpointScope::Song, 0);
             auto& dst = ed.processor_.section();
             dst.activeMask = cl.scene.floor.activeMask;
             dst.coreTime = cl.scene.floor.coreTime;
@@ -578,13 +605,13 @@ namespace lockstep
         {
             if (kind == ConfirmKind::BakeScene)
             {
-                ed.processor_.snapshot(CheckpointScope::Song, 0);
+                ed.processor_.armUndo(CheckpointScope::Song, 0);
                 ed.processor_.bakeSceneState();
                 ed.setStatus(status::baked());
             }
             else if (kind == ConfirmKind::CreateScene)
             {
-                ed.processor_.snapshot(CheckpointScope::Song, 0);
+                ed.processor_.armUndo(CheckpointScope::Song, 0);
                 ed.processor_.createBakedCopyScene(target);
                 if (ed.processor_.clock().inPluginPlaying())
                     ed.processor_.queueScene(target, false);
@@ -594,7 +621,7 @@ namespace lockstep
             }
             else if (kind == ConfirmKind::CreateBaselineScene)
             {
-                ed.processor_.snapshot(CheckpointScope::Song, 0);
+                ed.processor_.armUndo(CheckpointScope::Song, 0);
                 ed.processor_.createBaselineCopyScene(target);
                 if (ed.processor_.clock().inPluginPlaying())
                     ed.processor_.queueScene(target, false);
@@ -604,7 +631,7 @@ namespace lockstep
             }
             else if (kind == ConfirmKind::PasteScene)
             {
-                ed.processor_.snapshot(CheckpointScope::Song, 0);
+                ed.processor_.armUndo(CheckpointScope::Song, 0);
                 auto& dst = ed.processor_.section();
                 auto& cl = ed.clipboard_;
                 dst.activeMask = cl.scene.floor.activeMask;
@@ -627,7 +654,7 @@ namespace lockstep
             {
                 if (target >= 0 && target < static_cast<int>(kNumTracks))
                 {
-                    ed.processor_.snapshot(CheckpointScope::Track, target);
+                    ed.processor_.armUndo(CheckpointScope::Track, target);
                     ed.processor_.deleteTrack(target);
                     ed.setStatus(status::deletedTrack(target));
                 }
@@ -638,7 +665,7 @@ namespace lockstep
                 {
                     // Slot-specific deletion (Stage 7): reset one phrase on focused track.
                     const int trk = ed.keyboardArea_.getActiveTrack();
-                    ed.processor_.snapshot(CheckpointScope::Track, trk >= 0 ? trk : 0);
+                    ed.processor_.armUndo(CheckpointScope::Track, trk >= 0 ? trk : 0);
                     ed.processor_.deletePhraseSlot(trk >= 0 ? trk : 0, target);
                     ed.setStatus(status::deletedPhrase());
                 }
@@ -646,7 +673,7 @@ namespace lockstep
                 {
                     // Legacy fallback: old-style global phrase wipe (no slot selected).
                     int ckTrk = 0;
-                    ed.processor_.snapshot(ed.ckScope(ckTrk), ckTrk);
+                    ed.processor_.armUndo(ed.ckScope(ckTrk), ckTrk);
                     for (auto& trk : ed.processor_.sequence().tracks)
                     {
                         for (auto& s : trk.steps)
@@ -669,7 +696,7 @@ namespace lockstep
                 {
                     // Slot-specific scene deletion (Stage 7).
                     int ckTrk = 0;
-                    ed.processor_.snapshot(ed.ckScope(ckTrk), ckTrk);
+                    ed.processor_.armUndo(ed.ckScope(ckTrk), ckTrk);
                     ed.processor_.deleteSceneSlot(target);
                     ed.releaseTransientLatch(ControllerButton::SceneScope);
                     ed.setStatus(status::deletedPart());
@@ -678,7 +705,7 @@ namespace lockstep
                 {
                     // Legacy fallback (should not happen with picker flow).
                     int ckTrk = 0;
-                    ed.processor_.snapshot(ed.ckScope(ckTrk), ckTrk);
+                    ed.processor_.armUndo(ed.ckScope(ckTrk), ckTrk);
                     ed.processor_.deletePart();
                     ed.releaseTransientLatch(ControllerButton::SceneScope);
                     ed.setStatus(status::deletedPart());
@@ -688,7 +715,7 @@ namespace lockstep
             {
                 if (target >= 0 && target < static_cast<int>(kNumTracks))
                 {
-                    ed.processor_.snapshot(CheckpointScope::Track, target);
+                    ed.processor_.armUndo(CheckpointScope::Track, target);
                     auto& trk = ed.processor_.sequence().tracks[static_cast<std::size_t>(target)];
                     for (auto& s : trk.steps)
                     {
@@ -705,7 +732,7 @@ namespace lockstep
             {
                 if (target >= 0 && target < static_cast<int>(kNumTracks))
                 {
-                    ed.processor_.snapshot(CheckpointScope::Song, target);
+                    ed.processor_.armUndo(CheckpointScope::Song, target);
                     ed.processor_.clearTrackAllPhrases(target);
                     ed.releaseTransientLatch(ControllerButton::TrackScope);
                     ed.setStatus(status::clearedTrackAll(target));
@@ -714,7 +741,7 @@ namespace lockstep
             else if (kind == ConfirmKind::ClearPhrase)
             {
                 int ckTrk = 0;
-                ed.processor_.snapshot(ed.ckScope(ckTrk), ckTrk);
+                ed.processor_.armUndo(ed.ckScope(ckTrk), ckTrk);
                 for (auto& trk : ed.processor_.sequence().tracks)
                 {
                     for (auto& s : trk.steps)
@@ -5183,7 +5210,7 @@ namespace lockstep
                             // Empty + bare: baked copy (effective, follows deviations).
                             if (phraseConflictAndConfirm(ev.index, ConfirmKind::CreateScene))
                                 break;   // waiting for Yes/No
-                            processor_.snapshot(CheckpointScope::Song, 0);
+                            processor_.armUndo(CheckpointScope::Song, 0);
                             processor_.createBakedCopyScene(ev.index);
                             if (processor_.clock().inPluginPlaying())
                                 processor_.queueScene(ev.index, false);
@@ -5196,7 +5223,7 @@ namespace lockstep
                             // Empty + Func: baseline copy (floor diagonal row, no deviations).
                             if (phraseConflictAndConfirm(ev.index, ConfirmKind::CreateBaselineScene))
                                 break;   // waiting for Yes/No
-                            processor_.snapshot(CheckpointScope::Song, 0);
+                            processor_.armUndo(CheckpointScope::Song, 0);
                             processor_.createBaselineCopyScene(ev.index);
                             if (processor_.clock().inPluginPlaying())
                                 processor_.queueScene(ev.index, false);
@@ -5207,7 +5234,7 @@ namespace lockstep
                         else if (!occupied && muteHeld)
                         {
                             // Empty + Mute: blank scene.
-                            processor_.snapshot(CheckpointScope::Song, 0);
+                            processor_.armUndo(CheckpointScope::Song, 0);
                             processor_.createDefaultScene(ev.index);
                             if (processor_.clock().inPluginPlaying())
                                 processor_.queueScene(ev.index, false);
@@ -5741,7 +5768,7 @@ namespace lockstep
                     {
                         const auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(euclidTrack_)];
                         if (wt.length > 0)
-                            processor_.snapshot(CheckpointScope::Phrase, euclidTrack_);
+                            processor_.armUndo(CheckpointScope::Phrase, euclidTrack_);
                         applyEuclidToTrack(euclidTrack_);
                         setStatus("EUCLID committed");
                     }
@@ -5760,7 +5787,7 @@ namespace lockstep
                     {
                         const auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(melodicTrack_)];
                         if (wt.length > 0)
-                            processor_.snapshot(CheckpointScope::Phrase, melodicTrack_);
+                            processor_.armUndo(CheckpointScope::Phrase, melodicTrack_);
                         applyMelodyToTrack(melodicTrack_);
                         setStatus("MELODY printed");
                     }
@@ -5779,7 +5806,7 @@ namespace lockstep
                     {
                         const auto& wt = processor_.sequence().tracks[static_cast<std::size_t>(harmonyTrack_)];
                         if (wt.length > 0)
-                            processor_.snapshot(CheckpointScope::Phrase, harmonyTrack_);
+                            processor_.armUndo(CheckpointScope::Phrase, harmonyTrack_);
                         applyHarmonyToTrack(harmonyTrack_);
                         setStatus("CHORD printed");
                     }

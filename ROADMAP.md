@@ -413,7 +413,7 @@ no overlap rule.
       `B`, default 64 MB/scope): measured payloads are `Scene` 192 B, `Phrase` 11 KB,
       `Track` 177 KB, `Song` 2.77 MB, so a flat count is the wrong shape (§13.6). The
       cheap scopes go effectively unbounded; only `Song` self-limits (~20).
-- [ ] **E — Undo stack + `Func+O`.** A *shallow* per-scope stack (a few levels deep,
+- [x] **E — Undo stack + `Func+O`.** *(Shipped 2026-07-14.)* A *shallow* per-scope stack (a few levels deep,
       memory-bounded like the mark stacks in D) armed by the destructive ops (which
       already know their scope — the auto-captures push Track/Phrase/Song correctly
       today), kept separate from marks so a flurry of `Y`s never buries the pre-mistake

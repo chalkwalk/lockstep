@@ -184,8 +184,8 @@ namespace lockstep
         // O: CLEAR on the tap, DELETE on the HOLD (9.29). Func no longer turns Clear
         // into Delete -- Func+Track is the Machine scope, and its Clear is INIT.
         CHECK(resolve(CB::VerbClear, kModNone) == AId::VerbClear, "O bare = CLEAR");
-        CHECK(resolve(CB::VerbClear, kModFunc) == AId::VerbClear,
-              "Func+O = CLEAR (Func qualifies the clear; it is not a delete)");
+        CHECK(resolve(CB::VerbClear, kModFunc) == AId::VerbUndo,
+              "Func+O (no scope) = UNDO (9.4 E — the counter of Clear)");
         CHECK(resolve(CB::VerbClear, kModTrack) == AId::VerbScopedClear, "Track+O = CLEAR");
         CHECK(resolve(CB::VerbClear, kModTrack | kModFunc) == AId::MachineInit,
               "Machine (Func+Track) + O = INIT the sound");

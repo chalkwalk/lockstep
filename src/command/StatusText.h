@@ -169,6 +169,12 @@ namespace lockstep::status
     // 9.4 item A: the scope has no marks. Restore does NOTHING and says so; it used to
     // fall through to the project baseline, silently discarding everything since load.
     inline juce::String nothingToRestore() { return "Nothing to restore"; }
+
+    // 9.4 item E: undo (Func+O). The scope noun is passed in (mapped from
+    // CheckpointScope at the call site, mirroring markedTrack taking an int) so this
+    // text header stays decoupled from the core model.
+    inline juce::String nothingToUndo() { return "Nothing to undo"; }
+    inline juce::String undid(const juce::String& scope) { return "Undid " + scope; }
     inline juce::String pastePickScope() { return "Paste: pick a scope"; }
 
     // ---- marks (9.4 item B) -------------------------------------------------

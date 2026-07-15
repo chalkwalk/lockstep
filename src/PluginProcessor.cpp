@@ -7073,6 +7073,14 @@ namespace lockstep
         reinstallMachinesFromActiveKit();
     }
 
+    bool LockstepProcessor::undo(CheckpointScope scope, int track)
+    {
+        const bool ok = arrangement_.popUndo(scope, track);
+        if (ok)
+            reinstallMachinesFromActiveKit();
+        return ok;
+    }
+
     void LockstepProcessor::swapPhraseForTrack(int t, int phraseIdx)
     {
         arrangement_.swapPhraseForTrack(t, phraseIdx);

@@ -337,6 +337,7 @@ namespace lockstep
             case AId::FuncEscape:       fx.escapeOverlay(); return true;
             case AId::VerbRestore:      fx.restorePop(); return true;
             case AId::RestoreFloor:     fx.restoreFloor(); return true;
+            case AId::VerbUndo:         fx.undo(); return true;
 
             case AId::RecordArmToggle:  fx.transport(TA::RecArm); return true;
             case AId::RecordArmOverdub: fx.recordArmOverdub(); return true;

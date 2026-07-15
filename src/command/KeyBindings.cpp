@@ -212,6 +212,11 @@ namespace lockstep
           Gesture::Tap, true },
         { CB::VerbClear, -1, kModMorph, SL::Base, AId::VerbMorphBake, u8"BAKE", CS::Resting },
         { CB::VerbClear, -1, kModSong, SL::Base, AId::VerbScopedClear, u8"PANIC", CS::Resting },
+        // 9.4 item E: Func+O (no scope) = UNDO — the counter of Clear, on the seat 9.29
+        // vacated when Func+VerbClear stopped meaning DELETE. Bare Func only: a held
+        // scope's Func rows (INIT at Track+Func, ERASE at Morph+Func) win on popcount,
+        // and Trig+Func+Clear (clear P-Locks) is handled inside verbs::trig, not here.
+        { CB::VerbClear, -1, kModFunc, SL::Base, AId::VerbUndo, u8"UNDO", CS::FuncHeld },
         { CB::VerbClear, -1, kModNone, SL::Base, AId::VerbClear, u8"CLEAR", CS::Resting },
 
         // The delete family, on the hold rail (9.29). One row per deletable scope --

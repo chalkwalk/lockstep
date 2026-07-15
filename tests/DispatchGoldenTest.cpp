@@ -309,6 +309,16 @@ namespace
         put(d, "ckpt.Scene", p.checkpointDepth(CheckpointScope::Scene, ft));
         put(d, "ckpt.Phrase", p.checkpointDepth(CheckpointScope::Phrase, ft));
 
+        // Undo depth per scope (9.4 item E). Destructive ops (clear/paste/delete/bake/
+        // generator print/transpose) now arm the UNDO stack, not the mark stacks above,
+        // and Func+O walks it. Mirroring ckpt.* here makes that relocation visible: a
+        // scenario that used to bump ckpt.Song now bumps undo.Song instead. Without this
+        // line the move would read as a silent loss of the checkpoint bump.
+        put(d, "undo.Song", p.undoDepth(CheckpointScope::Song, ft));
+        put(d, "undo.Track", p.undoDepth(CheckpointScope::Track, ft));
+        put(d, "undo.Scene", p.undoDepth(CheckpointScope::Scene, ft));
+        put(d, "undo.Phrase", p.undoDepth(CheckpointScope::Phrase, ft));
+
         // Live scene deviations. SYNC (9.4 item C) exists to CLEAR these, and nothing
         // else it touches lands anywhere the digest could see -- so without this line the
         // net watches SYNC fire and records "no observable state change", which is what
