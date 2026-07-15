@@ -416,22 +416,24 @@ no overlap rule.
 - [ ] **E — Undo stack + `Func+O`.** A *shallow* per-scope stack armed by the
       destructive ops (which already know their scope — the auto-captures push
       Track/Phrase/Song correctly today), kept separate from marks so a flurry of `Y`s
-      never buries the pre-mistake point. `Func+O` pops it. No overlap guard, no
-      "UNDO EXPIRED" — an undo just reverts its scope's last destructive op.
-- [ ] **F — Non-destructive restore.** Before a restore overwrites live state, stash
-      `copy(live)` in a single per-scope **pre-restore slot**, so nothing is silently
-      lost. `UNRESTORE`/`REDO` (one level) are **designed but deferred** — reserve the
-      slot and the redo entry so they ship without rework; the first build is
-      SNAP/RESTORE/UNDO only, and the redo gestures get their grammar seat when they
-      ship (§13.6).
+      never buries the pre-mistake point. `Func+O` reverts the scope's last destructive
+      op. No overlap guard, no "UNDO EXPIRED".
+- [ ] **F — Restore is a destructive op.** A restore overwrites live state, so it
+      **arms the undo stack** (item E) exactly like a clear or paste — no separate
+      pre-restore slot, no separate `unrestore` gesture. `Func+O` after a restore takes
+      it back; that is the whole fat-finger guarantee. `REDO` (re-apply the last undone
+      op, a restore included) is **designed but deferred** — the first build is
+      SNAP/RESTORE/UNDO, and redo gets its grammar seat when it ships (§13.6). *(Open:
+      is the undo guarantee strictly the single most-recent op, or a shallow few? Spec
+      says the last op; confirm depth before building E.)*
 - [ ] **G — Surface.** Mark-depth pip on each scope key (marks only — undo is not a
       mark); status lane names the pending undo. Retire/repoint the Song-only `CK:N`
       chip.
 - [ ] **H — Tests.** Per the input-modality mandate: resolution, scope routing, and
       round-trip. Plus the model's own invariants — each scope's stack is independent
-      (a Song restore leaves Track marks untouched); a restore never loses live work
-      (the pre-restore slot holds it); undo reverts only its scope's last destructive
-      op; empty-stack restore never wipes (shipped in A, keep the guard).
+      (a Song restore leaves Track marks untouched); a restore arms undo so `Func+O`
+      takes it back; undo reverts only its scope's last destructive op; empty-stack
+      restore never wipes (shipped in A, keep the guard).
 
 ### 9.5 — Velocity overlay polish  *[shipped]*
 Mix-blend baseline fix (swings around velCenter on unauthored steps), the

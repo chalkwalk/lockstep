@@ -2717,31 +2717,29 @@ state, not a corrupt one. It is a combination you didn't snapshot *as a unit*, b
 expects. A consistency rule that instead *stopped* you, or silently dropped a mark
 you can see on its pip, would be more surprising than the freedom it removes.
 
-#### Restore never loses live work — one level of unrestore
+#### Restore is undoable — it is just another destructive op
 
-A snapshot is a **state overlay, not a diff**, so restore overwrites live state. It
-must not silently discard what you were about to leave. The rule:
-
-> **Before a restore overwrites live state, it stashes the current state in a single
-> "pre-restore" slot for that scope.** One `unrestore` puts it back. That is the
-> whole "don't lose anything" guarantee — one slot, not a stack, not a branch tree.
-
-So the gesture family is:
+A snapshot is a **state overlay, not a diff**, so a restore overwrites live state,
+and must not silently discard what you were about to leave. Rather than give restore
+its own protection, note that *overwriting live state is exactly what a destructive
+op does* — so a restore **arms the undo stack** like any clear, delete, paste, or
+Control-All sweep. There is no separate "unrestore" gesture or pre-restore slot:
+undoing a restore is simply `Func+O`.
 
 - **SNAP** (`Y`): push `copy(live)` onto that scope's mark stack.
-- **RESTORE** (`Func+Y`): stash `copy(live)` in the scope's pre-restore slot; live ←
-  top mark; pop it.
-- **UNRESTORE** (redo of restore): swap live back with the pre-restore slot. One
-  level — fat-finger insurance, not deep scrubbing.
-- **UNDO** (`Func+O`): pop the scope's undo stack (armed by destructive ops).
-- **REDO** (of undo): re-apply what the last undo reverted.
+- **RESTORE** (`Func+Y`): arm an undo entry (`copy(live)`), then set live ← top mark
+  and pop it.
+- **UNDO** (`Func+O`): revert the **last destructive op** on that scope — a clear, a
+  paste, *or a restore*. This is what protects a fat-fingered restore.
+- **REDO** (of undo): re-apply what the last undo reverted (including a restore).
+  **Designed but deferred** — the first build is `SNAP` / `RESTORE` / `UNDO`; redo
+  gets its grammar seat when it ships (`Func+O` is undo; the verb letters are spoken
+  for).
 
-`UNRESTORE` and `REDO` are **designed but deferred** — the model reserves the
-pre-restore slot and the redo entry so they can ship without rework, but the first
-build is `SNAP` / `RESTORE` / `UNDO` only. They also have no grammar seat yet
-(`Func+O` is undo; the verb letters are spoken for), which is settled when they ship.
-Deep multi-level unrestore and cross-branch time travel are the rejected model's
-territory, not this one's.
+So marks and undo stay separate — marks are your curated scratchpad (`Func+Y`), undo
+is the last-thing-reverter (`Func+O`) — and the only refinement is that "the last
+thing" can itself be a restore. Deep multi-level scrubbing and cross-branch time
+travel are the rejected model's territory, not this one's.
 
 #### The gestures
 

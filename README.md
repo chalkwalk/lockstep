@@ -1370,10 +1370,11 @@ does not second-guess you with a consistency rule. (A more elaborate,
 globally-consistent model was designed and deliberately set aside as too clever for
 live use — DESIGN §13.6 and `docs/snapshot-undo-rejected-elaborate-model.md`.)
 
-**Restore never loses live work.** Because a snapshot overwrites live state, a
-restore first tucks what you had into a one-deep *unrestore* slot, so a mis-fired
-restore is a single press to reverse. (Unrestore and redo are designed but ship after
-the first cut.)
+**A restore is undoable.** Because a snapshot overwrites live state, a restore counts
+as a destructive op — so `Func+O` (Undo) reverts it, exactly as it reverts a clear or
+a paste. A mis-fired restore is one press to take back; there is no separate
+"unrestore" to learn. (Redo — re-applying what you undid, a restore included — is
+designed but ships after the first cut.)
 
 **RAM-only** — marks do *not* survive save/reload; the floor is re-seeded
 from disk so "reload saved" always works.
