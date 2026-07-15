@@ -5261,8 +5261,12 @@ namespace lockstep
             return { "FLTR", mnp, (kFltrSlots + kParamsPerPage - 1) / kParamsPerPage, -1 };
 
         // Canonical AMP section (3): track block owns it unless machine has params there.
+        // +1 slot reserves a page position for the synthetic cue cell (ampCueSlot),
+        // which the MZ renders after the real AMP params. For real machines (ampSlots
+        // 5 or 11) this never adds a page — it only would if ampSlots were an exact
+        // multiple of kParamsPerPage.
         if (sectionIndex == kAmpSecIdx && !mHasAmp)
-            return { "AMP", chanOff, (ampSlots + kParamsPerPage - 1) / kParamsPerPage, -1 };
+            return { "AMP", chanOff, (ampSlots + 1 + kParamsPerPage - 1) / kParamsPerPage, -1 };
 
         // Machine-owned canonical sections.
         if (sectionIndex < m->numSections())
@@ -5301,8 +5305,8 @@ namespace lockstep
                 }
                 if (mHasAmp && virtIdx == 0)
                     return { "AMP", chanOff,
-                             (ampSlots + kParamsPerPage - 1) / kParamsPerPage,
-                             kAmpSecIdx };
+                             (ampSlots + 1 + kParamsPerPage - 1) / kParamsPerPage,
+                             kAmpSecIdx };   // +1: reserve the synthetic cue cell slot
             }
         }
 
@@ -5452,6 +5456,23 @@ namespace lockstep
             }
         }
         return 0.0f;
+    }
+
+    int LockstepProcessor::ampCueSlot(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
+        const auto ti = static_cast<std::size_t>(track);
+        auto* m = machines_[ti].get();
+        if (m == nullptr || m->isMidiOut()) return -1;
+        // The channel block (Level/Pan/Out[/ENV]) always lives at chanOff and always
+        // carries sectionIndex == kAmpSecIdx — on the canonical AMP page for a track-
+        // owned AMP, or on the virtual AMP extension page when the machine owns the AMP
+        // section. Either way the cue cell rides one past that block; the MZ gates on
+        // the kAmpSecIdx page so it renders in both cases.
+        const int mnp     = m->numParams();
+        const int chanOff = mnp + kFltrSlots;
+        const int ampSlots = kChannelSlots + (m->hasInternalAmp() ? 0 : kEnvSlots);
+        return chanOff + ampSlots;   // one past the last real channel-block param
     }
 
     void LockstepProcessor::triggerPreview(int poolIndex, int track)

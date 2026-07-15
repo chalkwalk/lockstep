@@ -113,6 +113,35 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // 6.4: the AMP-page cue cell is a SYNTHETIC slot (ampCueSlot) that reads/writes
+    // getCueBalance/setCueBalance — it must sit past the real AMP params and must NOT
+    // be a base-param store entry (that is the double-store the design forbids).
+    static void testAmpCueSlot()
+    {
+        auto proc = std::make_unique<LockstepProcessor>();
+        installDrum(*proc, 0);   // DrumMachine: hasInternalAmp() = true, no env, no inserts
+
+        DrumMachine tmp;
+        const int mnp     = tmp.numParams();
+        const int chanOff = mnp + LockstepProcessor::kFltrSlots;
+        const int ampSlots = LockstepProcessor::kChannelSlots;   // internal amp => no ENV
+        const int expected = chanOff + ampSlots;
+
+        CHECK(proc->ampCueSlot(0) == expected, "ampCueSlot sits one past the AMP params");
+        // With no ENV and no inserts, the synthetic cue slot lands exactly past the
+        // whole track schema — proving it displaces no real param.
+        CHECK(proc->ampCueSlot(0) == proc->numParams(0), "cue slot is past every real slot");
+        CHECK(proc->ampCueSlot(-1) == -1, "bad track index => -1");
+
+        // Writing the overlay is visible via getCueBalance but must NOT appear in the
+        // base-param store at that slot (baseParamValue there is the inert fallthrough).
+        proc->setCueBalance(0, 0.6f);
+        CHECK(feq(proc->getCueBalance(0), 0.6f, 1e-4f), "cue overlay reads back");
+        CHECK(feq(proc->baseParamValue(0, proc->ampCueSlot(0)), 0.0f, 1e-4f),
+              "cue slot is not a base-param (no double-store)");
+    }
+
+    // -----------------------------------------------------------------------
     static void testCueBalanceRoundTrip()
     {
         auto proc = std::make_unique<LockstepProcessor>();
@@ -305,6 +334,7 @@ namespace lockstep
     {
         testCueBalanceDefaultAndSet();
         testCueBalanceToggle();
+        testAmpCueSlot();
         testCueBalanceRoundTrip();
         testCueCrossfade();
         testCueSendFade();

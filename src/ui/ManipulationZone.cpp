@@ -190,6 +190,17 @@ namespace lockstep
                 }
                 const int track = area_.getActiveTrack();
                 const int slot = slotOffset_ + i;
+                // 6.4: the synthetic cue cell writes straight to the APVTS overlay,
+                // bypassing the base-param / step-override / morph paths entirely
+                // (cue is a performance overlay, not a P-lockable base param).
+                if (i == cueSlotIndex_)
+                {
+                    processor_.setCueBalance(track, v);
+                    valueLabels_[static_cast<std::size_t>(i)].setText(
+                        juce::String(juce::roundToInt(v * 100.0f)) + "%",
+                        juce::dontSendNotification);
+                    return;
+                }
                 // WS4: the "Out" routing slot runs over a filtered candidate
                 // index — map it back to an OutputDest encoding and update the
                 // value label live (every selectable index is already valid).
@@ -526,6 +537,7 @@ namespace lockstep
         updatingFromTimer_ = true;
         outSlotIndex_ = -1;  // WS4: recomputed below when the Out slot is visible
         inSrcSlotIndex_ = -1;  // #3: recomputed below when input_source is visible
+        cueSlotIndex_ = -1;  // 6.4: recomputed below when the AMP cue cell is visible
         for (int i = 0; i < kNumSlots; ++i)
         {
             const auto si = static_cast<std::size_t>(i);
@@ -564,6 +576,39 @@ namespace lockstep
                 clearBtns_[si].setEnabled(false);
                 clearBtns_[si].setAlpha(0.0f);
                 samplePickerBtn_.setVisible(false);
+                continue;
+            }
+
+            // 6.4: the synthetic cue cell — the last cell of the canonical AMP page.
+            // NOT a base param: read routes to getCueBalance, write to setCueBalance
+            // (APVTS overlay), so it never touches ParamFrame/channelState (no double-
+            // store, not P-lockable). Rendered like a unipolar Level control ("edited
+            // in context like Level", DESIGN §31.3). Gated on the AMP section so its
+            // slot index (which coincides with the first insert slot) can never hijack
+            // the FX page.
+            if (activeSectionIndex == LockstepProcessor::kAmpSecIdx
+                && slot == processor_.ampCueSlot(track))
+            {
+                cueSlotIndex_ = i;
+                const float cueVal = processor_.getCueBalance(track);
+                MetaRotary::View cv;
+                cv.rangeLo = 0.0;
+                cv.rangeHi = 1.0;
+                cv.interval = 0.0;
+                cv.ringMode = RingMode::UnipolarFill;
+                cv.doubleClickEnabled = true;
+                cv.doubleClickValue = 0.0;
+                cv.enabled = true;
+                cv.alpha = 1.0f;
+                cv.value = static_cast<double>(cueVal);
+                sliders_[si].applyView(cv);
+                labels_[si].setText("Cue", juce::dontSendNotification);
+                valueLabels_[si].setText(
+                    juce::String(juce::roundToInt(cueVal * 100.0f)) + "%",
+                    juce::dontSendNotification);
+                clearBtns_[si].setEnabled(false);
+                clearBtns_[si].setAlpha(0.0f);
+                if (i == 0) samplePickerBtn_.setVisible(false);
                 continue;
             }
 

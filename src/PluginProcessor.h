@@ -567,6 +567,13 @@ namespace lockstep
         void setCueBalance(int track, float balance);
         void toggleCueBalance(int track);
 
+        // 6.4: the synthetic AMP-page slot index that hosts the per-track cue cell.
+        // It sits one past the real AMP-section params (Level..Out[..ENV]) and is NOT
+        // a base-param/ParamFrame slot — the ManipulationZone renders it and routes
+        // its read/write to get/setCueBalance (APVTS), so cue never double-stores.
+        // Returns -1 for tracks with no canonical AMP page (MIDI-out / machine-owned AMP).
+        int ampCueSlot(int track) const;
+
         // Panic: flush all active voices + send All-Notes-Off without touching the clock.
         // UI thread: call requestPanic(). Audio thread consumes panicPending_ in processBlock.
         void requestPanic() { panicPending_.store(true, std::memory_order_release); }
@@ -1406,7 +1413,7 @@ namespace lockstep
         MidiClockReceiver midiClockReceiver_;
         // Slot block sizes for the always-present track blocks (DESIGN §14).
         static constexpr int kFltrSlots    = TrackFltrState::kNumSlots;      // 6
-        static constexpr int kChannelSlots = TrackChannelState::kNumSlots;   // 4
+        static constexpr int kChannelSlots = TrackChannelState::kNumSlots;   // 5 (level,pan,sendA,sendB,out)
         static constexpr int kEnvSlots     = TrackEnvState::kNumSlots;       // 6
         static constexpr int kFltrSecIdx   = 2;  // canonical FLTR section index
         static constexpr int kAmpSecIdx    = 3;  // canonical AMP section index

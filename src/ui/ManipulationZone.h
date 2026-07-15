@@ -184,5 +184,11 @@ namespace lockstep
         // domain (validInputSources — None / Ext / safe Master / non-cyclic taps)
         // so the performer can never jog onto a feedback-forming source.
         int inSrcSlotIndex_ = -1;
+
+        // 6.4: which zone slot currently hosts the synthetic per-track cue cell, or
+        // -1. Unlike the param cells, this one is not a base-param slot — its read
+        // routes to getCueBalance and its write to setCueBalance (APVTS overlay), so
+        // it never enters ParamFrame/channelState (no double-store, no P-Lock).
+        int cueSlotIndex_ = -1;
     };
 }
