@@ -368,8 +368,37 @@ namespace lockstep
         CHECK(arr->undoDepth(CheckpointScope::Track, 0) == 0, "and arms no undo");
     }
 
+    // ── 9.4 item H: the model's invariants, stated as named cases ─────────────
+
+    // Scopes are independent: no cross-scope epoch or overlap rule. A restore in one
+    // scope leaves every other scope's marks untouched.
+    static void testScopesAreIndependent()
+    {
+        auto arr = makeArrangement();
+        arr->snapshot(CheckpointScope::Track, 3);          // a Track-3 mark
+        arr->snapshot(CheckpointScope::Song, 0);           // a Song mark
+        CHECK(arr->restoreOne(CheckpointScope::Song, 0), "restore the Song");
+        CHECK(arr->checkpointDepth(CheckpointScope::Track, 3) == 1,
+              "a Song restore leaves the Track-3 mark untouched (no cross-scope rule)");
+    }
+
+    // Undo is a shallow STACK, not a single slot: several destructive ops each leave
+    // their own recoverable level, popped newest-first.
+    static void testUndoIsShallowNotSingle()
+    {
+        auto arr = makeArrangement();
+        arr->armUndo(CheckpointScope::Track, 0);           // op 1
+        arr->armUndo(CheckpointScope::Track, 0);           // op 2
+        CHECK(arr->undoDepth(CheckpointScope::Track, 0) == 2, "two undo levels held");
+        CHECK(arr->popUndo(CheckpointScope::Track, 0), "pop op 2");
+        CHECK(arr->popUndo(CheckpointScope::Track, 0), "pop op 1");
+        CHECK(!arr->popUndo(CheckpointScope::Track, 0), "then empty");
+    }
+
     void runCheckpointTests()
     {
+        testScopesAreIndependent();
+        testUndoIsShallowNotSingle();
         testSongSnapshotRestoreOne();
         testSongRestoreToFloor();
         testSongFloorIdempotent();

@@ -19,15 +19,13 @@ milestones below. Next orders of business, in order:
 
 0. *(done since the review, same day)* — the housekeeping sweep (`9.14` closed
    with the stage-6 audit; pool content-hash comments corrected), the `9.23`
-   Stream→pool wiring gap (shipped as `9.23` S9), and the `9.4` design session
-   (spec in DESIGN §13.6; build item A — the silent restore-wipe fix — shipped).
-1. **`9.4` — snapshot / undo build items B–H.** The spec is in; wire scoped
-   snapshot, rehome SYNC, the epoch/overlap engine, undo on `Func+O`, surface
-   + tests.
-2. **`6.4` — Cue completion.** Smaller than the roadmap claimed (see the scope
+   Stream→pool wiring gap (shipped as `9.23` S9), and **`9.4` snapshot/undo shipped
+   in full** (A–H: phantom cluster fixed, simple per-scope model built, undo on
+   `Func+O`; spec in DESIGN §13.6, elaborate model rejected-but-preserved).
+1. **`6.4` — Cue completion.** Smaller than the roadmap claimed (see the scope
    correction in 6.4): the scope key and the bus are live; what is missing is the
    per-track cue send tap and the `Cue`+X gestures.
-3. **`5.3` — Song/Scene management UI.** The big arc: names, colours, browser,
+2. **`5.3` — Song/Scene management UI.** The big arc: names, colours, browser,
    sound recall. Needs its own brainstorm/design session first — "Kit" is retired
    as a term (`9.29`), so the recall-unit story is re-derived, likely atop
    `SoundPool`. Must fit the picker paradigm (step grid is the selection surface;
@@ -317,122 +315,36 @@ and dogfooding (8.28 era). Docs shipped in the same pass; code follows.
 - [x] **B3** — Value-label clarity per §6.9: "Trk N" density labels;
       "EXEMPT"/"SCRUB"/"RE-ROLL"/"REPLACE"/"UNIFM"/"METRIC"/"SUS+REL".
 
-### 9.4 — Snapshot / undo model  *[specced 2026-07-14 — build open]*
-The design session ran on 2026-07-14. **Spec: DESIGN §13.6** (rewritten). The
-session did not merely resolve the J1/J2 tension — it found that the half of the
-feature the tension was about **had never been wired**, and that the shipped half
-could silently destroy work. Both findings are below; the build items follow.
+### 9.4 — Snapshot / undo model  *[shipped 2026-07-14]*
+The 2026-07-14 design session (spec: **DESIGN §13.6**, rewritten) both fixed a
+phantom cluster and settled the model. **Phantoms fixed (A–C):** `Track+Y` /
+`Phrase+Y` snapshot had never been wired (no scoped row, so the bare "SNAP" label
+dispatched to nothing), `Scene+Y`→`Scene+O` rehomed SYNC, and an editor
+cancel-a-queued-launch intercept had shadowed both `Scene+O` SYNC and `Phrase+O`
+CLEAR PHRASE into dead code — cancel moved to `Func+P` (the pending-action verb).
+The empty-stack restore that silently reverted a track to the project baseline is
+now a no-op saying `NOTHING TO RESTORE`. **Load-bearing lesson:** the binding table
+is the dispatch golden's enumeration domain (one scenario per *row*), so a verb that
+leans on a barer row's label is never tested — every scoped verb now gets its own
+row.
 
-**What the session decided (two passes).** The first pass specced a
-globally-consistent model — every entry carrying a scope + global epoch, an
-ancestor-overlap rule where applying an entry *invalidates every newer overlapping
-entry*, restore dropping them and undo *refusing* when stale (`UNDO EXPIRED`), plus a
-vim-style branch/chronological second axis. A **second pass rejected it**: every
-checkpoint payload is a complete, valid overlay for its scope, so a mixed restore is
-a real playable state, not a corrupt one — the overlap machinery solved a
-consistency problem a live performer never experiences, and would instead *stop* the
-player or silently drop a mark they can see. The rejected design is preserved in
-`docs/snapshot-undo-rejected-elaborate-model.md` (with the CUJs that would revive
-it). **What we build:** independent per-scope stacks, no epoch, no cross-scope rule.
-The one idea kept from the first pass is that *marks and undo stay separate* — marks
-are yours (`Y` / `Func+Y`), undo is the system's shallow safety net before
-destructive ops (`Func+O`, the counter-verb seat 9.29 vacated) — so a flurry of `Y`s
-never buries the pre-mistake point. Restore is non-destructive (a one-deep
-pre-restore slot); unrestore/redo are designed but deferred. Full model: DESIGN §13.6.
-
-**Bugs the session found (all live, all in the snapshot family):**
-- `Track+Y` and `Phrase+Y` are **no-ops.** No `kModTrack`/`kModPhrase` row exists
-  for Snapshot, so the bare row matches and the key *says* "SNAP", but `handleVerb`
-  lands in `verbs::track` / `verbs::phrase`, neither of which handles `VerbSnapshot`
-  — it returns false and nothing happens. **The scoped snapshot half of the feature
-  has never existed**, which is why the J1/J2 "collision" was partly a phantom.
-- **Restore *is* scope-aware** (`ckScope()` maps the held modifier), so you can pop
-  a Track/Phrase stack you can never manually push to. Those stacks hold only
-  auto-captures, and `restoreOne` on an empty stack falls through to `floorSong_` —
-  **silently reverting that track to the project baseline.** One keypress, no
-  confirm, no message. (The `DESIGN-DEBT(undo-model)` comment at `Arrangement.h:637`
-  understated it: the push side isn't merely debatable, it's absent.)
-- `Scene+O` (Clear) is a **third phantom label** — the frame says CLEAR but
-  `verbs::scene` requires Func and handles only Record/Play, so the tap dispatches
-  to nothing. (The *hold*, DEL SCENE, works — different path.)
-
-**Build items:**
-- [x] **A — Kill the silent wipe.** *(Shipped 2026-07-14.)* `restoreOne` on an empty
-      stack is now a **no-op** that says `NOTHING TO RESTORE`. The floor stays
-      reachable, but only via the deliberate hold, never via one tap too many.
-      The dispatch golden had been recording the data loss as expected behaviour —
-      `Func+VerbSnapshot ... up seq.trigsPerTrack: 4,4,4,4,... -> 0,0,0,0,...` — every
-      trig on every track, gone on key-up, from a clean project, in one press. The
-      floor-idempotence test asserted the wipe as its contract, so the bug was written
-      down twice; both now assert the fix.
-- [x] **B — Wire scoped snapshot.** *(Shipped 2026-07-14.)* `Y` now snapshots in every
-      scope: `verbs::track` / `verbs::phrase` gained the missing Snapshot arms (Scene's
-      lands with C, once SYNC vacates the key), and the bare Y stopped forking into an
-      editor branch of its own — no-scope routes through the table like the rest, so
-      `verbs::noScope` is the one Song snapshot and every mark now says so in the status
-      lane. **Why the rows matter (the load-bearing lesson):** the binding table is the
-      **dispatch golden's enumeration domain** — it renders one scenario per *row*. A
-      verb that leans on the bare row's label has no row, so the net never presses it.
-      That is the whole reason `Track+Y` could wear an honest "SNAP" and do nothing for
-      months with a green build. A scope a verb genuinely serves gets a row, and the row
-      buys the coverage. Also fixed en route: `Func+Y` is remapped to `CB::Restore`
-      upstream, so the keyboard never reached `restorePop()` — item A's NOTHING TO
-      RESTORE was live on the table path and unreachable from the actual keys.
-- [x] **C — Rehome SYNC.** *(Shipped 2026-07-14.)* `Scene+Y` → `Scene+O`, filling the
-      phantom CLEAR with the verb that already means discard (`Scene+U` bakes
-      deviations; Clear discards them), and freeing `Y` for a uniform grammar. **Bigger
-      than the spec drew it:** `Scene+O` was not the empty phantom the session assumed —
-      an editor intercept ahead of the table used it (and `Phrase+O`) to *cancel a queued
-      Scene launch*, which shadowed **two** real verbs into dead code: `Scene+O`'s SYNC
-      **and** `Phrase+O`'s CLEAR PHRASE (fully written in `verbs::phrase`, never reached
-      — the fourth phantom of the family). Resolved per the user's call: cancel-a-pending-
-      launch is the **Cancel** verb's job, so it moved to `Func+P` (scoped to a held
-      Scene/Phrase); Clear now means *discard content* on both keys, uniformly. Also
-      taught the golden two new senses it was blind to — `scene.deviated` (so SYNC's whole
-      effect is visible instead of reading as a no-op, exactly how the dead `Scene+Y`
-      hid) and `queued.scene` — plus a processor-`setup` hook on `renderScenario` for the
-      states no headless button-press can reach (a queued launch needs a playing
-      transport). Decisive pairs prove each: the deviation/queue persists alone and
-      vanishes only when SYNC/CANCEL follows.
-**Re-scoped 2026-07-14 (second design pass).** The first pass specced a
-globally-consistent model (epoch counter, ancestor-overlap invalidation, a vim-style
-undo tree) and it was **rejected** for solving a cross-scope consistency problem a
-live performer never experiences — every payload is a complete valid overlay for its
-scope, so a mixed restore is a real playable state, not a corrupt one. The full
-rejected design (and the CUJs that would revive it) lives in
-`docs/snapshot-undo-rejected-elaborate-model.md`; the shipped model is DESIGN §13.6.
-Items D–H below are the **simpler** build: independent per-scope stacks, no epoch,
-no overlap rule.
-
-- [x] **D — Independent per-scope stacks.** *(Shipped 2026-07-14.)* Marks are per-scope LIFO with no
-      interaction between scopes: drop the epoch/overlap/derived-validity axis
-      entirely. This is mostly *removing* the machinery the first pass would have
-      added, and hardening what `Arrangement` already has (the shipped B/C snapshot
-      arms) so `Track`/`Phrase`/`Scene`/`Song` stacks each stand alone. Replace the
-      fixed `kMaxCkDepth = 8` with a **per-scope memory budget** (evict oldest beyond
-      `B`, default 64 MB/scope): measured payloads are `Scene` 192 B, `Phrase` 11 KB,
-      `Track` 177 KB, `Song` 2.77 MB, so a flat count is the wrong shape (§13.6). The
-      cheap scopes go effectively unbounded; only `Song` self-limits (~20).
-- [x] **E — Undo stack + `Func+O`.** *(Shipped 2026-07-14.)* A *shallow* per-scope stack (a few levels deep,
-      memory-bounded like the mark stacks in D) armed by the destructive ops (which
-      already know their scope — the auto-captures push Track/Phrase/Song correctly
-      today), kept separate from marks so a flurry of `Y`s never buries the pre-mistake
-      point. `Func+O` reverts the scope's last destructive op, then the one before it a
-      few deep. No overlap guard, no "UNDO EXPIRED".
-- [x] **F — Restore is a destructive op.** *(Shipped 2026-07-14.)* A restore overwrites live state, so it
-      **arms the undo stack** (item E) exactly like a clear or paste — no separate
-      pre-restore slot, no separate `unrestore` gesture. `Func+O` after a restore takes
-      it back; that is the whole fat-finger guarantee. `REDO` (re-apply the last undone
-      op, a restore included) is **designed but deferred** — the first build is
-      SNAP/RESTORE/UNDO, and redo gets its grammar seat when it ships (§13.6).
-- [x] **G — Surface.** *(Shipped 2026-07-14.)* Mark-depth pip on each scope key (marks only — undo is not a
-      mark); status lane names the pending undo. Retire/repoint the Song-only `CK:N`
-      chip.
-- [ ] **H — Tests.** Per the input-modality mandate: resolution, scope routing, and
-      round-trip. Plus the model's own invariants — each scope's stack is independent
-      (a Song restore leaves Track marks untouched); a restore arms undo so `Func+O`
-      takes it back; undo reverts only its scope's last destructive op; empty-stack
-      restore never wipes (shipped in A, keep the guard).
+**Model settled (D–H):** the first pass specced a globally-consistent model (global
+epoch, ancestor-overlap invalidation, vim-style undo tree) and it was **rejected** —
+every checkpoint payload is a complete valid overlay for its scope, so a mixed
+restore is a real playable state, not corrupt; the overlap machinery solved a
+consistency problem a live performer never has. The rejected design and its
+revival-trigger CUJs are preserved in `docs/snapshot-undo-rejected-elaborate-model.md`.
+What shipped: **independent per-scope mark stacks** (no epoch, no cross-scope rule),
+bounded by a **64 MB/scope memory budget** not a flat count (payloads span Scene
+192 B → Song 2.77 MB, so a count is the wrong shape — Song self-limits ~20, cheap
+scopes effectively unbounded); a **separate shallow undo stack on `Func+O`** (the
+seat 9.29 vacated) armed by the ~24 destructive-op auto-captures, kept apart from
+marks so a flurry of `Y`s never buries the pre-mistake point; **a restore arms undo**
+(it overwrites live state), so `Func+O` takes a mis-fired restore back — no separate
+unrestore gesture. REDO is designed but deferred (no grammar seat yet). Surface: a
+mark-depth pip + count on each scope key, `CK:N` kept as the held-scope summary with
+a `UNDO:n` note. REDO and the elaborate model can be revived from the preserved
+rejected-design doc if a CUJ ever demands them.
 
 ### 9.5 — Velocity overlay polish  *[shipped]*
 Mix-blend baseline fix (swings around velCenter on unauthored steps), the
