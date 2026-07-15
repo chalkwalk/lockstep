@@ -780,6 +780,18 @@ namespace lockstep
         trackCutGain_ = 1.0f;
         masterCutGain_ = 1.0f;
 
+        // 6.4 cue balance: per-sample ramp step for the ~5 ms declick, and this
+        // block's per-track trajectory scratch. Start each track's smoothed balance
+        // at its current param so a project that loads with a track already cued is
+        // cued immediately (no fade-in on open), mirroring the mute declick.
+        cueRampInc_ = static_cast<float>(1.0 / (kCueRampSec * std::max(1.0, sampleRate)));
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+        {
+            cueRamp_[i].assign(static_cast<std::size_t>(std::max(1, samplesPerBlock)), 0.0f);
+            cueGainCur_[i] = getCueBalance(static_cast<int>(i));
+            cueEngaged_[i] = false;
+        }
+
         clock_.prepare(sampleRate);
         metronome_.prepare(sampleRate);
         midiClockReceiver_.reset();
@@ -1166,21 +1178,28 @@ namespace lockstep
         }
 
         // 8.26: post-insert, post-level send taps. MIDI-out tracks skipped by caller.
+        // 6.4: sends fade with cue (x (1-b)) so a cued track's reverb/delay leaves
+        // the audience mix (its existing tail decays). Sends feed heavily-smeared
+        // FX, so a block-rate cue scalar here is inaudible — the per-sample declick
+        // is reserved for the dry route/cue deposits (prepCueRamp runs after this).
         {
+            const float sendCueScale = 1.0f - cueGainCur_[i];
+            const float sendA = trackSendA * sendCueScale;
+            const float sendB = trackSendB * sendCueScale;
             const int numTrCh = trackBuffers_[i].getNumChannels();
-            if (trackSendA > 0.0f)
+            if (sendA > 0.0f)
             {
                 const int numCh = std::min(sendBusBufs_[0].getNumChannels(), numTrCh);
                 for (int bch = 0; bch < numCh; ++bch)
                     sendBusBufs_[0].addFrom(bch, 0, trackBuffers_[i], bch, 0,
-                                            numBlockSamples, trackSendA);
+                                            numBlockSamples, sendA);
             }
-            if (trackSendB > 0.0f)
+            if (sendB > 0.0f)
             {
                 const int numCh = std::min(sendBusBufs_[1].getNumChannels(), numTrCh);
                 for (int bch = 0; bch < numCh; ++bch)
                     sendBusBufs_[1].addFrom(bch, 0, trackBuffers_[i], bch, 0,
-                                            numBlockSamples, trackSendB);
+                                            numBlockSamples, sendB);
             }
         }
 
@@ -1401,12 +1420,60 @@ namespace lockstep
         return routing::wouldCreateCycle(edges, from, toTrack);
     }
 
+    // 6.4 cue balance: add a track buffer into a destination, scaled per-sample
+    // by either the cue balance (cueSide=true => x b, the headphone path) or its
+    // complement (cueSide=false => x (1-b), the audience/route/send path). The
+    // ramp is the per-sample b trajectory built by prepCueRamp().
+    static void addTrackScaledByCue(juce::AudioBuffer<float>& dst,
+                                    const juce::AudioBuffer<float>& src,
+                                    const std::vector<float>& ramp,
+                                    bool cueSide, int numBlockSamples)
+    {
+        const int chans = std::min(dst.getNumChannels(), src.getNumChannels());
+        const int n = std::min(numBlockSamples, static_cast<int>(ramp.size()));
+        for (int ch = 0; ch < chans; ++ch)
+        {
+            auto* d = dst.getWritePointer(ch);
+            const auto* s = src.getReadPointer(ch);
+            for (int i = 0; i < n; ++i)
+            {
+                const float b = ramp[static_cast<std::size_t>(i)];
+                d[i] += s[i] * (cueSide ? b : (1.0f - b));
+            }
+        }
+    }
+
+    void LockstepProcessor::prepCueRamp(std::size_t track, int numBlockSamples)
+    {
+        const float target = getCueBalance(static_cast<int>(track));
+        float cur = cueGainCur_[track];
+        // Fast path: fully main and staying there — no ramp, deposits stay unity.
+        cueEngaged_[track] = (cur > 0.0f || target > 0.0f);
+        if (!cueEngaged_[track]) return;
+
+        auto& ramp = cueRamp_[track];
+        if (static_cast<int>(ramp.size()) < numBlockSamples)
+            ramp.assign(static_cast<std::size_t>(numBlockSamples), 0.0f);
+        for (int s = 0; s < numBlockSamples; ++s)
+        {
+            if (cur < target)      cur = std::min(target, cur + cueRampInc_);
+            else if (cur > target) cur = std::max(target, cur - cueRampInc_);
+            ramp[static_cast<std::size_t>(s)] = cur;
+        }
+        cueGainCur_[track] = cur;
+    }
+
     void LockstepProcessor::depositToBus(std::size_t track, int numBlockSamples)
     {
         const auto r = routeForTrack(static_cast<int>(track));
         if (r.route != Route::Bus) return;
         auto& bus = busInputBufs_[static_cast<std::size_t>(r.busTrack)];
         const auto& src = trackBuffers_[track];
+        if (cueEngaged_[track])
+        {
+            addTrackScaledByCue(bus, src, cueRamp_[track], /*cueSide*/ false, numBlockSamples);
+            return;
+        }
         const int chans = std::min(bus.getNumChannels(), src.getNumChannels());
         for (int ch = 0; ch < chans; ++ch)
             bus.addFrom(ch, 0, src, ch, 0, numBlockSamples);
@@ -1418,6 +1485,12 @@ namespace lockstep
         for (std::size_t ti = 0; ti < kNumTracks; ++ti)
         {
             if (routeForTrack(static_cast<int>(ti)).route != Route::Master) continue;
+            if (cueEngaged_[ti])
+            {
+                addTrackScaledByCue(buffer, trackBuffers_[ti], cueRamp_[ti],
+                                    /*cueSide*/ false, numBlockSamples);
+                continue;
+            }
             const int chans = std::min(buffer.getNumChannels(),
                                        trackBuffers_[ti].getNumChannels());
             for (int ch = 0; ch < chans; ++ch)
@@ -1439,6 +1512,12 @@ namespace lockstep
             if (bus != nullptr && bus->isEnabled())
             {
                 auto auxBuf = getBusBuffer(fullBuffer, false, busIndex);
+                if (cueEngaged_[ti])
+                {
+                    addTrackScaledByCue(auxBuf, trackBuffers_[ti], cueRamp_[ti],
+                                        /*cueSide*/ false, numBlockSamples);
+                    continue;
+                }
                 const int chans = std::min(auxBuf.getNumChannels(),
                                            trackBuffers_[ti].getNumChannels());
                 for (int ch = 0; ch < chans; ++ch)
@@ -1449,11 +1528,36 @@ namespace lockstep
                 // Fold-to-Master: the host has that Aux bus disabled — never drop
                 // the audio. Deposited into mainOut before the master chain so the
                 // folded signal is gained/FX'd exactly like a Master route.
+                if (cueEngaged_[ti])
+                {
+                    addTrackScaledByCue(mainOut, trackBuffers_[ti], cueRamp_[ti],
+                                        /*cueSide*/ false, numBlockSamples);
+                    continue;
+                }
                 const int chans = std::min(mainOut.getNumChannels(),
                                            trackBuffers_[ti].getNumChannels());
                 for (int ch = 0; ch < chans; ++ch)
                     mainOut.addFrom(ch, 0, trackBuffers_[ti], ch, 0, numBlockSamples);
             }
+        }
+    }
+
+    void LockstepProcessor::depositRoutedToCue(juce::AudioBuffer<float>& fullBuffer,
+                                               int numBlockSamples)
+    {
+        auto* bus = getBus(false, 1);   // host output bus 1 = Cue
+        if (bus == nullptr || !bus->isEnabled()) return;
+        auto cueBuf = getBusBuffer(fullBuffer, false, 1);
+        for (std::size_t ti = 0; ti < kNumTracks; ++ti)
+        {
+            if (!cueEngaged_[ti]) continue;
+            if (machines_[ti]->isMidiOut()) continue;   // no audio to monitor
+            // Independent of route: a Master/Bus/Aux track fades into the cue as it
+            // leaves the audience mix; an Off-routed capture track is additively
+            // monitored (spec §2). trackBuffers_ is the post-insert, pre-master-send
+            // signal — standard PFL (shared master send-FX are not in the cue path).
+            addTrackScaledByCue(cueBuf, trackBuffers_[ti], cueRamp_[ti],
+                                /*cueSide*/ true, numBlockSamples);
         }
     }
 
@@ -2560,6 +2664,7 @@ namespace lockstep
                     processTrackChain(i, frame, resolveStep, fillNow, faderNow,
                                       numBlockSamples, trackMidi[i]);
                     muteGain_[i].applyGain(trackBuffers_[i], numBlockSamples);
+                    prepCueRamp(i, numBlockSamples);   // 6.4 cue split trajectory
                     depositToBus(i, numBlockSamples);
                 }
             }
@@ -2569,6 +2674,8 @@ namespace lockstep
             sumRoutedToMaster(mainOut, numBlockSamples);
             // §31.1: Aux-routed tracks → host Aux buses (or fold to main).
             depositRoutedToAux(buffer, mainOut, numBlockSamples);
+            // 6.4: cued tracks fade into the Cue output bus (DESIGN §31).
+            depositRoutedToCue(buffer, numBlockSamples);
 
             // Master insert chain — shared helper used by both transport paths.
             processMasterChain(buffer, mainOut, numBlockSamples);
@@ -3580,6 +3687,7 @@ namespace lockstep
                 // summed anywhere (master + any downstream tap), so a mute fades the
                 // track out everywhere. gain==1 when unmuted → a no-op.
                 muteGain_[i].applyGain(trackBuffers_[i], numBlockSamples);
+                prepCueRamp(i, numBlockSamples);   // 6.4 cue split trajectory
                 depositToBus(i, numBlockSamples);
             }
         }
@@ -3589,6 +3697,8 @@ namespace lockstep
         sumRoutedToMaster(mainOut, numBlockSamples);
         // §31.1: Aux-routed tracks → host Aux buses (or fold to main).
         depositRoutedToAux(buffer, mainOut, numBlockSamples);
+        // 6.4: cued tracks fade into the Cue output bus (DESIGN §31).
+        depositRoutedToCue(buffer, numBlockSamples);
 
         // Master insert chain — before metronome so the click is not sent through FX.
         processMasterChain(buffer, mainOut, numBlockSamples);

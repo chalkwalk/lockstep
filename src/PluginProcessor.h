@@ -1527,6 +1527,15 @@ namespace lockstep
         // output when the host has that bus disabled (never silent data loss).
         void depositRoutedToAux(juce::AudioBuffer<float>& fullBuffer,
                                 juce::AudioBuffer<float>& mainOut, int numBlockSamples);
+        // 6.4 cue balance (DESIGN §31): fill cueRamp_[track] with this block's
+        // per-sample balance (advancing cueGainCur_ toward getCueBalance) and set
+        // cueEngaged_[track]. Called once per non-MIDI track per block, after mute,
+        // before the deposits — so the (1-b)/b split is per-sample declicked.
+        void prepCueRamp(std::size_t track, int numBlockSamples);
+        // Deposit each cued track (b>0) into the Cue output bus (host bus 1),
+        // scaled by its per-sample b. Independent of route: an Off-routed capture
+        // track is additively monitored (spec §2). MIDI-out tracks skipped.
+        void depositRoutedToCue(juce::AudioBuffer<float>& fullBuffer, int numBlockSamples);
         // 6.1: cache the final master output into prevMasterBuf_ (Master tap).
         void cachePrevMaster(const juce::AudioBuffer<float>& buf, int numSamples);
         std::array<VoiceChoke, kNumTracks> trackChokes_;
@@ -1737,6 +1746,17 @@ namespace lockstep
         static constexpr double kMuteRampSec = 0.10;  // ~100 ms declick
         std::array<juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear>,
                    kNumTracks> muteGain_{};
+        // 6.4 cue balance (DESIGN §31): per-track main<->cue crossfade applied at
+        // the fan-out (deposited copies), never in place on trackBuffers_ — so a
+        // direct track->track tap reads the full upstream signal and bypasses cue.
+        // cueGainCur_[i] ramps toward the APVTS param over ~kCueRampSec (clickless
+        // flip); cueRamp_[i] is this block's per-sample b trajectory; cueEngaged_[i]
+        // is the fast path (false => plain unity deposit at exactly the pre-6.4 cost).
+        static constexpr double kCueRampSec = 0.005;   // ~5 ms declick
+        float cueRampInc_ = 1.0f;                      // per-sample ramp step (prepareToPlay)
+        std::array<float, kNumTracks> cueGainCur_{};   // [AUDIO] smoothed balance
+        std::array<bool, kNumTracks> cueEngaged_{};    // [AUDIO] fast-path flag
+        std::array<std::vector<float>, kNumTracks> cueRamp_;  // [AUDIO] per-block trajectory
         std::array<float, 2> dcX1_{};
         std::array<float, 2> dcY1_{};
 
