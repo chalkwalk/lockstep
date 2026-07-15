@@ -51,7 +51,26 @@ namespace lockstep
     // impossible.
     // =========================================================================
     // NOLINTNEXTLINE(cert-err58-cpp)
-    static const std::array<OverlayDescriptor, 6> kOverlays = {{
+    static const std::array<OverlayDescriptor, 7> kOverlays = {{
+        // ── Cue console (6.4) ────────────────────────────────────────────────
+        // Uses the step grid (flip page) + the MZ (param page), like a hybrid of
+        // Euclid and Mixer, so no internal section. Any cluster scope exits it;
+        // Func double-tap also exits. Nav (page toggle) is handled in the editor.
+        {
+            .id                      = Overlay::Cue,
+            .internalSection         = -1,
+            .internalSectionConsumed = false,
+            .internalSectionRelabelFn = nullptr,
+            .exitOnSectionPressOther  = true,
+            .trackScopeForeign  = true,
+            .phraseScopeForeign = true,
+            .sceneScopeForeign  = true,
+            .morphScopeForeign  = true,
+            .muteScopeForeign   = true,
+            .fillScopeForeign   = true,
+            .songScopeForeign   = true,
+            .exitOnDoubleTapFunc = true,
+        },
         // ── Density ─────────────────────────────────────────────────────────
         // MOD (index 4) cycles sub-pages; Song is "own" (master write path).
         {
@@ -272,6 +291,13 @@ namespace lockstep
                 {
                     ui.overlay = Overlay::None;
                     ui.samplePropsPoolIndex = -1;
+                }
+                break;
+            case Overlay::Cue:
+                if (ui.overlay == Overlay::Cue)
+                {
+                    ui.overlay = Overlay::None;
+                    ui.cueParamPage = false;
                 }
                 break;
             case Overlay::Euclid:

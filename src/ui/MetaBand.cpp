@@ -90,6 +90,10 @@ namespace lockstep
         // button; Func double-tap or any foreign scope/section press escapes it).
         if (ui.overlay == Overlay::SampleProps)
             return MetaBand::SampleProps;
+        // 6.4 cue console param page: the eight encoders edit the bank's cue
+        // balances. The flip page uses the step grid, so the MZ shows no band there.
+        if (ui.overlay == Overlay::Cue)
+            return ui.cueParamPage ? MetaBand::Cue : MetaBand::None;
         // Sticky velocity overlay mode.
         if (ui.overlay == Overlay::Vel)
         {
@@ -1424,6 +1428,37 @@ namespace lockstep
         return result;
     }
 
+    // 6.4 CUE band — the bank's eight per-track cue balances under the encoders
+    // (DESIGN §31). Mirrors the MIXER band: slot i addresses TRACK i of the bank
+    // (not the focused track), reads/writes the persistent cueBalance overlay
+    // directly (never a step P-Lock), 0 = main only .. 1 = cue only.
+    static std::array<MetaFieldView, 8> buildCueBand(LockstepProcessor& proc,
+                                                     int focusedTrack)
+    {
+        std::array<MetaFieldView, 8> result{};
+        const int pageOffset = ((focusedTrack >= 8) ? 1 : 0) * 8;
+
+        for (int i = 0; i < 8; ++i)
+        {
+            const int trackIdx = pageOffset + i;
+            if (trackIdx >= static_cast<int>(kNumTracks)) break;
+
+            const float value = proc.getCueBalance(trackIdx);
+            auto& v = result[static_cast<std::size_t>(i)];
+            v.active   = true;
+            v.label    = "Trk " + juce::String(trackIdx + 1);
+            v.minValue = 0.0f;
+            v.maxValue = 1.0f;
+            v.value    = value;
+            v.stepped  = false;
+            v.writable = true;
+            v.hasOverride = value > 0.0f;
+            v.valueText = juce::String(juce::roundToInt(100.0f * value)) + "%";
+            v.ringMode = RingMode::UnipolarFill;
+        }
+        return result;
+    }
+
     // §39 DensityMode band — Musicality (3-state stepped) per track.
     static std::array<MetaFieldView, 8> buildDensityModeBand(LockstepProcessor& proc,
                                                               const UiState& ui,
@@ -1730,6 +1765,8 @@ namespace lockstep
             return buildSamplePropsBand(proc, ui.samplePropsPoolIndex);
         if (band == MetaBand::Mixer)
             return buildMixerBand(proc, track);
+        if (band == MetaBand::Cue)
+            return buildCueBand(proc, track);
         if (band == MetaBand::Density)
             return buildDensityBand(proc, ui, track);
         if (band == MetaBand::DensityMode)
@@ -1951,6 +1988,19 @@ namespace lockstep
                 return;
             const auto spec = proc.paramSpec(target, slot);
             proc.writeBaseParam(target, slot, std::clamp(value, spec.minValue, spec.maxValue));
+            return;
+        }
+
+        // 6.4: CUE — the bank's cue balances. Like MIXER, slot i is TRACK i of the
+        // bank and the write lands on the persistent cue overlay directly (never a
+        // step P-Lock — a P-Locked cue balance is not a balance, DESIGN §31).
+        if (band == MetaBand::Cue)
+        {
+            const int pageOffset = ((track >= 8) ? 1 : 0) * 8;
+            const int target = pageOffset + field;
+            if (target < 0 || target >= static_cast<int>(kNumTracks))
+                return;
+            proc.setCueBalance(target, std::clamp(value, 0.0f, 1.0f));
             return;
         }
 
@@ -2725,6 +2775,7 @@ namespace lockstep
         {
             case MetaBand::None:           return {};
             case MetaBand::Mixer:          return "MIXER";
+            case MetaBand::Cue:            return "CUE";
             case MetaBand::Cond:           return "COND";
             case MetaBand::Trig:           return "TRIG";
             case MetaBand::Divider:        return "DIVIDER";

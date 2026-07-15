@@ -95,6 +95,31 @@ namespace lockstep
         CHECK(activeOverlay(ui) == Overlay::None, "no overlay after escape");
     }
 
+    // 6.4: the cue console is a plain overlay value (entry is editor-driven).
+    // activeOverlay reports it; a foreign scope press exits it; escapeOverlay
+    // resets both the overlay and its page flag.
+    static void testCueOverlayEntryExit()
+    {
+        UiState ui;
+        ui.overlay = Overlay::Cue;
+        CHECK(activeOverlay(ui) == Overlay::Cue, "overlay field Cue");
+
+        ui.cueParamPage = true;
+        // A foreign cluster scope (e.g. Track) exits the cue console.
+        const auto r = handleOverlayEvent(ui,
+            { ModeEventKind::ScopePress, -1, ControllerButton::TrackScope });
+        CHECK(r == OverlayResult::Exited, "foreign scope exits cue console");
+        CHECK(ui.overlay == Overlay::None, "cue overlay cleared");
+        CHECK(!ui.cueParamPage, "cue page flag reset on exit");
+
+        // escapeOverlay is idempotent + resets the page flag directly.
+        ui.overlay = Overlay::Cue;
+        ui.cueParamPage = true;
+        escapeOverlay(ui, Overlay::Cue);
+        CHECK(activeOverlay(ui) == Overlay::None, "escapeOverlay clears cue console");
+        CHECK(!ui.cueParamPage, "escapeOverlay resets the page flag");
+    }
+
     static void testEscapeOverlayClearsVel()
     {
         UiState ui;
@@ -130,6 +155,7 @@ namespace lockstep
                 case Overlay::Melodic:
                 case Overlay::Harmony:
                 case Overlay::SampleProps:
+                case Overlay::Cue:
                 case Overlay::None:    break;
             }
             CHECK(ui.masterSection == 3, "overlay entry does not clobber the selection");
@@ -617,6 +643,7 @@ namespace lockstep
         testEscapeOverlayClearsTime();
         testEscapeOverlayClearsEuclid();
         testStickyOverlayPreservesSectionSelection();
+        testCueOverlayEntryExit();
 
         // SectionPress — Density
         testDensitySectionPressInternalConsumed();

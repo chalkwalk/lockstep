@@ -51,7 +51,8 @@ namespace lockstep
         Key,        // KEY page: root + brightness + functional modifiers (DESIGN §4.10)
         StepPosition, // 9.14: held-step move panel — pos (field 0) + micro-time (field 1)
         SampleProps,  // 9.23: pool sample-properties editor (BPM/key/tune/one-shot)
-        Mixer         // 9.31: the bank's eight track levels under the eight encoders
+        Mixer,        // 9.31: the bank's eight track levels under the eight encoders
+        Cue           // 6.4: the bank's eight per-track cue balances under the encoders
     };
 
     // masterSection CONTENT indices (the latched meta pages, resolveMetaBand's

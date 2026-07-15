@@ -27,6 +27,7 @@ namespace lockstep
         Density,  // density editor (Func+MOD entry chord)
         Vel,      // velocity overlay (Func+AMP entry chord)
         SampleProps,  // pool sample-properties editor (Props… button on a pool row, 9.23)
+        Cue,      // cue-balance console (Cue-held + Nav entry): flip grid + param page (6.4)
     };
 
     // ── Pending-confirm state ─────────────────────────────────────────────────
@@ -282,6 +283,12 @@ namespace lockstep
 
         enum class VelSubPage { Depth, Center, Mode, Blend };
         VelSubPage velSubPage = VelSubPage::Depth;
+
+        // ── Cue console (6.4) ──
+        // false = step-grid flip page (16 step keys arm per-track quantized cue
+        // flips); true = param page (the MZ encoders edit continuous cue balance
+        // for the focused bank). Nav toggles the page; escapeOverlay resets it.
+        bool cueParamPage = false;
 
         // ── SampleProps (9.23) ──
         // Absolute pool index being edited by the sample-properties band.

@@ -3743,6 +3743,47 @@ namespace lockstep
         return false;
     }
 
+    // 6.4: leave the momentary Cue scope and open the sticky cue console. The
+    // physical Func+3 keys may still be down; clearing cueHeld hands the step grid
+    // to the console (so a step arms a flip, not an audition). Func+3 release then
+    // exits only the (already-inactive) momentary scope, leaving the console open.
+    void LockstepEditor::openCueConsole()
+    {
+        auditionAllOff();
+        uiState_.cueHeld = false;
+        uiState_.overlay = Overlay::Cue;
+        uiState_.cueParamPage = false;
+        refreshMetaBand();
+        refreshSurface();
+    }
+
+    bool LockstepEditor::consumeCueStickyKey(ControllerButton btn, int index)
+    {
+        if (uiState_.overlay != Overlay::Cue) return false;
+        using CB = ControllerButton;
+        // Nav toggles between the flip grid and the encoder param page.
+        if (btn == CB::NavUp || btn == CB::NavDown || btn == CB::NavLeft || btn == CB::NavRight)
+        {
+            uiState_.cueParamPage = !uiState_.cueParamPage;
+            refreshMetaBand();
+            refreshSurface();
+            return true;
+        }
+        // Step keys belong to the console: on the flip page a tap arms that track's
+        // quantized cue flip; on the param page (encoders do the editing) steps are
+        // swallowed so they never leak into the pattern.
+        if (btn == CB::Step)
+        {
+            if (!uiState_.cueParamPage && index >= 0 && index < static_cast<int>(kNumTracks))
+            {
+                processor_.queueCueFlip(index);
+                refreshSurface();
+            }
+            return true;
+        }
+        return false;
+    }
+
     // -------------------------------------------------------------------------
     // MHZ.9.3: column-exclusivity-aware modifier latch toggle.
 
@@ -4403,6 +4444,17 @@ namespace lockstep
             tapTempoArmMs_ = juce::Time::getMillisecondCounterHiRes();
             return true;
         }
+
+        // 6.4: Cue-held + NavRight opens the sticky cue console (DESIGN §31).
+        if (uiState_.cueHeld && uiState_.overlay != Overlay::Cue && ev.button == CB::NavRight)
+        {
+            openCueConsole();
+            return true;
+        }
+        // While the cue console is open it owns the step grid + Nav paging, before
+        // any cueHeld audition / Func-layer step remap can claim them.
+        if (uiState_.overlay == Overlay::Cue && consumeCueStickyKey(ev.button, ev.index))
+            return true;
 
         // 5.5: while Cue is held, a step press auditions that step's resolved trig
         // (off-schedule, pattern untouched). Intercept before normal step dispatch.

@@ -42,6 +42,7 @@ namespace lockstep
         Density,
         Vel,
         SampleProps,      // pool sample-properties editor (entered from a pool row)
+        Cue,              // 6.4 cue console (Cue-held + Nav): flip grid + param page
     };
 
     // Highest-priority active modal derived from current UiState (read-only).

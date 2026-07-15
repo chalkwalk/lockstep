@@ -1817,6 +1817,52 @@ namespace lockstep
         }
     }
 
+    // 6.4 CUE band — like MIXER, the eight encoders are the bank's eight tracks,
+    // but they read/write the persistent cue-balance overlay (DESIGN §31).
+    static void testCueBand()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext none;
+        UiState ui;
+        ui.overlay = Overlay::Cue;
+        ui.cueParamPage = true;
+        CHECK(resolveMetaBand(ui) == MetaBand::Cue, "cue param page → CUE band (precondition)");
+
+        // Resolution: slot i is TRACK i of the bank; default balance 0, range 0..1.
+        {
+            const auto f = buildMetaBand(MetaBand::Cue, 0, proc, 0, none, ui);
+            CHECK(f[0].active && f[0].label == "Trk 1", "CUE: slot 0 = Trk 1");
+            CHECK(f[7].label == "Trk 8", "CUE: bank 0 labels tracks 1-8");
+            CHECK(feq(f[0].value, 0.0f), "CUE: default balance 0");
+            CHECK(feq(f[0].minValue, 0.0f) && feq(f[0].maxValue, 1.0f), "CUE: range 0..1");
+        }
+
+        // Scope routing: slot i writes TRACK i's cue balance directly (no settle —
+        // setCueBalance writes the APVTS param synchronously), and reads back.
+        writeMetaField(MetaBand::Cue, 0, 2, 0.5f, proc, 0, none, ui);
+        CHECK(feq(proc.getCueBalance(2), 0.5f, 1e-4f), "CUE: slot 2 writes track 2's balance");
+        {
+            const auto f = buildMetaBand(MetaBand::Cue, 0, proc, 0, none, ui);
+            CHECK(feq(f[2].value, 0.5f, 1e-4f), "CUE: slot 2 reflects the write");
+            CHECK(f[2].hasOverride, "CUE: a non-zero balance shows an override mark");
+        }
+
+        // Bank follows the focused track: focus track 8 → slot 1 addresses track 9.
+        {
+            const auto f = buildMetaBand(MetaBand::Cue, 0, proc, 8, none, ui);
+            CHECK(f[0].label == "Trk 9" && f[7].label == "Trk 16",
+                  "CUE: focusing the upper bank pages the band to tracks 9-16");
+            writeMetaField(MetaBand::Cue, 0, 1, 1.0f, proc, 8, none, ui);
+            CHECK(feq(proc.getCueBalance(9), 1.0f, 1e-4f),
+                  "CUE: the write follows the same bank paging the display does");
+        }
+
+        // Out-of-range clamps to [0,1].
+        writeMetaField(MetaBand::Cue, 0, 0, 2.0f, proc, 0, none, ui);
+        CHECK(feq(proc.getCueBalance(0), 1.0f, 1e-4f), "CUE: write clamps to 1");
+    }
+
     static void testCondBandWriteTarget()
     {
         EngineHarness h;
@@ -1862,6 +1908,7 @@ namespace lockstep
         testResolveMetaBandMasterSection();
         testCondBandWriteTarget();
         testMixerBand();
+        testCueBand();
         testResolveMetaBandTransientOutranksMasterSection();
         testResolveMetaBandEuclid();
         testTransportLaunchQuantField();

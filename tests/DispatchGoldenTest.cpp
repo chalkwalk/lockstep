@@ -180,7 +180,7 @@ namespace
     // the net -- the failure mode a golden test is supposed to make impossible.
     // If this static_assert trips: add the field below, then re-bless.
     // ---------------------------------------------------------------------------
-    static_assert(sizeof(UiState) == 1240,
+    static_assert(sizeof(UiState) == 1248,
                   "UiState changed size: add the new field(s) to digest() below, then "
                   "regenerate the golden (LOCKSTEP_REGEN_GOLDEN=1) and read the diff.");
 
@@ -261,6 +261,7 @@ namespace
         put(d, "densitySubPage", static_cast<int>(u.densitySubPage));
         put(d, "velBank", u.velBank);
         put(d, "velSubPage", static_cast<int>(u.velSubPage));
+        put(d, "cueParamPage", u.cueParamPage);
         put(d, "samplePropsPoolIndex", u.samplePropsPoolIndex);
         put(d, "timeEntryScope", u.timeEntryScope);
         put(d, "sigPage", static_cast<int>(u.sigPage));
@@ -632,6 +633,44 @@ void runCueGestureTests(int& failed)
     check(proc.getCueBalance(t) == 0.0f, "Cue+Mute again uncues the focused track");
 }
 
+// 6.4: the cue console overlay — Cue-held + NavRight opens it; on the flip page a
+// step key arms a track's cue flip (immediate here, transport stopped); Nav toggles
+// to the param page; a foreign scope exits.
+void runCueConsoleTests(int& failed)
+{
+    using CB = ControllerButton;
+    using CE = ControllerEvent;
+    auto check = [&failed](bool ok, const char* what) {
+        if (!ok) { std::fprintf(stderr, "FAIL [CueConsole] %s\n", what); ++failed; }
+    };
+    auto ev = [](CB b, int i = -1) { return CE{ CE::Type::ButtonDown, b, i, 0 }; };
+
+    Rig rig;
+    auto& ed = *rig.editor;
+    auto& proc = *rig.proc;
+
+    // Enter Cue scope, then open the console with NavRight.
+    DispatchProbe::down(ed, ev(CB::Func));
+    DispatchProbe::down(ed, ev(CB::TapTempo));
+    DispatchProbe::down(ed, ev(CB::NavRight));
+    check(DispatchProbe::ui(ed).overlay == Overlay::Cue, "Cue+NavRight opens the console");
+    check(!DispatchProbe::ui(ed).cueParamPage, "console opens on the flip page");
+    check(!DispatchProbe::ui(ed).cueHeld, "opening the console leaves the momentary scope");
+
+    // Flip page: a step key arms track N's cue flip (immediate, transport stopped).
+    check(proc.getCueBalance(2) == 0.0f, "track 2 starts uncued");
+    DispatchProbe::down(ed, ev(CB::Step, 2));
+    check(proc.getCueBalance(2) == 1.0f, "flip-page step arms/flips the track's cue");
+
+    // Nav toggles to the encoder param page.
+    DispatchProbe::down(ed, ev(CB::NavRight));
+    check(DispatchProbe::ui(ed).cueParamPage, "Nav toggles to the param page");
+
+    // A foreign cluster scope exits the console.
+    DispatchProbe::down(ed, ev(CB::TrackScope));
+    check(DispatchProbe::ui(ed).overlay == Overlay::None, "foreign scope exits the console");
+}
+
 void runDispatchGoldenTests(int& failed)
 {
     const Digest base = Rig{}.snap();
@@ -791,6 +830,7 @@ int main()
     lockstep::runDispatchGoldenTests(failed);
     lockstep::runChromeLayoutTests(failed);
     lockstep::runCueGestureTests(failed);
+    lockstep::runCueConsoleTests(failed);
     std::fprintf(stderr, failed == 0 ? "All dispatch golden tests passed.\n"
                                      : "%d dispatch golden test(s) FAILED.\n", failed);
     return failed == 0 ? 0 : 1;

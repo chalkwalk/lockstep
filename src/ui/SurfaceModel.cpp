@@ -2529,6 +2529,7 @@ namespace lockstep
                 case Overlay::Melodic:
                 case Overlay::Harmony:
                 case Overlay::SampleProps:
+                case Overlay::Cue:   // pages via Nav, not a section key — no section dots
                     break;  // no subpage cycling on a section key
             }
             if (odKey >= 0)

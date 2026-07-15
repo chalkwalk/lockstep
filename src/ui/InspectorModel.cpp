@@ -216,6 +216,10 @@ namespace lockstep
             case Modal::Vel:     return u8"VEL STICKY — velocity band  esc=dbl-tap Func";
             case Modal::Time:    return u8"TIME — time-sig/click band  esc=dbl-tap Func";
             case Modal::SampleProps: return u8"SAMPLE — pool properties  esc=dbl-tap Func";
+            case Modal::Cue:
+                return ui.cueParamPage
+                           ? u8"CUE — encoders set balance  nav=flip page  esc=dbl-tap Func"
+                           : u8"CUE — step arms quantized flip  nav=param page  esc=dbl-tap Func";
             case Modal::None:    break;
         }
 
@@ -289,6 +293,7 @@ namespace lockstep
         switch (b)
         {
             case MetaBand::Mixer:            return "MIXER - bank levels";
+            case MetaBand::Cue:              return "CUE - bank balances";
             case MetaBand::Cond:             return "TRIG CONDITION";
             case MetaBand::Trig:             return "TRIG / NOTE defaults";
             case MetaBand::Divider:          return "TRACK DIVIDER";

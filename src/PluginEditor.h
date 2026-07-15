@@ -642,6 +642,14 @@ namespace lockstep
         UiState::VelSubPage nextVelSubPage(UiState::VelSubPage current) const;
         bool consumeVelStickyKey(ControllerButton btn, int index = -1);
 
+        // 6.4 cue console (DESIGN §31). Opened from the momentary Cue scope by
+        // Cue-held + NavRight; sticky thereafter (exit via foreign scope / Func
+        // double-tap). While open it owns the step grid (flip page arms quantized
+        // cue flips) and Nav (toggles to the encoder param page); the MZ shows the
+        // CUE band on the param page.
+        void openCueConsole();
+        bool consumeCueStickyKey(ControllerButton btn, int index = -1);
+
         // MHZ.9.3: toggle one modifier's latch (set=true to engage, false to release).
         // When engaging, enforces column exclusivity (releases any other latch in the same column).
         void setModifierLatch(ControllerButton cb, bool set);

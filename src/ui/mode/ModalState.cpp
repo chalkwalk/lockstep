@@ -27,6 +27,7 @@ namespace lockstep
             case Overlay::Density: return Modal::Density;
             case Overlay::Vel:     return Modal::Vel;
             case Overlay::SampleProps: return Modal::SampleProps;
+            case Overlay::Cue:     return Modal::Cue;
             case Overlay::Euclid:  return Modal::Euclid;   // defensive; euclidHeld is the real store
             case Overlay::Melodic: return Modal::Melodic;  // defensive; melodicHeld is the real store
             case Overlay::Harmony: return Modal::Harmony;  // defensive; harmonyHeld is the real store
@@ -53,6 +54,7 @@ namespace lockstep
             case Modal::Density:        return "Density";
             case Modal::Vel:            return "Vel";
             case Modal::SampleProps:    return "SampleProps";
+            case Modal::Cue:            return "Cue";
         }
         return "None";
     }
