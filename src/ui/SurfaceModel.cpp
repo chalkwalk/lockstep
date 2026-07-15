@@ -429,7 +429,7 @@ namespace lockstep
         }
 
         // =====================================================================
-        // TAP (key 3) — number-row utility; Func-variant = MET
+        // TAP (key 3) — number-row utility; Func-variant = CUE scope (6.4)
         // =====================================================================
         {
             SurfaceCell& c = model.tap;
@@ -438,7 +438,7 @@ namespace lockstep
             c.pressed = physPressed('3', ControllerButton::TapTempo);
             c.base = c.pressed ? CellState::Pressed : CellState::Resting;
             c.baseColour = kTapActive;
-            // Table-driven label: "TAP" bare (hint "MET"); "MET" when Func held.
+            // Table-driven label: "TAP TEMPO" bare (hint "CUE"); "CUE" when Func held.
             {
                 const auto& r = resolveBinding(ControllerButton::TapTempo, -1, heldMods, SurfaceLayer::Base);
                 c.primary = juce::String(r.primary);

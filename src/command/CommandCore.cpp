@@ -375,6 +375,8 @@ namespace lockstep
             case AId::HoldMachineScope:    // Func+Track = Machine (9.29): a compound scope,
             case AId::FocusGlobal:         // Func+Song  = Set     (9.29): entered by the
                                            //   modifier's BARE row (7a), not by this row
+            case AId::HoldCueScope:        // Func+3     = Cue      (6.4): entered imperatively
+                                           //   in the editor (enterCueScope); display row only
                 return false;
 
             // No action. Resolving to None means "this key is inert here", which is a

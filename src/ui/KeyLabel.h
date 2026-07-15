@@ -38,10 +38,11 @@ namespace lockstep
             // Func is the universal qualifier; its section-row secondaries glow
             // in the Func hue (DESIGN §6.1 rule 3).
             case PS::Func:   return col(kScopeFunc);
+            // Cue (Func+3) is its own mode (6.4) — cyan, matching the cued-cell strip.
+            case PS::Cue:    return col(kScopeCue);
             // Non-section scopes and None use the default step colour.
             case PS::None:
             case PS::Trig:
-            case PS::Cue:
             case PS::Section:
                 break;
         }

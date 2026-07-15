@@ -67,7 +67,11 @@ namespace lockstep
         { CB::FillScope, -1, kModNone, SL::Base, AId::HoldFillScope, u8"FILL", CS::Resting },
 
         // ── TAP (key 3) ──────────────────────────────────────────────────────
-        // Func+3 reserved (was MetronomeToggle pre-9.10 — metronome now in TIME band).
+        // Func+3 = the Cue (audition/monitor) scope (6.4). Display row: the scope is
+        // entered imperatively (dispatchDown → enterCueScope); this row advertises
+        // "CUE" on key 3 under Func. (Was MetronomeToggle pre-9.10 — metronome now in
+        // the TIME band.)
+        { CB::TapTempo, -1, kModFunc, SL::Base, AId::HoldCueScope, u8"CUE", CS::Resting },
         { CB::TapTempo, -1, kModNone, SL::Base, AId::TapTempo, u8"TAP TEMPO", CS::Resting },
 
         // ── The nav cluster (4 / E / R / T) ───────────────────────────────────

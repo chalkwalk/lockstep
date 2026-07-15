@@ -67,6 +67,11 @@ L22 | Fill idx=-1 | action=8
     down fillHeld: false -> true
     up   fillHeld: true -> false
 
+L22 | Func+TapTempo idx=-1 | action=80
+    down cueHeld: false -> true
+    down funcHeld: false -> true
+    up   cueHeld: true -> false
+
 L22 | TapTempo idx=-1 | action=14
     (no observable state change)
 

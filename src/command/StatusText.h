@@ -64,6 +64,8 @@ namespace lockstep::status
 
     // ---- cue balance (6.4, DESIGN §31) --------------------------------------
 
+    inline juce::String cueScope() { return "CUE -- audition; Cue+hold(AMP) = cue mixer"; }
+
     inline juce::String cuedTrack(int track)
     {
         return "Cue -> Track " + juce::String(track + 1) + " (to headphones)";

@@ -74,13 +74,13 @@ namespace lockstep
     static void testTap()
     {
         CHECK(resolve(CB::TapTempo, kModNone) == AId::TapTempo, "TAP bare");
-        // Func+3 is reserved (metronome was here pre-9.10; now in TIME band).
-        // No binding row → resolves to bare row (lowest popcount wins).
-        CHECK(resolve(CB::TapTempo, kModFunc) == AId::TapTempo, "Func+TAP = bare fallback");
+        // Func+3 = the Cue (audition/monitor) scope (6.4). Display row: the scope is
+        // entered imperatively (enterCueScope); the row exists so key 3 advertises CUE.
+        CHECK(resolve(CB::TapTempo, kModFunc) == AId::HoldCueScope, "Func+TAP = CUE scope (6.4)");
 
-        // Labels — no MET hint post-9.11
+        // Labels — bare primary "TAP TEMPO"; Func-layer hint now "CUE".
         CHECK(juce::String(resolveBinding(CB::TapTempo, -1, kModNone, SL::Base).primary) == "TAP TEMPO", "TAP TEMPO primary");
-        CHECK(juce::String(hintFor(CB::TapTempo, -1, kModNone, SL::Base)).isEmpty(), "TAP hint empty");
+        CHECK(juce::String(hintFor(CB::TapTempo, -1, kModNone, SL::Base)) == "CUE", "TAP Func hint = CUE");
     }
 
     // ── NavUp / ^ ─────────────────────────────────────────────────────────────
@@ -249,9 +249,11 @@ namespace lockstep
         CHECK(hint(CB::VerbClear, kModTrack) == "INIT",
               "Track+Clear: the Func variant is the MACHINE scope's INIT (9.29)");
 
+        // TAP's Func variant is the CUE scope (6.4): adding Func changes the ACTION
+        // (TapTempo → HoldCueScope), so the CUE secondary is a real affordance.
+        CHECK(hint(CB::TapTempo, kModNone) == "CUE", "TAP Func variant = CUE (6.4)");
         // No Func variant → no secondary. Adding Func must change the ACTION, not just
         // the label, or the key would advertise a gesture that does the same thing.
-        CHECK(hint(CB::TapTempo, kModNone).isEmpty(), "TAP has no Func variant");
         CHECK(hint(CB::NavUp, kModTrack).isEmpty(),
               "Track+Nav: Func changes nothing (the row is the same action)");
         // A row that already carries Func cannot gain another one.

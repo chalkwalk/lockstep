@@ -4348,6 +4348,7 @@ namespace lockstep
         uiState_.cueHeld = true;
         editMode_.onScopeEvent({ ControllerEvent::Type::ButtonDown, CB::CueScope });
         auditionBaseTrigDown();   // "Cue held, no step" → focused track base trig
+        setStatus(status::cueScope());
         refreshSurface();
     }
 

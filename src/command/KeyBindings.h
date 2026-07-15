@@ -149,6 +149,12 @@ namespace lockstep
         // mid-enum renumbers every later action and buries real dispatch changes.
         VerbUndo,
 
+        // 6.4: Func+3 = the Cue (audition/monitor) scope. Display row only — like
+        // FocusGlobal / HoldMachineScope, the scope is entered imperatively in the
+        // editor (dispatchDown → enterCueScope); this row exists so key 3 advertises
+        // "CUE" under Func. Appended per the ordinal-stability rule above.
+        HoldCueScope,
+
         // Sentinel — keep last. Lets the Stage 6 guard test enumerate every action
         // and assert each one is either handled by CommandCore::handleAction or
         // explicitly listed as not-yet-migrated, so a new ActionId cannot be added
