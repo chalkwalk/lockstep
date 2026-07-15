@@ -1148,14 +1148,17 @@ DESIGN §31 / §31.1. Static output complement + the `Cue` scope.
       tracks; fire on next quantum via the 9.17 launch-quantize authority, with
       the declick) + encoder param page for continuous balance.
 - [ ] **AMP/CHANNEL page** per-track balance param (edited in context like Level).
-- [ ] **Morph participation** — cue balance joins the Morph endpoint set as a
-      performance value (explicit wiring; may split to fast-follow).
 - [ ] Surface **cue indicator** on cued cells (add-only `CellState`/decoration).
 - [ ] New-modality unit tests: resolution, scope routing, round-trip, plus
       audio-path tests (`setRateAndBufferSizeDetails(44100,512)`) for crossfade /
       send-fade / tap-bypass / master-tap-reflect.
-- [ ] *Deferred (follow-on items):* `Cue + Scene` double-resolve pre-listen;
-      `Cue + MIDI-out` copy to a cue MIDI destination.
+- [ ] *Deferred (own follow-on items):* **Morph-cue integration** — morph is
+      per-scene + `(track,slot)`-keyed while cue is a persistent non-scene
+      overlay, so driving the overlay from per-scene endpoints needs its own
+      design session (the quantized flip covers "N cued tracks in at once"
+      without it); `Cue + Scene` double-resolve pre-listen; `Cue + MIDI-out`
+      copy to a cue MIDI destination.
+- Build plan: `docs/superpowers/plans/2026-07-14-cue-balance-6.4-build.md`.
 - [x] Live stem capture via Aux outs documented as the blessed stem-export path
       (DESIGN §31.1) — the offline per-take stem-export item is demoted.
 
