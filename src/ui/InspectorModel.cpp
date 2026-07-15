@@ -168,6 +168,12 @@ namespace lockstep
         if (si.checkpointDepth > 0)
             out += "  CK:" + juce::String(si.checkpointDepth);
 
+        // 9.4 E: the held scope's pending undo levels. Distinct from CK (marks): CK is
+        // what YOU saved, UNDO is the system's safety net Func+O walks. Shown only when
+        // there is something to undo.
+        if (si.undoDepth > 0)
+            out += "  UNDO:" + juce::String(si.undoDepth);
+
         out += buildClipHint(ui, si);
         return out;
     }

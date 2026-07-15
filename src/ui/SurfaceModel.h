@@ -260,6 +260,13 @@ namespace lockstep
         // Present in every layer — pure orientation cue, never encodes state.
         bool homeKey = false;
 
+        // 9.4 item G: checkpoint MARK count for a scope key (DESIGN §13.6). > 0 only on
+        // the four scope-cluster keys when that scope's mark stack is non-empty; the pip
+        // channel above carries the presence, this carries the number the painter draws.
+        // Undo entries are not marks and are not counted here. Non-frozen extension —
+        // appended after the §35.8.3 controller-bound prefix, so controllers ignore it.
+        int markDepth = 0;
+
         // Scope-glow tint (MHZ.1.x, DESIGN §6.6): non-zero ARGB when this cell is
         // *in scope* under a held modifier — i.e. the held scope rebinds it. The
         // screen renders fill+border in this colour, brighter, so the surface shows

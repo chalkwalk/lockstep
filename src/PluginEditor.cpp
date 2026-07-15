@@ -2080,7 +2080,9 @@ namespace lockstep
             si.scope = editMode_.primaryScope();
             {
                 int ckTrk = 0;
-                si.checkpointDepth = processor_.checkpointDepth(ckScope(ckTrk), ckTrk);
+                const CheckpointScope cs = ckScope(ckTrk);
+                si.checkpointDepth = processor_.checkpointDepth(cs, ckTrk);
+                si.undoDepth = processor_.undoDepth(cs, ckTrk);
             }
             inspectorBar_.setModel(buildInspectorModel(
                 uiState_, processor_.editContext(), processor_,

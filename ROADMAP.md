@@ -425,7 +425,7 @@ no overlap rule.
       it back; that is the whole fat-finger guarantee. `REDO` (re-apply the last undone
       op, a restore included) is **designed but deferred** — the first build is
       SNAP/RESTORE/UNDO, and redo gets its grammar seat when it ships (§13.6).
-- [ ] **G — Surface.** Mark-depth pip on each scope key (marks only — undo is not a
+- [x] **G — Surface.** *(Shipped 2026-07-14.)* Mark-depth pip on each scope key (marks only — undo is not a
       mark); status lane names the pending undo. Retire/repoint the Song-only `CK:N`
       chip.
 - [ ] **H — Tests.** Per the input-modality mandate: resolution, scope routing, and

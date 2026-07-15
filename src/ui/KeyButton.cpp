@@ -346,6 +346,19 @@ namespace lockstep
         paintKeyButton(g, cell, c.keyHint, {}, {},
                        grp, st, showKeyHint, compound, latchCol);
 
+        // 9.4 item G: checkpoint mark count, drawn just right of the bottom-left pip.
+        // The scope key shows how deep its OWN mark stack is (DESIGN §13.6); undo is not
+        // a mark and is named in the status lane instead.
+        if (c.markDepth > 0)
+        {
+            const auto pinner = cell.reduced(1, 1);
+            g.setColour(c.pip.present ? juce::Colour(c.pip.colour) : juce::Colours::white);
+            g.setFont(juce::Font(juce::FontOptions(8.0f)));
+            g.drawText(juce::String(c.markDepth),
+                       juce::Rectangle<int>(pinner.getX() + 8, pinner.getBottom() - 12, 16, 10),
+                       juce::Justification::bottomLeft, false);
+        }
+
         if (c.primary.isEmpty() && c.doubleTapLabel.isEmpty()
             && c.tapLabel.isEmpty() && c.holdLabel.isEmpty() && c.funcHint.isEmpty()
             && c.tripleTapLabel.isEmpty())

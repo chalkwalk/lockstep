@@ -64,7 +64,8 @@ namespace lockstep
         // they belong beside the scope in the HELD region rather than in a far corner
         // of the chrome the eye never visits.
         ClipboardType clipboard = ClipboardType::None;
-        int checkpointDepth = 0;         // depth of the HELD scope's checkpoint stack
+        int checkpointDepth = 0;         // depth of the HELD scope's checkpoint (mark) stack
+        int undoDepth = 0;               // 9.4 E: pending undo levels for the HELD scope
 
         // 9.14 st.5 — the scope the VERBS will act on (EditMode::primaryScope()). It is
         // an editor-owned fact because it depends on held STEPS and SECTION keys, which

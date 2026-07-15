@@ -2672,6 +2672,30 @@ namespace lockstep
             // clipboard verbs again.
         }
 
+        // 9.4 item G: each scope key carries its own checkpoint MARK count when its
+        // stack is non-empty (DESIGN §13.6) — the global CK:N chip only ever spoke for
+        // Song. One pass here because the four scope cells are assembled in two places
+        // above (Track/Song hand-built, Phrase/Scene in the key loop). Undo entries are
+        // not marks and are not counted; the status lane names the pending undo. A held
+        // latch keeps its own pip colour; the count rides in markDepth for the painter.
+        {
+            auto markPip = [&](int mi, CheckpointScope scope, uint32_t colour) {
+                const int md = proc.checkpointDepth(scope, activeTrack);
+                if (md <= 0) return;
+                auto& c = model.modifiers[static_cast<std::size_t>(mi)];
+                c.markDepth = md;
+                if (!c.pip.present)
+                {
+                    c.pip.present = true;
+                    c.pip.colour = colour;
+                }
+            };
+            markPip(1, CheckpointScope::Track,  kScopeTrack);
+            markPip(2, CheckpointScope::Phrase, kScopePhrase);
+            markPip(3, CheckpointScope::Scene,  kScopeScene);
+            markPip(5, CheckpointScope::Song,   kScopeSong);
+        }
+
         return model;
     }
 

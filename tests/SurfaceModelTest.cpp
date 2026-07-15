@@ -1322,8 +1322,43 @@ namespace lockstep
         }
     }
 
+    // =========================================================================
+    // 9.4 item G: each scope key carries its own checkpoint MARK count (DESIGN
+    // §13.6). The global CK:N chip only ever spoke for Song.
+    // =========================================================================
+    static void testMarkDepthPip()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        UiState ui;
+        EditContext ec;
+
+        // Two Track marks, one Song mark; Phrase and Scene left empty.
+        proc.snapshot(CheckpointScope::Track, 0);
+        proc.snapshot(CheckpointScope::Track, 0);
+        proc.snapshot(CheckpointScope::Song, 0);
+
+        const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                         GridDisplayMode::Ortholinear);
+
+        // modifiers: [1]=Track, [2]=Phrase, [3]=Scene, [5]=Song.
+        CHECK(m.modifiers[1].markDepth == 2, "Track scope key shows its 2 marks");
+        CHECK(m.modifiers[1].pip.present, "Track scope key lights a mark pip");
+        CHECK(m.modifiers[5].markDepth == 1, "Song scope key shows its 1 mark");
+        CHECK(m.modifiers[2].markDepth == 0, "Phrase scope key has no marks → no count");
+        CHECK(m.modifiers[3].markDepth == 0, "Scene scope key has no marks → no count");
+
+        // An arming (undo) is NOT a mark and must not pip a scope key.
+        proc.armUndo(CheckpointScope::Phrase, 0);
+        const auto m2 = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                          GridDisplayMode::Ortholinear);
+        CHECK(m2.modifiers[2].markDepth == 0,
+              "an armed undo does not count as a Phrase mark on the key");
+    }
+
     void runSurfaceModelTests()
     {
+        testMarkDepthPip();
         testPanicKeyLabel();
         testOverlayPageDots();
         testQuantizedMutePendingChrome();
