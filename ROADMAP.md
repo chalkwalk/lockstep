@@ -419,7 +419,7 @@ no overlap rule.
       today), kept separate from marks so a flurry of `Y`s never buries the pre-mistake
       point. `Func+O` reverts the scope's last destructive op, then the one before it a
       few deep. No overlap guard, no "UNDO EXPIRED".
-- [ ] **F — Restore is a destructive op.** A restore overwrites live state, so it
+- [x] **F — Restore is a destructive op.** *(Shipped 2026-07-14.)* A restore overwrites live state, so it
       **arms the undo stack** (item E) exactly like a clear or paste — no separate
       pre-restore slot, no separate `unrestore` gesture. `Func+O` after a restore takes
       it back; that is the whole fat-finger guarantee. `REDO` (re-apply the last undone

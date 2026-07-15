@@ -223,6 +223,13 @@ namespace lockstep
         // Kit change on track 0 should not affect Phrase-scope stack.
         arr->snapshot(CheckpointScope::Phrase, 0);
         arr->kit(0).baseParams[0] = 0.99f;
+        // The app keeps the working buffer in step with active; a sound edit lands in
+        // working and is flushed to active, never left diverged. Sync here so the state
+        // is realistic — otherwise the writeBack that restore-arms-undo now performs
+        // (item F) would flush a stale working base over this direct active poke. The
+        // invariant under test is unchanged: a Phrase mark stores only the phrase, so
+        // restoring it cannot revert the kit.
+        arr->syncWorkingTrackFromActive(0);
         arr->restoreOne(CheckpointScope::Phrase, 0);
         // Kit edit is NOT reverted by a Phrase-scope restore.
         CHECK(feq(arr->kit(0).baseParams[0], 0.99f),
@@ -333,6 +340,34 @@ namespace lockstep
         CHECK(!arr->popUndo(CheckpointScope::Track, 0), "empty undo is a no-op");
     }
 
+    // ── 9.4 item F: a restore is itself a destructive op, so it arms undo ─────
+    //
+    // Restoring a mark overwrites live state. That is destructive exactly like a clear
+    // or paste, so it arms the undo stack — Func+O then takes a mis-fired restore back.
+    static void testRestoreIsUndoable()
+    {
+        auto arr = makeArrangement();
+        arr->workingTrack(0).steps[2].trig = true;   // state A
+        arr->snapshot(CheckpointScope::Track, 0);    // mark A
+        arr->workingTrack(0).steps[2].trig = false;  // live is now B (diverged)
+
+        CHECK(arr->restoreOne(CheckpointScope::Track, 0), "restore to mark A");
+        CHECK(arr->workingTrack(0).steps[2].trig, "live is A after restore");
+        CHECK(arr->undoDepth(CheckpointScope::Track, 0) == 1, "restore armed an undo (was B)");
+
+        CHECK(arr->popUndo(CheckpointScope::Track, 0), "undo the restore");
+        CHECK(!arr->workingTrack(0).steps[2].trig, "live is B again — the restore was taken back");
+    }
+
+    // An empty-stack restore is a no-op (item A) and must NOT arm a spurious undo.
+    static void testEmptyRestoreArmsNoUndo()
+    {
+        auto arr = makeArrangement();
+        arr->workingTrack(0).steps[2].trig = true;
+        CHECK(!arr->restoreOne(CheckpointScope::Track, 0), "empty restore refuses");
+        CHECK(arr->undoDepth(CheckpointScope::Track, 0) == 0, "and arms no undo");
+    }
+
     void runCheckpointTests()
     {
         testSongSnapshotRestoreOne();
@@ -350,6 +385,8 @@ namespace lockstep
         testSongSwitchReseeds();
         testEmptyStackRestoreIsANoOp();
         testUndoStackIsSeparateFromMarks();
+        testRestoreIsUndoable();
+        testEmptyRestoreArmsNoUndo();
     }
 }
 

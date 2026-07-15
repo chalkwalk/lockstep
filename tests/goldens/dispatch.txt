@@ -505,7 +505,7 @@ SCENARIO copy phrase -> paste phrase onto track 5
     trackSection: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,
 
 SCENARIO snapshot, then restore (Func+Snapshot pops it)
-    (no observable state change)
+    undo.Song: 0 -> 1
 
 SCENARIO deviate track 0 to phrase 2 (persists)
     scene.deviated: 0000000000000000 -> 1000000000000000

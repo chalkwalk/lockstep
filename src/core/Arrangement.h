@@ -626,6 +626,13 @@ namespace lockstep
         // scope+track arguments are out of range.
         bool restoreOne(CheckpointScope scope, int track)
         {
+            // 9.4 item F: a restore overwrites live state, which is a destructive act — so
+            // it arms undo, exactly like a clear or paste, and Func+O takes it back. Arm
+            // only when there is actually a mark to restore: an empty-stack restore is a
+            // no-op (item A) and must not leave a spurious undo entry. The per-case empty
+            // guards below stay as defense in depth.
+            if (checkpointDepth(scope, track) == 0) return false;
+            armUndo(scope, track);
             switch (scope)
             {
                 // 9.4 item A: an EMPTY stack is a no-op, not a wipe.
