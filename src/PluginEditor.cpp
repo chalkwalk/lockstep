@@ -4412,6 +4412,25 @@ namespace lockstep
             return true;
         }
 
+        // 6.4: Cue + Mute = toggle the focused track's cue balance (DESIGN §31) —
+        // the direct single-track "send to headphones" gesture, a cross-column
+        // compound (Cue is the Func+3 scope, Mute the cluster modifier). Distinct
+        // from the momentary step audition above. Intercept before MuteScope's
+        // normal enterScopeHold so it never opens mute-view.
+        if (uiState_.cueHeld && ev.button == CB::MuteScope)
+        {
+            const int t = keyboardArea_.getActiveTrack();
+            if (t >= 0 && t < static_cast<int>(kNumTracks))
+            {
+                processor_.toggleCueBalance(t);
+                setStatus(processor_.getCueBalance(t) > 0.0f ? status::cuedTrack(t)
+                                                             : status::uncuedTrack(t));
+                refreshSurface();
+            }
+            cueMuteChordActive_ = true;
+            return true;
+        }
+
         // Phase 8.4 command core: try the migrated handlers first; fall through
         // to legacy dispatch for everything that hasn't migrated yet.
         {
@@ -5962,6 +5981,14 @@ namespace lockstep
     {
         using CB = ControllerButton;
         using T = ControllerEvent::Type;
+
+        // 6.4: swallow the Mute key-up that completed a Cue+Mute cue toggle, so it
+        // does not fall through to the normal mute-view up handler (DESIGN §31).
+        if (ev.button == CB::MuteScope && cueMuteChordActive_)
+        {
+            cueMuteChordActive_ = false;
+            return;
+        }
 
         // 5.5: Cue scope (Func+3) releases. The '3' key-up exits the scope; a
         // step-up ends that step's audition. Intercepted before any other handler

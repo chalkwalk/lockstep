@@ -69,6 +69,7 @@ namespace lockstep
             ed.dispatchUp(layered(ed, ev), 0);
         }
         static const UiState& ui(const LockstepEditor& ed) { return ed.uiState_; }
+        static int activeTrack(const LockstepEditor& ed) { return ed.keyboardArea_.getActiveTrack(); }
         static const Clipboard& clip(const LockstepEditor& ed) { return ed.clipboard_; }
         // 7c: the step page lives in KeyboardArea, not UiState, so a UiState-only
         // digest recorded every page-nav gesture as "(no observable state change)".
@@ -592,6 +593,45 @@ void runChromeLayoutTests(int& failed)
     check(meter.getY() >= mz.getY() - 8, "...level with the MZ, not a strip across the top");
 }
 
+// 6.4: the direct Cue+Mute cue-toggle gesture (DESIGN §31) is an editor
+// intercept, not a binding-table row, so the golden net does not cover it.
+// Drive it through the real dispatch path and assert the processor's cue balance.
+void runCueGestureTests(int& failed)
+{
+    using CB = ControllerButton;
+    using CE = ControllerEvent;
+    auto check = [&failed](bool ok, const char* what) {
+        if (!ok) { std::fprintf(stderr, "FAIL [CueGesture] %s\n", what); ++failed; }
+    };
+    auto ev = [](CB b) { return CE{ CE::Type::ButtonDown, b, -1, 0 }; };
+    auto evUp = [](CB b) { return CE{ CE::Type::ButtonUp, b, -1, 0 }; };
+
+    Rig rig;
+    auto& ed = *rig.editor;
+    auto& proc = *rig.proc;
+
+    // Enter the Cue scope: Func + 3 (TapTempo).
+    DispatchProbe::down(ed, ev(CB::Func));
+    DispatchProbe::down(ed, ev(CB::TapTempo));
+    check(DispatchProbe::ui(ed).cueHeld, "Func+3 enters the Cue scope");
+
+    const int t = DispatchProbe::activeTrack(ed);
+    check(t >= 0, "a track is focused");
+    check(proc.getCueBalance(t) == 0.0f, "focused track starts uncued");
+
+    // Cue + Mute toggles the focused track's cue balance to 1.
+    DispatchProbe::down(ed, ev(CB::MuteScope));
+    DispatchProbe::up(ed, evUp(CB::MuteScope));
+    check(proc.getCueBalance(t) == 1.0f, "Cue+Mute cues the focused track");
+    // The chord must NOT have entered mute-view.
+    check(!DispatchProbe::ui(ed).muteHeld, "Cue+Mute does not open mute-view");
+
+    // Again toggles it back off.
+    DispatchProbe::down(ed, ev(CB::MuteScope));
+    DispatchProbe::up(ed, evUp(CB::MuteScope));
+    check(proc.getCueBalance(t) == 0.0f, "Cue+Mute again uncues the focused track");
+}
+
 void runDispatchGoldenTests(int& failed)
 {
     const Digest base = Rig{}.snap();
@@ -750,6 +790,7 @@ int main()
     int failed = 0;
     lockstep::runDispatchGoldenTests(failed);
     lockstep::runChromeLayoutTests(failed);
+    lockstep::runCueGestureTests(failed);
     std::fprintf(stderr, failed == 0 ? "All dispatch golden tests passed.\n"
                                      : "%d dispatch golden test(s) FAILED.\n", failed);
     return failed == 0 ? 0 : 1;

@@ -62,6 +62,18 @@ namespace lockstep::status
     inline juce::String deletedPhrase() { return "Deleted Phrase"; }
     inline juce::String deletedPart() { return "Deleted Part"; }
 
+    // ---- cue balance (6.4, DESIGN §31) --------------------------------------
+
+    inline juce::String cuedTrack(int track)
+    {
+        return "Cue -> Track " + juce::String(track + 1) + " (to headphones)";
+    }
+
+    inline juce::String uncuedTrack(int track)
+    {
+        return "Cue off -- Track " + juce::String(track + 1) + " back to main";
+    }
+
     // ---- scene operations ---------------------------------------------------
 
     inline juce::String copiedScene() { return "Copied Scene"; }

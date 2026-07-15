@@ -106,6 +106,10 @@ namespace lockstep
         // held '3' so its release exits the scope. Audition fires resolved notes
         // via liveNoteOn/Off and writes nothing to the pattern.
         bool cueViaFunc_ = false;
+        // 6.4: Cue-held + Mute ('Z') toggles the focused track's cue balance
+        // (DESIGN §31). The flag lets the Mute key-up be swallowed so the chord
+        // never falls through to the normal mute-view up handler.
+        bool cueMuteChordActive_ = false;
         int auditionBaseTrack_ = -1;   // focused-track base-trig monitor (Cue, no step)
         int auditionBaseNote_ = -1;
         struct StepAudition { int track = -1; int count = 0;
