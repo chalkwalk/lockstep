@@ -2692,10 +2692,12 @@ are kept apart — this is the single load-bearing idea that survived the cut:
 > different stack.
 
 - **Marks** — per-scope LIFO stacks, pushed by `Y`, walked by `Func+Y`.
-- **Undo** — a *shallow* per-scope stack armed automatically before destructive ops,
-  reached by `Func+O`. Each entry carries the scope of the op that armed it (the op
-  already knows what it touched), so undo *is* scoped; what makes it feel unscoped is
-  that your fingers never name the scope.
+- **Undo** — a *shallow* per-scope stack (a few levels deep, memory-bounded like the
+  mark stacks) armed automatically before destructive ops, reached by `Func+O`. Each
+  entry carries the scope of the op that armed it (the op already knows what it
+  touched), so undo *is* scoped; what makes it feel unscoped is that your fingers
+  never name the scope. `Func+O` reverts the last destructive op, then the one before
+  it a few deep — enough for "clear a track, restore a mark, then take back both."
 
 `Func+O` (Func+Clear) is the seat 9.29 vacated when DELETE moved to the hold rail,
 and it is the right one: the Func layer is the **counter-verb layer** (Restore

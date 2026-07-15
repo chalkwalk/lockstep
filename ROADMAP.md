@@ -413,19 +413,18 @@ no overlap rule.
       `B`, default 64 MB/scope): measured payloads are `Scene` 192 B, `Phrase` 11 KB,
       `Track` 177 KB, `Song` 2.77 MB, so a flat count is the wrong shape (§13.6). The
       cheap scopes go effectively unbounded; only `Song` self-limits (~20).
-- [ ] **E — Undo stack + `Func+O`.** A *shallow* per-scope stack armed by the
-      destructive ops (which already know their scope — the auto-captures push
-      Track/Phrase/Song correctly today), kept separate from marks so a flurry of `Y`s
-      never buries the pre-mistake point. `Func+O` reverts the scope's last destructive
-      op. No overlap guard, no "UNDO EXPIRED".
+- [ ] **E — Undo stack + `Func+O`.** A *shallow* per-scope stack (a few levels deep,
+      memory-bounded like the mark stacks in D) armed by the destructive ops (which
+      already know their scope — the auto-captures push Track/Phrase/Song correctly
+      today), kept separate from marks so a flurry of `Y`s never buries the pre-mistake
+      point. `Func+O` reverts the scope's last destructive op, then the one before it a
+      few deep. No overlap guard, no "UNDO EXPIRED".
 - [ ] **F — Restore is a destructive op.** A restore overwrites live state, so it
       **arms the undo stack** (item E) exactly like a clear or paste — no separate
       pre-restore slot, no separate `unrestore` gesture. `Func+O` after a restore takes
       it back; that is the whole fat-finger guarantee. `REDO` (re-apply the last undone
       op, a restore included) is **designed but deferred** — the first build is
-      SNAP/RESTORE/UNDO, and redo gets its grammar seat when it ships (§13.6). *(Open:
-      is the undo guarantee strictly the single most-recent op, or a shallow few? Spec
-      says the last op; confirm depth before building E.)*
+      SNAP/RESTORE/UNDO, and redo gets its grammar seat when it ships (§13.6).
 - [ ] **G — Surface.** Mark-depth pip on each scope key (marks only — undo is not a
       mark); status lane names the pending undo. Retire/repoint the Song-only `CK:N`
       chip.
