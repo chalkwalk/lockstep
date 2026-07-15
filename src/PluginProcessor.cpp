@@ -470,6 +470,32 @@ namespace lockstep
                != static_cast<int>(MuteLane::None);
     }
 
+    // 6.4 quantized cue flip (DESIGN §31). Mirrors queueGlobalMuteToggle: defer to
+    // the launch quantum while playing, flip immediately when stopped / Instant.
+    // Re-arming the same track before the boundary cancels.
+    void LockstepProcessor::queueCueFlip(int track)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const auto t = static_cast<std::size_t>(track);
+        const bool defer = clock_.inPluginPlaying()
+                           && trackLaunchGrid(track) != LaunchQuant::Instant;
+        if (!defer) { toggleCueBalance(track); return; }
+        if (pendingCueFlip_[t].load(std::memory_order_acquire))
+        {
+            pendingCueFlip_[t].store(false, std::memory_order_release);
+            return;
+        }
+        pendingCueTarget_[t].store(getCueBalance(track) > 0.0f ? 0.0f : 1.0f,
+                                   std::memory_order_release);
+        pendingCueFlip_[t].store(true, std::memory_order_release);
+    }
+
+    bool LockstepProcessor::hasPendingCueFlip(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+        return pendingCueFlip_[static_cast<std::size_t>(track)].load(std::memory_order_acquire);
+    }
+
     bool LockstepProcessor::trackBoundaryInBlock(std::size_t i, double blockStart,
                                                  double blockEnd, const TimeSig& ts,
                                                  double& outB) const
@@ -2847,6 +2873,22 @@ namespace lockstep
                                 p->setValueNotifyingHost(target ? 1.0f : 0.0f);
                         });
                 }
+            }
+
+            // 6.4: per-track quantized cue flip. At the track's launch boundary,
+            // post the captured target balance to the APVTS (message thread); the
+            // Task-2 declick smooths it, so several armed tracks fade together.
+            for (std::size_t t = 0; t < kNumTracks; ++t)
+            {
+                if (!pendingCueFlip_[t].load(std::memory_order_acquire)) continue;
+                double cueBoundary = 0.0;
+                if (!trackBoundaryInBlock(t, blockStart, blockEnd, ct, cueBoundary))
+                    continue;
+                const float target = pendingCueTarget_[t].load(std::memory_order_acquire);
+                pendingCueFlip_[t].store(false, std::memory_order_release);
+                const int track = static_cast<int>(t);
+                juce::MessageManager::callAsync(
+                    [this, track, target] { setCueBalance(track, target); });
             }
 
             // Per-track relaunch / retrigger (9.17 phase-reset). Now = immediate

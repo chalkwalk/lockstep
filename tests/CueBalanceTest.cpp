@@ -13,6 +13,7 @@
 #include "../src/machine/DrumMachine.h"
 #include "../src/machine/RouteMachine.h"
 #include "../src/machine/InputSource.h"
+#include "../src/core/LaunchQuant.h"
 #include <memory>
 
 namespace lockstep
@@ -268,6 +269,38 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // Quantized flip (DESIGN §31, Task 6). A stopped transport / Instant grid
+    // flips the cue balance immediately; while playing on a real grid the flip is
+    // armed (pending) until the launch quantum, and re-arming cancels.
+    static void testCueQuantizedFlip()
+    {
+        // Stopped → immediate.
+        {
+            EngineHarness h;
+            h.processor().clock().setInPluginPlaying(false);
+            h.processor().queueCueFlip(0);
+            CHECK(feq(h.processor().getCueBalance(0), 1.0f, 1e-4f), "stopped: flip is immediate");
+            CHECK(!h.processor().hasPendingCueFlip(0), "stopped: nothing left pending");
+            h.processor().queueCueFlip(0);
+            CHECK(feq(h.processor().getCueBalance(0), 0.0f, 1e-4f), "stopped: flip back immediate");
+        }
+
+        // Playing on a real (non-Instant) grid → armed, not yet applied.
+        {
+            EngineHarness h;
+            h.processor().kit(0).launchQuant = static_cast<int>(LaunchQuant::Bar);
+            h.processor().clock().setInPluginPlaying(true);
+            h.processor().queueCueFlip(0);
+            CHECK(h.processor().hasPendingCueFlip(0), "playing: flip is armed");
+            CHECK(feq(h.processor().getCueBalance(0), 0.0f, 1e-4f),
+                  "playing: balance unchanged until the quantum");
+            // Re-arm cancels.
+            h.processor().queueCueFlip(0);
+            CHECK(!h.processor().hasPendingCueFlip(0), "playing: re-arm cancels the pending flip");
+        }
+    }
+
+    // -----------------------------------------------------------------------
     void runCueBalanceTests()
     {
         testCueBalanceDefaultAndSet();
@@ -277,5 +310,6 @@ namespace lockstep
         testCueSendFade();
         testCueDirectTapBypasses();
         testOutputReachesMasterStatic();
+        testCueQuantizedFlip();
     }
 }

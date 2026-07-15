@@ -391,6 +391,14 @@ namespace lockstep
         void cancelPendingMute(int track);
         [[nodiscard]] bool hasPendingMute(int track) const;
 
+        // 6.4: quantized cue flip (DESIGN §31). Arms a track to toggle its cue
+        // balance (0<->1) at the next launch quantum so several cued tracks come
+        // in/out together; the Task-2 declick smooths the change. A stopped
+        // transport or an Instant grid flips immediately. Safe from the message
+        // thread. Re-arming the same track before the boundary cancels.
+        void queueCueFlip(int track);
+        [[nodiscard]] bool hasPendingCueFlip(int track) const;
+
         // 9.17: per-track phase-reset (relaunch / retrigger). Mute+Play+step. If
         // the track is muted the reset rides an unmute (relaunch); on a playing
         // track it is a pure phase-reset (retrigger). Quantized to the track grid;
@@ -1267,6 +1275,9 @@ namespace lockstep
         enum class MuteLane : int { None = 0, Global, Solo, Scene };
         std::array<std::atomic<int>, kNumTracks> pendingMuteLane_{};    // [ATOMIC] MuteLane
         std::array<std::atomic<bool>, kNumTracks> pendingMuteTarget_{}; // [ATOMIC] desired ON state
+        // 6.4 quantized cue flip: armed-to-flip flag + captured target balance.
+        std::array<std::atomic<bool>, kNumTracks> pendingCueFlip_{};    // [ATOMIC] armed
+        std::array<std::atomic<float>, kNumTracks> pendingCueTarget_{}; // [ATOMIC] target balance
         std::array<std::atomic<bool>, kNumTracks> muteOverrideActive_{};// [ATOMIC]
         std::array<std::atomic<bool>, kNumTracks> muteOverrideVal_{};   // [ATOMIC]
         std::array<std::atomic<bool>, kNumTracks> soloOverrideActive_{};// [ATOMIC]
