@@ -4901,18 +4901,27 @@ not riding master gain.
 
 ### 31.3 Surfaces
 
-Cue balance is reachable four ways, one control behind them all:
+Cue balance is reachable four ways, one control behind them all. The `Cue`
+scope itself is entered as `Func+3` (§21) and is now advertised there: key
+`3` shows a **CUE** hint under `Func`, and the scope carries its own cyan.
 
-- **Direct — `Cue + focused track`.** On the existing `Cue` (audition)
-  scope (`Func+3`, §21), a gesture on the focused track toggles / nudges
-  *its* balance. The quick single-track cue.
-- **The cue overlay (two pages).** One gesture opens an overlay for all
-  tracks at once: a **step-grid page** (the 16 step keys = 16 tracks; tap
-  to arm a track's cue **quantized flip** in/out) and a **param page**
-  (encoders adjust each track's continuous balance). Nav pages between the
-  two. This is "see all the cues and adjust" and the flip button in one.
-- **The AMP/CHANNEL page.** The per-track balance appears as a param in the
-  channel section, edited in context like Level.
+- **Direct — `Cue + Mute` (focused track).** On the `Cue` (audition) scope,
+  the `Mute` cluster key toggles the *focused* track's balance — the quick
+  single-track "send to the headphones", a cross-column compound.
+- **The cue console (two pages), opened by `Cue + hold(AMP)`.** The exact
+  twin of `Track + hold(AMP)` = MIXER — **AMP is the mixer key**, and the
+  held modifier scopes it (`Track` → main levels, `Cue` → cue balances). It
+  opens straight to the **param page** (encoders adjust each track's
+  continuous balance); `Nav` toggles to the **flip page** (the 16 step keys
+  = 16 tracks; tap to arm a track's cue **quantized flip** in/out). On the
+  param page, **re-pressing AMP pages the eight-track bank** (1-8 ↔ 9-16),
+  with pagination pips under AMP — the same re-press-to-page idiom the MIXER
+  band uses.
+- **The AMP/CHANNEL page.** The per-track balance appears as a cell in the
+  channel section, edited in context like Level. It is **APVTS-backed**
+  (reads/writes the `cueBalance` param directly), *not* a `channelState`
+  slot — so it never double-stores against the persistent overlay and is
+  never captured as a step P-Lock.
 - **Morph.** Free, per §31.2 — no dedicated mode.
 
 **The quantized flip.** Because "I cued up *N* tracks and want them all in

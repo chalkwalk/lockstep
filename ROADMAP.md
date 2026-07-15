@@ -22,14 +22,21 @@ milestones below. Next orders of business, in order:
    Stream→pool wiring gap (shipped as `9.23` S9), and **`9.4` snapshot/undo shipped
    in full** (A–H: phantom cluster fixed, simple per-scope model built, undo on
    `Func+O`; spec in DESIGN §13.6, elaborate model rejected-but-preserved).
-1. *(done since the review, 2026-07-15)* — **`6.4` cue balance core shipped.**
-   Re-specced from an additive send to a per-track cue *balance* crossfade
-   (DESIGN §31): `cueBalance` APVTS overlay, per-sample declick, `(1−b)`/`b`
-   fan-out split, direct `Cue`+`Mute` toggle, the two-page cue console (flip grid
-   + `Cue` MZ band), quantized flip (`queueCueFlip`), and the surface indicator —
-   all tested. The AMP-page cell was folded into the `Cue` band (a CHANNEL slot
-   would double-store the APVTS cue param). Three follow-ons deferred to their
-   own items: morph-cue integration, `Cue + Scene`, `Cue + MIDI-out`.
+1. *(done since the review, 2026-07-15)* — **`6.4` cue balance shipped (core +
+   discoverability/access pass).** Re-specced from an additive send to a per-track
+   cue *balance* crossfade (DESIGN §31): `cueBalance` APVTS overlay, per-sample
+   declick, `(1−b)`/`b` fan-out split, direct `Cue`+`Mute` toggle, the two-page cue
+   console, quantized flip (`queueCueFlip`), and the surface indicator — all tested.
+   The **2026-07-15 access pass** then fixed three play-test gaps: the `Cue` scope
+   is now *discoverable* (a `Func+3` binding row → **CUE** hint on key 3, cue-cyan
+   scope colour, status banner); the console opens on **`Cue + hold(AMP)`** (the
+   `Track+hold(AMP)`=MIXER twin — "AMP is the mixer key"; the anomalous
+   `Cue+NavRight` promotion is gone); the MIXER band and cue console **page their
+   track bank by re-pressing AMP** (1-8 ↔ 9-16) with pagination pips; and the
+   **AMP/CHANNEL page now carries a writable, APVTS-backed CUE cell** (DESIGN §31.3
+   — synthetic slot routed to `get/setCueBalance`, excluded from `channelState`, so
+   no double-store). Three follow-ons still deferred to their own items: morph-cue
+   integration, `Cue + Scene`, `Cue + MIDI-out`.
 2. **`5.3` — Song/Scene management UI.** The big arc: names, colours, browser,
    sound recall. Needs its own brainstorm/design session first — "Kit" is retired
    as a term (`9.29`), so the recall-unit story is re-derived, likely atop
@@ -1063,7 +1070,7 @@ scopes use (reachable secondaries were invisible), and the §6.2 relocations
 landed: `TRACK` meta -> `Track+TRIG`, `GLOBAL` -> `Song+FX`, with `Func`
 pinned to COND/NOTE.
 
-## Phase 6 — Routing, FX & Platform  *[6.1/6.2/6.3/6.5 shipped; 6.4 balance core shipped (3 follow-ons deferred); 6.6 in progress; 6.7 waits for a second consumer; 6.8 open]*
+## Phase 6 — Routing, FX & Platform  *[6.1/6.2/6.3/6.5 shipped; 6.4 shipped incl. discoverability/access pass (3 follow-ons deferred); 6.6 in progress; 6.7 waits for a second consumer; 6.8 open]*
 
 The audio-input boundary and the machines it unlocks, the effects system, the cue
 bus, external controller surfaces, the machine-module ABI, and the beta polish.

@@ -24,10 +24,10 @@ namespace lockstep
         Melodic,  // melodic generator (generator hub cell 3 — stored in melodicHeld, not here)
         Harmony,  // harmonic voice-mover (generator hub cell 4 — stored in harmonyHeld, not here)
         Time,     // tempo + time-sig (Song/Scene+TRIG entry chord)
-        Density,  // density editor (Func+MOD entry chord)
-        Vel,      // velocity overlay (Func+AMP entry chord)
+        Density,  // density editor (generator hub cell 1)
+        Vel,      // velocity overlay (generator hub cell 2)
         SampleProps,  // pool sample-properties editor (Props… button on a pool row, 9.23)
-        Cue,      // cue-balance console (Cue-held + Nav entry): flip grid + param page (6.4)
+        Cue,      // cue-balance console (Cue+hold(AMP) entry): param (mixer) + flip page (6.4)
     };
 
     // ── Pending-confirm state ─────────────────────────────────────────────────
