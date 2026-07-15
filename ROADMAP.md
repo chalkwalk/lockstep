@@ -408,7 +408,11 @@ no overlap rule.
       interaction between scopes: drop the epoch/overlap/derived-validity axis
       entirely. This is mostly *removing* the machinery the first pass would have
       added, and hardening what `Arrangement` already has (the shipped B/C snapshot
-      arms) so `Track`/`Phrase`/`Scene`/`Song` stacks each stand alone.
+      arms) so `Track`/`Phrase`/`Scene`/`Song` stacks each stand alone. Replace the
+      fixed `kMaxCkDepth = 8` with a **per-scope memory budget** (evict oldest beyond
+      `B`, default 64 MB/scope): measured payloads are `Scene` 192 B, `Phrase` 11 KB,
+      `Track` 177 KB, `Song` 2.77 MB, so a flat count is the wrong shape (§13.6). The
+      cheap scopes go effectively unbounded; only `Song` self-limits (~20).
 - [ ] **E — Undo stack + `Func+O`.** A *shallow* per-scope stack armed by the
       destructive ops (which already know their scope — the auto-captures push
       Track/Phrase/Song correctly today), kept separate from marks so a flurry of `Y`s

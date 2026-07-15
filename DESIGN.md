@@ -2823,12 +2823,18 @@ Behaviour notes:
   are a "scratch take" tool — the project save is the canonical state).
   After reload, the floor is re-seeded from disk, so "reload saved"
   still works even though the scratch pushes are gone.
-- Pushing while a stack is full evicts the **oldest** *non-floor* entry,
-  preserving the most recent N plus the floor. N is generous (marks are
-  cheap for `Track`/`Scene`/`Phrase`; a `Song` mark is a whole-Song copy and
-  is the only one worth watching for memory), so the cap can be per-scope or
-  memory-based rather than a single small number — the stack is a scratch
-  tool, not a bound worth feeling in normal use.
+- **The cap is a per-scope memory budget, not a count** — the scopes span
+  ~15,000× in payload size, so one number cannot fit both ends. Measured flat
+  `sizeof` (2026-07-14): `Scene` 192 B, `Phrase` 11.3 KB, `Track` 177 KB,
+  `Song` **2.77 MB**. A flat "100 deep" would be ~280 MB of `Song` marks
+  (runaway) yet absurdly shallow for `Phrase`. So each scope's stack evicts its
+  **oldest** *non-floor* entry once its total payload exceeds a budget `B`
+  (default **64 MB/scope**): that is ~20 `Song` marks (well past any real live
+  use, a hard ceiling against pathological `Y`-mashing) and effectively
+  unlimited for the cheaper scopes (~370 `Track`, ~5,800 `Phrase`, unbounded
+  `Scene`). The stack is RAM-only scratch, never serialized, so the budget is a
+  pathology backstop, not a feature the player should feel. Payloads carry
+  *sample references*, never PCM, so the sizes above are the whole story.
 - A pop is a **deliberate, exact restore** of its scope — it is *exempt*
   from the §13 "broadcast skips deviated tracks" rule (that rule governs
   launch/unison gestures, not explicit undo). You get back exactly what
