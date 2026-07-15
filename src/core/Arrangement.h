@@ -567,8 +567,12 @@ namespace lockstep
 
         // ── Scope-respecting Checkpoints (DESIGN §13.6) ───────────────────────
         // Floor = the saved song state at load / song-switch time. Cannot be popped.
-        // Scratch stacks hold snapshots above the floor; depth capped at kMaxCkDepth.
-        static constexpr int kMaxCkDepth = 8;
+        // Scratch stacks hold snapshots above the floor; each scope's stack is bounded
+        // by a memory budget, not a fixed count — a Song payload (~2.77 MB) is ~14000×
+        // a Scene (192 B), so a flat depth cap is either wasteful for Song or absurdly
+        // generous for Scene. The budget backstops pathological Song-mark spam (~20
+        // marks) while leaving the cheap scopes effectively unlimited (DESIGN §13.6).
+        static constexpr std::size_t kCkBudgetBytes = 64ull * 1024 * 1024; // per scope
 
         void seedFloor()
         {
@@ -586,23 +590,20 @@ namespace lockstep
             {
                 case CheckpointScope::Song: {
                     songStack_.push_back(song());
-                    if (static_cast<int>(songStack_.size()) > kMaxCkDepth)
-                        songStack_.erase(songStack_.begin());
+                    evictToBudget(songStack_);
                     break;
                 }
                 case CheckpointScope::Track: {
                     if (track < 0 || track >= static_cast<int>(kNumTracks)) break;
                     auto& stk = trackStack_[track];
                     stk.push_back(song().tracks[idx(track)]);
-                    if (static_cast<int>(stk.size()) > kMaxCkDepth)
-                        stk.erase(stk.begin());
+                    evictToBudget(stk);
                     break;
                 }
                 case CheckpointScope::Scene: {
                     auto& stk = sceneStack_[sceneIdx];
                     stk.push_back(scene());
-                    if (static_cast<int>(stk.size()) > kMaxCkDepth)
-                        stk.erase(stk.begin());
+                    evictToBudget(stk);
                     break;
                 }
                 case CheckpointScope::Phrase: {
@@ -610,8 +611,7 @@ namespace lockstep
                     const int pIdx = activePhraseIdx(track);
                     auto& stk = phraseStack_[{ track, pIdx }];
                     stk.push_back(activePhrase(track));
-                    if (static_cast<int>(stk.size()) > kMaxCkDepth)
-                        stk.erase(stk.begin());
+                    evictToBudget(stk);
                     break;
                 }
             }
@@ -732,10 +732,54 @@ namespace lockstep
             return 0;
         }
 
+        // Bytes held by a scope's mark stack (flat struct sizes; the P-Lock heap tails
+        // are a minor add and deliberately ignored — this is a pathology backstop, not
+        // a precise allocator). Drives the kCkBudgetBytes eviction. See DESIGN §13.6.
+        [[nodiscard]] std::size_t checkpointBytes(CheckpointScope scope, int track) const
+        {
+            auto sum = [](const auto& stk) {
+                std::size_t t = 0; for (const auto& e : stk) t += sizeof(e); return t; };
+            switch (scope)
+            {
+                case CheckpointScope::Song:
+                    return sum(songStack_);
+                case CheckpointScope::Track: {
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) return std::size_t{ 0 };
+                    auto it = trackStack_.find(track);
+                    return it == trackStack_.end() ? std::size_t{ 0 } : sum(it->second);
+                }
+                case CheckpointScope::Scene: {
+                    auto it = sceneStack_.find(sceneIdx);
+                    return it == sceneStack_.end() ? std::size_t{ 0 } : sum(it->second);
+                }
+                case CheckpointScope::Phrase: {
+                    if (track < 0 || track >= static_cast<int>(kNumTracks)) return std::size_t{ 0 };
+                    const int pIdx = activePhraseIdx(track);
+                    auto it = phraseStack_.find({ track, pIdx });
+                    return it == phraseStack_.end() ? std::size_t{ 0 } : sum(it->second);
+                }
+            }
+            return std::size_t{ 0 };
+        }
+
     private:
         [[nodiscard]] static std::size_t idx(int i) noexcept
         {
             return static_cast<std::size_t>(i);
+        }
+
+        // Evict oldest entries (front) until the stack fits kCkBudgetBytes, keeping at
+        // least one. Called after every push in snapshot()/armUndo().
+        template <class Vec>
+        static void evictToBudget(Vec& stack)
+        {
+            std::size_t total = 0;
+            for (const auto& e : stack) total += sizeof(e);
+            while (stack.size() > 1 && total > kCkBudgetBytes)
+            {
+                total -= sizeof(stack.front());
+                stack.erase(stack.begin());   // oldest non-floor
+            }
         }
 
         // Checkpoint floor + scratch stacks (current song only; cleared on song switch).

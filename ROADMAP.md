@@ -404,7 +404,7 @@ rejected design (and the CUJs that would revive it) lives in
 Items D–H below are the **simpler** build: independent per-scope stacks, no epoch,
 no overlap rule.
 
-- [ ] **D — Independent per-scope stacks.** Marks are per-scope LIFO with no
+- [x] **D — Independent per-scope stacks.** *(Shipped 2026-07-14.)* Marks are per-scope LIFO with no
       interaction between scopes: drop the epoch/overlap/derived-validity axis
       entirely. This is mostly *removing* the machinery the first pass would have
       added, and hardening what `Arrangement` already has (the shipped B/C snapshot

@@ -94,30 +94,25 @@ namespace lockstep
               "Song floor: and is idempotent once there");
     }
 
-    // ── Song scope: depth-cap eviction ────────────────────────────────────────
-
-    static void testSongDepthCapEviction()
+    // ── Song scope: memory-budget eviction ────────────────────────────────────
+    //
+    // 9.4 item D: the stack is bounded by a per-scope memory budget (kCkBudgetBytes),
+    // not a fixed count. A Song payload is ~2.77 MB, so the 64 MB budget holds ~20
+    // Song marks — far more than the old count cap of 8, but still bounded so a
+    // pathological mark-spam can't grow without limit.
+    static void testSongStackEvictsByMemoryNotCount()
     {
         auto arr = makeArrangement();
-
-        // Push kMaxCkDepth + 1 snapshots; the oldest should be evicted.
-        for (int i = 0; i <= Arrangement::kMaxCkDepth; ++i)
+        for (int i = 0; i < 40; ++i)
         {
-            arr->workingTrack(0).length = 10 + i;
+            arr->workingTrack(0).steps[0].trig = (i % 2 == 0);
             arr->snapshot(CheckpointScope::Song, 0);
         }
-        CHECK(arr->checkpointDepth(CheckpointScope::Song, 0) == Arrangement::kMaxCkDepth,
-              "Song eviction: stack capped at kMaxCkDepth");
-
-        // Pop all; the oldest entry (length=10) was evicted; the stack bottom
-        // now holds length=11.
-        int length = 0;
-        while (arr->checkpointDepth(CheckpointScope::Song, 0) > 0)
-        {
-            length = arr->workingTrack(0).length;
-            arr->restoreOne(CheckpointScope::Song, 0);
-        }
-        CHECK(length != 10, "Song eviction: oldest entry (length 10) was evicted");
+        const int depth = arr->checkpointDepth(CheckpointScope::Song, 0);
+        CHECK(depth > 8,  "Song: memory budget allows far more than the old count cap");
+        CHECK(depth <= 40, "Song: still bounded");
+        CHECK(arr->checkpointBytes(CheckpointScope::Song, 0) <= 64u * 1024 * 1024,
+              "Song: stack stays within the 64 MB budget");
     }
 
     // ── Track scope ───────────────────────────────────────────────────────────
@@ -319,7 +314,7 @@ namespace lockstep
         testSongSnapshotRestoreOne();
         testSongRestoreToFloor();
         testSongFloorIdempotent();
-        testSongDepthCapEviction();
+        testSongStackEvictsByMemoryNotCount();
         testTrackSnapshotRestoreOne();
         testTrackScopeIsolated();
         testSceneSnapshotRestoreOne();
