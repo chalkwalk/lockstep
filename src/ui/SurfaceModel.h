@@ -267,6 +267,14 @@ namespace lockstep
         // appended after the §35.8.3 controller-bound prefix, so controllers ignore it.
         int markDepth = 0;
 
+        // 6.4 cue indicator (DESIGN §31). Non-frozen extension (controllers ignore
+        // it). `cued` = this cell's track has cue balance > 0 (routed to the
+        // headphones); `cuePending` = a quantized cue flip is armed but not yet
+        // fired. Set by buildSurfaceModel on the cue-console flip cells and any
+        // per-track cell that wants to show cue state; painted by KeyButton.
+        bool cued = false;
+        bool cuePending = false;
+
         // Scope-glow tint (MHZ.1.x, DESIGN §6.6): non-zero ARGB when this cell is
         // *in scope* under a held modifier — i.e. the held scope rebinds it. The
         // screen renders fill+border in this colour, brighter, so the surface shows

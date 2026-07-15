@@ -359,6 +359,26 @@ namespace lockstep
                        juce::Justification::bottomLeft, false);
         }
 
+        // 6.4: cue indicator (DESIGN §31). A cued cell (its track is routed to the
+        // headphones) carries a cyan top-edge strip; a pending quantized flip shows
+        // a hollow cyan dot in the top-right corner.
+        if (c.cued || c.cuePending)
+        {
+            const auto cinner = cell.reduced(1, 1);
+            const juce::Colour cueCol(0xFF20B0D0u);
+            if (c.cued)
+            {
+                g.setColour(cueCol);
+                g.fillRect(cinner.getX(), cinner.getY(), cinner.getWidth(), 3);
+            }
+            if (c.cuePending)
+            {
+                g.setColour(cueCol);
+                g.drawEllipse(static_cast<float>(cinner.getRight() - 8),
+                              static_cast<float>(cinner.getY() + 2), 6.0f, 6.0f, 1.5f);
+            }
+        }
+
         if (c.primary.isEmpty() && c.doubleTapLabel.isEmpty()
             && c.tapLabel.isEmpty() && c.holdLabel.isEmpty() && c.funcHint.isEmpty()
             && c.tripleTapLabel.isEmpty())

@@ -2697,6 +2697,20 @@ namespace lockstep
             markPip(5, CheckpointScope::Song,   kScopeSong);
         }
 
+        // 6.4: cue-console flip page — the 16 step cells stand in for the 16 tracks.
+        // Mark each cell cued (balance > 0 → to the headphones) and/or pending (a
+        // quantized flip is armed) so the performer sees the console's state.
+        if (ui.overlay == Overlay::Cue && !ui.cueParamPage)
+        {
+            for (int i = 0; i < 16; ++i)
+            {
+                if (i >= static_cast<int>(kNumTracks)) break;
+                auto& c = model.step[static_cast<std::size_t>(i)];
+                c.cued = proc.getCueBalance(i) > 0.0f;
+                c.cuePending = proc.hasPendingCueFlip(i);
+            }
+        }
+
         return model;
     }
 

@@ -12,6 +12,7 @@
 #include "../src/ui/ScopedSectionMatrix.h"
 #include "../src/ui/SectionResolve.h"
 #include "../src/ui/GridDisplayMode.h"
+#include "../src/core/LaunchQuant.h"
 #include "../src/machine/IMachine.h"
 #include "../src/ParameterIDs.h"
 #include "../src/machine/LoopMachine.h"
@@ -481,6 +482,37 @@ namespace lockstep
             CHECK(!model.step[static_cast<std::size_t>(i)].homeKey,
                   juce::String("step[") + juce::String(i) + "] homeKey=false");
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // 6.4: on the cue-console flip page the 16 step cells carry per-track cue
+    // state — `cued` (balance > 0) and `cuePending` (a quantized flip is armed).
+    static void testCueConsoleIndicator()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ec;
+
+        proc.setCueBalance(2, 1.0f);                     // track 2 → headphones
+        proc.kit(3).launchQuant = static_cast<int>(LaunchQuant::Bar);
+        proc.queueCueFlip(3);                            // playing → armed (pending)
+
+        UiState ui;
+        ui.overlay = Overlay::Cue;
+        ui.cueParamPage = false;                         // flip page
+        const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                         GridDisplayMode::Ortholinear);
+        CHECK(m.step[2].cued, "cue console: cued track shows the indicator");
+        CHECK(!m.step[2].cuePending, "cue console: a settled track is not pending");
+        CHECK(m.step[3].cuePending, "cue console: an armed flip shows the pending dot");
+        CHECK(!m.step[0].cued && !m.step[0].cuePending, "cue console: an idle track is clean");
+
+        // On the param page the flip-cell indicator is not applied (the encoders
+        // show balance instead).
+        ui.cueParamPage = true;
+        const auto mp = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                          GridDisplayMode::Ortholinear);
+        CHECK(!mp.step[2].cued, "cue console: no flip-cell indicator on the param page");
     }
 
     // -------------------------------------------------------------------------
@@ -1372,6 +1404,7 @@ namespace lockstep
         testScopeTintBindings();
         testDensityStickyFuncInvariant();
         testHomeKeyAnchors();
+        testCueConsoleIndicator();
         testLooperConsole();
         testTapeConsole();
         testGeneratorHubPrimary();
