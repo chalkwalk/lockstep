@@ -1762,11 +1762,14 @@ namespace lockstep
                   "MIXER: bank 0 labels tracks 1-8");
         }
 
-        // Bank follows the focused track: focusing track 9 (index 8) pages to 9-16.
+        // 6.4: the bank is an explicit field (re-press AMP toggles mixerBank), not
+        // focus-derived. Setting bank 1 pages the band to tracks 9-16.
         {
-            const auto fields = buildMetaBand(MetaBand::Mixer, 0, proc, 8, none, ui);
+            ui.mixerBank = 1;
+            const auto fields = buildMetaBand(MetaBand::Mixer, 0, proc, 0, none, ui);
             CHECK(fields[0].label == "Trk 9" && fields[7].label == "Trk 16",
-                  "MIXER: focusing the upper bank pages the band to tracks 9-16");
+                  "MIXER: mixerBank=1 pages the band to tracks 9-16");
+            ui.mixerBank = 0;
         }
 
         // --- Scope routing: writes address the bank's track, and land on BASE. ---
@@ -1775,11 +1778,13 @@ namespace lockstep
         CHECK(feq(proc.baseParamValue(2, slotT2), 0.5f, 1e-4f),
               "MIXER: slot 2 writes TRACK 2's base level");
 
-        // Upper bank: focused track 8 (=track 9), slot 1 → track 10 (index 9).
+        // Upper bank (mixerBank=1): slot 1 → track 10 (index 9).
         {
             const int slotT9 = proc.slotForId(9, "lockstep.amp.level");
-            writeMetaField(MetaBand::Mixer, 0, 1, 0.3f, proc, 8, none, ui);
+            ui.mixerBank = 1;
+            writeMetaField(MetaBand::Mixer, 0, 1, 0.3f, proc, 0, none, ui);
             settle();
+            ui.mixerBank = 0;
             CHECK(feq(proc.baseParamValue(9, slotT9), 0.3f, 1e-4f),
                   "MIXER: the write follows the same bank paging the display does");
         }
@@ -1848,14 +1853,16 @@ namespace lockstep
             CHECK(f[2].hasOverride, "CUE: a non-zero balance shows an override mark");
         }
 
-        // Bank follows the focused track: focus track 8 → slot 1 addresses track 9.
+        // 6.4: cueBank (re-press AMP toggles it) pages the band; bank 1 = tracks 9-16.
         {
-            const auto f = buildMetaBand(MetaBand::Cue, 0, proc, 8, none, ui);
+            ui.cueBank = 1;
+            const auto f = buildMetaBand(MetaBand::Cue, 0, proc, 0, none, ui);
             CHECK(f[0].label == "Trk 9" && f[7].label == "Trk 16",
-                  "CUE: focusing the upper bank pages the band to tracks 9-16");
-            writeMetaField(MetaBand::Cue, 0, 1, 1.0f, proc, 8, none, ui);
+                  "CUE: cueBank=1 pages the band to tracks 9-16");
+            writeMetaField(MetaBand::Cue, 0, 1, 1.0f, proc, 0, none, ui);
             CHECK(feq(proc.getCueBalance(9), 1.0f, 1e-4f),
                   "CUE: the write follows the same bank paging the display does");
+            ui.cueBank = 0;
         }
 
         // Out-of-range clamps to [0,1].

@@ -1386,19 +1386,27 @@ namespace lockstep
         return result;
     }
 
+    // 6.4: the eight-track bank offset for the MIXER / CUE bands. An explicit bank
+    // (0 = tracks 1-8, 1 = tracks 9-16) — re-pressing AMP toggles it — forced to
+    // bank 0 when there is only a single bank of tracks.
+    static int trackBankOffset(int bank) noexcept
+    {
+        if (kNumTracks <= 8) return 0;
+        return (bank != 0 ? 1 : 0) * 8;
+    }
+
     // 9.31 MIXER band — the bank's eight track levels under the eight encoders.
     //
     // Reads `lockstep.amp.level` per track through the normal param path, so a
     // track whose machine has no CHANNEL block (none today) simply renders its slot
-    // inactive rather than lying about a level it does not have. The bank follows
-    // the focused track (1-8 / 9-16), exactly as the DENSITY band's transient page
-    // does -- no new paging state, and "focus a track in the other bank" is already
-    // the gesture a performer has.
+    // inactive rather than lying about a level it does not have. The bank (1-8 / 9-16)
+    // is toggled by re-pressing AMP while the MIXER band is latched (6.4); pips under
+    // AMP advertise it. It is seeded to the focused track's bank when the band opens.
     static std::array<MetaFieldView, 8> buildMixerBand(LockstepProcessor& proc,
-                                                       int focusedTrack)
+                                                       const UiState& ui)
     {
         std::array<MetaFieldView, 8> result{};
-        const int pageOffset = ((focusedTrack >= 8) ? 1 : 0) * 8;
+        const int pageOffset = trackBankOffset(ui.mixerBank);
 
         for (int i = 0; i < 8; ++i)
         {
@@ -1431,12 +1439,13 @@ namespace lockstep
     // 6.4 CUE band — the bank's eight per-track cue balances under the encoders
     // (DESIGN §31). Mirrors the MIXER band: slot i addresses TRACK i of the bank
     // (not the focused track), reads/writes the persistent cueBalance overlay
-    // directly (never a step P-Lock), 0 = main only .. 1 = cue only.
+    // directly (never a step P-Lock), 0 = main only .. 1 = cue only. The bank is
+    // toggled by re-pressing AMP in the cue console (6.4); pips under AMP advertise it.
     static std::array<MetaFieldView, 8> buildCueBand(LockstepProcessor& proc,
-                                                     int focusedTrack)
+                                                     const UiState& ui)
     {
         std::array<MetaFieldView, 8> result{};
-        const int pageOffset = ((focusedTrack >= 8) ? 1 : 0) * 8;
+        const int pageOffset = trackBankOffset(ui.cueBank);
 
         for (int i = 0; i < 8; ++i)
         {
@@ -1764,9 +1773,9 @@ namespace lockstep
         if (band == MetaBand::SampleProps)
             return buildSamplePropsBand(proc, ui.samplePropsPoolIndex);
         if (band == MetaBand::Mixer)
-            return buildMixerBand(proc, track);
+            return buildMixerBand(proc, ui);
         if (band == MetaBand::Cue)
-            return buildCueBand(proc, track);
+            return buildCueBand(proc, ui);
         if (band == MetaBand::Density)
             return buildDensityBand(proc, ui, track);
         if (band == MetaBand::DensityMode)
@@ -1979,7 +1988,7 @@ namespace lockstep
         //      it is asserted in MetaBandTest rather than left to be re-discovered.
         if (band == MetaBand::Mixer)
         {
-            const int pageOffset = ((track >= 8) ? 1 : 0) * 8;
+            const int pageOffset = trackBankOffset(ui.mixerBank);
             const int target = pageOffset + field;
             if (target < 0 || target >= static_cast<int>(kNumTracks))
                 return;
@@ -1996,7 +2005,7 @@ namespace lockstep
         // step P-Lock — a P-Locked cue balance is not a balance, DESIGN §31).
         if (band == MetaBand::Cue)
         {
-            const int pageOffset = ((track >= 8) ? 1 : 0) * 8;
+            const int pageOffset = trackBankOffset(ui.cueBank);
             const int target = pageOffset + field;
             if (target < 0 || target >= static_cast<int>(kNumTracks))
                 return;

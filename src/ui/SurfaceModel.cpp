@@ -2524,14 +2524,25 @@ namespace lockstep
                     odKey = 4; odCount = 3; odActive = static_cast<int>(ui.densitySubPage); break;
                 case Overlay::Time:
                     odKey = 0; odCount = 2; odActive = static_cast<int>(ui.sigPage); break;
+                case Overlay::Cue:
+                    // 6.4: the cue console's param page pages its track bank by re-
+                    // pressing AMP (index 3); 2 pips when a second bank exists. On the
+                    // flip page there is no bank, so no dots.
+                    if (kNumTracks > 8 && ui.cueParamPage)
+                        { odKey = 3; odCount = 2; odActive = ui.cueBank; }
+                    break;
                 case Overlay::None:
                 case Overlay::Euclid:
                 case Overlay::Melodic:
                 case Overlay::Harmony:
                 case Overlay::SampleProps:
-                case Overlay::Cue:   // pages via Nav, not a section key — no section dots
                     break;  // no subpage cycling on a section key
             }
+            // 6.4: MIXER is a latched meta page (not an overlay); re-pressing AMP
+            // pages its track bank, so it shows the same 2 pips under AMP.
+            if (odKey < 0 && kNumTracks > 8 && ui.overlay == Overlay::None
+                && ui.masterSection == 6 /* kMetaContentMixer */)
+                { odKey = 3; odCount = 2; odActive = ui.mixerBank; }
             if (odKey >= 0)
             {
                 auto& dots = model.pageDots[static_cast<std::size_t>(odKey)];

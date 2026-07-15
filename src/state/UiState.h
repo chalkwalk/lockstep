@@ -289,6 +289,12 @@ namespace lockstep
         // flips); true = param page (the MZ encoders edit continuous cue balance
         // for the focused bank). Nav toggles the page; escapeOverlay resets it.
         bool cueParamPage = false;
+        int  cueBank = 0;   // 0 = tracks 0-7, 1 = tracks 8-15 (re-press AMP toggles)
+
+        // ── Mixer band (6.4) ── the Track+hold(AMP) MIXER page's track bank.
+        // Like densityBank/velBank: re-pressing AMP while the MIXER band is latched
+        // toggles which eight tracks sit under the encoders. Pips under AMP advertise it.
+        int  mixerBank = 0;   // 0 = tracks 0-7, 1 = tracks 8-15
 
         // ── SampleProps (9.23) ──
         // Absolute pool index being edited by the sample-properties band.

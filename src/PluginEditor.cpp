@@ -125,7 +125,12 @@ namespace lockstep
             {
                 case MetaBandId::Mixer:
                     // Toggle: the chord that opens the mixer closes it, like every
-                    // other latched meta page.
+                    // other latched meta page. On OPEN, seed the track bank to the
+                    // focused track's bank so the mixer first shows the tracks you
+                    // were on (re-pressing AMP pages from there — 6.4).
+                    if (ed.uiState_.masterSection != kMetaContentMixer)
+                        ed.uiState_.mixerBank =
+                            (ed.keyboardArea_.getActiveTrack() >= 8) ? 1 : 0;
                     ed.keyboardArea_.selectMetaSection(kMetaContentMixer, true);
                     ed.refreshSurface();
                     break;
@@ -3753,6 +3758,9 @@ namespace lockstep
         uiState_.cueHeld = false;
         uiState_.overlay = Overlay::Cue;
         uiState_.cueParamPage = false;
+        // 6.4: seed the track bank to the focused track's bank (re-pressing AMP on
+        // the param page pages from there).
+        uiState_.cueBank = (keyboardArea_.getActiveTrack() >= 8) ? 1 : 0;
         refreshMetaBand();
         refreshSurface();
     }
@@ -3767,6 +3775,19 @@ namespace lockstep
             uiState_.cueParamPage = !uiState_.cueParamPage;
             refreshMetaBand();
             refreshSurface();
+            return true;
+        }
+        // 6.4: re-press AMP (the key that opened the console) pages the track bank
+        // 1-8 <-> 9-16 on the param page; pips under AMP advertise it. Consistent
+        // with MIXER's re-press-AMP paging. Only meaningful with >8 tracks.
+        if (btn == CB::Section && index == LockstepProcessor::kAmpSecIdx)
+        {
+            if (kNumTracks > 8)
+            {
+                uiState_.cueBank ^= 1;
+                refreshMetaBand();
+                refreshSurface();
+            }
             return true;
         }
         // Step keys belong to the console: on the flip page a tap arms that track's
@@ -6266,6 +6287,17 @@ namespace lockstep
                                 keyboardArea_.selectMetaSection(LockstepProcessor::kFxSecIdx,
                                                                 /*toggle=*/false);
                                 refreshMetaBand();
+                            }
+                            else if (uiState_.masterSection == kMetaContentMixer
+                                     && heldSectionIndex_ == LockstepProcessor::kAmpSecIdx
+                                     && kNumTracks > 8)
+                            {
+                                // 6.4: re-press AMP (the key that opened MIXER) pages the
+                                // track bank 1-8 <-> 9-16; pips under AMP advertise it.
+                                // Track+HOLD(AMP) still toggles the MIXER band off.
+                                uiState_.mixerBank ^= 1;
+                                refreshMetaBand();
+                                refreshSurface();
                             }
                             else
                             {

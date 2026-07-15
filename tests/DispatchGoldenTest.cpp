@@ -180,7 +180,7 @@ namespace
     // the net -- the failure mode a golden test is supposed to make impossible.
     // If this static_assert trips: add the field below, then re-bless.
     // ---------------------------------------------------------------------------
-    static_assert(sizeof(UiState) == 1248,
+    static_assert(sizeof(UiState) == 1256,
                   "UiState changed size: add the new field(s) to digest() below, then "
                   "regenerate the golden (LOCKSTEP_REGEN_GOLDEN=1) and read the diff.");
 
@@ -262,6 +262,8 @@ namespace
         put(d, "velBank", u.velBank);
         put(d, "velSubPage", static_cast<int>(u.velSubPage));
         put(d, "cueParamPage", u.cueParamPage);
+        put(d, "cueBank", u.cueBank);
+        put(d, "mixerBank", u.mixerBank);
         put(d, "samplePropsPoolIndex", u.samplePropsPoolIndex);
         put(d, "timeEntryScope", u.timeEntryScope);
         put(d, "sigPage", static_cast<int>(u.sigPage));
