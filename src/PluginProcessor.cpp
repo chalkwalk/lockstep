@@ -186,6 +186,7 @@ namespace lockstep
             trackDividerParams_[ti] = apvts_.getRawParameterValue(ParamIDs::trackDivider(t));
             trackMuteParams_[ti] = apvts_.getRawParameterValue(ParamIDs::trackMute(t));
             trackSoloParams_[ti] = apvts_.getRawParameterValue(ParamIDs::trackSolo(t));
+            cueBalanceParams_[ti] = apvts_.getRawParameterValue(ParamIDs::cueBalance(t));
         }
 
         // T0 starts as a sampler; T1–T15 are stub (empty) until materialised.
@@ -4559,6 +4560,27 @@ namespace lockstep
     void LockstepProcessor::toggleGlobalMute(int track)
     {
         setGlobalMute(track, !getGlobalMute(track));
+    }
+
+    // 6.4 cue balance (DESIGN §31) — mirrors the mute helpers.
+    float LockstepProcessor::getCueBalance(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0.0f;
+        const auto* p = cueBalanceParams_[static_cast<std::size_t>(track)];
+        return p ? p->load() : 0.0f;
+    }
+
+    void LockstepProcessor::setCueBalance(int track, float balance)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
+        const float clamped = juce::jlimit(0.0f, 1.0f, balance);
+        if (auto* p = apvts_.getParameter(ParamIDs::cueBalance(track)))
+            p->setValueNotifyingHost(clamped);  // range is [0,1], so value == normalised
+    }
+
+    void LockstepProcessor::toggleCueBalance(int track)
+    {
+        setCueBalance(track, getCueBalance(track) > 0.0f ? 0.0f : 1.0f);
     }
 
     void LockstepProcessor::toggleSolo(int track)

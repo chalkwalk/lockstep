@@ -144,4 +144,6 @@ namespace lockstep
     void runLaunchQuantTests();
     // S7: FreeLen fit target — round-up-to-launch-quant-multiple + jitter tolerance
     void runLoopFitTests();
+    // 6.4: per-track cue balance overlay (DESIGN §31)
+    void runCueBalanceTests();
 }

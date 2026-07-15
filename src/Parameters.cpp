@@ -51,6 +51,12 @@ namespace lockstep
                 juce::ParameterID{ ParamIDs::trackSolo(t), 1 },
                 "Track " + juce::String(t + 1) + " Solo",
                 false));
+
+            // 6.4 cue balance: 0 = main only, 1 = cue only (DESIGN §31).
+            layout.add(std::make_unique<juce::AudioParameterFloat>(
+                juce::ParameterID{ ParamIDs::cueBalance(t), 1 },
+                "Track " + juce::String(t + 1) + " Cue",
+                juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
         }
 
         return layout;

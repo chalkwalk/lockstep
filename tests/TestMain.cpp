@@ -113,6 +113,8 @@ int main()
     lockstep::runLaunchQuantTests();
     // S7: FreeLen fit target (round up to launch-quant multiple + jitter tolerance)
     lockstep::runLoopFitTests();
+    // 6.4: per-track cue balance overlay (DESIGN §31)
+    lockstep::runCueBalanceTests();
 
     // Also drive the JUCE UnitTests registered in lockstep_core (the serializer
     // upgrade chain, "PluginState" category) so they run headlessly in CI rather

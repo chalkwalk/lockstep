@@ -18,6 +18,9 @@ namespace lockstep::ParamIDs
     inline std::string trackDivider(int t) { return "track_" + std::to_string(t) + "_divider"; }
     inline std::string trackMute(int t) { return "track_" + std::to_string(t) + "_mute"; }
     inline std::string trackSolo(int t) { return "track_" + std::to_string(t) + "_solo"; }
+    // 6.4 cue balance: per-track main<->cue crossfade overlay (DESIGN §31),
+    // persistent like trackMute, default 0 (main only).
+    inline std::string cueBalance(int t) { return "track_" + std::to_string(t) + "_cue"; }
 
     // Swing (DESIGN §19.2) is now stored in Song/Scene musical state, not APVTS.
     // See Song::swing, Song::SongTrack::swing, Scene::swing.

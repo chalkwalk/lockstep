@@ -552,6 +552,13 @@ namespace lockstep
         // Solo toggle — additive (multiple tracks can be soloed simultaneously).
         void toggleSolo(int track);
 
+        // 6.4 cue balance (DESIGN §31): per-track main<->cue crossfade overlay.
+        // getCueBalance reads the APVTS param; setCueBalance writes through APVTS
+        // (clamped [0,1]); toggleCueBalance snaps between 0 and 1 (>0 → 0).
+        float getCueBalance(int track) const;
+        void setCueBalance(int track, float balance);
+        void toggleCueBalance(int track);
+
         // Panic: flush all active voices + send All-Notes-Off without touching the clock.
         // UI thread: call requestPanic(). Audio thread consumes panicPending_ in processBlock.
         void requestPanic() { panicPending_.store(true, std::memory_order_release); }
@@ -1711,6 +1718,7 @@ namespace lockstep
         std::array<std::atomic<float>*, kNumTracks> trackDividerParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackMuteParams_{};
         std::array<std::atomic<float>*, kNumTracks> trackSoloParams_{};
+        std::array<std::atomic<float>*, kNumTracks> cueBalanceParams_{};  // 6.4 cue balance
         // 5.2: Morph crossfader.
         std::atomic<float> morphFaderTarget_{ 0.0f };           // [ATOMIC]
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> morphFaderSmoothed_;  // [AUDIO]
