@@ -4790,58 +4790,153 @@ three live within the existing trig model and the OEB resolver.
 
 ## 31. Cue Bus and Monitoring
 
-A dedicated **cue (monitor) bus** lets the performer pre-listen
-without disturbing the main mix — the Octatrack's "use it as a
-performance mixer" workflow, scoped to a sequencer's needs. It enters
-the grammar as a single new scope, `Cue`, with no bespoke buttons.
+A dedicated **cue (monitor) bus** lets the performer pre-listen and
+prepare music **the audience cannot hear yet**, then bring it in — the
+DJ "cue on the headphones, mix it in on the crossfader" workflow, scoped
+to a sequencer's needs. The governing setup is a performer monitoring on
+a *single* headphone (so they hear the room too); everything here is
+designed to serve that. Standalone routes the cue bus to audio device
+channels 3–4; as a plugin it exposes a second stereo output bus the host
+routes. Chrome shows "cue unavailable" when the host has not wired the
+cue output.
 
-- **Cue + track (audio track).** Adds that track to the cue bus as an
-  **additive monitor send**: the track stays in the main mix; the cue
-  send is tapped **post-FILTER/AMP/Level** (you hear it as it sits in
-  the mix). Cue never alters the main output — it is "let me hear
-  this", not solo.
-- **Cue + Scene.** Auditions the resolved scene on the cue bus
-  *without moving the live fader* — "check the scene before I commit".
-  Cued tracks resolve twice for that block (once live to main, once at
-  the previewed scene endpoint to the cue bus); the cost is borne only
-  by tracks being cued.
-- **Cue + track (MIDI-out track).** Sends a *copy* of the track's MIDI
-  events to a configured **cue MIDI destination**, leaving the main
-  destination untouched — exact parity with the audio additive send
-  (`PRINCIPLES.md` §6). If no cue MIDI destination is configured, the
-  gesture is a no-op with a chrome note. (Cue is deliberately *not*
-  reinterpreted as solo when no cue output exists: that would make one
-  scope mean two things and let cue alter the main output — a silent
-  mode. A true solo, if wanted, is a separate future gesture.)
+### 31.0 The model — cue is a per-track balance, not an on/off send
 
-**The killer use — monitored master-resampling.** The cue bus earns its
-keep on a workflow the main mix cannot express. A Record or Loop that
-taps `input_source = Master` (§27) to resample the whole mix is, by the
-feedback guard, only *legal* when its own output does **not** reach master
-(`Out = Off`) — which leaves the resample **inaudible while it is being
-made**. A `Cue + track` send restores monitoring of that capture track
-*without* putting it back into the master sum, so the performer hears what
-they are resampling as they resample it. This is the concrete answer to
-"what is the cue *for*" on a live instrument (as opposed to a DAW, where
-the host monitors): **no cue = capture-blind; cue = monitor the master
-resample and still capture master.** The same shape covers auditioning a
-send-effect track or a bus without committing it to the front-of-house
-mix.
+Each track carries a **cue balance** `b ∈ [0, 1]` that *crossfades the
+track's output between its normal destinations and the cue bus*:
 
-**Composition invariant — a cue send is not a mix edge.** Because the cue
-tap is additive and post-FILTER/AMP/Level, it is deliberately **excluded
-from `outputReachesMaster()`** (§27): cueing a track never adds a path to
-the master sum, so it can never invalidate a `Master` tap or form a
-feedback loop. Cue and the §27 feedback guard therefore compose with no
-special case — the whole reason the workflow above is safe.
+- `b = 0` — track in the main mix only (audience hears it), cue silent.
+- `b = 1` — track in cue only (performer hears it, audience does not).
+- in between — the fade.
 
-**Outputs.** Standalone routes the cue bus to audio device channels
-3–4 and the cue MIDI to a chosen output port; as a plugin it exposes
-a second stereo output bus and a second MIDI output the host routes.
-Chrome shows "cue unavailable" when the host has not wired the cue
-output.
+There is **no additive mode**: cue is a crossfade, not a second send.
+Route/Send contributions scale by `(1 − b)`, the cue contribution by `b`.
+This one control is deliberately a superset of the old "additive monitor
+send": for a **capture track** (`Out = Off`, e.g. a Record/Loop resampling
+Master under the §27 guard), the normal-route contribution is already
+zero, so raising `b` goes silent → monitored — *pure additive monitoring*,
+the killer use below. For a **live track** (routed to Master), the same
+knob fades it out of the audience mix and into the performer's ears. One
+axis, both jobs.
 
-### 31.1 Host integration — the static output complement
+**Cue is a fan-out gain at the track's output-distribution node**, applied
+*after* per-track Level/Amp (so it sits at the point where a track's post-
+insert output fans out to Master/Bus/Aux/Sends). It never modifies the
+track's output buffer itself. That placement decides every consequence:
+
+- **Direct track→track taps bypass cue.** A track that reads another
+  track's output as an `input_source` (§27) reads it *upstream* of the
+  split — the full signal, unaffected by the cued track's `b`. Cueing a
+  track must not silently rewrite what a downstream tap resamples *of that
+  track*.
+- **Master / Bus taps reflect cue.** A tap of the Master (or a Bus) bus
+  reads the split's *downstream* result, so a cued track is absent from
+  it. This is correct: a master-resample must capture *what the audience
+  actually heard* — if a track is pulled to the performer's headphones,
+  the audience mix genuinely lacks it, so the capture must too.
+- **Sends fade with cue.** A track's Send A/B contributions scale by
+  `(1 − b)` alongside its route, so cueing a track pulls its reverb/delay
+  out of the audience mix as well (an already-ringing tail decays
+  naturally, exactly like muting a channel). Otherwise "the audience
+  can't hear it" would leak through the FX return.
+- **What lands on the cue bus** is the track's post-*insert* signal (its
+  own per-track FX) but **not** the shared master send-FX — standard PFL:
+  you audition the channel with its own inserts, minus shared reverb.
+  Faithful for the pitch/timing/pattern checks cue exists for.
+
+**Composition invariant — cue is still not a mix edge.** Cue only ever
+*removes* a track's signal from the master-reaching path (or leaves it
+untouched); it never adds a routing edge. `outputReachesMaster()` (§27)
+stays **static** — a Master-routed track counts as reaching master
+regardless of live `b`, because the balance can move back at any moment —
+and cue is never selectable as an `input_source`, so it never enters the
+feedback graph. Cueing therefore can never invalidate a `Master` tap or
+form a loop; at any `b > 0` *less* reaches master, which is strictly
+feedback-safe. Cue and the §27 guard compose with no special case.
+
+### 31.1 Cue vs. mute — orthogonal axes, one rule
+
+Level/Amp sits *upstream* of the cue split, which makes cue and mute two
+independent axes of a track, not two spellings of one action:
+
+- **Level / mute** = *how present* is this, to everyone downstream
+  **including the performer's own ears**. `Level = 0` (or a mute) is gone
+  from the audience **and** from cue.
+- **Cue** = *where does it go* — of whatever is there, how much to the
+  audience vs. the performer's headphones. Cue can never make a track
+  louder or silent-to-everyone; it only splits between destinations.
+
+> **The rule.** **Mute** when a part should be *gone*. **Cue** when a part
+> should be *gone for the audience but still monitored by you* — because
+> you are prepping it, editing it, or about to bring it in.
+
+No setting of one reproduces the other (mute takes it from the performer's
+ears too; cue keeps it live in them), so "exactly one way to do a thing"
+holds. The subtle edge is **fluid mute** (§17.2), which morphs `Level → 0`
+= fades a track to *silence* over the morph fader, where cue fades a track
+to the *headphones*: same audience-facing result, opposite performer-facing
+result. The rule resolves it — *do you still need to hear it?* — and this
+edge is called out wherever the two are documented.
+
+### 31.2 Recall — cue is a performance overlay, not scene state
+
+Cue balance is a **live performance overlay**: per-track, **persistent
+across scene launches** (recall semantics like *global* mute, not scene
+mute), serialized with the project, defaulting to `0`. Rationale: cue is
+*auditioning*, and auditioning is **performance, not arrangement**. Scenes
+define what the piece *is*; cue defines what the performer is *privately
+previewing right now*. Baking cue into scene state would let a scene launch
+silently re-expose tracks the performer had cued to edit — the audience
+would hear work-in-progress the instant the section changed. So a scene
+launch never moves cue; only the performer does.
+
+**Morph still works**, because Morph (§17) is *also* a performance layer,
+not arrangement. Cue balance joins the Morph endpoint set as a performance
+value (even though it is not scene-recalled), so the DJ transition falls
+out for free: snapshot A = current section, snapshot B = the next section
+set up cued; audition B on the headphones with the fader at A, then ride
+the Morph fader A→B to bring B in and push A out — **with the master fader
+untouched the whole time**, because you are redistributing between buses,
+not riding master gain.
+
+### 31.3 Surfaces
+
+Cue balance is reachable four ways, one control behind them all:
+
+- **Direct — `Cue + focused track`.** On the existing `Cue` (audition)
+  scope (`Func+3`, §21), a gesture on the focused track toggles / nudges
+  *its* balance. The quick single-track cue.
+- **The cue overlay (two pages).** One gesture opens an overlay for all
+  tracks at once: a **step-grid page** (the 16 step keys = 16 tracks; tap
+  to arm a track's cue **quantized flip** in/out) and a **param page**
+  (encoders adjust each track's continuous balance). Nav pages between the
+  two. This is "see all the cues and adjust" and the flip button in one.
+- **The AMP/CHANNEL page.** The per-track balance appears as a param in the
+  channel section, edited in context like Level.
+- **Morph.** Free, per §31.2 — no dedicated mode.
+
+**The quantized flip.** Because "I cued up *N* tracks and want them all in
+at once" should not require setting up a morph, arming tracks on the
+overlay's step-grid page and firing brings them in (or out) together on the
+next quantum — reusing the launch-quantize authority (§16 / 9.17). The flip
+is a hard switch, so it applies a short **~5 ms declick crossfade** on each
+affected track (a clickless-mute ramp), not an instantaneous jump.
+
+**The killer use — monitored master-resampling.** A Record/Loop tapping
+`input_source = Master` (§27) to resample the mix is, by the feedback
+guard, only *legal* when its own output does not reach master (`Out = Off`)
+— which leaves the resample **inaudible while it is being made**. Raising
+that capture track's cue balance restores monitoring *without* returning it
+to the master sum (its route is `Off`, so cue is purely additive there):
+**no cue = capture-blind; cue = monitor the master resample and still
+capture master.** The same shape auditions a send-effect track or a bus
+without committing it to front-of-house.
+
+**MIDI-out and `Cue + Scene`** (a MIDI copy to a cue destination; a
+double-resolved scene pre-listen) remain specified but are **deferred past
+this milestone** — the balance model above is the buildable core.
+
+### 31.4 Host integration — the static output complement
 
 Lockstep is a **co-equal standalone and plugin** instrument, not a
 standalone-first app that happens to load in a DAW. The output layout is fixed
@@ -4874,9 +4969,10 @@ at build time so both hosts see the same thing:
   > this wrong and read 20 channel pointers out of a 2-pointer array whenever a
   > host enabled an extra bus; it merely *looked* safe while everything was
   > disabled by default.
-- **Cue = additive monitor send** (unchanged from §31): it never affects the
-  Master sum and is excluded from `outputReachesMaster()`. Standalone maps Cue to
-  device channels 3–4.
+- **Cue = a per-track main↔cue balance crossfade** (§31.0), not an additive
+  send: it only ever *removes* a track from the Master sum (never adds a path)
+  and is excluded from `outputReachesMaster()`, which stays static. Standalone
+  maps Cue to device channels 3–4.
 - **Aux = a mix routing destination.** The CHANNEL "Out" slot's destination set
   grows from `Off | Master | Bus(track)` to also include **Aux 1–6**. A route
   (bus) track can itself target an Aux — that is how an internal bus reaches a

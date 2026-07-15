@@ -1105,9 +1105,18 @@ DESIGN §31 / §31.1. Static output complement + the `Cue` scope.
 > **Scope correction (2026-07-14 alignment review).** Two boxes below were stale:
 > the `Cue`-scope key *is* allocated (it shipped with 5.5 as `Func`+`3` →
 > `enterCueScope()`, `PrimaryScope::Cue`), and the Cue bus *is* fed — but only by
-> the metronome (`processMetronome`, the bus's sole writer). What is genuinely
-> missing is the **per-track cue send tap** (`Route` has no `Cue` member) and the
-> `Cue`+X gestures that ride the scope key that already exists.
+> the metronome (`processMetronome`, the bus's sole writer).
+>
+> **Design reframe (2026-07-14 design session).** The remaining work was
+> re-specced from an "additive monitor send" to a **per-track cue *balance*
+> crossfade** (DESIGN §31 rewrite; spec:
+> `docs/superpowers/specs/2026-07-14-cue-balance-6.4-design.md`). Cue balance
+> `b ∈ [0,1]` crossfades a track between its normal route/sends `× (1 − b)` and
+> the cue bus `× b`, applied as a fan-out gain *after* Level (so direct track
+> taps bypass cue, master taps reflect it, sends fade with it). It is a
+> persistent performance overlay (not scene state), morphable, and drives the
+> DJ "cue-then-bring-in" workflow. `Cue + Scene` and `Cue + MIDI-out` are
+> deferred to follow-on items.
 - [x] Static output complement: **Master + Cue + 6 Aux** stereo buses, non-main
       declared disabled-by-default (`BusesPropertiesAccessor::make`). No dynamic
       port rescan (host lottery — rejected). **CLAP/VST3 port exposure in a real
@@ -1123,12 +1132,30 @@ DESIGN §31 / §31.1. Static output complement + the `Cue` scope.
       proves the bus is live end-to-end.
 - [x] `Cue`-scope key allocated: `Func`+`3` → `enterCueScope()` (`PrimaryScope::Cue`),
       shipped with 5.5. `Cue`+step already auditions.
-- [ ] **Per-track cue send tap** — additive post-FLTR/AMP/Level, excluded from
-      `outputReachesMaster()` (cue-only audio must never count as "reaches master").
-      `Route` grows a `Cue` member.
-- [ ] `Cue + track` / `Cue + Scene` / `Cue + MIDI-out` **gestures** on the existing
-      `Cue` scope. New input modality ⇒ unit tests (resolution, scope routing,
-      round-trip).
+- [ ] **Per-track cue balance** overlay state (`b ∈ [0,1]`, default 0),
+      persistent across scene launches (not scene state), serialized + round-trip
+      test.
+- [ ] **Distribution-stage crossfade**: route (`sumRoutedToMaster` /
+      `depositToBus` / `depositRoutedToAux`) and sends (`sendBusBufs_`) scale by
+      `(1 − b)`; new `depositRoutedToCue` deposits `× b` into cue bus 1; ~5 ms
+      declick smoothing. `outputReachesMaster()` stays **static** (excluded from
+      cue; a cued Master track still counts as reaching master).
+- [ ] **Tap semantics verified**: direct track→track taps bypass cue (read
+      `trackBuffers_` upstream of the split); Master/Bus taps reflect it.
+- [ ] **`Cue + focused track`** direct gesture (rides the existing `Cue` scope
+      without disturbing the momentary `Cue+step` audition).
+- [ ] **Cue overlay (two pages)**: step-grid quantized-flip page (16 steps = 16
+      tracks; fire on next quantum via the 9.17 launch-quantize authority, with
+      the declick) + encoder param page for continuous balance.
+- [ ] **AMP/CHANNEL page** per-track balance param (edited in context like Level).
+- [ ] **Morph participation** — cue balance joins the Morph endpoint set as a
+      performance value (explicit wiring; may split to fast-follow).
+- [ ] Surface **cue indicator** on cued cells (add-only `CellState`/decoration).
+- [ ] New-modality unit tests: resolution, scope routing, round-trip, plus
+      audio-path tests (`setRateAndBufferSizeDetails(44100,512)`) for crossfade /
+      send-fade / tap-bypass / master-tap-reflect.
+- [ ] *Deferred (follow-on items):* `Cue + Scene` double-resolve pre-listen;
+      `Cue + MIDI-out` copy to a cue MIDI destination.
 - [x] Live stem capture via Aux outs documented as the blessed stem-export path
       (DESIGN §31.1) — the offline per-take stem-export item is demoted.
 
