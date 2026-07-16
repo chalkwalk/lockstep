@@ -4062,8 +4062,8 @@ namespace lockstep
         }
 
         // Step: on the Scenes page a press cues that Scene (§16 queue; double-tap =
-        // the saved floor) and parks the cursor there. On the Phrases page it just
-        // moves the highlight (phrase copy/move is Item 5).
+        // the saved floor) and parks the cursor there. On the Phrases page it selects
+        // the slot (the copy/paste cursor; Record copies it, Play pastes into it).
         if (btn == CB::Step && index >= 0 && index < 16)
         {
             uiState_.browserCursor = index;
@@ -4074,6 +4074,24 @@ namespace lockstep
                 processor_.queueScene(index, dbl);
             }
             refreshSurface();
+            return true;
+        }
+
+        // Phrases page copy/paste (5.3 / DESIGN §23.3): Record grabs the cursor slot,
+        // Play pastes it into the cursor slot (fork-on-shared). The verbs mirror the
+        // live surface, so both routes share the same clipboard + fork machinery.
+        if (!scenes && btn == CB::VerbRecord)
+        {
+            clipboard_.clipPhrase =
+                processor_.phraseSlotSnapshot(uiState_.browserTrack, uiState_.browserCursor);
+            clipboard_.type = ClipboardType::Pattern;
+            setStatus(status::copiedPhraseSlot(uiState_.browserCursor));
+            refreshSurface();
+            return true;
+        }
+        if (!scenes && btn == CB::VerbPlay)
+        {
+            pastePhraseIntoSlot(uiState_.browserTrack, uiState_.browserCursor);
             return true;
         }
 

@@ -2403,14 +2403,24 @@ namespace lockstep
 
                         const bool occupied = trk.phrases[static_cast<std::size_t>(i)].initialised;
                         const int n = shr.count[static_cast<std::size_t>(i)];
+                        const bool isCursor = (i == ui.browserCursor);
                         const bool isPlayed = (i == playedRow);
-                        c.base = isPlayed ? CellState::BrowserCellActive
-                               : occupied ? CellState::BrowserCell
-                                          : CellState::BrowserCellEmpty;
+                        // Cursor = the copy/paste target (Record grabs it, Play pastes
+                        // into it), shown as the bright cell — mirroring the Scenes
+                        // page. The row the active scene actually plays wears a border
+                        // so the playhead stays visible when the cursor is elsewhere.
+                        c.base = isCursor  ? CellState::BrowserCellActive
+                               : occupied  ? CellState::BrowserCell
+                                           : CellState::BrowserCellEmpty;
                         const juce::Colour tint{ kScopeTrack };
-                        c.baseColour = (isPlayed ? tint.withAlpha(0.55f)
-                                      : occupied ? tint.withAlpha(0.28f)
-                                                 : tint.withAlpha(0.10f)).getARGB();
+                        c.baseColour = (isCursor  ? tint.withAlpha(0.55f)
+                                      : occupied  ? tint.withAlpha(0.28f)
+                                                  : tint.withAlpha(0.10f)).getARGB();
+                        if (isPlayed)
+                        {
+                            c.border.present = true;
+                            c.border.colour = kStepPlayhead;
+                        }
                         // "P<n>" plus the SHR badge whenever the row is not the lone
                         // diagonal player (SHR:1) — the shared / orphaned rows.
                         juce::String label = juce::String("P") + juce::String(i + 1);
@@ -2419,7 +2429,8 @@ namespace lockstep
                     }
                     model.stepBanner = juce::String("BROWSE ") + songLabel + " > T"
                         + juce::String(t + 1)
-                        + " PHRASES   SHR=shared scenes   nav: track / scenes";
+                        + " PHRASES   step=pick  Rec=copy  Play=paste  SHR=shared"
+                        + "   nav: track / scenes";
                 }
             }
             else

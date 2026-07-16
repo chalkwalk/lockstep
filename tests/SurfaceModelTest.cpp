@@ -689,17 +689,23 @@ namespace lockstep
             CHECK(m.stepBanner.isNotEmpty(), "scenes page has a model-owned banner");
         }
 
-        // Phrases page: labels are P<n>, banner names the track.
+        // Phrases page: labels are P<n>, cursor bright (the copy/paste target),
+        // banner names the track and advertises copy/paste.
         {
             UiState ui;
             ui.overlay = Overlay::Browser;
             ui.browserPage = UiState::BrowserPage::Phrases;
             ui.browserTrack = 3;
+            ui.browserCursor = 6;
 
             const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
                                              GridDisplayMode::Ortholinear);
             CHECK(m.step[0].primary.startsWith("P1"), "phrase cell shows its P<n> label");
+            CHECK(m.step[6].base == CellState::BrowserCellActive,
+                  "cursor phrase slot is bright (the copy/paste target)");
             CHECK(m.stepBanner.contains("T4"), "phrases banner names the shown track (1-based)");
+            CHECK(m.stepBanner.contains("copy") && m.stepBanner.contains("paste"),
+                  "phrases banner advertises copy/paste");
         }
     }
 

@@ -1017,6 +1017,50 @@ namespace lockstep
         }
     }
 
+    // 5.3 (DESIGN §23.3): phrase copy → paste into a slot, and fork-on-shared.
+    static void testPhraseCopyMoveAndFork()
+    {
+        EngineHarness h;
+        auto& p = h.processor();
+        // Source at NON-active slot 2 (scene 0 plays row 0, so writeBack — which
+        // flushes the empty working row 0 — never clobbers row 2's authored trig).
+        p.songAt(0).tracks[0].phrases[2].steps[3].trig = true;
+        p.songAt(0).tracks[0].phrases[2].initialised = true;
+        h.renderBlocks(2);
+
+        // Copy slot 2, paste into empty slot 5 → content lands, slot initialised.
+        const Phrase grabbed = p.phraseSlotSnapshot(0, 2);
+        CHECK(grabbed.steps[3].trig, "copy: grabbed phrase carries the trig");
+        p.writePhraseSlot(0, 5, grabbed);
+        CHECK(p.songAt(0).tracks[0].phrases[5].steps[3].trig, "paste: slot 5 got the trig");
+        CHECK(p.songAt(0).tracks[0].phrases[5].initialised, "paste: slot 5 initialised");
+        CHECK(phraseContentEqual(p.songAt(0).tracks[0].phrases[2],
+                                 p.songAt(0).tracks[0].phrases[5]),
+              "paste: source and dest content identical");
+
+        // Sharing is positional (which row each scene plays), independent of content:
+        // deviate track 0 onto row 3, so row 3 is played by scene 0 (deviation) AND
+        // scene 3 (diagonal) → SHR:2; row 0 is now played by nobody.
+        p.queuePhraseDeviation(0, 3, /*forceInstant=*/true);
+        for (int b = 0; b < 500 && !p.isTrackDeviated(0); ++b) h.renderBlocks(1);
+        CHECK(p.isTrackDeviated(0), "fork setup: track 0 deviated onto row 3");
+        CHECK(p.phraseSlotShared(0, 3), "share: row 3 shared by scenes 0 and 3");
+        CHECK(!p.phraseSlotShared(0, 0), "share: row 0 no longer played by anyone");
+
+        // Make slot 15 the lone free slot so the fork target is deterministic (and
+        // distinct from both the diagonal and the shared row it protects).
+        for (int s = 0; s < kPhrasesPerTrack - 1; ++s)
+            p.songAt(0).tracks[0].phrases[static_cast<std::size_t>(s)].initialised = true;
+        const int fslot = p.forkPhraseInto(0, grabbed);
+        CHECK(fslot == kPhrasesPerTrack - 1, "fork: lands on the lone free slot (15)");
+        CHECK(p.songAt(0).tracks[0].phrases[static_cast<std::size_t>(fslot)].steps[3].trig,
+              "fork: content landed in the fork slot");
+        for (int b = 0; b < 500 && p.deviationPhraseIdxForTrack(0) != fslot; ++b)
+            h.renderBlocks(1);
+        CHECK(p.deviationPhraseIdxForTrack(0) == fslot,
+              "fork: active scene re-pointed to the fork slot");
+    }
+
     // 9.17: a global mute armed to the Bar grid stays audible until the boundary,
     // then silences (the audio-side override engages; the real APVTS flip would
     // ride a callAsync, which does not fire headless — the override holds it).
@@ -4876,6 +4920,7 @@ namespace lockstep
         testQueuedSongSwitchAtBoundary();
         testDoubleTapSongSwitchInstant();
         testQueuedDeviationAtBoundary();
+        testPhraseCopyMoveAndFork();
         testQuantizedMuteEngagesAtBoundary();
         testQuantizedMuteCancelOnRetap();
         testDoubleTapMuteInstant();
