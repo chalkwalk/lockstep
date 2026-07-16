@@ -330,6 +330,105 @@ namespace lockstep
     }
 
     // -----------------------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // 6.4a: cue joins the P-Lock ▷ morph ▷ base ladder over a global base
+    // (DESIGN §31.5). The storage key is the kCuePLockSlot sentinel, distinct
+    // from the display slot (ampCueSlot, which aliases insertParamOffset(_,0)).
+    static void testCuePLockResolveLadder()
+    {
+        auto proc = std::make_unique<LockstepProcessor>();
+        installDrum(*proc, 0);
+        proc->setCueBalance(0, 0.2f);   // global base
+
+        // A cue P-Lock on a step wins; other steps read the base.
+        proc->sequence().tracks[0].steps[5].overrides.set(
+            LockstepProcessor::kCuePLockSlot, 0.8f);
+        CHECK(feq(proc->resolveCueTarget(0, 5, false, 0.0f), 0.8f, 1e-4f),
+              "cue P-Lock on the step wins over the base");
+        CHECK(feq(proc->resolveCueTarget(0, 3, false, 0.0f), 0.2f, 1e-4f),
+              "an unlocked step resolves to the global base");
+
+        // Collision guard: the sentinel is NOT the display slot. A P-Lock at the
+        // display index (== insertParamOffset(_,0)) must not read back as cue.
+        const int displaySlot = proc->ampCueSlot(0);
+        CHECK(displaySlot != LockstepProcessor::kCuePLockSlot,
+              "cue display slot and storage sentinel are distinct");
+        proc->sequence().tracks[0].steps[6].overrides.set(displaySlot, 0.9f);
+        CHECK(feq(proc->resolveCueTarget(0, 6, false, 0.0f), 0.2f, 1e-4f),
+              "a lock at the display slot is not mistaken for a cue P-Lock");
+    }
+
+    static void testCueMorphEqualPower()
+    {
+        auto proc = std::make_unique<LockstepProcessor>();
+        installDrum(*proc, 0);
+        proc->setCueBalance(0, 0.0f);
+        const auto key = std::make_pair(0, LockstepProcessor::kCuePLockSlot);
+        proc->section().morphA[key] = 0.0f;
+        proc->section().morphB[key] = 1.0f;
+
+        CHECK(feq(proc->resolveCueTarget(0, -1, false, 0.0f), 0.0f, 1e-4f), "fader A => 0");
+        CHECK(feq(proc->resolveCueTarget(0, -1, false, 1.0f), 1.0f, 1e-4f), "fader B => 1");
+        // Equal-power midpoint ~0.707 (a linear blend would read 0.5).
+        CHECK(feq(proc->resolveCueTarget(0, -1, false, 0.5f), std::sqrt(0.5f), 2e-3f),
+              "equal-power midpoint, not linear");
+    }
+
+    static void testCuePLockWriteAndClear()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        proc.setCueBalance(0, 0.3f);
+
+        // No held step: writing the cue cell moves the global base.
+        proc.writeParam(0, LockstepProcessor::kCuePLockSlot, 0.6f);
+        CHECK(feq(proc.getCueBalance(0), 0.6f, 1e-4f),
+              "no held step: cue write moves the global base");
+
+        // Held step 4: the same write lands a per-step P-Lock, base untouched.
+        proc.editContext().hold(0, 4);
+        proc.writeParam(0, LockstepProcessor::kCuePLockSlot, 0.9f);
+        h.renderBlocks(1);   // drain the SetStepOverride engine command
+        CHECK(feq(proc.getCueBalance(0), 0.6f, 1e-4f), "held step: base is untouched");
+        CHECK(proc.sequence().tracks[0].steps[4].overrides.has(LockstepProcessor::kCuePLockSlot),
+              "held step: a cue P-Lock is stored on the sentinel");
+        CHECK(feq(proc.resolveCueTarget(0, 4, false, 0.0f), 0.9f, 1e-4f),
+              "held step: the P-Lock resolves");
+
+        // Clear removes it; the step falls back to the base.
+        proc.clearParam(0, 4, LockstepProcessor::kCuePLockSlot);
+        h.renderBlocks(1);
+        CHECK(!proc.sequence().tracks[0].steps[4].overrides.has(LockstepProcessor::kCuePLockSlot),
+              "clear removes the cue P-Lock");
+        CHECK(feq(proc.resolveCueTarget(0, 4, false, 0.0f), 0.6f, 1e-4f),
+              "after clear the step resolves to the base");
+    }
+
+    static void testCuePLockSerializeById()
+    {
+        auto proc = std::make_unique<LockstepProcessor>();
+        installDrum(*proc, 0);
+        proc->setCueBalance(0, 0.4f);
+        proc->sequence().tracks[0].steps[7].overrides.set(
+            LockstepProcessor::kCuePLockSlot, 0.85f);
+
+        CHECK(proc->idForSlot(0, LockstepProcessor::kCuePLockSlot) == "lockstep.cue",
+              "cue sentinel serializes under lockstep.cue");
+        CHECK(proc->slotForId(0, "lockstep.cue") == LockstepProcessor::kCuePLockSlot,
+              "lockstep.cue resolves back to the sentinel");
+
+        juce::MemoryBlock state;
+        proc->getStateInformation(state);
+        auto fresh = std::make_unique<LockstepProcessor>();
+        fresh->setStateInformation(state.getData(), static_cast<int>(state.getSize()));
+
+        CHECK(feq(fresh->getCueBalance(0), 0.4f, 1e-4f), "cue base survives the round-trip");
+        CHECK(fresh->sequence().tracks[0].steps[7].overrides.has(LockstepProcessor::kCuePLockSlot),
+              "cue P-Lock survives the round-trip by id");
+        CHECK(feq(fresh->resolveCueTarget(0, 7, false, 0.0f), 0.85f, 1e-4f),
+              "restored cue P-Lock resolves");
+    }
+
     void runCueBalanceTests()
     {
         testCueBalanceDefaultAndSet();
@@ -341,5 +440,9 @@ namespace lockstep
         testCueDirectTapBypasses();
         testOutputReachesMasterStatic();
         testCueQuantizedFlip();
+        testCuePLockResolveLadder();
+        testCueMorphEqualPower();
+        testCuePLockWriteAndClear();
+        testCuePLockSerializeById();
     }
 }

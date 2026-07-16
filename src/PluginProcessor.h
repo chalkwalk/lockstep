@@ -1418,6 +1418,19 @@ namespace lockstep
         static constexpr int kFltrSecIdx   = 2;  // canonical FLTR section index
         static constexpr int kAmpSecIdx    = 3;  // canonical AMP section index
 
+        // 6.4a: the FROZEN storage key for a cue P-Lock / cue morph endpoint. The
+        // cue cell's DISPLAY position (ampCueSlot) numerically aliases
+        // insertParamOffset(track,0) — the first insert's first param — so a P-Lock
+        // stored there would double-mean cue and insert-0. This sentinel is
+        // section-agnostic (step.overrides is one flat map), far above any real slot,
+        // and small enough to survive the int16 EngineCmd.slot channel. It is
+        // persisted RAW in morph maps and by the id "lockstep.cue" in P-Locks, so its
+        // value must never change (add-only, like a CellState token). Recognised at
+        // the base of the write/morph/clear/spec dispatch (DESIGN §31.5).
+        static constexpr int kCuePLockSlot = 30000;
+        static_assert(kCuePLockSlot > 0 && kCuePLockSlot < 32767,
+                      "kCuePLockSlot must be a positive int16 sentinel above any real slot");
+
         // Absolute slot index where insert `insSlot` (0 or 1) params begin.
         [[nodiscard]] int insertParamOffset(int track, int insSlot) const noexcept;
 
@@ -1546,10 +1559,17 @@ namespace lockstep
         void depositRoutedToAux(juce::AudioBuffer<float>& fullBuffer,
                                 juce::AudioBuffer<float>& mainOut, int numBlockSamples);
         // 6.4 cue balance (DESIGN §31): fill cueRamp_[track] with this block's
-        // per-sample balance (advancing cueGainCur_ toward getCueBalance) and set
+        // per-sample balance (advancing cueGainCur_ toward `target`) and set
         // cueEngaged_[track]. Called once per non-MIDI track per block, after mute,
         // before the deposits — so the (1-b)/b split is per-sample declicked.
-        void prepCueRamp(std::size_t track, int numBlockSamples);
+        void prepCueRamp(std::size_t track, float target, int numBlockSamples);
+
+        // 6.4a: the effective cue balance for a track at one step, on the same
+        // P-Lock ▷ morph ▷ base ladder every channel param uses (DESIGN §31.5).
+        // Base = the global getCueBalance overlay; morph = an equal-power crossfade
+        // of the scene's cue endpoint (kCuePLockSlot); P-Lock = step.overrides on
+        // that sentinel. This is prepCueRamp's per-block target.
+        float resolveCueTarget(int track, int step, bool fillActive, float fader) const;
         // Deposit each cued track (b>0) into the Cue output bus (host bus 1),
         // scaled by its per-sample b. Independent of route: an Off-routed capture
         // track is additively monitored (spec §2). MIDI-out tracks skipped.

@@ -4985,14 +4985,23 @@ morph endpoint exists for a track's cue, it wins over the base for that
 scene, so a `Cue + Mute`/flip on the base is inaudible there — identical to
 any other morphed parameter, not a cue-specific rule.
 
-**Implementation seam (build item, not shipped):** the cue slot is the
-existing synthetic `ampCueSlot(track)` index; `prepCueRamp` resolves its
-per-block target as `step-override ▷ morphBlend(base = getCueBalance) ▷
-getCueBalance` and the 5 ms declick smooths per-step changes for free. Cue
-P-Locks serialize by the `lockstep.cue` id and **must** be enumerated by the
-clear-P-Lock, P-Lock-count, and copy-step paths (they range over
-`slot < numParams` today; the cue slot sits past it — see the ROADMAP item's
-audit).
+**Implementation (shipped 2026-07-15).** Storage and display use *different*
+slot indices, and the split is load-bearing: the cue cell's **display**
+position is `ampCueSlot(track)` (one past the channel block), but that index
+numerically aliases `insertParamOffset(track, 0)` — the first insert's first
+param — so it can never be the **storage** key. Cue P-Locks and morph endpoints
+key on a frozen sentinel `kCuePLockSlot` (a section-agnostic index above every
+real slot, small enough for the int16 command channel; add-only, like a
+`CellState` token). `prepCueRamp` resolves its per-block target as
+`step-override ▷ morphBlend(base = getCueBalance, equal-power) ▷ getCueBalance`
+and the 5 ms declick smooths per-step changes for free. The sentinel is
+recognised at the base of the write/morph/clear/spec dispatch, so the AMP cue
+cell flows through the *same* code path as every channel param. Cue P-Locks
+serialize by the `lockstep.cue` id (morph endpoints persist raw, keyed by the
+sentinel). The audit resolved cleanly: whole-step copy, clear-all, the grid
+P-Lock dot, and the serializer's empty-step check all enumerate the override
+map generically (sentinel included); only the per-cell lock indicator and the
+clear button needed the sentinel wired explicitly.
 
 ### 31.4 Host integration — the static output complement
 

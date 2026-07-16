@@ -182,25 +182,22 @@ namespace lockstep
                         return;
                     }
                 }
-                // Machine-param path.
+                // Machine-param path. 6.4a: the cue cell addresses the cue sentinel
+                // slot (kCuePLockSlot), not its display position — so it flows through
+                // the SAME morph/P-Lock/base dispatch as every channel param. The
+                // processor recognises the sentinel: base → setCueBalance (APVTS
+                // overlay), held-step → cue P-Lock, morph → equal-power cue endpoint
+                // (DESIGN §31.5).
+                const int cellSlot = (i == cueSlotIndex_)
+                                         ? LockstepProcessor::kCuePLockSlot
+                                         : slotOffset_ + i;
                 if (processor_.fillActive())
                 {
-                    processor_.writeFillParam(area_.getActiveTrack(), slotOffset_ + i, v);
+                    processor_.writeFillParam(area_.getActiveTrack(), cellSlot, v);
                     return;
                 }
                 const int track = area_.getActiveTrack();
-                const int slot = slotOffset_ + i;
-                // 6.4: the synthetic cue cell writes straight to the APVTS overlay,
-                // bypassing the base-param / step-override / morph paths entirely
-                // (cue is a performance overlay, not a P-lockable base param).
-                if (i == cueSlotIndex_)
-                {
-                    processor_.setCueBalance(track, v);
-                    valueLabels_[static_cast<std::size_t>(i)].setText(
-                        juce::String(juce::roundToInt(v * 100.0f)) + "%",
-                        juce::dontSendNotification);
-                    return;
-                }
+                const int slot = cellSlot;
                 // WS4: the "Out" routing slot runs over a filtered candidate
                 // index — map it back to an OutputDest encoding and update the
                 // value label live (every selectable index is already valid).
@@ -280,14 +277,18 @@ namespace lockstep
                 const int track = ctx.heldTrackIndex();
                 // Part 2 multi-step holds: clear the slot on EVERY held step, not just
                 // the primary, so a clear mirrors the multi-step write fan-out.
+                // 6.4a: the cue cell clears the sentinel slot, not its display index.
+                const int cellSlot = (i == cueSlotIndex_)
+                                         ? LockstepProcessor::kCuePLockSlot
+                                         : slotOffset_ + i;
                 for (const int step : ctx.heldSteps())
                 {
                     if (band_ == MetaBand::Trig)
                         processor_.clearTrigOverrideField(track, step, i);
                     else if (processor_.fillActive())
-                        processor_.clearFillParam(track, step, slotOffset_ + i);
+                        processor_.clearFillParam(track, step, cellSlot);
                     else
-                        processor_.clearParam(track, step, slotOffset_ + i);
+                        processor_.clearParam(track, step, cellSlot);
                 }
                 // Removing a P-Lock is an edit, like writing one — mark it so the
                 // held-step release does not also toggle the step's trig.
@@ -580,17 +581,32 @@ namespace lockstep
             }
 
             // 6.4: the synthetic cue cell — the last cell of the canonical AMP page.
-            // NOT a base param: read routes to getCueBalance, write to setCueBalance
-            // (APVTS overlay), so it never touches ParamFrame/channelState (no double-
-            // store, not P-lockable). Rendered like a unipolar Level control ("edited
-            // in context like Level", DESIGN §31.3). Gated on the AMP section so its
-            // slot index (which coincides with the first insert slot) can never hijack
-            // the FX page.
+            // Its base is the global getCueBalance overlay (APVTS, never channelState —
+            // no double-store), but it joins the P-Lock ▷ morph ▷ base ladder via the
+            // kCuePLockSlot sentinel (6.4a / DESIGN §31.5): a held step shows/edits a
+            // cue P-Lock, a morph endpoint shows the equal-power blend. Rendered like a
+            // unipolar Level control. Gated on the AMP section so its slot index (which
+            // coincides with the first insert slot) can never hijack the FX page.
             if (activeSectionIndex == LockstepProcessor::kAmpSecIdx
                 && slot == processor_.ampCueSlot(track))
             {
                 cueSlotIndex_ = i;
-                const float cueVal = processor_.getCueBalance(track);
+                // Resolved display: morph/base by default; a held-step cue P-Lock wins.
+                float cueVal = processor_.morphEffectiveValue(
+                    track, LockstepProcessor::kCuePLockSlot);
+                bool cueLock = false;
+                const int cueHeldStep = ctx.heldStepIndex();
+                if (ctx.isActiveForEditing() && ctx.heldTrackIndex() == track
+                    && cueHeldStep >= 0
+                    && cueHeldStep < static_cast<int>(t.steps.size()))
+                {
+                    const auto& cs = t.steps[static_cast<std::size_t>(cueHeldStep)];
+                    if (cs.overrides.has(LockstepProcessor::kCuePLockSlot))
+                    {
+                        cueLock = true;
+                        cueVal = cs.overrides.get(LockstepProcessor::kCuePLockSlot, cueVal);
+                    }
+                }
                 MetaRotary::View cv;
                 cv.rangeLo = 0.0;
                 cv.rangeHi = 1.0;
@@ -604,10 +620,11 @@ namespace lockstep
                 sliders_[si].applyView(cv);
                 labels_[si].setText("Cue", juce::dontSendNotification);
                 valueLabels_[si].setText(
-                    juce::String(juce::roundToInt(cueVal * 100.0f)) + "%",
+                    juce::String(juce::roundToInt(cueVal * 100.0f)) + "%"
+                        + lockMark(cueLock, false),
                     juce::dontSendNotification);
-                clearBtns_[si].setEnabled(false);
-                clearBtns_[si].setAlpha(0.0f);
+                clearBtns_[si].setEnabled(cueLock);
+                clearBtns_[si].setAlpha(cueLock ? 1.0f : 0.3f);
                 if (i == 0) samplePickerBtn_.setVisible(false);
                 continue;
             }

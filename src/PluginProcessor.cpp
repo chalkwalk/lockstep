@@ -1469,9 +1469,35 @@ namespace lockstep
         }
     }
 
-    void LockstepProcessor::prepCueRamp(std::size_t track, int numBlockSamples)
+    // 6.4a: cue joins the P-Lock ▷ morph ▷ base ladder every channel param uses
+    // (DESIGN §31.5). Base = the global getCueBalance overlay; morph = an equal-power
+    // crossfade of the scene's cue endpoint (kCuePLockSlot); P-Lock = a step override
+    // on that sentinel. Resolved here so a per-step cue rides the same declick ramp.
+    float LockstepProcessor::resolveCueTarget(int track, int step, bool fillActive,
+                                              float fader) const
     {
-        const float target = getCueBalance(static_cast<int>(track));
+        float v = getCueBalance(track);
+        // Morph tier (equal-power — cue is an amplitude balance, so a scene crossfade
+        // of cued-ness must not dip). Mirror-resolves to the base when unset.
+        const Scene& sc = section();
+        if (!sc.morphA.empty() || !sc.morphB.empty())
+            v = morphBlend(sc, track, kCuePLockSlot, v, fader,
+                           /*stepped*/ false, /*equalPower*/ true);
+        // P-Lock tier: a step override on the sentinel wins (fill layer on top).
+        if (step >= 0 && step < kMaxStepsPerTrack)
+        {
+            const auto& st = sequence().tracks[static_cast<std::size_t>(track)]
+                                 .steps[static_cast<std::size_t>(step)];
+            if (st.overrides.has(kCuePLockSlot))
+                v = st.overrides.get(kCuePLockSlot, v);
+            if (fillActive && st.fillOverrides.has(kCuePLockSlot))
+                v = st.fillOverrides.get(kCuePLockSlot, v);
+        }
+        return juce::jlimit(0.0f, 1.0f, v);
+    }
+
+    void LockstepProcessor::prepCueRamp(std::size_t track, float target, int numBlockSamples)
+    {
         float cur = cueGainCur_[track];
         // Fast path: fully main and staying there — no ramp, deposits stay unity.
         cueEngaged_[track] = (cur > 0.0f || target > 0.0f);
@@ -2690,7 +2716,9 @@ namespace lockstep
                     processTrackChain(i, frame, resolveStep, fillNow, faderNow,
                                       numBlockSamples, trackMidi[i]);
                     muteGain_[i].applyGain(trackBuffers_[i], numBlockSamples);
-                    prepCueRamp(i, numBlockSamples);   // 6.4 cue split trajectory
+                    prepCueRamp(i, resolveCueTarget(static_cast<int>(i), resolveStep,
+                                                    fillNow, faderNow),
+                                numBlockSamples);   // 6.4/6.4a cue split trajectory
                     depositToBus(i, numBlockSamples);
                 }
             }
@@ -3729,7 +3757,9 @@ namespace lockstep
                 // summed anywhere (master + any downstream tap), so a mute fades the
                 // track out everywhere. gain==1 when unmuted → a no-op.
                 muteGain_[i].applyGain(trackBuffers_[i], numBlockSamples);
-                prepCueRamp(i, numBlockSamples);   // 6.4 cue split trajectory
+                prepCueRamp(i, resolveCueTarget(static_cast<int>(i), firedStepIdx_[i],
+                                                curFillActive, faderNow),
+                            numBlockSamples);   // 6.4/6.4a cue split trajectory
                 depositToBus(i, numBlockSamples);
             }
         }
@@ -4050,6 +4080,18 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks))
             return;
+        // 6.4a: the cue sentinel isn't a base/ParamFrame slot (DESIGN §31.5). With a
+        // step held it P-Locks the focused track's cue; otherwise it writes the global
+        // base overlay. No Control-All fan-out (cue is per-track by construction).
+        if (slot == kCuePLockSlot)
+        {
+            const float cv = juce::jlimit(0.0f, 1.0f, value);
+            if (editContext_.isActiveForEditing() && editContext_.heldTrackIndex() == track)
+                writeHeldStepOverrides(track, kCuePLockSlot, cv);
+            else
+                setCueBalance(track, cv);
+            return;
+        }
         const int np = numParams(track);
         if (slot < 0 || slot >= np)
             return;
@@ -4355,7 +4397,7 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         if (step < 0 || step >= kMaxStepsPerTrack) return;
-        if (slot < 0 || slot >= numParams(track)) return;
+        if (slot < 0 || (slot >= numParams(track) && slot != kCuePLockSlot)) return;  // 6.4a: cue sentinel
         EngineCmd c;
         c.op = EngineCmd::Op::ClearStepOverride;
         c.track = static_cast<uint8_t>(track);
@@ -4443,7 +4485,9 @@ namespace lockstep
     void LockstepProcessor::writeMorph(int track, int slot, float deltaAbs, float fader)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        if (slot < 0 || slot >= numParams(track)) return;
+        // 6.4a: the cue sentinel is a valid morph target (base = getCueBalance,
+        // spec = [0,1]); it sits past numParams so it needs an explicit pass.
+        if (slot < 0 || (slot >= numParams(track) && slot != kCuePLockSlot)) return;
 
         // ~1.5 % dead zone at each extreme: write only to the near pole so
         // that pushing the fader to an end never creates a surprise two-sided
@@ -4491,7 +4535,7 @@ namespace lockstep
     void LockstepProcessor::writeMorphPole(int track, int slot, float value, int pole)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        if (slot < 0 || slot >= numParams(track)) return;
+        if (slot < 0 || (slot >= numParams(track) && slot != kCuePLockSlot)) return;  // 6.4a: cue sentinel
 
         const auto spec = paramSpec(track, slot);
         const float v = juce::jlimit(spec.minValue, spec.maxValue, value);
@@ -4660,13 +4704,19 @@ namespace lockstep
         const float aVal = hasA ? sc.morphA.at(key) : (hasB ? sc.morphB.at(key) : base);
         const float bVal = hasB ? sc.morphB.at(key) : (hasA ? sc.morphA.at(key) : base);
         if (paramSpec(track, slot).isStepped) return (f < 0.5f) ? aVal : bVal;
+        if (slot == kCuePLockSlot)   // 6.4a: equal-power, matching the audio resolve
+        {
+            const float sqA = std::sqrt(std::max(0.0f, 1.0f - f));
+            const float sqB = std::sqrt(std::max(0.0f, f));
+            return aVal * sqA + bVal * sqB;
+        }
         return aVal + (bVal - aVal) * f;
     }
 
     void LockstepProcessor::writeFillParam(int track, int slot, float value)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
-        if (slot < 0 || slot >= numParams(track)) return;
+        if (slot < 0 || (slot >= numParams(track) && slot != kCuePLockSlot)) return;  // 6.4a: cue sentinel
         if (!editContext_.isActiveForEditing() || editContext_.heldTrackIndex() != track) return;
         const int step = editContext_.heldStepIndex();
         if (step < 0 || step >= kMaxStepsPerTrack) return;
@@ -4683,7 +4733,7 @@ namespace lockstep
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
         if (step < 0 || step >= kMaxStepsPerTrack) return;
-        if (slot < 0 || slot >= numParams(track)) return;
+        if (slot < 0 || (slot >= numParams(track) && slot != kCuePLockSlot)) return;  // 6.4a: cue sentinel
         pushEngineCmd({ EngineCmd::Op::ClearFillOverride,
                         static_cast<uint8_t>(track),
                         static_cast<uint8_t>(step),
@@ -4997,6 +5047,20 @@ namespace lockstep
             return {};
         const auto ti = static_cast<std::size_t>(track);
         auto* m = machines_[ti].get();
+        // 6.4a: the cue sentinel is a continuous [0,1] balance. A minimal spec (no
+        // stepped flag, no Role) is enough for the morph clamp/label paths; cue's
+        // equal-power weighting is applied at resolve, not via Role (DESIGN §31.5).
+        if (index == kCuePLockSlot)
+        {
+            ParamSpec p;
+            p.id = "lockstep.cue";
+            p.label = "Cue";
+            p.minValue = 0.0f;
+            p.maxValue = 1.0f;
+            p.defaultValue = 0.0f;
+            p.sectionIndex = kAmpSecIdx;
+            return p;
+        }
         const int mnp = m->numParams();
         if (index < mnp)
             return m->paramSpec(index);
@@ -5319,6 +5383,10 @@ namespace lockstep
             return {};
         const auto ti = static_cast<std::size_t>(track);
         auto* m = machines_[ti].get();
+        // 6.4a: cue P-Locks serialize under this stable id (the sentinel storage slot
+        // is section-agnostic; DESIGN §31.5). Must precede every range dispatch.
+        if (index == kCuePLockSlot)
+            return "lockstep.cue";
         const int mnp = m->numParams();
         if (index < mnp)
             return m->idForSlot(index);
@@ -5381,6 +5449,8 @@ namespace lockstep
             return -1;
         const auto ti = static_cast<std::size_t>(track);
         auto* m = machines_[ti].get();
+        if (id == "lockstep.cue")   // 6.4a: cue P-Lock sentinel (DESIGN §31.5)
+            return kCuePLockSlot;
         if (id.startsWith("lockstep.fltr.") && !m->isMidiOut())
         {
             const int mnp = m->numParams();
@@ -5420,6 +5490,10 @@ namespace lockstep
     float LockstepProcessor::baseParamValue(int track, int slot) const
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return 0.0f;
+        // 6.4a: the cue sentinel's base is the global APVTS overlay, not a base-param
+        // (DESIGN §31.5). Kept before the baseParams lookup so morph/held-step deltas
+        // resolve against the true cue base.
+        if (slot == kCuePLockSlot) return getCueBalance(track);
         const auto ti = static_cast<std::size_t>(track);
         const auto& bp = sequence().tracks[ti].baseParams;
         if (static_cast<std::size_t>(slot) < bp.size())
@@ -7159,7 +7233,10 @@ namespace lockstep
             {
                 if (pending[t]) machines_[t] = std::move(pending[t]);
                 sequence().tracks[t].baseParams = kit(static_cast<int>(t)).baseParams;
-                const int np = numParams(static_cast<int>(t));
+                // +1: the cue P-Lock sentinel (kCuePLockSlot) can add one entry past
+                // the real params, so reserve for it too — otherwise an audio-thread
+                // set() could realloc (DESIGN §31.5).
+                const int np = numParams(static_cast<int>(t)) + 1;
                 for (auto& step : sequence().tracks[t].steps)
                 {
                     step.overrides.reserve(np);
@@ -8147,7 +8224,7 @@ namespace lockstep
         // allocates after state load.
         for (std::size_t t = 0; t < kNumTracks; ++t)
         {
-            const int np = numParams(static_cast<int>(t));
+            const int np = numParams(static_cast<int>(t)) + 1;   // +1: cue sentinel
             for (auto& step : sequence().tracks[t].steps)
             {
                 step.overrides.reserve(np);
