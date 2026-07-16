@@ -31,6 +31,7 @@
 #include "TestHarness.h"
 #include "../src/core/Phrase.h"
 #include "../src/core/Song.h"
+#include "../src/core/SoundPool.h"      // SoundEntry (5.3 identity round-trip)
 #include "../src/core/Scale.h"          // kAeolian / kDorian (key brightness)
 #include "../src/core/TrigCondition.h"
 #include "../src/state/StateKeys.h"     // 4.9 sample-analysis cache keys
@@ -847,9 +848,97 @@ namespace lockstep
               "legacy entry carries no analysed flag (triggers re-analysis)");
     }
 
+    // ── 5.3 identity round-trip (Song / Scene / SoundEntry name + colour) ──────
+    // Mirrors the production write/read logic in PluginState.cpp (the Song/Scene
+    // writers and readProjectSoundPool) at the ValueTree level: name is written
+    // only when non-empty, colour only when >= 0, and both default on absence
+    // (empty name / colour -1) — the v34→v35 trivial upgrade.
+    static void testIdentityRoundTrip()
+    {
+        namespace k = keys;
+
+        // Song identity survives. (Song is ~3 MB — the Arrangement-size gotcha —
+        // so we exercise the field-level write/read logic without a stack Song.)
+        {
+            const std::string name = "Amber Fox";
+            const int colour = 3;
+
+            juce::ValueTree n(k::kSong);
+            n.setProperty("i", 0, nullptr);
+            if (!name.empty())
+                n.setProperty(k::kSoName, juce::String(name), nullptr);
+            if (colour >= 0)
+                n.setProperty(k::kSoColour, colour, nullptr);
+
+            const auto backName =
+                n.getProperty(k::kSoName, juce::String()).toString().toStdString();
+            const int backColour = static_cast<int>(n.getProperty(k::kSoColour, -1));
+            CHECK(backName == "Amber Fox", "Song name round-trips");
+            CHECK(backColour == 3, "Song colour round-trips");
+        }
+
+        // Scene identity survives; sceneHasContent gates on it.
+        {
+            Scene sc;
+            CHECK(!sceneHasContent(sc), "default Scene has no content");
+            sc.name = "Bridge B";
+            CHECK(sceneHasContent(sc), "named Scene forces persistence");
+            sc.name.clear();
+            sc.colour = 5;
+            CHECK(sceneHasContent(sc), "coloured Scene forces persistence");
+
+            sc.name = "Bridge B";
+            juce::ValueTree n(k::kScene);
+            if (!sc.name.empty())
+                n.setProperty(k::kScName, juce::String(sc.name), nullptr);
+            if (sc.colour >= 0)
+                n.setProperty(k::kScColour, sc.colour, nullptr);
+
+            Scene back;
+            back.name = n.getProperty(k::kScName, juce::String()).toString().toStdString();
+            back.colour = static_cast<int>(n.getProperty(k::kScColour, -1));
+            CHECK(back.name == "Bridge B", "Scene name round-trips");
+            CHECK(back.colour == 5, "Scene colour round-trips");
+        }
+
+        // SoundEntry colour survives (name already round-trips pre-v35).
+        {
+            SoundEntry e;
+            e.name = "Tavo";
+            e.colour = 7;
+
+            juce::ValueTree n(k::kSoundEntry);
+            n.setProperty(k::kSeName, juce::String(e.name), nullptr);
+            if (e.colour >= 0)
+                n.setProperty(k::kSeColour, e.colour, nullptr);
+
+            SoundEntry back;
+            back.name = n.getProperty(k::kSeName, "Sound").toString().toStdString();
+            back.colour = static_cast<int>(n.getProperty(k::kSeColour, -1));
+            CHECK(back.name == "Tavo", "SoundEntry name round-trips");
+            CHECK(back.colour == 7, "SoundEntry colour round-trips");
+        }
+
+        // v34→v35 upgrade: absent identity fields default cleanly.
+        {
+            juce::ValueTree song(k::kSong);   // no identity props written
+            const auto name =
+                song.getProperty(k::kSoName, juce::String()).toString().toStdString();
+            const int colour = static_cast<int>(song.getProperty(k::kSoColour, -1));
+            CHECK(name.empty(), "v34 Song loads with empty name");
+            CHECK(colour == -1, "v34 Song loads with colour -1 (unset)");
+
+            juce::ValueTree se(k::kSoundEntry);
+            SoundEntry seBack;
+            seBack.colour = static_cast<int>(se.getProperty(k::kSeColour, -1));
+            CHECK(seBack.colour == -1, "v34 SoundEntry loads with colour -1 (unset)");
+        }
+    }
+
     void runSerializerRoundTripTests()
     {
         testCondRoundTrip();
+        testIdentityRoundTrip();
         testSceneOccupancyDerivation();
         testStepRoundTrip();
         testPhrasePropertyNames();

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <map>
+#include <string>
 #include <utility>
 #include "Sequence.h"   // kNumTracks
 #include "TimeSig.h"
@@ -46,6 +47,11 @@ namespace lockstep
         bool hasTempo = false;
         double tempoRatio = 1.0;
 
+        // Identity (5.3 / DESIGN §23.1). Optional user-assigned name (<=16 chars)
+        // and colour (palette index, §24; -1 = unset ⇒ slot-derived at display time).
+        std::string name;
+        int colour = -1;
+
         // True once explicitly initialised.
         bool initialised = false;
 
@@ -67,6 +73,7 @@ namespace lockstep
         if (s.hasKeySig) return true;
         if (s.hasTempo) return true;
         if (s.swing != 0.0f) return true;
+        if (!s.name.empty() || s.colour >= 0) return true;   // 5.3 identity
         return !s.morphA.empty() || !s.morphB.empty();
     }
 }

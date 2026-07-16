@@ -33,6 +33,9 @@ namespace lockstep::keys
     inline constexpr const char* kSong = "Song";
     inline constexpr const char* kIdx = "i";      // generic index field
     inline constexpr const char* kSwing = "swing";
+    // v35 (5.3): optional Song identity — name + colour (palette index, -1 = unset).
+    inline constexpr const char* kSoName = "nm";      // Song display name
+    inline constexpr const char* kSoColour = "col";   // Song colour (palette index)
 
   // ── SongTrack node ──────────────────────────────────────────────────────────
     inline constexpr const char* kSongTrack = "SongTrack";
@@ -40,6 +43,9 @@ namespace lockstep::keys
 
   // ── Scene node ──────────────────────────────────────────────────────────────
     inline constexpr const char* kScene = "Scene";
+    // v35 (5.3): optional Scene identity — name + colour (palette index, -1 = unset).
+    inline constexpr const char* kScName = "nm";      // Scene display name
+    inline constexpr const char* kScColour = "col";   // Scene colour (palette index)
     inline constexpr const char* kCtN = "ct_n";
     inline constexpr const char* kCtD = "ct_d";
     inline constexpr const char* kHasTs = "hasTs";         // v21: Scene/Song hasTimeSig flag
@@ -164,6 +170,7 @@ namespace lockstep::keys
     inline constexpr const char* kSoundPool = "SoundPool";   // project sound-bank node
     inline constexpr const char* kSoundEntry = "SE";          // child node per entry
     inline constexpr const char* kSeName = "nm";              // entry display name
+    inline constexpr const char* kSeColour = "col";           // v35 (5.3): colour (palette index, -1 = unset)
     inline constexpr const char* kSeSampleIdx = "spi";        // samplePoolIndex (-1 = none)
   // kMId / kDId / kBaseParams / kParam / kParamId / kV reused from Kit section above.
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <string>
 #include "Phrase.h"
 #include "Scene.h"
 #include "TimeSig.h"
@@ -30,6 +31,12 @@ namespace lockstep
 
         std::array<SongTrack, kNumTracks> tracks{};
         std::array<Scene, kScenesPerSong> scenes{};
+
+        // Identity (5.3 / DESIGN §23.1). Optional user-assigned name (<=16 chars)
+        // and colour (palette index, §24; -1 = unset ⇒ slot-derived at display time).
+        std::string name;
+        int colour = -1;
+
         // Song-wide base swing (DESIGN §19.2). The "conductor" gesture — applies to all tracks.
         float swing = 0.0f;
         // Optional Song-level time-signature override (DESIGN §4.8).

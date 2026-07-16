@@ -11,6 +11,8 @@ namespace lockstep
     struct SoundEntry
     {
         std::string name = "Sound";
+        // Identity colour (5.3 / DESIGN §23.1): palette index (§24; -1 = unset).
+        int colour = -1;
         std::string machineId = "lockstep.sample.v1";
         ParamFrame baseParams{};
         int samplePoolIndex = -1;  // -1 = no sample (or MIDI-out destination)

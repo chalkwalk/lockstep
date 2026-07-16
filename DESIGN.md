@@ -4007,19 +4007,29 @@ The hierarchy (DESIGN §4.7) and the queue gesture (§16) underlie this:
 the management UI sits on top, letting a performer navigate, label, and
 re-arrange the hierarchy *during performance* without halting playback.
 
-### 23.1 Names, colours, tags
+### 23.1 Names, colours
 
-Each Song, Scene, and Phrase carries:
+The **named entities are Song, Scene, and Sound** (the project SoundPool
+entry — the recall unit that inherited the retired "Kit"'s role, 9.29).
+**Phrases are not named** — a phrase's identity is its *content*, and its
+one performance-relevant fact (how many Scenes share it) is surfaced as the
+**SHR:N badge** in the browser (§23.2), not a name. Each named entity carries:
 
-- A short user-editable **name** (≤16 chars). Defaults are
-  slot-derived (e.g. Song `A`, Scene `A03`, Phrase `A03·T2·p4`).
-  Editable inline; no modal dialog.
-- A **colour** from a small palette tied to the §24 state-colour
-  taxonomy. Used in the queued-pattern chip, chain badges, and
-  the browser. Tracks-by-eye colour grouping ("intro / chorus /
-  drop") is the headline use case.
-- An optional **tag** string (≤24 chars), free-form. Searchable
-  in the browser; not surfaced in chrome.
+- A short user-editable **name** (≤16 chars). Defaults are slot-derived
+  (e.g. Song `A`, Scene `A03`, Sound `<MachineShort> T<n>`). Editable inline
+  via the generative naming overlay (§23.4); no modal dialog.
+- A **colour** from a small palette tied to the §24 state-colour taxonomy
+  (-1 = unset ⇒ slot-derived at display time). Used in the queued-pattern
+  chip, chain badges, and the browser. Tracks-by-eye colour grouping
+  ("intro / chorus / drop") is the headline use case.
+
+> **Tags are deferred.** An earlier draft gave every entity a free-form tag
+> string; it is not built (no search surface justifies it yet). Revisit if a
+> browser search flow lands.
+
+On disk (v35): Song/Scene gain `name`+`colour`, SoundEntry gains `colour`
+(`name` already persisted). All optional — absent fields default (empty name /
+colour -1), a trivial v34→v35 upgrade.
 
 ### 23.2 Browser overlay
 

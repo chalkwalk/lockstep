@@ -79,7 +79,11 @@ namespace lockstep
         //      divisions and Func+turn sweeps between them. upgrade_v31_to_v32
         //      rewrites any stored index to the beats it named. Old docs at the
         //      default never wrote the slot, and both defaults are 1/4.
-        inline constexpr int kCurrentVersion = 34;
+        // v35: identity fields (5.3 / DESIGN §23.1) — Song/Scene gain name+colour,
+        //      SoundEntry gains colour. All optional: missing ⇒ empty name / colour
+        //      -1 (unset ⇒ slot-derived at display time). Trivial stamp upgrade from
+        //      v34 (no upgrade function needed; readers default the absent fields).
+        inline constexpr int kCurrentVersion = 35;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

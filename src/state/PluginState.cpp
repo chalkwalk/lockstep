@@ -647,6 +647,18 @@ namespace lockstep::PluginState
             songNode.setProperty("i", pi, nullptr);
             if (floatNe(song.swing, 0.0f))
                 songNode.setProperty(keys::kSwing, static_cast<double>(song.swing), nullptr);
+            // v35 (5.3): optional Song identity. A named/coloured but otherwise-empty
+            // song must persist, so force pieceHasContent when either is set.
+            if (!song.name.empty())
+            {
+                songNode.setProperty(keys::kSoName, juce::String(song.name), nullptr);
+                pieceHasContent = true;
+            }
+            if (song.colour >= 0)
+            {
+                songNode.setProperty(keys::kSoColour, song.colour, nullptr);
+                pieceHasContent = true;
+            }
             // v21: optional Song-level time signature override.
             if (song.hasTimeSig)
             {
@@ -717,6 +729,11 @@ namespace lockstep::PluginState
                 if (!sceneHasContent(sec) && !sceneDiagonalOccupied(song, si)) continue;
                 juce::ValueTree sceneNode(keys::kScene);
                 sceneNode.setProperty("i", si, nullptr);
+                // v35 (5.3): optional Scene identity — name + colour.
+                if (!sec.name.empty())
+                    sceneNode.setProperty(keys::kScName, juce::String(sec.name), nullptr);
+                if (sec.colour >= 0)
+                    sceneNode.setProperty(keys::kScColour, sec.colour, nullptr);
                 // v21: only write coreTime when explicitly set via hasTimeSig.
                 if (sec.hasTimeSig)
                 {
@@ -883,6 +900,9 @@ namespace lockstep::PluginState
             if (pi < 0 || pi >= kNumSongs) continue;
             auto& song = proc.songAt(pi);
             song.swing = getFloat(songNode, keys::kSwing, 0.0f);
+            // v35 (5.3): optional Song identity — missing ⇒ empty name / colour -1.
+            song.name = songNode.getProperty(keys::kSoName, juce::String()).toString().toStdString();
+            song.colour = static_cast<int>(songNode.getProperty(keys::kSoColour, -1));
             // v21: optional Song-level time signature override.
             if (static_cast<int>(songNode.getProperty(keys::kHasTs, 0)) != 0)
             {
@@ -1007,6 +1027,9 @@ namespace lockstep::PluginState
                     const int si = static_cast<int>(child.getProperty("i", -1));
                     if (si < 0 || si >= kScenesPerSong) continue;
                     auto& sec = song.scenes[static_cast<std::size_t>(si)];
+                    // v35 (5.3): optional Scene identity — missing ⇒ empty name / colour -1.
+                    sec.name = child.getProperty(keys::kScName, juce::String()).toString().toStdString();
+                    sec.colour = static_cast<int>(child.getProperty(keys::kScColour, -1));
                     // v21: hasTimeSig flag gates coreTime; v20 and older scenes that wrote
                     // kCtN/kCtD unconditionally are handled by the hasTs check (absent = false).
                     if (static_cast<int>(child.getProperty(keys::kHasTs, 0)) != 0
@@ -1263,6 +1286,8 @@ namespace lockstep::PluginState
             juce::ValueTree entry(keys::kSoundEntry);
             entry.setProperty(keys::kIdx, i, nullptr);
             entry.setProperty(keys::kSeName, juce::String(e->name), nullptr);
+            if (e->colour >= 0)   // v35 (5.3)
+                entry.setProperty(keys::kSeColour, e->colour, nullptr);
             entry.setProperty(keys::kMId, juce::String(e->machineId), nullptr);
             entry.setProperty(keys::kSeSampleIdx, e->samplePoolIndex, nullptr);
             if (!e->destinationId.empty())
@@ -1308,6 +1333,7 @@ namespace lockstep::PluginState
 
             SoundEntry e;
             e.name = entryNode.getProperty(keys::kSeName, "Sound").toString().toStdString();
+            e.colour = static_cast<int>(entryNode.getProperty(keys::kSeColour, -1));   // v35 (5.3)
             e.machineId = entryNode.getProperty(keys::kMId, juce::String(SampleMachine::kMachineId))
                               .toString()
                               .toStdString();
@@ -2232,6 +2258,16 @@ namespace lockstep::PluginState
         return v34;
     }
 
+    // v35 (5.3): Song/Scene gain name+colour, SoundEntry gains colour (DESIGN §23.1).
+    // Purely additive — absent fields default at read time (empty name / colour -1) —
+    // so this is a bare version stamp with no tree rewrite.
+    static juce::ValueTree upgrade_v34_to_v35(const juce::ValueTree& v34)
+    {
+        juce::ValueTree v35 = v34.createCopy();
+        v35.setProperty(keys::kVersion, 35, nullptr);
+        return v35;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -2274,6 +2310,7 @@ namespace lockstep::PluginState
         if (version < 32) tree = upgrade_v31_to_v32(tree);
         if (version < 33) tree = upgrade_v32_to_v33(tree);
         if (version < 34) tree = upgrade_v33_to_v34(tree);
+        if (version < 35) tree = upgrade_v34_to_v35(tree);
 
         // 9.18: unconditional — resolve sample references to current pool positions
         // (hash-driven for v29 trees, "i"-bridged for the v28 tree just upgraded).
