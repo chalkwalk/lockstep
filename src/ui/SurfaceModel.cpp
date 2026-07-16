@@ -2562,6 +2562,7 @@ namespace lockstep
                 case Overlay::Melodic:
                 case Overlay::Harmony:
                 case Overlay::SampleProps:
+                case Overlay::Identity:  // 5.3: pages via Nav, not a section key
                     break;  // no subpage cycling on a section key
             }
             // 6.4: MIXER is a latched meta page (not an overlay); re-pressing AMP

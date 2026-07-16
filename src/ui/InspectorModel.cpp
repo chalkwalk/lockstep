@@ -220,6 +220,10 @@ namespace lockstep
                 return ui.cueParamPage
                            ? u8"CUE — encoders set balance  nav=flip page  esc=dbl-tap Func"
                            : u8"CUE — step arms quantized flip  nav=param page  esc=dbl-tap Func";
+            case Modal::Identity:
+                return ui.identityColourPage
+                           ? u8"COLOUR — tap a swatch  P=confirm  nav=name page  Func+P=cancel"
+                           : u8"NAME — tap top/bottom to compose  nav=mode/reshuffle  P=confirm";
             case Modal::None:    break;
         }
 

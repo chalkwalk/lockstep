@@ -43,6 +43,7 @@ namespace lockstep
         Vel,
         SampleProps,      // pool sample-properties editor (entered from a pool row)
         Cue,              // 6.4 cue console (Cue-held + Nav): flip grid + param page
+        Identity,         // 5.3 generative naming/colour editor for a Song/Scene/Sound
     };
 
     // Highest-priority active modal derived from current UiState (read-only).

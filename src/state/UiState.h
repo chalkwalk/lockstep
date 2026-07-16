@@ -9,6 +9,8 @@
 #include "../core/HarmonyGen.h"      // HarmonyProgression (harmony overlay buffer)
 #include "../io/TrigGridMode.h"
 #include "../machine/IMachine.h"    // kMaxSections
+#include "../ui/NameGen.h"          // NameMode (identity overlay)
+#include <string>
 
 namespace lockstep
 {
@@ -28,7 +30,13 @@ namespace lockstep
         Vel,      // velocity overlay (generator hub cell 2)
         SampleProps,  // pool sample-properties editor (Props… button on a pool row, 9.23)
         Cue,      // cue-balance console (Cue+hold(AMP) entry): param (mixer) + flip page (6.4)
+        Identity, // generative naming + colour editor for a Song/Scene/Sound (5.3 / §23.4)
     };
+
+    // Which entity class the identity (naming/colour) overlay is editing.
+    // Doubles as the index into UiState::identityMode (per-scope mode memory).
+    enum class IdentityScope : uint8_t { Song, Scene, Sound };
+    inline constexpr int kIdentityScopeCount = 3;
 
     // ── Pending-confirm state ─────────────────────────────────────────────────
     // Captured at arm time so Yes-resolution is correct even if scope is released.
@@ -311,6 +319,36 @@ namespace lockstep
         // re-pressing TRIG while the band is open cycles TIME <-> KEY.
         enum class SigPage { Time, Key };
         SigPage sigPage = SigPage::Time;
+
+        // ── Identity naming/colour overlay (5.3 / DESIGN §23.4) ──
+        // Target being named: which entity class + its index. identityMode keeps a
+        // per-scope last-used naming mode (Song/Scene/Sound each remember their own,
+        // e.g. Syllable song names + "Bridge B" scene names). The working selection
+        // is two per-row seeds (bumped on ↑/↓ reshuffle) + the chosen cell in each
+        // row; the composed name = namegen::composeAt(mode, seeds, sels). The colour
+        // page is a second Nav-reachable page of the same overlay. Raw-text is the
+        // host-keyboard power path: while active, the typed buffer overrides the grid.
+        IdentityScope identityScope = IdentityScope::Song;
+        int  identityIndex = 0;
+        bool identityColourPage = false;   // false = name grid, true = colour swatches
+        std::array<NameMode, kIdentityScopeCount> identityMode{};  // default AdjNoun
+        std::uint32_t identityTopSeed = 1;
+        std::uint32_t identityBottomSeed = 1;
+        int  identityTopSel = 0;
+        int  identityBottomSel = 0;
+        int  identityColourSel = -1;       // selected palette swatch (-1 = unset)
+        bool identityRawActive = false;    // host-keyboard text capture in progress
+        std::string identityRawText;       // typed name (power path)
+
+        // Resets the identity overlay's working state (not the per-scope mode
+        // memory, which is deliberately sticky). Call from escapeOverlay(Identity).
+        void resetIdentity() noexcept
+        {
+            identityColourPage = false;
+            identityColourSel = -1;
+            identityRawActive = false;
+            identityRawText.clear();
+        }
 
         // Generator hub (9.10): true while the 3-key has been held ≥350 ms,
         // showing the Euclid / Density / Vel picker. Closes on key-up.

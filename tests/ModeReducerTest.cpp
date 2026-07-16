@@ -156,6 +156,7 @@ namespace lockstep
                 case Overlay::Harmony:
                 case Overlay::SampleProps:
                 case Overlay::Cue:
+                case Overlay::Identity:
                 case Overlay::None:    break;
             }
             CHECK(ui.masterSection == 3, "overlay entry does not clobber the selection");
@@ -539,6 +540,67 @@ namespace lockstep
     }
 
     // =========================================================================
+    // Identity overlay (5.3) — escape resets working state, keeps mode memory
+    // =========================================================================
+
+    static void enterIdentity(UiState& ui, IdentityScope scope, int index)
+    {
+        ui.overlay = Overlay::Identity;
+        ui.identityScope = scope;
+        ui.identityIndex = index;
+    }
+
+    static void testIdentityEscapeResetsWorkingState()
+    {
+        UiState ui;
+        enterIdentity(ui, IdentityScope::Scene, 4);
+        // Per-scope mode memory: Scene remembers Syllable.
+        ui.identityMode[static_cast<std::size_t>(IdentityScope::Scene)] = NameMode::Syllable;
+        ui.identityColourPage = true;
+        ui.identityColourSel = 5;
+        ui.identityRawActive = true;
+        ui.identityRawText = "Drop";
+
+        escapeOverlay(ui, Overlay::Identity);
+
+        CHECK(activeOverlay(ui) == Overlay::None, "Identity cleared on escape");
+        CHECK(!ui.identityColourPage, "colour page reset");
+        CHECK(ui.identityColourSel == -1, "colour selection reset");
+        CHECK(!ui.identityRawActive, "raw-text capture reset");
+        CHECK(ui.identityRawText.empty(), "raw-text buffer cleared");
+        // Per-scope mode memory is deliberately sticky across a naming session.
+        CHECK(ui.identityMode[static_cast<std::size_t>(IdentityScope::Scene)]
+                  == NameMode::Syllable,
+              "per-scope naming mode survives escape (mode memory is sticky)");
+    }
+
+    static void testIdentityDoubleTapFuncExits()
+    {
+        UiState ui;
+        enterIdentity(ui, IdentityScope::Song, 0);
+        const auto r = handleOverlayEvent(ui, { ModeEventKind::DoubleTapFunc });
+        CHECK(r == OverlayResult::Exited, "Func dbl-tap exits Identity");
+        CHECK(activeOverlay(ui) == Overlay::None, "Identity cleared on dbl-tap");
+    }
+
+    static void testIdentityForeignScopeExits()
+    {
+        using CB = ControllerButton;
+        const CB scopes[] = {
+            CB::TrackScope, CB::PhraseScope, CB::SceneScope,
+            CB::MorphScope, CB::MuteScope,   CB::FillScope, CB::SongScope,
+        };
+        for (const auto scope : scopes)
+        {
+            UiState ui;
+            enterIdentity(ui, IdentityScope::Sound, 2);
+            const auto r = handleOverlayEvent(ui, { ModeEventKind::ScopePress, -1, scope });
+            CHECK(r == OverlayResult::Exited, "Identity exits on foreign scope");
+            CHECK(activeOverlay(ui) == Overlay::None, "Identity cleared on scope exit");
+        }
+    }
+
+    // =========================================================================
     // Mutual exclusion — entering one overlay while another is active
     // =========================================================================
 
@@ -678,6 +740,11 @@ namespace lockstep
         testSamplePropsDoubleTapFuncExits();
         testSamplePropsForeignSectionExits();
         testSamplePropsForeignScopeExits();
+
+        // Identity (5.3)
+        testIdentityEscapeResetsWorkingState();
+        testIdentityDoubleTapFuncExits();
+        testIdentityForeignScopeExits();
 
         // Mutual exclusion
         testMutualExclusionViaEscapeOverlay();

@@ -51,7 +51,28 @@ namespace lockstep
     // impossible.
     // =========================================================================
     // NOLINTNEXTLINE(cert-err58-cpp)
-    static const std::array<OverlayDescriptor, 7> kOverlays = {{
+    static const std::array<OverlayDescriptor, 8> kOverlays = {{
+        // ── Identity (5.3) ────────────────────────────────────────────────────
+        // Generative naming + colour editor for a Song/Scene/Sound. Uses the two
+        // step rows (compose) + Nav (mode cycle / reshuffle / colour page), like
+        // SampleProps it edits an entity rather than a track, so any foreign scope
+        // press OR a section press exits; Func double-tap also exits. Commit
+        // (Confirm) and Cancel (Func+P) are editor-owned.
+        {
+            .id                      = Overlay::Identity,
+            .internalSection         = -1,
+            .internalSectionConsumed = false,
+            .internalSectionRelabelFn = nullptr,
+            .exitOnSectionPressOther  = true,
+            .trackScopeForeign  = true,
+            .phraseScopeForeign = true,
+            .sceneScopeForeign  = true,
+            .morphScopeForeign  = true,
+            .muteScopeForeign   = true,
+            .fillScopeForeign   = true,
+            .songScopeForeign   = true,
+            .exitOnDoubleTapFunc = true,
+        },
         // ── Cue console (6.4) ────────────────────────────────────────────────
         // Uses the step grid (flip page) + the MZ (param page), like a hybrid of
         // Euclid and Mixer, so no internal section. Any cluster scope exits it;
@@ -298,6 +319,13 @@ namespace lockstep
                 {
                     ui.overlay = Overlay::None;
                     ui.cueParamPage = false;
+                }
+                break;
+            case Overlay::Identity:
+                if (ui.overlay == Overlay::Identity)
+                {
+                    ui.overlay = Overlay::None;
+                    ui.resetIdentity();
                 }
                 break;
             case Overlay::Euclid:
