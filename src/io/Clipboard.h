@@ -57,8 +57,14 @@ namespace lockstep
         std::vector<float> clipMachineParams;
 
         // Pattern scope (MD.5): sequence + pattern mutes (partRef NOT included).
+        // Used by the omni (`All`) grab; a bare `Phrase + Record` grabs a single
+        // Phrase into clipPhrase instead (5.3 / DESIGN §23.3).
         Sequence clipSequence;
         std::array<bool, kNumTracks> clipPatternMutes{};
+
+        // Phrase scope (5.3 / DESIGN §23.3): one track's phrase, for slot-targeted
+        // copy/move + fork-on-shared. Type tag is ClipboardType::Pattern.
+        Phrase clipPhrase;
 
         // Scene scope (DESIGN §23.3) and omni-grab container.
         SceneClip scene;

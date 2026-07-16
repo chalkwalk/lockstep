@@ -66,6 +66,12 @@ namespace lockstep
         virtual void sceneFloorPaste() = 0;  // floor-only (mute+func+paste)
         virtual void sceneFullPaste(int destSlot) = 0;  // full baked paste + conflict check
 
+    // Phrase copy/paste (5.3 / DESIGN §23.3). Live gestures: Phrase+Record copies
+    // the focused track's active phrase; Phrase+Play pastes it into that slot. Stay
+    // editor-side because paste-into-shared raises an async fork confirm.
+        virtual void copyPhraseActiveSlot() = 0;
+        virtual void pastePhraseActiveSlot() = 0;
+
     // Execute a pending confirmation (kind + target captured at arm time).
     // Called by CommandCore after the user presses P (CONFIRM) in PendingConfirm layer.
         virtual void executeConfirm(ConfirmKind kind, int target) = 0;

@@ -179,18 +179,21 @@ namespace lockstep
 
     static void scenario_phraseCopyPaste()
     {
+        // 5.3 (DESIGN §23.3): Phrase+Record/Play now act on the focused track's
+        // single active phrase (fork-on-shared), so the grab + paste are delegated
+        // to the editor (which must flush live edits and can raise an async fork
+        // confirm). The dispatch layer's job is to fire the right effect.
         GestureFixture f;
-        f.track(3).steps[8].trig = true;
 
         bool handled = f.verb(PS::Phrase, CB::VerbRecord);
         CHECK(handled, "Phrase+Record handled");
-        CHECK(f.clipboard.type == ClipboardType::Pattern, "clipboard type Pattern");
+        CHECK(f.effects.copyPhraseActiveSlotCount == 1, "copy delegated to editor once");
 
-        // Mutate.
-        f.track(3).steps[8].trig = false;
+        // A loaded phrase clip (type Pattern) routes Play to the fork-aware paste.
+        f.clipboard.type = ClipboardType::Pattern;
         handled = f.verb(PS::Phrase, CB::VerbPlay);
         CHECK(handled, "Phrase+Play handled");
-        CHECK(f.track(3).steps[8].trig, "step restored after paste");
+        CHECK(f.effects.pastePhraseActiveSlotCount == 1, "paste delegated to editor once");
     }
 
     // Scenario 10: PS::Song / VerbClear → Panic transport effect

@@ -54,6 +54,7 @@ namespace lockstep
         ClearTrack,           // target = track index — blanks steps in current phrase only
         ClearTrackAll,        // target = track index — blanks steps in every phrase
         ClearPhrase,          // target = -1 — blanks all tracks in current phrase
+        ForkPhrase,           // target = track index — paste hit a shared slot; fork to a free one (§23.3)
     };
 
     struct ConfirmState

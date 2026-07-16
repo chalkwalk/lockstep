@@ -610,6 +610,22 @@ namespace lockstep
             ed.setStatus(status::pastedScene());
         }
 
+        // 5.3 phrase copy/move (DESIGN §23.3). Live Phrase+Record / Phrase+Play both
+        // act on the focused track's active phrase slot.
+        void copyPhraseActiveSlot() override
+        {
+            const int t = ed.keyboardArea_.getActiveTrack();
+            const int slot = ed.processor_.activePhraseIdxForTrack(t);
+            ed.clipboard_.clipPhrase = ed.processor_.phraseSlotSnapshot(t, slot);
+            ed.clipboard_.type = ClipboardType::Pattern;
+            ed.setStatus(status::copiedPhraseSlot(slot));
+        }
+        void pastePhraseActiveSlot() override
+        {
+            const int t = ed.keyboardArea_.getActiveTrack();
+            ed.pastePhraseIntoSlot(t, ed.processor_.activePhraseIdxForTrack(t));
+        }
+
         // Executes a confirmed (CONFIRM) action. Called by CommandCore on P-press in
         // PendingConfirm layer; confirm state already reset by the time this returns.
         void executeConfirm(ConfirmKind kind, int target) override
@@ -767,6 +783,13 @@ namespace lockstep
                     }
                 }
                 ed.setStatus(status::clearedPhrase());
+            }
+            else if (kind == ConfirmKind::ForkPhrase)
+            {
+                // The paste hit a shared slot; CONFIRM forks. target = track; the
+                // phrase to lay down is still in the clipboard.
+                const int f = ed.processor_.forkPhraseInto(target, ed.clipboard_.clipPhrase);
+                ed.setStatus(f >= 0 ? status::phraseForked(f) : status::phrasePoolFull());
             }
             ed.refreshSurface();
         }
@@ -7409,6 +7432,35 @@ namespace lockstep
         setStatus(msg);
         refreshSurface();   // uiState_.confirm arms the CONFIRM cell — a surface change
         return true;    // conflict raised — caller must wait for Yes/No
+    }
+
+    bool LockstepEditor::pastePhraseIntoSlot(int track, int slot)
+    {
+        if (clipboard_.type != ClipboardType::Pattern)
+        {
+            setStatus(status::noPhraseCopied());
+            return true;
+        }
+        // No-op skip (DESIGN §23.3): identical content needs no paste and no prompt.
+        if (phraseContentEqual(clipboard_.clipPhrase,
+                               processor_.phraseSlotSnapshot(track, slot)))
+        {
+            setStatus(status::phrasePasteNoOp());
+            return true;
+        }
+        // Shared slot → fork prompt (protect co-assigned scenes). CONFIRM forks into
+        // a free slot and re-points this scene; the pressed slot is never overwritten.
+        if (processor_.phraseSlotShared(track, slot))
+        {
+            uiState_.confirm = { ConfirmKind::ForkPhrase, track };
+            setStatus(status::confirmForkPhrase());
+            refreshSurface();
+            return true;
+        }
+        processor_.writePhraseSlot(track, slot, clipboard_.clipPhrase);
+        setStatus(status::pastedPhraseSlot(slot));
+        refreshSurface();
+        return true;
     }
 
     // -------------------------------------------------------------------------

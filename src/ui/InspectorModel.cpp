@@ -289,6 +289,7 @@ namespace lockstep
             case ConfirmKind::ClearTrack:          return "CLEAR TRACK " + n + " (this phrase)?";
             case ConfirmKind::ClearTrackAll:       return "CLEAR TRACK " + n + " (ALL phrases)?";
             case ConfirmKind::ClearPhrase:         return "CLEAR PHRASE (all tracks)?";
+            case ConfirmKind::ForkPhrase:          return "PHRASE SHARED — FORK into a free slot?";
             case ConfirmKind::None:                break;
         }
         return {};

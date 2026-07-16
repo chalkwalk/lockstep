@@ -18,6 +18,7 @@
 #include "core/Project.h"
 #include "core/Scene.h"
 #include "core/PhraseShare.h"
+#include "core/PhraseOps.h"
 #include "core/TrackKit.h"
 #include "core/SoundPool.h"
 #include "core/SyncMode.h"
@@ -918,6 +919,27 @@ namespace lockstep
         // each Scene's per-track deviation (live for the active scene, stashed
         // overlay otherwise) then defers to the pure computePhraseShare().
         [[nodiscard]] PhraseShare phraseShareForTrack(int track) const;
+
+        // 5.3 phrase copy/move (DESIGN §23.3). Primitive slot ops the editor
+        // orchestrates; the audio path never calls these.
+        //   phraseSlotSnapshot  — flush live edits, then read one slot by value.
+        //   activePhraseIdxForTrack — the row a track plays right now.
+        //   phraseSlotShared    — SHR:N > 1 for this slot (the fork trigger).
+        //   firstFreePhraseSlotForTrack — lowest uninitialised slot, or -1.
+        //   writePhraseSlot     — stamp a phrase into a slot (undo-armed; re-projects
+        //                         if it is the active row).
+        //   forkPhraseInto      — stamp into a free slot and deviate the active scene
+        //                         there; returns the slot, or -1 when the pool is full.
+        [[nodiscard]] Phrase phraseSlotSnapshot(int track, int slot);
+        [[nodiscard]] int activePhraseIdxForTrack(int track) const
+        {
+            return arrangement_.activePhraseIdx(track);
+        }
+        [[nodiscard]] bool phraseSlotShared(int track, int slot) const;
+        [[nodiscard]] int firstFreePhraseSlotForTrack(int track) const;
+        void writePhraseSlot(int track, int slot, const Phrase& phrase);
+        int forkPhraseInto(int track, const Phrase& phrase);
+
         void pushSoundEntry(SoundEntry e) { project_.soundPool.push(std::move(e)); }
 
         // Sample pool helpers — message-thread only.

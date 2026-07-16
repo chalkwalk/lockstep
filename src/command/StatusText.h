@@ -60,6 +60,14 @@ namespace lockstep::status
     inline juce::String pastedPhrase() { return "Pasted Phrase"; }
     inline juce::String clearedPhrase() { return "Cleared Phrase"; }
     inline juce::String deletedPhrase() { return "Deleted Phrase"; }
+    // 5.3 phrase copy/move (DESIGN §23.3).
+    inline juce::String copiedPhraseSlot(int slot) { return "Copied Phrase " + juce::String(slot + 1); }
+    inline juce::String pastedPhraseSlot(int slot) { return "Pasted -> Phrase " + juce::String(slot + 1); }
+    inline juce::String phrasePasteNoOp() { return "Phrase unchanged"; }
+    inline juce::String noPhraseCopied() { return "No phrase copied"; }
+    inline juce::String phraseForked(int slot) { return "Forked -> Phrase " + juce::String(slot + 1); }
+    inline juce::String phrasePoolFull() { return "Phrase pool full — no free slot to fork"; }
+    inline juce::String confirmForkPhrase() { return "PHRASE SHARED — FORK?  P=CONFIRM  Func+P=CANCEL"; }
     inline juce::String deletedPart() { return "Deleted Part"; }
 
     // ---- cue balance (6.4, DESIGN §31) --------------------------------------

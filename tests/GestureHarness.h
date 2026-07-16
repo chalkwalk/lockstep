@@ -49,6 +49,10 @@ namespace lockstep::test
         void releaseLatch(ControllerButton) override {}
         void sceneFloorPaste() override {}
         void sceneFullPaste(int) override {}
+        int copyPhraseActiveSlotCount = 0;
+        int pastePhraseActiveSlotCount = 0;
+        void copyPhraseActiveSlot() override { ++copyPhraseActiveSlotCount; }
+        void pastePhraseActiveSlot() override { ++pastePhraseActiveSlotCount; }
         void morphBake(int) override {}
         void morphErase(int) override {}
 

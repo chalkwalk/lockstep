@@ -520,8 +520,9 @@ SCENARIO copy phrase -> paste phrase onto track 5
     activeTrack: 0 -> 5
     clip.type: 0 -> 4
     proc.focusTrack: 0 -> 5
-    seq.focusPattern: x...x...x...x... -> ................
+    seq.trigsPerTrack: 4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0, -> 4,4,4,4,0,4,0,0,0,0,0,0,0,0,0,0,
     trackSection: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,
+    undo.Song: 0 -> 1
 
 SCENARIO snapshot, then restore (Func+Snapshot pops it)
     undo.Song: 0 -> 1

@@ -5955,6 +5955,66 @@ namespace lockstep
         return computePhraseShare(dev, row);
     }
 
+    // ── 5.3 phrase copy/move primitives (DESIGN §23.3) ────────────────────────
+
+    Phrase LockstepProcessor::phraseSlotSnapshot(int track, int slot)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)
+            || slot < 0 || slot >= kPhrasesPerTrack)
+            return {};
+        // Flush live edits into the model so the read reflects what the user hears,
+        // even for the currently-active slot (whose edits live in the working buffer).
+        arrangement_.writeBackWorkingToActive();
+        return arrangement_.song().tracks[static_cast<std::size_t>(track)]
+                   .phrases[static_cast<std::size_t>(slot)];
+    }
+
+    bool LockstepProcessor::phraseSlotShared(int track, int slot) const
+    {
+        if (slot < 0 || slot >= kPhrasesPerTrack) return false;
+        return phraseShareForTrack(track).count[static_cast<std::size_t>(slot)] > 1;
+    }
+
+    int LockstepProcessor::firstFreePhraseSlotForTrack(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
+        // Qualify: LockstepProcessor also has a nullary firstFreePhraseSlot() that
+        // would otherwise shadow the free PhraseOps helper.
+        return lockstep::firstFreePhraseSlot(
+            arrangement_.song().tracks[static_cast<std::size_t>(track)].phrases);
+    }
+
+    void LockstepProcessor::writePhraseSlot(int track, int slot, const Phrase& phrase)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)
+            || slot < 0 || slot >= kPhrasesPerTrack)
+            return;
+        armUndo(CheckpointScope::Song, 0);
+        // Flush first: writing a slot then re-projecting must not clobber unrelated
+        // live edits on other tracks.
+        arrangement_.writeBackWorkingToActive();
+        auto& dst = arrangement_.song().tracks[static_cast<std::size_t>(track)]
+                        .phrases[static_cast<std::size_t>(slot)];
+        dst = phrase;
+        dst.initialised = true;
+        // If we overwrote the row the track is playing right now, re-project so the
+        // change is audible immediately.
+        if (slot == arrangement_.activePhraseIdx(track))
+            refreshWorkingFromModel();
+    }
+
+    int LockstepProcessor::forkPhraseInto(int track, const Phrase& phrase)
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
+        const int free = firstFreePhraseSlotForTrack(track);
+        if (free < 0) return -1;   // pool full — caller reports the refusal
+        writePhraseSlot(track, free, phrase);
+        // Re-point THIS scene's track to the fork, leaving co-assigned scenes on the
+        // shared original. Instant (not launch-quantized): a librarian edit, not a cue.
+        queuePhraseDeviation(track, free, /*forceInstant=*/true);
+        return free;
+    }
+
     void LockstepProcessor::liveSwapTrackSound(int track, int poolIndex)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;

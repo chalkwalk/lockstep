@@ -257,13 +257,22 @@ namespace lockstep::verbs
 
         if (verb == CB::VerbRecord)
         {
-            ctx.clipboard.clipSequence = ctx.sequence;
-            ctx.clipboard.type = ClipboardType::Pattern;
-            fx.status(status::copiedPhrase());
+            // 5.3: grab the focused track's ACTIVE phrase (single, fork-aware paste),
+            // not the whole working sequence. The editor snapshots it (it must flush
+            // live edits through the processor first). Type tag stays Pattern.
+            fx.copyPhraseActiveSlot();
             return true;
         }
         if (verb == CB::VerbPlay)
         {
+            // A single-phrase Pattern grab pastes into the active slot, fork-on-shared
+            // (editor-side, async confirm). An omni `All` grab still stamps its whole
+            // captured sequence layer here (the §13.2 omni paste), unchanged.
+            if (ctx.clipboard.type == ClipboardType::Pattern)
+            {
+                fx.pastePhraseActiveSlot();
+                return true;
+            }
             if (!pasteAccepts(EditMode::PrimaryScope::Phrase, false, ctx.clipboard.type))
                 return false;
             ctx.sequence = ctx.clipboard.clipSequence;

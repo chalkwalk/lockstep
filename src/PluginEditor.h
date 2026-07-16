@@ -539,6 +539,13 @@ namespace lockstep
         // or already-initialised content. Shows confirm when true.
         bool phraseConflictAndConfirm(int phraseSlot, ConfirmKind kind);
 
+        // 5.3 phrase copy/move (DESIGN §23.3). Paste the phrase clipboard into
+        // (track, slot): skip a no-op, raise a fork confirm when the slot is shared
+        // (SHR:N > 1), else stamp it. Shared by the live Phrase+Play gesture and the
+        // Browser Phrases page. Returns true when handled (always, once a paste is
+        // attempted). No-op returns true too (the gesture is consumed).
+        bool pastePhraseIntoSlot(int track, int slot);
+
         void applyDisplayMode(GridDisplayMode mode);
 
         // Unified input dispatch — both keyPressed and mouse callbacks route here.
