@@ -4063,12 +4063,22 @@ holds Scenes and per-track Phrase pools. Copy/paste/clear reuse the
   (§23.3): plain paste lays down the baked layout, `Mute + …` strips it to the
   floor. Move = paste-then-clear-source, `Func + Scene + Yes`
   while a Scene clipboard is loaded.
-- **Phrase.** `Phrase + Record` copies the focused track's phrase
-  (§13.2); `Phrase + step_key` pastes into that phrase slot in the
-  track's pool. Because a phrase can be shared by several Scenes (the
+- **Phrase.** `Phrase + Record` copies the focused track's **active**
+  phrase (§13.2) into the clipboard; `Phrase + Play` pastes it into that
+  same (active) slot. *Slot-targeted* copy/move lives in the **Browser
+  Phrases page** (§23.2), where the step keys address the 16 phrase slots
+  directly: `step` picks a slot, `Record` copies it, `Play` pastes into
+  it. (The live `Phrase + step_key` is unavailable for paste — it is the
+  phrase-**launch** gesture, §16 — so slot targeting is a Browser action,
+  not a live chord.) Because a phrase can be shared by several Scenes (the
   SHR:N badge, §23.2), paste-into-a-shared-slot prompts to *fork* (paste
   as a fresh phrase, leaving the other Scenes' assignment intact) — this
-  is the Kit-era replacement for the old Fork-Part chord.
+  is the Kit-era replacement for the old Fork-Part chord. Identical-content
+  re-paste is a silent no-op (mirrors the Scene conflict skip). *Model
+  caveat:* with 16 phrase slots and 16 scenes, every slot is some scene's
+  diagonal home, so a fork consumes the lowest **unused** slot (an
+  as-yet-empty scene's diagonal) and re-points the active scene there;
+  forking is refused when the pool is full.
 - **Song.** Whole-Song duplication is a Browser-level action (no live
   chord): select a Song, `Record` to copy, `Play` onto a free Song slot.
 
