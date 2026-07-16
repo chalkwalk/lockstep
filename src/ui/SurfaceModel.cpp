@@ -665,6 +665,21 @@ namespace lockstep
             if (ui.funcHeld && s == proc.kFxSecIdx)
                 c.disabled = true;
 
+            // 5.3: MOD is the identity/naming hold key under a namable container
+            // scope (Song/Scene). Song's MOD has no tap content, so the resolver dims
+            // it and its "NAME SONG" hold rail never paints — the gesture reads dead.
+            // Un-dim it here; deriveSlots (below) then adds the "NAME SONG/SCENE" hold
+            // rail from the Section+kModSong/kModScene hold binding (primary stays the
+            // canonical "MOD"). The placeholder guards the non-empty-primary invariant
+            // in the rare case the resolver leaves the primary empty.
+            if (isScopedMode && s == proc.kModSecIdx
+                && (sectionScope == PS::Song || sectionScope == PS::Scene) && !ui.funcHeld)
+            {
+                c.disabled = false;
+                if (c.primary.isEmpty())
+                    c.primary = "NAME";
+            }
+
             // Fill layer: TRIG (0) and SRC (1) glow when Fill is held to announce
             // the Retrig and SoundPool overlays respectively.
             const bool fillLayerActive = (ui.fillHeld && !isScopedMode && !ui.funcHeld);

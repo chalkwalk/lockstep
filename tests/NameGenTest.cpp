@@ -111,6 +111,17 @@ namespace lockstep
         CHECK(cycleNameMode(NameMode::Syllable, -1) == NameMode::AdjNoun, "cycle -1");
     }
 
+    static void testModeLabel()
+    {
+        // Every mode has a distinct, non-empty banner label (the overlay nav row
+        // surfaces this so the sticky per-scope mode is visible).
+        const auto a = std::string(nameModeLabel(NameMode::AdjNoun));
+        const auto b = std::string(nameModeLabel(NameMode::Syllable));
+        const auto c = std::string(nameModeLabel(NameMode::SectionLetter));
+        CHECK(!a.empty() && !b.empty() && !c.empty(), "mode labels are non-empty");
+        CHECK(a != b && b != c && a != c, "mode labels are distinct");
+    }
+
     void runNameGenTests()
     {
         testCompose();
@@ -118,5 +129,6 @@ namespace lockstep
         testReshuffleIndependence();
         testDefaultSeedDeterminism();
         testModeCycle();
+        testModeLabel();
     }
 }

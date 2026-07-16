@@ -25,6 +25,10 @@ namespace lockstep
     // Cycle the mode by `delta` (+1 = next, -1 = prev), wrapping. Used by Nav </>.
     [[nodiscard]] NameMode cycleNameMode(NameMode mode, int delta) noexcept;
 
+    // Short human label for the mode, shown in the overlay's nav banner so the
+    // (sticky, per-scope) current mode is always visible.
+    [[nodiscard]] const char* nameModeLabel(NameMode mode) noexcept;
+
     namespace namegen
     {
         // The 8 words shown in `row` (0 = top, 1 = bottom) for `mode`, chosen

@@ -13,6 +13,17 @@ namespace lockstep
         return static_cast<NameMode>(m);
     }
 
+    const char* nameModeLabel(NameMode mode) noexcept
+    {
+        switch (mode)
+        {
+            case NameMode::AdjNoun:       return "ADJ+NOUN";
+            case NameMode::Syllable:      return "SYLLABLE";
+            case NameMode::SectionLetter: return "SECTION";
+        }
+        return "";
+    }
+
     namespace namegen
     {
         // ── Curated word lists (shown generatively; the shuffle picks 8) ────────

@@ -608,6 +608,32 @@ namespace lockstep
             CHECK(m.step[0].baseColour == theme::kIdentityPalette[0], "swatch 0 shows palette colour 0");
             CHECK(m.step[8].base == CellState::StepOutOfRange, "past 8 swatches: out of range");
         }
+
+        // Entry affordance: holding Song lights the MOD section key and labels it
+        // NAME (it would otherwise read dead — no Song tap content on MOD).
+        {
+            const int mod = LockstepProcessor::kModSecIdx;
+            UiState ui; ui.songHeld = true;
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            const auto& c = m.section[static_cast<std::size_t>(mod)];
+            CHECK(!c.disabled, "Song held: MOD is lit as the naming key");
+            // The MOD section keeps its canonical primary; the naming gesture surfaces
+            // on the hold rail (uniform with Scene below).
+            CHECK(c.primary == "MOD", "Song held: MOD keeps its canonical primary");
+            CHECK(c.holdLabel == "NAME SONG", "Song held: MOD carries the NAME SONG hold rail");
+        }
+
+        // Under Scene, MOD keeps its tap-params primary but gains a NAME hold rail.
+        {
+            const int mod = LockstepProcessor::kModSecIdx;
+            UiState ui; ui.sceneHeld = true;
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            const auto& c = m.section[static_cast<std::size_t>(mod)];
+            CHECK(!c.disabled, "Scene held: MOD is lit");
+            CHECK(c.holdLabel == "NAME SCENE", "Scene held: MOD carries the NAME hold rail");
+        }
     }
 
     // -------------------------------------------------------------------------

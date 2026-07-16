@@ -7,6 +7,7 @@
 #include "ScopeSectionSelect.h"
 #include "SectionResolve.h"
 #include "MetaBand.h"
+#include "NameGen.h"
 #include "UITheme.h"
 #include "../command/ButtonLayers.h"
 #include "../PluginProcessor.h"
@@ -1258,6 +1259,55 @@ namespace lockstep
             g.setFont(juce::Font(juce::FontOptions(10.0f)));
             g.drawText("GENERATOR HUB  --  select generator type",
                        navArea, juce::Justification::centred);
+            return;
+        }
+
+        // 5.3 identity naming/colour overlay (§23.4). The grid IS the picker; both
+        // rows show FULL composed candidates (SurfaceModel Identity branch sets
+        // c.primary), so the performer reads real words. The nav row surfaces the
+        // sticky per-scope mode, the composed name, and the page-flip affordance —
+        // the missing feedback that made mode/stickiness/preview invisible.
+        if (model.activeLayer == SurfaceLayer::Identity)
+        {
+            for (int row = 0; row < kRows; ++row)
+            {
+                for (int col2 = 0; col2 < kCols; ++col2)
+                {
+                    const int idx = row * kCols + col2;
+                    const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
+                    const int x = colX(row, col2 + 2);
+                    const int y = rowY(row);
+                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+
+                    paintGridCellFill(g, cell, sc);
+                    // Bright text on the selected half / swatch; dim on the rest.
+                    const bool sel = sc.base == CellState::NameCandidateSel
+                                  || sc.base == CellState::PaletteSwatchSel;
+                    paintGridCellText(g, cell, sc, sel ? 0.95f : 0.55f);
+                    if (showKeyLetters)
+                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)], 0.55f);
+                }
+            }
+
+            // Nav banner: [MODE]  "Composed Name"   <> mode  ^v shuffle  MOD colour.
+            const std::size_t isc = static_cast<std::size_t>(uiState_.identityScope);
+            const NameMode mode = uiState_.identityMode[isc];
+            juce::String banner;
+            if (uiState_.identityColourPage)
+            {
+                banner = "PICK COLOUR   <> back to name   *   MOD flips page";
+            }
+            else
+            {
+                const std::string composed = namegen::composeAt(
+                    mode, uiState_.identityTopSeed, uiState_.identityTopSel,
+                    uiState_.identityBottomSeed, uiState_.identityBottomSel);
+                banner = juce::String("[") + nameModeLabel(mode) + "]  \""
+                       + juce::String(composed.c_str()) + "\"   <> mode  ^v shuffle  MOD colour";
+            }
+            g.setColour(juce::Colour(theme::kIdentityPalette[0]).withAlpha(0.85f));
+            g.setFont(juce::Font(juce::FontOptions(10.0f)));
+            g.drawText(banner, navArea, juce::Justification::centred);
             return;
         }
 
