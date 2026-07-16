@@ -1027,6 +1027,25 @@ namespace lockstep
         }
     }
 
+    // A resolved ParamFrame is sized to the working track's baseParams, but the
+    // installed machine may momentarily expect MORE params than the frame carries:
+    // a launch-quantized Song/Scene switch swaps in the target's (possibly stub /
+    // empty-baseParams) working buffer at the audio boundary, while the machine
+    // reinstall runs later via callAsync (DESIGN §16). In that one-block window the
+    // OLD machine would read past the short frame — an out-of-bounds crash. Pad the
+    // frame up to the machine's schema using its own param defaults so every read is
+    // in range; a no-op (no realloc) whenever the invariant already holds.
+    void LockstepProcessor::padFrameToMachine(ParamFrame& frame, const IMachine* m)
+    {
+        if (m == nullptr) return;
+        const int np = m->numParams();
+        if (static_cast<int>(frame.size()) >= np) return;
+        const std::size_t old = frame.size();
+        frame.resize(static_cast<std::size_t>(np));
+        for (std::size_t s = old; s < frame.size(); ++s)
+            frame[s] = m->paramSpec(static_cast<int>(s)).defaultValue;
+    }
+
     // A2: render one track's full audio chain into trackBuffers_[i]. Extracted
     // verbatim from the two transport paths so both share one implementation and
     // can be driven in routing (topological) order. resolveStep selects the step
@@ -2702,6 +2721,7 @@ namespace lockstep
                         frame[static_cast<std::size_t>(ss)] = static_cast<float>(previewSampleIndex_);
                 }
                 auto* mi = machines_[i].get();
+                padFrameToMachine(frame, mi);
                 if (mi->isMidiOut())
                 {
                     juce::MidiBuffer midiOutBuf;
@@ -3739,6 +3759,7 @@ namespace lockstep
                     frame[static_cast<std::size_t>(ss)] = static_cast<float>(previewSampleIndex_);
             }
             auto* mi = machines_[i].get();
+            padFrameToMachine(frame, mi);
             if (mi->isMidiOut())
             {
                 juce::MidiBuffer midiOutBuf;

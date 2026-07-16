@@ -979,6 +979,31 @@ namespace lockstep
         }
     }
 
+    // Regression: a launch-quantized Song switch while playing swaps in the target
+    // song's (stub, empty-baseParams) working buffer at the audio boundary, but the
+    // machine reinstall runs via callAsync (does NOT fire headless). In that window
+    // the OLD machine (real params) must not read past the now-short frame — the
+    // padFrameToMachine() guard keeps every read in range. Before the fix this
+    // aborted in std::vector::operator[] the first block after the swap.
+    static void testSongSwitchStaleMachineFrameSafe()
+    {
+        EngineHarness h;
+        installMachine(h.processor(), 0, DrumMachine::kMachineId);   // real params on song 0
+        h.processor().sequence().tracks[0].steps[0].trig = true;
+        h.renderBlocks(30);
+        h.processor().queueSongSwitch(1, false);                     // deferred; song 1 = stub kit
+        bool switched = false;
+        for (int b = 0; b < 500; ++b)
+        {
+            h.renderBlocks(1);                                       // would OOB post-swap
+            CHECK(!h.lastBufferHasNaN(), "song switch: no NaN across the reinstall window");
+            if (h.processor().activePieceIdx() == 1) { switched = true; break; }
+        }
+        CHECK(switched, "song switch: reached song 1");
+        h.renderBlocks(20);
+        CHECK(true, "song switch: survived the pre-reinstall render window");
+    }
+
     // 9.17: double-tap Song switch (forceInstant) is immediate — no boundary wait.
     static void testDoubleTapSongSwitchInstant()
     {
@@ -4927,6 +4952,7 @@ namespace lockstep
         testDeckWideDouble();
         testSceneLaunchGridRouting();
         testQueuedSongSwitchAtBoundary();
+        testSongSwitchStaleMachineFrameSafe();
         testDoubleTapSongSwitchInstant();
         testQueuedDeviationAtBoundary();
         testPhraseCopyMoveAndFork();

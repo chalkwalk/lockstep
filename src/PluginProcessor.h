@@ -1559,6 +1559,11 @@ namespace lockstep
                                int resolveStep, bool fillActive, float faderNow,
                                int numBlockSamples, juce::MidiBuffer& trackMidiI);
 
+        // Pad a resolved frame up to the installed machine's param count using the
+        // machine's own defaults, so a launch-boundary swap that momentarily leaves a
+        // short frame in front of a larger machine can never read out of bounds.
+        static void padFrameToMachine(ParamFrame& frame, const IMachine* m);
+
         // A2: where a track's finished signal goes (DESIGN §27 / §31.1).
         enum class Route { Master, Bus, Off, Aux };
         // busTrack valid iff Bus (destination track); reused as the 0-based Aux
