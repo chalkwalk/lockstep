@@ -317,6 +317,9 @@ namespace lockstep
             case AId::OpenSceneIdentity:
                 fx.openOverlay(CommandEffects::OverlayId::Identity, 1);  // IdentityScope::Scene
                 return true;
+            case AId::OpenBrowser:
+                fx.openOverlay(CommandEffects::OverlayId::Browser, 0);
+                return true;
 
             case AId::MachineCopy:  return verbs::machine(CB::VerbRecord, ctx, fx);
             case AId::MachinePaste: return verbs::machine(CB::VerbPlay, ctx, fx);

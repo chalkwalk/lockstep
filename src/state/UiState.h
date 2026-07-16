@@ -358,13 +358,15 @@ namespace lockstep
         // step keys select a row (Scene rows reuse the §16 launch/queue gesture).
         enum class BrowserPage : std::uint8_t { Scenes, Phrases };
         BrowserPage browserPage = BrowserPage::Scenes;
-        int browserTrack = 0;   // which track's phrase pool the Phrases page shows
+        int browserTrack = 0;    // which track's phrase pool the Phrases page shows
+        int browserCursor = 0;   // highlighted row (0..15) — the rename/select target
 
         // Resets the browser's working view. Call from escapeOverlay(Browser).
         void resetBrowser() noexcept
         {
             browserPage = BrowserPage::Scenes;
             browserTrack = 0;
+            browserCursor = 0;
         }
 
         // Generator hub (9.10): true while the 3-key has been held ≥350 ms,

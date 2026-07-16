@@ -653,6 +653,57 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // 5.3 Browser (§23.2): the Scenes page lists 16 scenes (name/slot label, the
+    // cursor bright, the playhead bordered); the Phrases page lists a track's 16
+    // phrases with the SHR badge. Renders via the generic SurfaceLayer::Browser.
+    // -------------------------------------------------------------------------
+    static void testBrowserOverlayRender()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ec;
+
+        CHECK(layerStepRender(SurfaceLayer::Browser) == StepRenderKind::Labeled,
+              "Browser is a labeled text layer (renders via c.primary)");
+
+        // Scenes page: cursor bright, playhead bordered, named scene shows its name.
+        {
+            proc.setSceneName(proc.activePieceIdx(), 2, "Drop");
+            UiState ui;
+            ui.overlay = Overlay::Browser;
+            ui.browserPage = UiState::BrowserPage::Scenes;
+            ui.browserCursor = 5;
+
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            CHECK(m.activeLayer == SurfaceLayer::Browser, "Browser overlay selects the Browser layer");
+            for (int i = 0; i < 16; ++i)
+                CHECK(!m.step[static_cast<std::size_t>(i)].primary.isEmpty(),
+                      "scene cell shows a name/slot label");
+            CHECK(m.step[2].primary == "Drop", "named scene shows its name");
+            CHECK(m.step[0].primary == "S1", "unnamed scene shows its slot label");
+            CHECK(m.step[5].base == CellState::BrowserCellActive, "cursor scene is bright");
+            const int active = proc.activeSectionIdx();
+            CHECK(m.step[static_cast<std::size_t>(active)].border.present,
+                  "the playing scene wears the playhead border");
+            CHECK(m.stepBanner.isNotEmpty(), "scenes page has a model-owned banner");
+        }
+
+        // Phrases page: labels are P<n>, banner names the track.
+        {
+            UiState ui;
+            ui.overlay = Overlay::Browser;
+            ui.browserPage = UiState::BrowserPage::Phrases;
+            ui.browserTrack = 3;
+
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            CHECK(m.step[0].primary.startsWith("P1"), "phrase cell shows its P<n> label");
+            CHECK(m.stepBanner.contains("T4"), "phrases banner names the shown track (1-based)");
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Test (#1): Track scope held on a Loop relabels the U/I/O verb cells to
     // loop controls (REC/PLAY/ERASE), state-aware, instead of COPY/PASTE/CLEAR.
     // A non-looper track keeps the clipboard verbs. functionRow[6]=U, [7]=I, [8]=O.
@@ -1544,6 +1595,7 @@ namespace lockstep
         testCueConsoleIndicator();
         testCueMixAffordance();
         testIdentityOverlayRender();
+        testBrowserOverlayRender();
         testLooperConsole();
         testTapeConsole();
         testGeneratorHubPrimary();

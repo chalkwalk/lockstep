@@ -120,6 +120,9 @@ namespace lockstep
                 case OverlayId::Identity:
                     ed.openIdentityOverlay(static_cast<IdentityScope>(param));
                     break;
+                case OverlayId::Browser:
+                    ed.openBrowserOverlay();
+                    break;
             }
         }
         void selectMetaBand(MetaBandId id) override
@@ -3824,20 +3827,22 @@ namespace lockstep
         return h ? h : 1u;
     }
 
-    void LockstepEditor::openIdentityOverlay(IdentityScope scope)
+    void LockstepEditor::openIdentityOverlay(IdentityScope scope, int indexOverride)
     {
-        // Resolve the target index + its current colour from the focused entity.
+        // Resolve the target index + its current colour from the focused entity, or
+        // from indexOverride when the caller names a specific entity (e.g. the
+        // Browser renaming its cursor Scene rather than the playing one).
         int index = 0;
         int curColour = -1;
         switch (scope)
         {
             case IdentityScope::Song:
-                index = processor_.activePieceIdx();
+                index = indexOverride >= 0 ? indexOverride : processor_.activePieceIdx();
                 curColour = processor_.songAt(index).colour;
                 break;
             case IdentityScope::Scene:
             {
-                index = processor_.activeSectionIdx();
+                index = indexOverride >= 0 ? indexOverride : processor_.activeSectionIdx();
                 const int songIdx = processor_.activePieceIdx();
                 curColour = processor_.songAt(songIdx)
                                 .scenes[static_cast<std::size_t>(index)].colour;
@@ -3993,6 +3998,71 @@ namespace lockstep
         escapeOverlay(uiState_, Overlay::Identity);
         refreshMetaBand();
         refreshSurface();
+    }
+
+    void LockstepEditor::openBrowserOverlay()
+    {
+        uiState_.resetBrowser();
+        uiState_.browserCursor = processor_.activeSectionIdx();  // start on the live scene
+        uiState_.overlay = Overlay::Browser;
+        refreshMetaBand();
+        refreshSurface();
+    }
+
+    bool LockstepEditor::consumeBrowserKey(ControllerButton btn, int index)
+    {
+        if (uiState_.overlay != Overlay::Browser) return false;
+        using CB = ControllerButton;
+        const bool scenes = (uiState_.browserPage == UiState::BrowserPage::Scenes);
+
+        // Nav: up = Scenes page, down = Phrases page. Left/right cycles the cursor
+        // (Scenes) or the shown track's phrase pool (Phrases).
+        if (btn == CB::NavUp || btn == CB::NavDown)
+        {
+            uiState_.browserPage = (btn == CB::NavUp) ? UiState::BrowserPage::Scenes
+                                                      : UiState::BrowserPage::Phrases;
+            refreshSurface();
+            return true;
+        }
+        if (btn == CB::NavLeft || btn == CB::NavRight)
+        {
+            const int d = (btn == CB::NavRight) ? +1 : -1;
+            if (scenes)
+                uiState_.browserCursor = (uiState_.browserCursor + d + 16) % 16;
+            else
+            {
+                const int n = static_cast<int>(kNumTracks);
+                uiState_.browserTrack = (uiState_.browserTrack + d + n) % n;
+            }
+            refreshSurface();
+            return true;
+        }
+
+        // Step: on the Scenes page a press cues that Scene (§16 queue; double-tap =
+        // the saved floor) and parks the cursor there. On the Phrases page it just
+        // moves the highlight (phrase copy/move is Item 5).
+        if (btn == CB::Step && index >= 0 && index < 16)
+        {
+            uiState_.browserCursor = index;
+            if (scenes)
+            {
+                const double now = juce::Time::getMillisecondCounterHiRes();
+                const bool dbl = gesture_.doubleTap(kBrowserSceneTokenBase + index, now);
+                processor_.queueScene(index, dbl);
+            }
+            refreshSurface();
+            return true;
+        }
+
+        // P: rename the cursor Scene — hand off to the identity overlay on that
+        // specific scene. Phrases are not named, so P is inert on that page.
+        if (btn == CB::VerbConfirm && !uiState_.funcHeld)
+        {
+            if (scenes)
+                openIdentityOverlay(IdentityScope::Scene, uiState_.browserCursor);
+            return true;
+        }
+        return false;
     }
 
     // -------------------------------------------------------------------------
@@ -4681,6 +4751,13 @@ namespace lockstep
         // foreign-key exit and any normal step/verb dispatch. Other section/scope
         // presses fall through to the reducer, which exits the overlay (its descriptor).
         if (uiState_.overlay == Overlay::Identity && consumeIdentityKey(ev.button, ev.index))
+            return true;
+
+        // 5.3: the Browser owns Nav (page/track/cursor), step keys (scene cue / row
+        // select) and P (rename the cursor scene) while it is open. Non-modal: it does
+        // NOT claim scope/section keys — those fall through to the reducer, which
+        // exits the overlay per its descriptor. Intercepted before normal dispatch.
+        if (uiState_.overlay == Overlay::Browser && consumeBrowserKey(ev.button, ev.index))
             return true;
 
         // 5.5: while Cue is held, a step press auditions that step's resolved trig

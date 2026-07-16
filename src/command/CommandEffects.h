@@ -30,6 +30,7 @@ namespace lockstep
             SoundBank,
             MachinePicker,  // step-grid re-skin, not a floating overlay
             Identity,       // 5.3 naming/colour overlay; param = IdentityScope (0=Song,1=Scene,2=Sound)
+            Browser,        // 5.3 Song->Scene / per-track Phrase browser (param unused)
         };
 
         // Latched meta pages a command can open by name. Unlike an overlay these

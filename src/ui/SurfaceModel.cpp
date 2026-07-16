@@ -2334,6 +2334,94 @@ namespace lockstep
                         + "\"   <> mode  ^v shuffle  MOD colour";
                 }
             }
+            else if (activeLayer == SurfaceLayer::Browser)
+            {
+                // 5.3 Browser (§23.2). A non-modal view over the active Song. The
+                // Scenes page lists the 16 scenes (name + colour, active one lit);
+                // the Phrases page lists one track's 16 phrases with the SHR:N
+                // share badge (how many scenes play each phrase row, PhraseShare).
+                const int songIdx = proc.activePieceIdx();
+                const auto& song = proc.arrangement().songs[static_cast<std::size_t>(songIdx)];
+                const int activeScene = proc.activeSectionIdx();
+                const juce::String songLabel = song.name.empty()
+                    ? juce::String("SONG ") + juce::String(songIdx + 1)
+                    : juce::String(song.name.c_str());
+
+                if (ui.browserPage == UiState::BrowserPage::Scenes)
+                {
+                    for (int i = 0; i < 16; ++i)
+                    {
+                        SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                        c.button = ControllerButton::Step;
+                        c.index = i;
+                        c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                        c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                        const auto& scn = song.scenes[static_cast<std::size_t>(i)];
+                        const bool occupied = scn.initialised || sceneDiagonalOccupied(song, i);
+                        const bool isCursor = (i == ui.browserCursor);
+                        const bool isPlaying = (i == activeScene);
+                        c.base = isCursor  ? CellState::BrowserCellActive
+                               : occupied  ? CellState::BrowserCell
+                                           : CellState::BrowserCellEmpty;
+                        const juce::Colour tint = scn.colour >= 0
+                            ? juce::Colour(theme::identityColour(scn.colour))
+                            : juce::Colour(kScopeScene);
+                        c.baseColour = (isCursor  ? tint.withAlpha(0.55f)
+                                      : occupied  ? tint.withAlpha(0.28f)
+                                                  : tint.withAlpha(0.10f)).getARGB();
+                        // The playing scene wears a border so the playhead stays
+                        // visible even when the cursor is elsewhere.
+                        if (isPlaying)
+                        {
+                            c.border.present = true;
+                            c.border.colour = kStepPlayhead;
+                        }
+                        c.primary = scn.name.empty()
+                            ? juce::String("S") + juce::String(i + 1)
+                            : juce::String(scn.name.c_str());
+                    }
+                    model.stepBanner = juce::String("BROWSE ") + songLabel
+                        + " > SCENES   step=cue (Yes/No)   nav: track / phrases   P=name";
+                }
+                else
+                {
+                    const int t = std::clamp(ui.browserTrack, 0,
+                                             static_cast<int>(kNumTracks) - 1);
+                    const auto& trk = song.tracks[static_cast<std::size_t>(t)];
+                    const PhraseShare shr = proc.phraseShareForTrack(t);
+                    const int playedRow = shr.effectiveRow[static_cast<std::size_t>(
+                        std::clamp(activeScene, 0, kScenesPerSong - 1))];
+
+                    for (int i = 0; i < 16; ++i)
+                    {
+                        SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                        c.button = ControllerButton::Step;
+                        c.index = i;
+                        c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                        c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                        const bool occupied = trk.phrases[static_cast<std::size_t>(i)].initialised;
+                        const int n = shr.count[static_cast<std::size_t>(i)];
+                        const bool isPlayed = (i == playedRow);
+                        c.base = isPlayed ? CellState::BrowserCellActive
+                               : occupied ? CellState::BrowserCell
+                                          : CellState::BrowserCellEmpty;
+                        const juce::Colour tint{ kScopeTrack };
+                        c.baseColour = (isPlayed ? tint.withAlpha(0.55f)
+                                      : occupied ? tint.withAlpha(0.28f)
+                                                 : tint.withAlpha(0.10f)).getARGB();
+                        // "P<n>" plus the SHR badge whenever the row is not the lone
+                        // diagonal player (SHR:1) — the shared / orphaned rows.
+                        juce::String label = juce::String("P") + juce::String(i + 1);
+                        if (n != 1) label += juce::String("  SHR") + juce::String(n);
+                        c.primary = label;
+                    }
+                    model.stepBanner = juce::String("BROWSE ") + songLabel + " > T"
+                        + juce::String(t + 1)
+                        + " PHRASES   SHR=shared scenes   nav: track / scenes";
+                }
+            }
             else
             {
 

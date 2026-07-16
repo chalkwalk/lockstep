@@ -409,6 +409,12 @@ L24 | Scene+Section idx=4 | action=82
     down sceneHeld: false -> true
     down swingDismissed: false -> true
 
+L24 | Func+Song+Section idx=4 | action=83
+    down funcHeld: false -> true
+    down overlay: 0 -> 10
+    down songHeld: false -> true
+    down swingDismissed: false -> true
+
 L24 | Func idx=-1 | action=1
     down funcHeld: false -> true
     up   funcHeld: true -> false

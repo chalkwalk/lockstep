@@ -658,10 +658,18 @@ namespace lockstep
         // owns the overlay's keys (Nav = mode/reshuffle, MOD re-press = page toggle,
         // steps = compose/pick, P = commit, Func+P = cancel) — returns true when it
         // handled the event. commit/cancel write via the processor's single setters.
-        void openIdentityOverlay(IdentityScope scope);
+        void openIdentityOverlay(IdentityScope scope, int indexOverride = -1);
         bool consumeIdentityKey(ControllerButton btn, int index = -1);
         void commitIdentity();
         void cancelIdentity();
+
+        // 5.3 Browser (DESIGN §23.2). A non-modal Song->Scene / per-track Phrase view.
+        // consumeBrowserKey owns the overlay's keys: Nav (up=Scenes, down=Phrases;
+        // left/right = cursor on Scenes, track on Phrases), a step key cues that
+        // Scene (§16 queue) / moves the cursor, P opens Identity to rename the cursor
+        // Scene. Returns true when it handled the event.
+        void openBrowserOverlay();
+        bool consumeBrowserKey(ControllerButton btn, int index = -1);
 
         // MHZ.9.3: toggle one modifier's latch (set=true to engage, false to release).
         // When engaging, enforces column exclusivity (releases any other latch in the same column).

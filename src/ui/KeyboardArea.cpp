@@ -1034,6 +1034,12 @@ namespace lockstep
                     const auto cell = juce::Rectangle<int>(colX(row, col2 + 2), rowY(row),
                                                            cellW, cellH).reduced(2);
                     paintGridCellFill(g, cell, sc);
+                    // Border decoration channel (e.g. the Browser playhead ring).
+                    if (sc.border.present)
+                    {
+                        g.setColour(juce::Colour(sc.border.colour));
+                        g.drawRoundedRectangle(cell.toFloat(), 4.0f, 2.0f);
+                    }
                     paintGridCellText(g, cell, sc);  // auto-alpha: *Sel tokens brighten
                     if (showKeyLetters)
                         paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)], 0.55f);

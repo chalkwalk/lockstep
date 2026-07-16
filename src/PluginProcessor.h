@@ -17,6 +17,7 @@
 #include "core/Arrangement.h"
 #include "core/Project.h"
 #include "core/Scene.h"
+#include "core/PhraseShare.h"
 #include "core/TrackKit.h"
 #include "core/SoundPool.h"
 #include "core/SyncMode.h"
@@ -911,6 +912,12 @@ namespace lockstep
         void setSongColour(int songIdx, int colour);
         void setSceneName(int songIdx, int sceneIdx, const std::string& name);
         void setSceneColour(int songIdx, int sceneIdx, int colour);
+
+        // 5.3 Browser (DESIGN §23.2): SHR:N shares for a track in the active Song —
+        // how many Scenes play each phrase row (diagonal unless deviated). Resolves
+        // each Scene's per-track deviation (live for the active scene, stashed
+        // overlay otherwise) then defers to the pure computePhraseShare().
+        [[nodiscard]] PhraseShare phraseShareForTrack(int track) const;
         void pushSoundEntry(SoundEntry e) { project_.soundPool.push(std::move(e)); }
 
         // Sample pool helpers — message-thread only.

@@ -149,5 +149,6 @@ namespace lockstep
     static constexpr int kMuteStepTokenBase     = 6100;   // Mute + step (commit 4)
     static constexpr int kPhraseStepTokenBase   = 6200;   // Phrase + step
     static constexpr int kRelaunchStepTokenBase = 6300;   // Mute+Play + step (relaunch)
+    static constexpr int kBrowserSceneTokenBase = 6400;   // Browser + step (scene cue, 5.3)
 
 } // namespace lockstep

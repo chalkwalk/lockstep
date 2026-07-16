@@ -284,6 +284,7 @@ namespace
         // 5.3 browser overlay.
         put(d, "browserPage", static_cast<int>(u.browserPage));
         put(d, "browserTrack", u.browserTrack);
+        put(d, "browserCursor", u.browserCursor);
 
         put(d, "generatorHubHeld", u.generatorHubHeld);
         put(d, "euclidHeld", u.euclidHeld);

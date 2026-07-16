@@ -295,6 +295,11 @@ namespace lockstep
           Gesture::Hold, false },
         { CB::Section, 4, kModScene, SL::Base, AId::OpenSceneIdentity, u8"NAME SCENE", CS::Resting,
           Gesture::Hold, false },
+        // Func+Song+MOD opens the Browser (Set-tier Song->Scene view, §23.2). Under
+        // Func the section key is remapped to MetaSection and routes through
+        // routeSection as a TAP, so this is a tap row (not the hold the identity rows
+        // use) — Func's section-remap means the hold arm is never reached here.
+        { CB::Section, 4, kModFunc | kModSong, SL::Base, AId::OpenBrowser, u8"BROWSER", CS::FuncHeld },
 
         // ── 9.12: Gesture-axis rows ─────────────────────────────────────────────
         // These rows carry explicit gesture + promoted fields (last two columns).

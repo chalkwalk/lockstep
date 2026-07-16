@@ -216,6 +216,9 @@ namespace lockstep
         NameCandidateSel = 236,    // the selected half in its row (bright)
         PaletteSwatch = 237,       // a colour-page swatch (its own hue via cell colour)
         PaletteSwatchSel = 238,    // the selected swatch (ringed)
+        BrowserCell = 239,         // a browser row (Scene or Phrase) with content
+        BrowserCellActive = 240,   // the row under the playhead (active scene / played phrase)
+        BrowserCellEmpty = 241,    // an unoccupied slot (dim)
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step

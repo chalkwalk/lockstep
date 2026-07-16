@@ -5926,6 +5926,35 @@ namespace lockstep
         if (colour >= 0) sc.initialised = true;
     }
 
+    PhraseShare LockstepProcessor::phraseShareForTrack(int track) const
+    {
+        std::array<bool, kScenesPerSong> dev{};
+        std::array<int,  kScenesPerSong> row{};
+        if (track >= 0 && track < static_cast<int>(kNumTracks))
+        {
+            const int song = arrangement_.songIdx;
+            const auto t = static_cast<std::size_t>(track);
+            for (int s = 0; s < kScenesPerSong; ++s)
+            {
+                const auto ss = static_cast<std::size_t>(s);
+                if (s == arrangement_.sceneIdx)
+                {
+                    // The active scene's deviations are live (not yet stashed).
+                    dev[ss] = arrangement_.deviated[t];
+                    row[ss] = arrangement_.deviationPhraseIdx[t];
+                }
+                else
+                {
+                    // Every other scene plays its stashed overlay, else its diagonal.
+                    const auto& ov = arrangement_.overlays[static_cast<std::size_t>(song)][ss];
+                    dev[ss] = ov.active && ov.deviated[t];
+                    row[ss] = ov.deviationPhraseIdx[t];
+                }
+            }
+        }
+        return computePhraseShare(dev, row);
+    }
+
     void LockstepProcessor::liveSwapTrackSound(int track, int poolIndex)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;
