@@ -31,6 +31,7 @@ namespace lockstep
         SampleProps,  // pool sample-properties editor (Props… button on a pool row, 9.23)
         Cue,      // cue-balance console (Cue+hold(AMP) entry): param (mixer) + flip page (6.4)
         Identity, // generative naming + colour editor for a Song/Scene/Sound (5.3 / §23.4)
+        Browser,  // Song->Scene / per-track Phrase+Sound browser view (5.3 / §23.2)
     };
 
     // Which entity class the identity (naming/colour) overlay is editing.
@@ -348,6 +349,22 @@ namespace lockstep
             identityColourSel = -1;
             identityRawActive = false;
             identityRawText.clear();
+        }
+
+        // ── Browser overlay (5.3 / DESIGN §23.2) ──
+        // A non-modal view over the active Song: the Scenes page lists the 16
+        // scenes (name + colour); the Phrases page lists one track's 16 phrases
+        // with the SHR:N share badge (PhraseShare). Nav switches page / track;
+        // step keys select a row (Scene rows reuse the §16 launch/queue gesture).
+        enum class BrowserPage : std::uint8_t { Scenes, Phrases };
+        BrowserPage browserPage = BrowserPage::Scenes;
+        int browserTrack = 0;   // which track's phrase pool the Phrases page shows
+
+        // Resets the browser's working view. Call from escapeOverlay(Browser).
+        void resetBrowser() noexcept
+        {
+            browserPage = BrowserPage::Scenes;
+            browserTrack = 0;
         }
 
         // Generator hub (9.10): true while the 3-key has been held ≥350 ms,

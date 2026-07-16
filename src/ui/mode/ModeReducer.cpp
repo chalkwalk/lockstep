@@ -51,7 +51,7 @@ namespace lockstep
     // impossible.
     // =========================================================================
     // NOLINTNEXTLINE(cert-err58-cpp)
-    static const std::array<OverlayDescriptor, 8> kOverlays = {{
+    static const std::array<OverlayDescriptor, 9> kOverlays = {{
         // ── Identity (5.3) ────────────────────────────────────────────────────
         // Generative naming + colour editor for a Song/Scene/Sound. Uses the two
         // step rows (compose) + Nav (mode cycle / reshuffle / colour page), like
@@ -60,6 +60,26 @@ namespace lockstep
         // (Confirm) and Cancel (Func+P) are editor-owned.
         {
             .id                      = Overlay::Identity,
+            .internalSection         = -1,
+            .internalSectionConsumed = false,
+            .internalSectionRelabelFn = nullptr,
+            .exitOnSectionPressOther  = true,
+            .trackScopeForeign  = true,
+            .phraseScopeForeign = true,
+            .sceneScopeForeign  = true,
+            .morphScopeForeign  = true,
+            .muteScopeForeign   = true,
+            .fillScopeForeign   = true,
+            .songScopeForeign   = true,
+            .exitOnDoubleTapFunc = true,
+        },
+        // ── Browser (5.3) ─────────────────────────────────────────────────────
+        // Non-modal Song->Scene / per-track Phrase view. Navigation is Nav + step
+        // keys (editor-owned, intercepted before the reducer); the reducer only
+        // handles exits. Any foreign scope OR a section press exits; Func
+        // double-tap also exits. Playback continues underneath (non-modal).
+        {
+            .id                      = Overlay::Browser,
             .internalSection         = -1,
             .internalSectionConsumed = false,
             .internalSectionRelabelFn = nullptr,
@@ -326,6 +346,13 @@ namespace lockstep
                 {
                     ui.overlay = Overlay::None;
                     ui.resetIdentity();
+                }
+                break;
+            case Overlay::Browser:
+                if (ui.overlay == Overlay::Browser)
+                {
+                    ui.overlay = Overlay::None;
+                    ui.resetBrowser();
                 }
                 break;
             case Overlay::Euclid:

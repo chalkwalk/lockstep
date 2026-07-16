@@ -30,6 +30,7 @@ namespace lockstep
         // above the sequencer views — a stray section/scope press exits it (its
         // OverlayDescriptor), it does not silently underlay them.
         if (ui.overlay == Overlay::Identity) { return SurfaceLayer::Identity; }
+        if (ui.overlay == Overlay::Browser)  { return SurfaceLayer::Browser; }
 
         // KEY page of the signatures band: the grid hosts the modifier/symmetric
         // panel (DESIGN §4.10). The TIME page leaves the grid as the sequencer.
@@ -127,6 +128,12 @@ namespace lockstep
             case SurfaceLayer::Identity:
                 return ui.identityColourPage ? "PICK COLOUR" : "NAME";
 
+            case SurfaceLayer::Browser:
+                // Static fallback; buildSurfaceModel sets a dynamic stepBanner with
+                // the live song/scene/track context (overrides this in the renderer).
+                return ui.browserPage == UiState::BrowserPage::Scenes ? "BROWSE SCENES"
+                                                                      : "BROWSE PHRASES";
+
             case SurfaceLayer::KeyPanel:
                 return "KEY MODIFIERS";
 
@@ -171,6 +178,7 @@ namespace lockstep
             // Labeled: a grid of text cells rendered generically from c.primary — no
             // bespoke paint branch. New text overlays belong here.
             case SurfaceLayer::Identity:
+            case SurfaceLayer::Browser:
                 return StepRenderKind::Labeled;
 
             // Custom: a dedicated branch in paintStepRows (grep the guard shown).

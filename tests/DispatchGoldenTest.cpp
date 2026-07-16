@@ -180,7 +180,7 @@ namespace
     // the net -- the failure mode a golden test is supposed to make impossible.
     // If this static_assert trips: add the field below, then re-bless.
     // ---------------------------------------------------------------------------
-    static_assert(sizeof(UiState) == 1328,
+    static_assert(sizeof(UiState) == 1336,
                   "UiState changed size: add the new field(s) to digest() below, then "
                   "regenerate the golden (LOCKSTEP_REGEN_GOLDEN=1) and read the diff.");
 
@@ -280,6 +280,10 @@ namespace
         put(d, "identityColourSel", u.identityColourSel);
         put(d, "identityRawActive", u.identityRawActive);
         put(d, "identityRawText", juce::String(u.identityRawText).length());
+
+        // 5.3 browser overlay.
+        put(d, "browserPage", static_cast<int>(u.browserPage));
+        put(d, "browserTrack", u.browserTrack);
 
         put(d, "generatorHubHeld", u.generatorHubHeld);
         put(d, "euclidHeld", u.euclidHeld);

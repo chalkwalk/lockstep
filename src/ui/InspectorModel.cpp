@@ -224,6 +224,10 @@ namespace lockstep
                 return ui.identityColourPage
                            ? u8"COLOUR — tap a swatch  P=confirm  nav=name page  Func+P=cancel"
                            : u8"NAME — tap top/bottom to compose  nav=mode/reshuffle  P=confirm";
+            case Modal::Browser:
+                return ui.browserPage == UiState::BrowserPage::Scenes
+                           ? u8"BROWSE SCENES — step=cue (Yes/No)  nav=track/phrases  P=name  esc=dbl-tap Func"
+                           : u8"BROWSE PHRASES — SHR=shared scenes  nav=track/scenes  esc=dbl-tap Func";
             case Modal::None:    break;
         }
 

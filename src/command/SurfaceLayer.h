@@ -22,6 +22,7 @@ namespace lockstep
         MachinePicker,    // ui.machinePickerOpen — Track+hold(SRC)
         GeneratorHub,     // ui.generatorHubHeld — momentary Euclid/Density/Vel picker
         Identity,         // overlay==Identity — generative naming / colour picker (5.3)
+        Browser,          // overlay==Browser — Song->Scene / per-track Phrase view (5.3)
         KeyPanel,         // overlay==Time && sigPage==Key — modifier/symmetric grid panel
         NoteEdit,         // ui.noteEditMode && !noteEditSteps.empty()
         StepInspector,    // ec.heldStepIndex() >= 0 — held step shows P-lock overview

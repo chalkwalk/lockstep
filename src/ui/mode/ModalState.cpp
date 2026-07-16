@@ -29,6 +29,7 @@ namespace lockstep
             case Overlay::SampleProps: return Modal::SampleProps;
             case Overlay::Cue:     return Modal::Cue;
             case Overlay::Identity: return Modal::Identity;
+            case Overlay::Browser: return Modal::Browser;
             case Overlay::Euclid:  return Modal::Euclid;   // defensive; euclidHeld is the real store
             case Overlay::Melodic: return Modal::Melodic;  // defensive; melodicHeld is the real store
             case Overlay::Harmony: return Modal::Harmony;  // defensive; harmonyHeld is the real store
@@ -57,6 +58,7 @@ namespace lockstep
             case Modal::SampleProps:    return "SampleProps";
             case Modal::Cue:            return "Cue";
             case Modal::Identity:       return "Identity";
+            case Modal::Browser:        return "Browser";
         }
         return "None";
     }
