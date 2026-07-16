@@ -39,6 +39,7 @@ add_executable(lockstep_tests
     SerializerTest.cpp
     AmpDspTest.cpp
     EuclideanTest.cpp
+    NameGenTest.cpp
     ScaleTest.cpp
     MelodyGenTest.cpp
     HarmonyGenTest.cpp
@@ -87,6 +88,7 @@ add_executable(lockstep_tests
     # (live only in the plugin target otherwise)
     ../src/ui/MetaBand.cpp
     ../src/ui/MetaRotary.cpp
+    ../src/ui/NameGen.cpp
     ../src/ui/SurfaceModel.cpp
     ../src/ui/SectionResolve.cpp
     ../src/ui/InspectorModel.cpp
@@ -136,6 +138,7 @@ add_executable(lockstep_dispatch_tests
     ../src/ui/KeyboardArea.cpp
     ../src/ui/MetaBand.cpp
     ../src/ui/MetaRotary.cpp
+    ../src/ui/NameGen.cpp
     ../src/ui/SurfaceModel.cpp
     ../src/ui/SectionResolve.cpp
     ../src/ui/InspectorModel.cpp

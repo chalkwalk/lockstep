@@ -62,6 +62,7 @@ namespace lockstep
     void runSerializerTests();
     void runAmpDspTests();
     void runEuclideanTests();
+    void runNameGenTests();       // 5.3 generative naming core (NameGen)
     // Phase 10.2: tonal core (KeySig, brightness, modifiers, quantize)
     void runScaleTests();
     // Phase 10.7: melodic generator (deterministic print model)

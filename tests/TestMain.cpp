@@ -42,6 +42,7 @@ int main()
     lockstep::runSerializerTests();
     lockstep::runAmpDspTests();
     lockstep::runEuclideanTests();
+    lockstep::runNameGenTests();
     lockstep::runScaleTests();
     lockstep::runMelodyGenTests();
     lockstep::runHarmonyGenTests();
