@@ -2314,6 +2314,25 @@ namespace lockstep
                                            : fillTint.withAlpha(0.12f).getARGB();
                     }
                 }
+
+                // Model-owned banner (overrides gridBanner in the generic renderer):
+                // the sticky per-scope mode + live composed name + Nav/MOD affordances,
+                // so the mode and preview are always legible (and controller-visible).
+                if (ui.identityColourPage)
+                {
+                    model.stepBanner = "PICK COLOUR   <> back to name   *   MOD flips page";
+                }
+                else
+                {
+                    const NameMode bmode =
+                        ui.identityMode[static_cast<std::size_t>(ui.identityScope)];
+                    const std::string composed = namegen::composeAt(
+                        bmode, ui.identityTopSeed, ui.identityTopSel,
+                        ui.identityBottomSeed, ui.identityBottomSel);
+                    model.stepBanner = juce::String("[") + nameModeLabel(bmode) + "]  \""
+                        + juce::String(composed.c_str())
+                        + "\"   <> mode  ^v shuffle  MOD colour";
+                }
             }
             else
             {

@@ -399,6 +399,12 @@ namespace lockstep
         // nullptr = no banner. Static string lifetimes (literals or kCanonicalSectionNames).
         const char* gridBanner = nullptr;
 
+        // Dynamic banner for Labeled overlays whose banner carries live content
+        // (e.g. the Identity overlay's composed name + current mode). When non-empty
+        // it overrides gridBanner in the generic labeled-grid renderer, so the banner
+        // text is model-owned (controller-visible) rather than painter-derived.
+        juce::String stepBanner;
+
         // The resolved active layer (SSOT: resolveActiveLayer). Hoisted onto the model so
         // step-grid renderers can key off it without re-deriving precedence — e.g. the
         // LooperConsole layer needs a dedicated label-drawing branch in paintStepRows.

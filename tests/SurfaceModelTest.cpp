@@ -592,6 +592,12 @@ namespace lockstep
                 NameMode::AdjNoun, 123, 2, 456, 5).c_str());
             CHECK(m.step[2].primary == expect, "top selected cell shows the current full name");
             CHECK(m.step[13].primary == expect, "bottom selected cell shows the same full name");
+
+            // The banner is model-owned (drives the generic labeled renderer, and is
+            // controller-visible): it carries the mode label + live composed name.
+            CHECK(m.stepBanner.contains(expect), "banner carries the live composed name");
+            CHECK(m.stepBanner.contains(nameModeLabel(NameMode::AdjNoun)),
+                  "banner names the current (sticky) mode");
         }
 
         // Colour page.
@@ -607,7 +613,17 @@ namespace lockstep
             CHECK(m.step[0].base == CellState::PaletteSwatch, "unselected swatch is a plain swatch");
             CHECK(m.step[0].baseColour == theme::kIdentityPalette[0], "swatch 0 shows palette colour 0");
             CHECK(m.step[8].base == CellState::StepOutOfRange, "past 8 swatches: out of range");
+            CHECK(m.stepBanner.isNotEmpty(), "colour page has a model-owned banner");
         }
+
+        // The Identity layer renders through the generic labeled-grid path (setting
+        // c.primary is sufficient); the trig grid and consoles do not.
+        CHECK(layerStepRender(SurfaceLayer::Identity) == StepRenderKind::Labeled,
+              "Identity is a labeled text layer");
+        CHECK(layerStepRender(SurfaceLayer::Base) == StepRenderKind::Sequencer,
+              "Base is the trig sequencer grid");
+        CHECK(layerStepRender(SurfaceLayer::LooperConsole) == StepRenderKind::Custom,
+              "LooperConsole keeps its bespoke branch");
 
         // Entry affordance: holding Song lights the MOD section key and labels it
         // NAME (it would otherwise read dead — no Song tap content on MOD).

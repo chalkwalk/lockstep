@@ -62,4 +62,20 @@ namespace lockstep
   // from `ui` directly; callers need not inspect ui.deletePicker or heldScopes.
     const char* layerBanner(SurfaceLayer layer, const UiState& ui) noexcept;
 
+  // How paintStepRows renders a layer's 8x2 step grid. Classifying a new
+  // SurfaceLayer here is REQUIRED: layerStepRender's switch is exhaustive (no
+  // default:), so an unclassified layer fails the build under -Werror — the
+  // structural guard that stops a new text overlay from silently rendering blank.
+  //   * Sequencer — the trig step grid (playhead / P-locks / note ticks). Ignores
+  //     c.primary, because trig steps have no text label. The fall-through default.
+  //   * Labeled   — a generic grid of TEXT cells: paintStepRows draws each cell's
+  //     model-supplied c.primary (emphasis from the CellState token) plus the
+  //     banner, with NO bespoke paint branch. Pick this and setting c.primary is
+  //     sufficient — the whole point of the classifier.
+  //   * Custom    — has a dedicated bespoke branch in paintStepRows (e.g. the
+  //     LooperConsole mini-timeline, NoteEdit's chromatic keys). grep the branch.
+    enum class StepRenderKind : std::uint8_t { Sequencer, Labeled, Custom };
+
+    [[nodiscard]] StepRenderKind layerStepRender(SurfaceLayer layer) noexcept;
+
 } // namespace lockstep

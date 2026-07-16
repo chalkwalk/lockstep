@@ -163,4 +163,46 @@ namespace lockstep
         }
         return nullptr;  // unreachable — SurfaceLayer is exhaustive above
     }
+
+    StepRenderKind layerStepRender(SurfaceLayer layer) noexcept
+    {
+        switch (layer)
+        {
+            // Labeled: a grid of text cells rendered generically from c.primary — no
+            // bespoke paint branch. New text overlays belong here.
+            case SurfaceLayer::Identity:
+                return StepRenderKind::Labeled;
+
+            // Custom: a dedicated branch in paintStepRows (grep the guard shown).
+            case SurfaceLayer::MachinePicker:    // uiState_.machinePickerOpen
+            case SurfaceLayer::TrackFxPicker:    // uiState_.funcFxHeld
+            case SurfaceLayer::MasterFxPicker:   // uiState_.masterFxPickerOpen
+            case SurfaceLayer::GeneratorHub:     // uiState_.generatorHubHeld
+            case SurfaceLayer::KeyPanel:         // overlay==Time && sigPage==Key
+            case SurfaceLayer::NoteEdit:         // uiState_.noteEditMode
+            case SurfaceLayer::PLockClear:       // uiState_.pLockClearMode
+            case SurfaceLayer::MorphMuteView:    // uiState_.muteHeld branch
+            case SurfaceLayer::MuteRelaunchView: // uiState_.muteHeld branch
+            case SurfaceLayer::MuteView:         // uiState_.muteHeld branch
+            case SurfaceLayer::MorphStepView:    // uiState_.morphHeld && !funcHeld
+            case SurfaceLayer::LooperConsole:    // activeLayer == LooperConsole
+            case SurfaceLayer::MachineConsole:   // activeLayer == MachineConsole
+                return StepRenderKind::Custom;
+
+            // Sequencer: the trig step grid (the paintStepRows fall-through default).
+            // These decorate the grid via model cell state rather than showing text.
+            case SurfaceLayer::PendingConfirm:
+            case SurfaceLayer::DeletePicker:
+            case SurfaceLayer::SoundPool:
+            case SurfaceLayer::RetrigPicker:
+            case SurfaceLayer::StepInspector:
+            case SurfaceLayer::ChromaticInput:
+            case SurfaceLayer::LevelsInput:
+            case SurfaceLayer::LengthEdit:
+            case SurfaceLayer::ScopeSelector:
+            case SurfaceLayer::Base:
+                return StepRenderKind::Sequencer;
+        }
+        return StepRenderKind::Sequencer;  // unreachable — SurfaceLayer is exhaustive
+    }
 } // namespace lockstep

@@ -541,6 +541,8 @@ namespace lockstep
                 : ((c.base == CellState::MachineCurrent
                  || c.base == CellState::EffectLoaded
                  || c.base == CellState::SelectorCurrent
+                 || c.base == CellState::NameCandidateSel
+                 || c.base == CellState::PaletteSwatchSel
                  || c.base == CellState::MorphPoleActive) ? 0.90f : 0.65f);
             g.setColour(juce::Colours::white.withAlpha(alpha));
             g.setFont(juce::Font(juce::FontOptions(9.0f)));
