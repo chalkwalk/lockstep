@@ -64,6 +64,7 @@ namespace lockstep
     void runEuclideanTests();
     void runNameGenTests();       // 5.3 generative naming core (NameGen)
     void runPhraseShareTests();   // 5.3 Browser SHR:N share-count core (PhraseShare)
+    void runPhraseOpsTests();     // 5.3 phrase copy/move helpers (PhraseOps)
     // Phase 10.2: tonal core (KeySig, brightness, modifiers, quantize)
     void runScaleTests();
     // Phase 10.7: melodic generator (deterministic print model)

@@ -36,6 +36,8 @@ namespace lockstep
             return probabilityPercent >= 100 && iterNumerator == 1 && iterDenominator == 1
                    && prevDependency == 0 && !oneShot;
         }
+
+        bool operator==(const TrigCondition&) const = default;
     };
 
     // Per-step fill trig state. Stored directly on Step (not in TrigCondition)

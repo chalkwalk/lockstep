@@ -65,6 +65,12 @@ namespace lockstep
                 fn(slot, value);
         }
 
+        // Content equality (5.3 / phrase copy no-op skip). Two P-Locks are equal
+        // when they hold the same slot→value entries; storage is kept sorted, so a
+        // straight vector compare is order-stable. Exact float compare is intended:
+        // a copy is bitwise identical to its source.
+        bool operator==(const PLock&) const = default;
+
     private:
         using Entry = std::pair<int, float>;
         std::vector<Entry> overrides_;

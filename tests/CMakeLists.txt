@@ -41,6 +41,7 @@ add_executable(lockstep_tests
     EuclideanTest.cpp
     NameGenTest.cpp
     PhraseShareTest.cpp
+    PhraseOpsTest.cpp
     ScaleTest.cpp
     MelodyGenTest.cpp
     HarmonyGenTest.cpp

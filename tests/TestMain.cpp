@@ -44,6 +44,7 @@ int main()
     lockstep::runEuclideanTests();
     lockstep::runNameGenTests();
     lockstep::runPhraseShareTests();
+    lockstep::runPhraseOpsTests();
     lockstep::runScaleTests();
     lockstep::runMelodyGenTests();
     lockstep::runHarmonyGenTests();

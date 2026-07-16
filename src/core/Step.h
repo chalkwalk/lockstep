@@ -38,6 +38,8 @@ namespace lockstep
         // retrigRate PPQ per repetition for the duration of the note gate.
         bool hasRetrig = false;
         double retrigRate = 0.25;  // PPQ per repetition (default = /16)
+
+        bool operator==(const TrigOverride&) const = default;
     };
 
     struct Step
@@ -62,5 +64,7 @@ namespace lockstep
         FillTrigState fillTrigState = FillTrigState::Inherit;
         PLock fillOverrides;     // fill-specific machine param P-Locks
         TrigOverride fillTrigOverride;  // fill-specific sequencer trig field overrides
+
+        bool operator==(const Step&) const = default;
     };
 }
