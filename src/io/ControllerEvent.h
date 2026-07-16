@@ -34,7 +34,9 @@ namespace lockstep
         SongScope,    // key S: Song select; Func+Song = Global / master-bus / FX focus (§32.3)
         FillScope,    // key X: fill modifier (MHY: moved from 2; held=fill conditions evaluate true)
 
-        // Cue scope: reserved for MU reactivation, currently not bound to any key.
+        // Cue scope (DESIGN §31): ships, but entered via the Func+3 compound
+        // (enterCueScope → ui.cueHeld), so no software key emits this button today.
+        // Kept for a future controller that binds a dedicated Cue key.
         CueScope,
 
         // Verb keys (MHY: primary layer Y/U/I/O/P; meaning changes with active scope).

@@ -57,8 +57,10 @@ namespace lockstep
                 recomputePrimary();
                 return true;
 
-            // Cue scope is reserved (MU); no key emits it post-MHY, but accept
-            // the event in case future input sources do.
+            // No hardware CueScope button exists — the Cue scope ships (DESIGN §31)
+            // but is entered as the Func+3 compound in the editor (enterCueScope),
+            // which sets ui.cueHeld, not this ControllerButton. Accept the event
+            // anyway so a future controller that does bind a Cue key just works.
             case ControllerButton::CueScope:
                 scope_.cue = isDown;
                 recomputePrimary();

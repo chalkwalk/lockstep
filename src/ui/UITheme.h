@@ -98,8 +98,9 @@ namespace lockstep::theme
     // Machine picker (lime ~95°) — Func+Track / Part+SRC
     inline constexpr uint32_t kScopeMachine = 0xFF50C030u;
 
-    // Cue / audition scope (cyan ~192°) — reached by Func+3 (6.4, §31). Matches the
-    // cued-cell top-strip indicator (KeyButton) so the whole cue language is one hue.
+    // Cue / audition scope (cyan ~192°) — reached by Func+3 (6.4, §31; a qualifier
+    // scope, see the PrimaryScope taxonomy in EditMode.h). Matches the cued-cell
+    // top-strip indicator (KeyButton) so the whole cue language is one hue.
     inline constexpr uint32_t kScopeCue = 0xFF20B0D0u;
 
     // Func / secondary layer (orange ~30°) — the glow on Func-held section keys

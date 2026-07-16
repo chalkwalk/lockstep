@@ -47,6 +47,31 @@ namespace lockstep
         };
 
         // The primary scope determines what the next verb operates on.
+        //
+        // Two CATEGORIES of scope, and the difference is load-bearing:
+        //   • Section-SUITE scopes — {Track, Phrase, Scene, Morph, Song}. Held, they
+        //     re-skin the 5-0 section row and the step grid to a layer of the musical
+        //     container stack (Track DIV/LEN, Song master-FX, Func+Song=Global TRSP).
+        //     firstHeldSectionSuiteScope() enumerates exactly these; sectionResolveMode
+        //     turns them into a SecOrigin floor. They are 1:1 with a held modifier key.
+        //   • QUALIFIER / monitoring scopes — {Cue, Mute, Fill, Trig, Section, Func}.
+        //     They qualify what a verb/gesture DOES, but do NOT re-skin the section row,
+        //     so they are deliberately absent from firstHeldSectionSuiteScope and map to
+        //     the Machine floor in sectionFloorForScope (exhaustive; not a fall-through).
+        //
+        // CUE is a qualifier/monitoring scope (DESIGN §31), NOT a suite scope. It is
+        // also the one scope entered by a COMPOUND (Func+3) rather than a bare modifier
+        // key — hardware has no dedicated Cue button (§21). Because it is neither a
+        // modifier nor a suite scope, its surface signals can't ride the declarative
+        // binding table or the section resolver the way Track/Global do; they are wired
+        // imperatively from the ui.cueHeld flag. The full cue-scope touchpoint map:
+        //   • entry + release ......... LockstepEditor::enterCueScope / key-up (Func+3)
+        //   • scope colour ............ theme::kScopeCue → scopeColour(PS::Cue) (KeyLabel.h)
+        //   • entry-key label ......... KeyBindings "CUE" row (Func+3) + StatusText::cueScope
+        //   • console-entry affordance  applyCueScopeAffordance() (SurfaceModel.cpp)
+        //   • console (sticky) ........ Overlay::Cue (ModeReducer) + MetaBand::Cue
+        //   • direct gestures ......... Cue+Mute (toggle), Cue+step (audition), Cue+hold(AMP)
+        //   • cue balance model ....... DESIGN §31 / §31.5 (P-Lock ▷ morph ▷ base tiers)
         enum class PrimaryScope : std::uint8_t
         {
             None,
@@ -57,7 +82,7 @@ namespace lockstep
             Scene,    // Scene scope (§4.7; launch / re-sync) — key W
             Mute,     // Mute scope
             Fill,     // Fill scope (momentary; verb is less common here)
-            Cue,      // Cue/monitor scope (§31; reserved until MU)
+            Cue,      // Cue/monitor qualifier scope (§31); entered Func+3, see map above
             Morph,    // Morph (A/B crossfader) assignment scope (§17) — key A
             Song,     // Song select; Func+Song = Global/master-bus (§32.3) — key S
             Section,  // a section key is held (set externally when section held)

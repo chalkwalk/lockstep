@@ -25,6 +25,9 @@ namespace lockstep
   // Section-suite subset: {Track, Phrase, Scene, Morph, Song} — the scopes that
   // re-skin the section row and step grid when held. Returns the highest-priority
   // section-suite scope currently held in UiState, or PrimaryScope::None.
+  // Cue/Mute/Fill are deliberately EXCLUDED — they are qualifier/monitoring scopes,
+  // not container-stack layers (see the PrimaryScope taxonomy in EditMode.h). Cue in
+  // particular re-skins nothing here; its surface signals ride ui.cueHeld imperatively.
     EditMode::PrimaryScope firstHeldSectionSuiteScope(const UiState& ui) noexcept;
 
 } // namespace lockstep
