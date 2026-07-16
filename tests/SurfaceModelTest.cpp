@@ -625,8 +625,9 @@ namespace lockstep
         CHECK(layerStepRender(SurfaceLayer::LooperConsole) == StepRenderKind::Custom,
               "LooperConsole keeps its bespoke branch");
 
-        // Entry affordance: holding Song lights the MOD section key and labels it
-        // NAME (it would otherwise read dead — no Song tap content on MOD).
+        // Entry affordance (5.3 Item D): holding Song promotes MOD to the naming
+        // key — NAME SONG becomes the PRIMARY with a press-and-hold gutter glyph and
+        // a scope glow (it would otherwise read dead — no Song tap content on MOD).
         {
             const int mod = LockstepProcessor::kModSecIdx;
             UiState ui; ui.songHeld = true;
@@ -634,13 +635,13 @@ namespace lockstep
                                              GridDisplayMode::Ortholinear);
             const auto& c = m.section[static_cast<std::size_t>(mod)];
             CHECK(!c.disabled, "Song held: MOD is lit as the naming key");
-            // The MOD section keeps its canonical primary; the naming gesture surfaces
-            // on the hold rail (uniform with Scene below).
-            CHECK(c.primary == "MOD", "Song held: MOD keeps its canonical primary");
-            CHECK(c.holdLabel == "NAME SONG", "Song held: MOD carries the NAME SONG hold rail");
+            CHECK(c.primary == "NAME SONG", "Song held: NAME SONG is the primary");
+            CHECK(c.primaryGesture == Gesture::Hold, "Song held: MOD shows the hold glyph");
+            CHECK(c.holdLabel.isEmpty(), "Song held: no duplicate NAME hold rail");
+            CHECK(c.base == CellState::ModeActive, "Song held: MOD glows active");
         }
 
-        // Under Scene, MOD keeps its tap-params primary but gains a NAME hold rail.
+        // Under Scene, MOD is promoted the same way with the Scene label.
         {
             const int mod = LockstepProcessor::kModSecIdx;
             UiState ui; ui.sceneHeld = true;
@@ -648,7 +649,8 @@ namespace lockstep
                                              GridDisplayMode::Ortholinear);
             const auto& c = m.section[static_cast<std::size_t>(mod)];
             CHECK(!c.disabled, "Scene held: MOD is lit");
-            CHECK(c.holdLabel == "NAME SCENE", "Scene held: MOD carries the NAME hold rail");
+            CHECK(c.primary == "NAME SCENE", "Scene held: NAME SCENE is the primary");
+            CHECK(c.primaryGesture == Gesture::Hold, "Scene held: MOD shows the hold glyph");
         }
     }
 

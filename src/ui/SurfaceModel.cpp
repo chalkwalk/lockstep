@@ -273,6 +273,37 @@ namespace lockstep
         c.primaryGesture = Gesture::Tap;
     }
 
+    // 5.3 Item D: make the identity/naming gesture discoverable. Under a namable
+    // container scope (Song/Scene) MOD carries no section content, so the resolver
+    // leaves the inert canonical "MOD" in the primary slot and the "NAME …"
+    // affordance hides on the hold rail with no glow — the gesture reads dead.
+    // Promote NAME to the primary (with the press-and-hold gutter glyph) and light
+    // the cell in the scope hue. Applied AFTER deriveSlots (like the Cue affordance
+    // above) so the rail re-blank / primaryGesture passes cannot undo it.
+    static void applyNameScopeAffordance(SurfaceModel& model,
+                                         LockstepProcessor& proc, const UiState& ui)
+    {
+        using PS = EditMode::PrimaryScope;
+        if (ui.funcHeld) return;
+        const PS scope = firstHeldSectionSuiteScope(ui);
+        const bool isSong = (scope == PS::Song);
+        if (!isSong && scope != PS::Scene) return;
+
+        SurfaceCell& c = model.section[static_cast<std::size_t>(proc.kModSecIdx)];
+        if (c.pressed) return;                       // a real press still wins
+
+        c.disabled = false;
+        c.base = CellState::ModeActive;
+        const uint32_t hue = isSong ? kScopeSong : kScopeScene;
+        c.baseColour = hue;
+        c.scopeTint = hue;
+        c.primary = isSong ? juce::String("NAME SONG") : juce::String("NAME SCENE");
+        c.primaryGesture = Gesture::Hold;            // gutter shows the hold ring
+        c.holdLabel = juce::String();                // now the primary — no dup rail
+        c.tapLabel = juce::String();
+        c.funcHint = juce::String();
+    }
+
     SurfaceModel buildSurfaceModel(const UiState& ui,
                                    const EditContext& ec,
                                    const PressTracker* press,
@@ -667,11 +698,10 @@ namespace lockstep
 
             // 5.3: MOD is the identity/naming hold key under a namable container
             // scope (Song/Scene). Song's MOD has no tap content, so the resolver dims
-            // it and its "NAME SONG" hold rail never paints — the gesture reads dead.
-            // Un-dim it here; deriveSlots (below) then adds the "NAME SONG/SCENE" hold
-            // rail from the Section+kModSong/kModScene hold binding (primary stays the
-            // canonical "MOD"). The placeholder guards the non-empty-primary invariant
-            // in the rare case the resolver leaves the primary empty.
+            // it. Un-dim it here so it isn't drawn dead; the full promotion (NAME as
+            // primary + hold glyph + scope glow) is applied post-deriveSlots by
+            // applyNameScopeAffordance (Item D). The placeholder guards the
+            // non-empty-primary invariant if the resolver leaves the primary empty.
             if (isScopedMode && s == proc.kModSecIdx
                 && (sectionScope == PS::Song || sectionScope == PS::Scene) && !ui.funcHeld)
             {
@@ -2936,6 +2966,9 @@ namespace lockstep
 
             // 6.4a: Cue console affordance on AMP (see applyCueScopeAffordance above).
             applyCueScopeAffordance(model, ui);
+
+            // 5.3 Item D: naming affordance on MOD under Song/Scene scope.
+            applyNameScopeAffordance(model, proc, ui);
 
             // S3: the looper verb relabel (Track+U/I/O → REC/PLAY/ERASE) is retired.
             // The looper transport now lives on the always-on console (the step grid,
