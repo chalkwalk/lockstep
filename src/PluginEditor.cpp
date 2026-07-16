@@ -1589,14 +1589,25 @@ namespace lockstep
     {
         if (songSceneRegion_.isEmpty()) return;
 
-        const int sg = processor_.activePieceIdx() + 1;
-        const int sc = processor_.activeSectionIdx() + 1;
+        const int sgIdx = processor_.activePieceIdx();
+        const int scIdx = processor_.activeSectionIdx();
+
+        // A user-assigned name (5.3 identity) replaces the bare slot number; an unnamed
+        // entity still reads as its 1-based slot. Names are truncated for the band.
+        const auto& song = processor_.songAt(sgIdx);
+        const juce::String sgLabel = song.name.empty()
+            ? juce::String(sgIdx + 1)
+            : juce::String(song.name).substring(0, kNameMaxChars);
+        const auto& scene = song.scenes[static_cast<std::size_t>(scIdx)];
+        const juce::String scLabel = scene.name.empty()
+            ? juce::String(scIdx + 1)
+            : juce::String(scene.name).substring(0, kNameMaxChars);
 
         g.setColour(juce::Colour(0xFF1A1E26u));
         g.fillRoundedRectangle(songSceneRegion_.toFloat(), 3.0f);
         g.setColour(juce::Colour(0xFF9AB0C8u));
         g.setFont(juce::Font(juce::FontOptions(11.0f)).boldened());
-        g.drawText("Sg " + juce::String(sg) + " : Sc " + juce::String(sc),
+        g.drawText("Sg " + sgLabel + " : Sc " + scLabel,
                    songSceneRegion_, juce::Justification::centred);
     }
 
