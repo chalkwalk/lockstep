@@ -854,7 +854,7 @@ namespace lockstep
         }
         if (auto* prefs = appProps_.getUserSettings())
             gridMode_ = static_cast<GridDisplayMode>(
-                prefs->getIntValue("gridMode", static_cast<int>(GridDisplayMode::Ortholinear)));
+                prefs->getIntValue("gridMode", static_cast<int>(GridDisplayMode::Staggered)));
         applyDisplayMode(gridMode_);
         addAndMakeVisible(transport_);
         // v27: in the hosted-Locked regime the header transport parks/unparks the
@@ -1070,7 +1070,7 @@ namespace lockstep
 
         displayModeBtn_.setWantsKeyboardFocus(false);
         displayModeBtn_.onClick = [this] {
-            applyDisplayMode(static_cast<GridDisplayMode>(
+            persistDisplayMode(static_cast<GridDisplayMode>(
                 (static_cast<int>(gridMode_) + 1) % 3));
         };
         addAndMakeVisible(displayModeBtn_);
@@ -7290,12 +7290,21 @@ namespace lockstep
 
     void LockstepEditor::applyDisplayMode(GridDisplayMode mode)
     {
+        // Apply-visual only. Persistence is deliberately NOT here: this runs on
+        // every editor construction, and the prefs file is shared across the
+        // standalone + every plugin instance (each with its own in-memory cache),
+        // so a construction-time write lets a closing instance clobber a newer
+        // value. Only the explicit toggle persists (see persistDisplayMode).
         gridMode_ = mode;
         keyboardArea_.setDisplayMode(mode);
 
         static constexpr const char* kModeLabels[] = { "STG", "ORL", "CLN" };
         displayModeBtn_.setButtonText(kModeLabels[static_cast<int>(mode)]);
+    }
 
+    void LockstepEditor::persistDisplayMode(GridDisplayMode mode)
+    {
+        applyDisplayMode(mode);
         if (auto* prefs = appProps_.getUserSettings())
         {
             prefs->setValue("gridMode", static_cast<int>(mode));

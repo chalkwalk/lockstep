@@ -452,7 +452,7 @@ namespace lockstep
 
         SamplePoolOverlay poolOverlay_;      // after processor_ — ctor takes LockstepProcessor&
 
-        GridDisplayMode gridMode_ = GridDisplayMode::Ortholinear;
+        GridDisplayMode gridMode_ = GridDisplayMode::Staggered;
         juce::ApplicationProperties appProps_;
 
         // Diagnostic metering state — UI-thread copies with ballistic decay,
@@ -547,6 +547,7 @@ namespace lockstep
         bool pastePhraseIntoSlot(int track, int slot);
 
         void applyDisplayMode(GridDisplayMode mode);
+        void persistDisplayMode(GridDisplayMode mode);
 
         // Unified input dispatch — both keyPressed and mouse callbacks route here.
         // rawCode = physical key code (keyboard), 0 (mouse), or kControllerSource.
