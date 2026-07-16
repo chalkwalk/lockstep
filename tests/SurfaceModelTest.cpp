@@ -516,6 +516,42 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // 6.4a affordance: while the Cue scope is held, AMP (the mixer key) advertises
+    // the cue console — a CUE MIX hold rail, lit in cue cyan, not disabled — even
+    // though Cue is entered as Func+3 (which otherwise blanks section hold rails).
+    // -------------------------------------------------------------------------
+    static void testCueMixAffordance()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ec;
+        const int amp = LockstepProcessor::kAmpSecIdx;
+
+        // At rest: AMP carries no cue affordance.
+        {
+            UiState ui;
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            CHECK(m.section[static_cast<std::size_t>(amp)].holdLabel != "CUE MIX",
+                  "at rest: AMP shows no CUE MIX rail");
+        }
+
+        // Cue held (as it arrives via Func+3): AMP lights and says CUE MIX.
+        {
+            UiState ui;
+            ui.cueHeld = true;
+            ui.funcHeld = true;   // Cue is the Func+3 compound
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            const auto& c = m.section[static_cast<std::size_t>(amp)];
+            CHECK(c.holdLabel == "CUE MIX", "Cue held: AMP carries the CUE MIX hold rail");
+            CHECK(!c.disabled, "Cue held: AMP is not dimmed under Func");
+            CHECK(c.scopeTint == theme::kScopeCue, "Cue held: AMP glows in cue cyan");
+            CHECK(!c.primary.isEmpty(), "Cue held: AMP keeps a primary label");
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Test (#1): Track scope held on a Loop relabels the U/I/O verb cells to
     // loop controls (REC/PLAY/ERASE), state-aware, instead of COPY/PASTE/CLEAR.
     // A non-looper track keeps the clipboard verbs. functionRow[6]=U, [7]=I, [8]=O.
@@ -1405,6 +1441,7 @@ namespace lockstep
         testDensityStickyFuncInvariant();
         testHomeKeyAnchors();
         testCueConsoleIndicator();
+        testCueMixAffordance();
         testLooperConsole();
         testTapeConsole();
         testGeneratorHubPrimary();

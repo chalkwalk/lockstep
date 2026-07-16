@@ -2678,6 +2678,31 @@ namespace lockstep
             for (auto& c : model.step)
                 deriveSlots(c);
 
+            // 6.4a affordance: the Cue scope is entered as the Func+3 compound, not a
+            // real modifier — so the declarative hold rail can't advertise the cue
+            // console, and the Func-held branch in deriveSlots blanks section hold rails
+            // anyway. Signal it imperatively (after deriveSlots so nothing re-blanks it):
+            // while Cue is held, AMP (the mixer key) lights in cue cyan and carries a
+            // CUE MIX hold rail — the exact twin of Track+hold(AMP)=MIXER.
+            if (ui.cueHeld)
+            {
+                SurfaceCell& amp = model.section[static_cast<std::size_t>(proc.kAmpSecIdx)];
+                if (!amp.pressed)
+                {
+                    amp.disabled = false;
+                    amp.base = CellState::ModeActive;
+                    amp.baseColour = kScopeCue;
+                    amp.scopeTint = kScopeCue;
+                    if (amp.primary.isEmpty())
+                        amp.primary = juce::String(
+                            IMachine::kCanonicalSectionNames[
+                                static_cast<std::size_t>(proc.kAmpSecIdx)]);
+                    amp.funcHint = juce::String();
+                    amp.holdLabel = "CUE MIX";
+                    amp.primaryGesture = Gesture::Tap;
+                }
+            }
+
             // S3: the looper verb relabel (Track+U/I/O → REC/PLAY/ERASE) is retired.
             // The looper transport now lives on the always-on console (the step grid,
             // SurfaceLayer::LooperConsole); U/I/O on a focused looper are the ordinary
