@@ -197,6 +197,10 @@ namespace lockstep
         void createBakedCopyScene(int target);      // DESIGN §23.3 placeable payloads
         void createBaselineCopyScene(int target);  // floor phrase only, no deviations
         void createDefaultScene(int target);       // blank
+        void createCopySong(int target);           // 5.3 Item C: duplicate active song
+        void createDefaultSong(int target);        // 5.3 Item C: blank song (scene 0 live)
+        // 5.3 Item C: phrase row exists for a track (initialised phrase OR its scene).
+        [[nodiscard]] bool phraseSlotOccupied(int track, int slot) const;
         bool phraseRowMatchesActiveContent(int slot) const;
         int countDeviatedTracks() const;
         bool sceneSlotOccupied(int s) const;

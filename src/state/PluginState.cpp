@@ -659,6 +659,13 @@ namespace lockstep::PluginState
                 songNode.setProperty(keys::kSoColour, song.colour, nullptr);
                 pieceHasContent = true;
             }
+            // v36 (5.3 Item C): persist slot existence. A created-but-empty song has
+            // no other content, so it must force its node to save (mirrors Scene).
+            if (song.initialised)
+            {
+                songNode.setProperty(keys::kSoInit, 1, nullptr);
+                pieceHasContent = true;
+            }
             // v21: optional Song-level time signature override.
             if (song.hasTimeSig)
             {
@@ -903,6 +910,9 @@ namespace lockstep::PluginState
             // v35 (5.3): optional Song identity — missing ⇒ empty name / colour -1.
             song.name = songNode.getProperty(keys::kSoName, juce::String()).toString().toStdString();
             song.colour = static_cast<int>(songNode.getProperty(keys::kSoColour, -1));
+            // v36 (5.3 Item C): slot existence. A present song node without the flag
+            // is a pre-v36 save; deriveSongOccupancy (below) backfills it from content.
+            song.initialised = (static_cast<int>(songNode.getProperty(keys::kSoInit, 0)) != 0);
             // v21: optional Song-level time signature override.
             if (static_cast<int>(songNode.getProperty(keys::kHasTs, 0)) != 0)
             {
@@ -1104,7 +1114,23 @@ namespace lockstep::PluginState
             // handler does not take the destructive create-on-empty path. New saves
             // write the node directly (widened save gate); this only helps old files.
             deriveSceneOccupancyFromPhrases(song);
+
+            // v36 backfill (5.3 Item C): pre-v36 saves carry no init flag, so a song
+            // the user built loads as un-created. Mark it created if it holds any
+            // content (initialised scene / name / colour / non-stub track). New saves
+            // write the flag directly; this only rescues old files. Idempotent.
+            if (!song.initialised
+                && songHasContent(song, [](const TrackKit& k) {
+                       return k.machineId == StubMachine::kMachineId;
+                   }))
+                song.initialised = true;
         }
+
+        // The active song always exists — you cannot be positioned on a non-song.
+        // An old empty project (active song had no node / no content) would otherwise
+        // load with every song slot un-created, including the one under the playhead.
+        if (activePiece >= 0 && activePiece < kNumSongs)
+            proc.songAt(activePiece).initialised = true;
 
         // Apply active indices after all data is loaded.
         // Load path: set the playhead WITHOUT a write-back. setActiveSong/Scene
@@ -2268,6 +2294,17 @@ namespace lockstep::PluginState
         return v35;
     }
 
+    // v35 → v36 (5.3 Item C): song slot existence. No structural rewrite — the
+    // absent kSoInit flag is backfilled from content at read-back
+    // (deriveSongOccupancy in readNewHierarchyNode). This step only stamps the
+    // version so the chain advances to current.
+    static juce::ValueTree upgrade_v35_to_v36(const juce::ValueTree& v35)
+    {
+        juce::ValueTree v36 = v35.createCopy();
+        v36.setProperty(keys::kVersion, 36, nullptr);
+        return v36;
+    }
+
     juce::ValueTree applyUpgrades(juce::ValueTree tree)
     {
         // Determine the version. v0 has root type "Lockstep" and no version attribute.
@@ -2311,6 +2348,7 @@ namespace lockstep::PluginState
         if (version < 33) tree = upgrade_v32_to_v33(tree);
         if (version < 34) tree = upgrade_v33_to_v34(tree);
         if (version < 35) tree = upgrade_v34_to_v35(tree);
+        if (version < 36) tree = upgrade_v35_to_v36(tree);
 
         // 9.18: unconditional — resolve sample references to current pool positions
         // (hash-driven for v29 trees, "i"-bridged for the v28 tree just upgraded).

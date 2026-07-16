@@ -222,6 +222,7 @@ namespace lockstep
             // Section[0]: all tracks active, coreTime 4/4, phrase indices = 0.
             // phraseIdx and activeMask default correctly (0s and trues).
             p0.scenes[0].initialised = true;  // only scene 1 populated by default
+            p0.initialised = true;            // 5.3 Item C: song 1 exists; others create-on-select
         }
 
         // Project the seeded Song[0] into the working buffer. Arrangement's own
@@ -7572,6 +7573,21 @@ namespace lockstep
     void LockstepProcessor::createDefaultScene(int target)
     {
         arrangement_.createDefaultScene(target);
+    }
+
+    void LockstepProcessor::createCopySong(int target)
+    {
+        arrangement_.createCopySong(target);
+    }
+
+    void LockstepProcessor::createDefaultSong(int target)
+    {
+        arrangement_.createDefaultSong(target);
+    }
+
+    bool LockstepProcessor::phraseSlotOccupied(int track, int slot) const
+    {
+        return arrangement_.phraseSlotOccupied(track, slot);
     }
 
     bool LockstepProcessor::phraseRowMatchesActiveContent(int slot) const

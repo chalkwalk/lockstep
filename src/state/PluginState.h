@@ -83,7 +83,11 @@ namespace lockstep
         //      SoundEntry gains colour. All optional: missing ⇒ empty name / colour
         //      -1 (unset ⇒ slot-derived at display time). Trivial stamp upgrade from
         //      v34 (no upgrade function needed; readers default the absent fields).
-        inline constexpr int kCurrentVersion = 35;
+        // v36: song slot existence (5.3 Item C) — Song gains `initialised`, so songs
+        //      create-on-select like scenes. Optional flag (kSoInit); missing ⇒
+        //      deriveSongOccupancy backfills from content on load (songHasContent),
+        //      and the active song is always marked created. No upgrade function.
+        inline constexpr int kCurrentVersion = 36;
 
         void writeTo(juce::MemoryBlock& dest, LockstepProcessor& proc);
         void readFrom(const void* data, int sizeInBytes, LockstepProcessor& proc);

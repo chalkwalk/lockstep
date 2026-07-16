@@ -455,6 +455,64 @@ namespace lockstep
         CHECK(outMaster == 0.0f, "staged floor launch: master density defaulted to 0");
     }
 
+    // 5.3 Item C: songs come into being on select — occupancy is Song::initialised,
+    // not the degenerate "is the active song" it used to be.
+    static void testSongSlotOccupied()
+    {
+        auto arr = std::make_unique<Arrangement>();
+        CHECK(!arr->songSlotOccupied(0), "song occupancy: fresh slot 0 is un-created");
+        arr->songs[3].initialised = true;
+        CHECK(arr->songSlotOccupied(3), "song occupancy: initialised slot is occupied");
+        CHECK(!arr->songSlotOccupied(0), "song occupancy: an un-created slot stays empty");
+        CHECK(!arr->songSlotOccupied(-1), "song occupancy: negative index is not occupied");
+        CHECK(!arr->songSlotOccupied(kNumSongs), "song occupancy: out-of-range is not occupied");
+    }
+
+    // 5.3 Item C: create-on-select primitives. Copy duplicates the active song
+    // (resetting identity); default seeds a blank song on an initialised scene 0.
+    static void testCreateSongs()
+    {
+        auto arr = makeSeededArrangement();
+        arr->songs[0].name = "Original";
+        arr->songs[0].tracks[0].phrases[0].steps[5].trig = true;
+        arr->syncWorkingFromActive();
+
+        arr->createCopySong(7);
+        CHECK(arr->songSlotOccupied(7), "copy song: target marked initialised");
+        CHECK(arr->songs[7].name.empty(), "copy song: identity reset (reads as slot)");
+        CHECK(arr->songs[7].tracks[0].phrases[0].steps[5].trig,
+              "copy song: active song content duplicated");
+        CHECK(arr->songs[0].name == "Original", "copy song: source identity intact");
+
+        arr->createDefaultSong(9);
+        CHECK(arr->songSlotOccupied(9), "default song: target marked initialised");
+        CHECK(arr->songs[9].scenes[0].initialised, "default song: scene 0 is live");
+        CHECK(!arr->songs[9].scenes[1].initialised, "default song: only scene 0 seeded");
+        CHECK(arr->songs[9].name.empty(), "default song: no identity");
+    }
+
+    // 5.3 Item C: phrase-row existence is diagonal-aware — a row exists for a track
+    // iff that track has an initialised phrase there OR its scene (diagonal owner)
+    // is created. Un-created rows are inert (Phrase+step launch no-ops).
+    static void testPhraseSlotOccupied()
+    {
+        auto arr = std::make_unique<Arrangement>();
+        CHECK(!arr->phraseSlotOccupied(0, 4), "phrase occupancy: fresh row is inert");
+
+        // Diagonal owner: scene 4 created → row 4 exists for every track.
+        arr->songs[0].scenes[4].initialised = true;
+        CHECK(arr->phraseSlotOccupied(0, 4), "phrase occupancy: scene diagonal makes row exist");
+        CHECK(arr->phraseSlotOccupied(3, 4), "phrase occupancy: diagonal applies to all tracks");
+
+        // Off-diagonal track content (a fork) makes just that track's row exist.
+        arr->songs[0].tracks[2].phrases[6].initialised = true;
+        CHECK(arr->phraseSlotOccupied(2, 6), "phrase occupancy: track content makes its row exist");
+        CHECK(!arr->phraseSlotOccupied(0, 6), "phrase occupancy: other tracks' row 6 stays inert");
+
+        CHECK(!arr->phraseSlotOccupied(-1, 0), "phrase occupancy: bad track is inert");
+        CHECK(!arr->phraseSlotOccupied(0, kPhrasesPerTrack), "phrase occupancy: bad slot is inert");
+    }
+
     void runArrangementTests()
     {
         testSceneSwitchPreservesEdit();
@@ -475,6 +533,9 @@ namespace lockstep
         testBakeDeviationSameSlot();
         testSceneInitialisedOnMutation();
         testSceneSlotOccupied();
+        testSongSlotOccupied();
+        testCreateSongs();
+        testPhraseSlotOccupied();
         testFirstFreePhraseSlot();
         testDensityRidesSceneOverlay();
         testFloorLaunchWipesDensity();

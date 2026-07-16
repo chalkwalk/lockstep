@@ -36,6 +36,7 @@
 #include "../src/core/TrigCondition.h"
 #include "../src/state/StateKeys.h"     // 4.9 sample-analysis cache keys
 #include "../src/machine/SamplePool.h"  // CachedAnalysis (read-side reconstruction)
+#include "../src/machine/StubMachine.h"  // kMachineId (5.3 Item C song occupancy)
 #include <juce_data_structures/juce_data_structures.h>
 
 namespace lockstep
@@ -782,6 +783,48 @@ namespace lockstep
         CHECK(!song.scenes[5].initialised, "derivation stays a no-op on empty scenes");
     }
 
+    // 5.3 Item C: songs come into being on select (Song::initialised), mirroring
+    // scenes. New saves persist the kSoInit flag; pre-v36 saves have no flag, so a
+    // song the user built loads un-created and must be backfilled from content
+    // (songHasContent). These pin the write→read of the flag and the backfill.
+    static void testSongOccupancyRoundTrip()
+    {
+        namespace k = keys;
+        auto stub = [](const TrackKit& kit) { return kit.machineId == StubMachine::kMachineId; };
+
+        // Song embeds tens of tracks × phrases by value (MBs) — heap-allocate so a
+        // test frame never stack-blows (mirrors makeSeededArrangement's guidance).
+        // A created-but-empty song has no other content, so songHasContent is false
+        // — its existence hangs entirely on the persisted flag.
+        {
+            auto song = std::make_unique<Song>();
+            CHECK(!songHasContent(*song, stub), "a blank song reports no content");
+            song->initialised = true;
+
+            // Writer forces the node + kSoInit=1 (mirrors PluginState song writer).
+            juce::ValueTree n(k::kSong);
+            if (song->initialised) n.setProperty(k::kSoInit, 1, nullptr);
+            const bool backInit = static_cast<int>(n.getProperty(k::kSoInit, 0)) != 0;
+            CHECK(backInit, "created-but-empty song's existence round-trips");
+        }
+
+        // Backfill: a pre-v36 song (no flag → initialised false) that holds content
+        // is rescued; a genuinely-empty one stays un-created.
+        {
+            auto song = std::make_unique<Song>();  // reused; reset fields between cases
+            song->scenes[0].initialised = true;    // content but no flag (old save)
+            CHECK(!song->initialised, "pre-v36 song loads un-created");
+            CHECK(songHasContent(*song, stub), "a song with an initialised scene has content");
+            song->scenes[0].initialised = false;
+
+            song->name = "Verse";                  // named-only content
+            CHECK(songHasContent(*song, stub), "a named song has content");
+            song->name.clear();
+
+            CHECK(!songHasContent(*song, stub), "a blank song has no content to rescue");
+        }
+    }
+
     // 4.9: the cached sample-analysis properties (v26) survive an XML round-trip
     // and reconstruct into the same CachedAnalysis the read path builds. Mirrors
     // the writeSamplePool/readSamplePool property layout without a processor.
@@ -940,6 +983,7 @@ namespace lockstep
         testCondRoundTrip();
         testIdentityRoundTrip();
         testSceneOccupancyDerivation();
+        testSongOccupancyRoundTrip();
         testStepRoundTrip();
         testPhrasePropertyNames();
         testFillFieldRoundTrip();

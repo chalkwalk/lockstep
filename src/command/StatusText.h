@@ -114,6 +114,17 @@ namespace lockstep::status
         return "Scene " + juce::String(sceneNumber) + " (blank)";
     }
 
+    // 5.3 Item C: song create-on-select feedback.
+    inline juce::String songCreated(int songNumber)
+    {
+        return "Song " + juce::String(songNumber) + " created (copy)";
+    }
+
+    inline juce::String songBlank(int songNumber)
+    {
+        return "Song " + juce::String(songNumber) + " (blank)";
+    }
+
     // ---- length authoring ---------------------------------------------------
 
     inline juce::String length(int steps)

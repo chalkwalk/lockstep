@@ -746,14 +746,22 @@ void runDispatchGoldenTests(int& failed)
     // decisive where a single net-diff is not: the first scenario deviates and the change
     // PERSISTS (deviated flag up, focus phrase swapped); the second does the same deviation
     // and then SYNCs, and nets back to the base -- so SYNC is what erased it, not a no-op.
+    // 5.3 Item C: Phrase+step is LAUNCH, and only OCCUPIED rows launch. A fresh
+    // project has just the diagonal phrase 0, so deviating to phrase 2 is now inert.
+    // Create scene 2 in the setup (its diagonal makes phrase row 2 exist, though its
+    // phrases stay empty), so the deviation has a real target and reproduces the
+    // original observable diff (track 0 falls silent). The base digest is taken WITH
+    // the same setup, so scene-2 creation nets out and only the deviation shows.
+    auto occupyPhrase2 = [](LockstepProcessor& p) { p.createDefaultScene(2); };
+    const Digest baseP2 = [&] { Rig r; occupyPhrase2(*r.proc); return r.snap(); }();
     out << renderScenario("deviate track 0 to phrase 2 (persists)",
                           { { { CB::PhraseScope }, CB::Step, 2 } },
-                          base)
+                          baseP2, occupyPhrase2)
         << "\n";
     out << renderScenario("deviate track 0 to phrase 2, then Scene+Clear (SYNC) reverts it",
                           { { { CB::PhraseScope }, CB::Step, 2 },
                             { { CB::SceneScope }, CB::VerbClear } },
-                          base)
+                          baseP2, occupyPhrase2)
         << "\n";
     // 9.4 item C: cancel-queued-scene moved from Scene+O / Phrase+O to Func+P. Same
     // decisive pair as SYNC -- the queue (staged directly, since a headless rig has no

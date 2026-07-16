@@ -397,11 +397,26 @@ namespace lockstep
             return song().scenes[idx(s)].initialised;
         }
 
-        // True if a song slot is the active (used) song.
+        // True if a song slot has been explicitly created (5.3 Item C). Songs now
+        // come into being on select (mirroring scenes), so occupancy is a real gate,
+        // not the degenerate "is the active song" it used to be.
         [[nodiscard]] bool songSlotOccupied(int s) const
         {
             if (s < 0 || s >= kNumSongs) return false;
-            return s == songIdx;
+            return songs[static_cast<std::size_t>(s)].initialised;
+        }
+
+        // True if phrase row `slot` exists for `track` (5.3 Item C): the focused
+        // track has an initialised phrase there OR scene `slot` is created (its
+        // diagonal owner). Un-created rows are inert (Phrase+step launch no-ops).
+        [[nodiscard]] bool phraseSlotOccupied(int track, int slot) const
+        {
+            if (track < 0 || track >= static_cast<int>(kNumTracks)) return false;
+            if (slot < 0 || slot >= kPhrasesPerTrack) return false;
+            if (song().tracks[static_cast<std::size_t>(track)]
+                    .phrases[static_cast<std::size_t>(slot)].initialised)
+                return true;
+            return sceneSlotOccupied(slot);
         }
 
         // Lowest phrase-slot index that is not the diagonal row of any initialised
@@ -482,6 +497,33 @@ namespace lockstep
             if (target < 0 || target >= kScenesPerSong) return;
             auto& dst = song().scenes[idx(target)];
             dst = Scene{};
+            dst.initialised = true;
+        }
+
+        // Song create (5.3 Item C). Songs create-on-select like scenes.
+        // Copy: duplicate the active song's full content into an empty slot
+        // (template a new song), resetting identity so the copy reads as its slot
+        // number until renamed. Flushes live edits first (mirrors scene create).
+        void createCopySong(int target)
+        {
+            if (target < 0 || target >= kNumSongs || target == songIdx) return;
+            writeBackWorkingToActive();
+            Song& dst = songs[static_cast<std::size_t>(target)];
+            dst = song();                 // full duplicate (tracks + scenes + attrs)
+            dst.name.clear();             // a fresh copy reads as its slot number
+            dst.colour = -1;
+            dst.initialised = true;
+        }
+
+        // Default create: a blank song positioned on an initialised scene 0 (a song
+        // needs a live scene to play; mirrors newProject's seed). Tracks default to
+        // stub (TrackKit's default machineId), so it is silent until authored.
+        void createDefaultSong(int target)
+        {
+            if (target < 0 || target >= kNumSongs) return;
+            Song& dst = songs[static_cast<std::size_t>(target)];
+            dst = Song{};
+            dst.scenes[0].initialised = true;
             dst.initialised = true;
         }
 

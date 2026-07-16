@@ -32,6 +32,13 @@ namespace lockstep
         std::array<SongTrack, kNumTracks> tracks{};
         std::array<Scene, kScenesPerSong> scenes{};
 
+        // Slot existence (5.3 Item C). A song comes into being only when created
+        // (newProject seeds song 0; empty-slot select creates on demand), mirroring
+        // Scene::initialised. Un-created slots read as empty in the Song selector and
+        // create-on-select rather than launch an empty song. Backfilled for old saves
+        // (deriveSongOccupancy) since it is a new field.
+        bool initialised = false;
+
         // Identity (5.3 / DESIGN §23.1). Optional user-assigned name (<=16 chars)
         // and colour (palette index, §24; -1 = unset ⇒ slot-derived at display time).
         std::string name;
@@ -88,5 +95,20 @@ namespace lockstep
             if (!song.scenes[static_cast<std::size_t>(si)].initialised
                 && sceneDiagonalOccupied(song, si))
                 song.scenes[static_cast<std::size_t>(si)].initialised = true;
+    }
+
+    // True when a song holds any authored content: an initialised scene, a
+    // user-assigned name/colour, or a non-stub track. Used to backfill
+    // Song::initialised for pre-Item-C saves (the field did not exist, so it loads
+    // false even for songs the user built). `trackIsStub(kit)` decides "non-stub".
+    template <typename StubPred>
+    [[nodiscard]] inline bool songHasContent(const Song& song, StubPred trackIsStub)
+    {
+        if (!song.name.empty() || song.colour >= 0) return true;
+        for (const auto& sc : song.scenes)
+            if (sc.initialised) return true;
+        for (const auto& t : song.tracks)
+            if (!trackIsStub(t.kit)) return true;
+        return false;
     }
 }

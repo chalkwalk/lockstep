@@ -1080,6 +1080,17 @@ namespace lockstep
                             isEmpty = proc.isTrackEmpty(i);
                         else if (dpScope == DeleteScope::Scene)
                             isEmpty = (i != activeIdx) && !proc.sceneSlotOccupied(i);
+                        else if (dpScope == DeleteScope::Phrase)
+                        {
+                            // 5.3 Item C: same diagonal-aware occupancy as the phrase
+                            // selector — only existing rows are deletable targets.
+                            const auto& sng = proc.arrangement().songs[
+                                static_cast<std::size_t>(proc.activePieceIdx())];
+                            const bool trkPhrase = activeTrack >= 0
+                                && sng.tracks[static_cast<std::size_t>(activeTrack)]
+                                       .phrases[static_cast<std::size_t>(i)].initialised;
+                            isEmpty = !(trkPhrase || proc.sceneSlotOccupied(i));
+                        }
                     }
 
                     if (!avail)
@@ -2202,7 +2213,20 @@ namespace lockstep
                     else if (ui.songHeld)
                         slotEmpty[static_cast<std::size_t>(i)] = !proc.songSlotOccupied(i);
                     else
-                        slotEmpty[static_cast<std::size_t>(i)] = false;  // phrases: all rows exist
+                    {
+                        // Phrases (5.3 Item C): diagonal-aware occupancy. Row N exists
+                        // iff the focused track has an initialised phrase there OR
+                        // scene N is created (its diagonal owner) — keeping scene and
+                        // phrase visuals consistent. Un-created rows read empty and are
+                        // inert (Phrase+step is launch, not create; guarded below).
+                        const auto& sng = proc.arrangement().songs[
+                            static_cast<std::size_t>(proc.activePieceIdx())];
+                        const bool trkPhrase = activeTrack >= 0
+                            && sng.tracks[static_cast<std::size_t>(activeTrack)]
+                                   .phrases[static_cast<std::size_t>(i)].initialised;
+                        slotEmpty[static_cast<std::size_t>(i)] =
+                            !(trkPhrase || proc.sceneSlotOccupied(i));
+                    }
                 }
 
                 for (int i = 0; i < 16; ++i)

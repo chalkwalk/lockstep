@@ -36,6 +36,9 @@ namespace lockstep::keys
     // v35 (5.3): optional Song identity — name + colour (palette index, -1 = unset).
     inline constexpr const char* kSoName = "nm";      // Song display name
     inline constexpr const char* kSoColour = "col";   // Song colour (palette index)
+    // v36 (5.3 Item C): song slot existence. Songs create-on-select like scenes;
+    // an initialised-but-empty song must persist so the slot stays occupied.
+    inline constexpr const char* kSoInit = "init";    // Song::initialised (1 = created)
 
   // ── SongTrack node ──────────────────────────────────────────────────────────
     inline constexpr const char* kSongTrack = "SongTrack";

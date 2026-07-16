@@ -5575,13 +5575,38 @@ namespace lockstep
 
                 // Master + step: Song (song) select (Phase 7 / DESIGN §16).
                 // 9.17: quantized to the launch authority; double-tap = instant.
+                // 5.3 Item C: songs create-on-select like scenes — an empty slot
+                // creates then switches instead of launching a non-existent song.
+                //   occupied:        switch (quantized; double-tap = instant)
+                //   empty + bare:    copy the active song (template a new one)
+                //   empty + Mute:    blank default song
+                //   empty + Func:    no-op (Func+Song is the Global-scope qualifier)
                 if (uiState_.songHeld && !uiState_.morphHeld)
                 {
                     if (ev.index >= 0 && ev.index < kNumSongs)
                     {
-                        const double now = juce::Time::getMillisecondCounterHiRes();
-                        const bool dbl = gesture_.doubleTap(kSongStepTokenBase + ev.index, now);
-                        processor_.queueSongSwitch(ev.index, dbl);
+                        const bool isActive = (ev.index == processor_.activePieceIdx());
+                        const bool occupied = isActive || processor_.songSlotOccupied(ev.index);
+                        if (occupied)
+                        {
+                            const double now = juce::Time::getMillisecondCounterHiRes();
+                            const bool dbl = gesture_.doubleTap(kSongStepTokenBase + ev.index, now);
+                            processor_.queueSongSwitch(ev.index, dbl);
+                        }
+                        else if (!uiState_.funcHeld)
+                        {
+                            if (uiState_.muteHeld)
+                            {
+                                processor_.createDefaultSong(ev.index);
+                                setStatus(status::songBlank(ev.index + 1));
+                            }
+                            else
+                            {
+                                processor_.createCopySong(ev.index);
+                                setStatus(status::songCreated(ev.index + 1));
+                            }
+                            processor_.queueSongSwitch(ev.index, true);  // instant to the new song
+                        }
                     }
                     refreshSurface();
                     return true;
@@ -5629,7 +5654,11 @@ namespace lockstep
                 // launch grid; double-tap = instant.
                 if (uiState_.phraseScopeHeld)
                 {
-                    if (ev.index >= 0 && ev.index < kPhrasesPerTrack)
+                    // 5.3 Item C: Phrase+step is LAUNCH, not create. An un-created
+                    // (dim) row is inert — tapping it is a no-op. Phrases come from
+                    // scene-create (diagonal) and copy/move/fork (Browser), never here.
+                    if (ev.index >= 0 && ev.index < kPhrasesPerTrack
+                        && processor_.phraseSlotOccupied(keyboardArea_.getActiveTrack(), ev.index))
                     {
                         const double now = juce::Time::getMillisecondCounterHiRes();
                         const bool dbl = gesture_.doubleTap(kPhraseStepTokenBase + ev.index, now);
@@ -5946,7 +5975,11 @@ namespace lockstep
                 // 9.17: quantized to the track's launch grid; double-tap = instant.
                 if (uiState_.phraseScopeHeld)
                 {
-                    if (ev.index >= 0 && ev.index < kPhrasesPerTrack)
+                    // 5.3 Item C: Phrase+step is LAUNCH, not create. An un-created
+                    // (dim) row is inert — tapping it is a no-op. Phrases come from
+                    // scene-create (diagonal) and copy/move/fork (Browser), never here.
+                    if (ev.index >= 0 && ev.index < kPhrasesPerTrack
+                        && processor_.phraseSlotOccupied(keyboardArea_.getActiveTrack(), ev.index))
                     {
                         const double now = juce::Time::getMillisecondCounterHiRes();
                         const bool dbl = gesture_.doubleTap(kPhraseStepTokenBase + ev.index, now);
