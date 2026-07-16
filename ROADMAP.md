@@ -35,8 +35,9 @@ milestones below. Next orders of business, in order:
    track bank by re-pressing AMP** (1-8 ↔ 9-16) with pagination pips; and the
    **AMP/CHANNEL page now carries a writable, APVTS-backed CUE cell** (DESIGN §31.3
    — synthetic slot routed to `get/setCueBalance`, excluded from `channelState`, so
-   no double-store). Three follow-ons still deferred to their own items: morph-cue
-   integration, `Cue + Scene`, `Cue + MIDI-out`.
+   no double-store). Follow-ons: **`6.4a` cue overlay tiers** (per-step P-Lock +
+   per-scene morph over the global base) was **designed 2026-07-15** (DESIGN §31.5,
+   build open); `Cue + Scene` and `Cue + MIDI-out` remain deferred.
 2. **`5.3` — Song/Scene management UI.** The big arc: names, colours, browser,
    sound recall. Needs its own brainstorm/design session first — "Kit" is retired
    as a term (`9.29`), so the recall-unit story is re-derived, likely atop
@@ -1177,12 +1178,23 @@ DESIGN §31 / §31.1. Static output complement + the `Cue` scope.
       tap-bypass, quantized flip (immediate + armed), `Cue`+`Mute` gesture and
       console entry/flip/page/exit (dispatch binary), `Cue` band build/write
       (MetaBand), overlay entry/exit (ModeReducer), indicator (SurfaceModel).
-- [ ] *Deferred (own follow-on items):* **Morph-cue integration** — morph is
-      per-scene + `(track,slot)`-keyed while cue is a persistent non-scene
-      overlay, so driving the overlay from per-scene endpoints needs its own
-      design session (the quantized flip covers "N cued tracks in at once"
-      without it); `Cue + Scene` double-resolve pre-listen; `Cue + MIDI-out`
-      copy to a cue MIDI destination.
+- [ ] **6.4a — Cue overlay tiers (P-Lock + morph over a global base)**
+      *(designed 2026-07-15; build open)*. DESIGN §31.5. Make cue join the
+      `P-Lock ▷ morph ▷ base` ladder every channel param uses, **keeping the
+      global base** (§31.2): base = the `cueBalance` APVTS param; per-scene
+      **morph** endpoint on the synthetic `ampCueSlot` (equal-power); per-step
+      **P-Lock** written only from the AMP cell with a step held (the cue
+      console still writes the base only — single-writer-per-context enforced
+      by construction). Build seam: `prepCueRamp` resolves its per-block target
+      as `step-override ▷ morphBlend(base = getCueBalance) ▷ getCueBalance`;
+      register the `lockstep.cue` id for P-Lock serialization.
+      **Load-bearing audit:** clear-P-Lock / P-Lock-count / copy-step enumerate
+      `slot < numParams` today — the cue slot sits past it, so they must be
+      widened to include it or a cue P-Lock becomes uncléarable/invisible.
+      Ships with the new-modality tests (P-Lock round-trip by id; morph endpoint
+      resolve + equal-power; clear/copy include cue; console still base-only).
+- [ ] *Deferred (own follow-on items):* `Cue + Scene` double-resolve
+      pre-listen; `Cue + MIDI-out` copy to a cue MIDI destination.
 - Design spec (kept): `docs/superpowers/specs/2026-07-14-cue-balance-6.4-design.md`.
       Build plan folded into the ticked boxes above and deleted (shipped 2026-07-15).
 - [x] Live stem capture via Aux outs documented as the blessed stem-export path

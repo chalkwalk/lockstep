@@ -4918,11 +4918,12 @@ scope itself is entered as `Func+3` (§21) and is now advertised there: key
   with pagination pips under AMP — the same re-press-to-page idiom the MIXER
   band uses.
 - **The AMP/CHANNEL page.** The per-track balance appears as a cell in the
-  channel section, edited in context like Level. It is **APVTS-backed**
+  channel section, edited in context like Level. Its **base is APVTS-backed**
   (reads/writes the `cueBalance` param directly), *not* a `channelState`
-  slot — so it never double-stores against the persistent overlay and is
-  never captured as a step P-Lock.
-- **Morph.** Free, per §31.2 — no dedicated mode.
+  slot — so the base never double-stores against the persistent overlay.
+  With a **step held (EditContext)** the same cell writes a **per-step
+  P-Lock** on the synthetic cue slot instead of the base (§31.5).
+- **Morph.** Free, per §31.2 / §31.5 — no dedicated mode.
 
 **The quantized flip.** Because "I cued up *N* tracks and want them all in
 at once" should not require setting up a morph, arming tracks on the
@@ -4944,6 +4945,54 @@ without committing it to front-of-house.
 **MIDI-out and `Cue + Scene`** (a MIDI copy to a cue destination; a
 double-resolved scene pre-listen) remain specified but are **deferred past
 this milestone** — the balance model above is the buildable core.
+
+### 31.5 The overlay tiers — per-step P-Lock and morph over a global base
+
+Cue is *functionally track-scoped* (§31.1): the value that matters is always
+"this track's balance", and the two write surfaces address it without
+overlap. That lets cue join the same **`P-Lock ▷ morph ▷ base`** resolution
+ladder every channel parameter uses (§17.2; Level/Pan/sends resolve exactly
+this way per block in `processBlock`) **without giving up the global base**.
+
+The three tiers live in three domains, on purpose:
+
+- **Base — global, persistent (§31.2).** The `cueBalance` APVTS param.
+  Survives scene launches; written by the cue console, `Cue + Mute`, and the
+  quantized flip. This tier alone is what §31.2 protects.
+- **Morph — per-scene.** A cue endpoint in the scene's Morph set
+  (`(track, cueSlot)`), captured and ridden like any other Morph value, with
+  **equal-power** weighting (cue is an amplitude balance, so a crossfade of
+  cued-ness must not dip). Mirror-resolves to the global base when a scene
+  has no cue endpoint. This *is* the "DJ transition falls out for free" of
+  §31.2, now made concrete.
+- **P-Lock — per-step, per-track.** With a step held on the AMP/CHANNEL page,
+  the CUE cell writes `step.overrides[cueSlot]` — the focused track's own cue,
+  sequenced exactly like the sends beside it.
+
+**Single writer per context — enforced by construction.** The cue *console*
+(the mixer, `Cue + hold(AMP)`) writes the **base only**; it can never write a
+P-Lock. The per-step override is reachable **only** from the AMP cell with a
+step held, which is inherently the focused track. So you cannot P-Lock one
+track's cue through the mixer for another track — the surface that edits all
+tracks touches only the global tier, and the surface that P-Locks touches only
+one track. No new write-arbitration is introduced.
+
+**Why the base stays global while overlays are pattern/scene state.** The
+base tier keeps the §31.2 guarantee (a scene launch never re-exposes a cued
+track to the audience). The overlays are deliberate authored deviations — a
+performer who P-Locks or morphs cue is *choosing* to sequence it. When a
+morph endpoint exists for a track's cue, it wins over the base for that
+scene, so a `Cue + Mute`/flip on the base is inaudible there — identical to
+any other morphed parameter, not a cue-specific rule.
+
+**Implementation seam (build item, not shipped):** the cue slot is the
+existing synthetic `ampCueSlot(track)` index; `prepCueRamp` resolves its
+per-block target as `step-override ▷ morphBlend(base = getCueBalance) ▷
+getCueBalance` and the 5 ms declick smooths per-step changes for free. Cue
+P-Locks serialize by the `lockstep.cue` id and **must** be enumerated by the
+clear-P-Lock, P-Lock-count, and copy-step paths (they range over
+`slot < numParams` today; the cue slot sits past it — see the ROADMAP item's
+audit).
 
 ### 31.4 Host integration — the static output complement
 
