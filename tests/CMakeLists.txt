@@ -40,6 +40,7 @@ add_executable(lockstep_tests
     AmpDspTest.cpp
     EuclideanTest.cpp
     NameGenTest.cpp
+    PhraseShareTest.cpp
     ScaleTest.cpp
     MelodyGenTest.cpp
     HarmonyGenTest.cpp

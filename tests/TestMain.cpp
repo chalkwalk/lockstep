@@ -43,6 +43,7 @@ int main()
     lockstep::runAmpDspTests();
     lockstep::runEuclideanTests();
     lockstep::runNameGenTests();
+    lockstep::runPhraseShareTests();
     lockstep::runScaleTests();
     lockstep::runMelodyGenTests();
     lockstep::runHarmonyGenTests();
