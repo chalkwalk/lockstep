@@ -5984,6 +5984,13 @@ namespace lockstep
             arrangement_.song().tracks[static_cast<std::size_t>(track)].phrases);
     }
 
+    int LockstepProcessor::lastFreePhraseSlotForTrack(int track) const
+    {
+        if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
+        return lockstep::lastFreePhraseSlot(
+            arrangement_.song().tracks[static_cast<std::size_t>(track)].phrases);
+    }
+
     void LockstepProcessor::writePhraseSlot(int track, int slot, const Phrase& phrase)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)
@@ -6003,15 +6010,23 @@ namespace lockstep
             refreshWorkingFromModel();
     }
 
+    void LockstepProcessor::forkPhraseIntoSlot(int track, int slot, const Phrase& phrase)
+    {
+        writePhraseSlot(track, slot, phrase);
+        // Re-point THIS scene's track to the fork, leaving co-assigned scenes on the
+        // shared original. Instant (not launch-quantized): a librarian edit, not a cue.
+        queuePhraseDeviation(track, slot, /*forceInstant=*/true);
+    }
+
     int LockstepProcessor::forkPhraseInto(int track, const Phrase& phrase)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return -1;
-        const int free = firstFreePhraseSlotForTrack(track);
+        // Auto-fork picks the HIGHEST free slot (§23.3): performed scenes grow
+        // bottom-up, so a fork's fresh phrase is placed top-down, away from the
+        // region the performed set expands into.
+        const int free = lastFreePhraseSlotForTrack(track);
         if (free < 0) return -1;   // pool full — caller reports the refusal
-        writePhraseSlot(track, free, phrase);
-        // Re-point THIS scene's track to the fork, leaving co-assigned scenes on the
-        // shared original. Instant (not launch-quantized): a librarian edit, not a cue.
-        queuePhraseDeviation(track, free, /*forceInstant=*/true);
+        forkPhraseIntoSlot(track, free, phrase);
         return free;
     }
 

@@ -27,12 +27,25 @@ namespace lockstep
     }
 
     // Lowest uninitialised phrase slot in a track's pool, or -1 when the pool is
-    // full. Fork-on-shared (§23.3) allocates the fresh phrase here; a full pool
-    // means the fork must be refused.
+    // full. (Kept for the create-scene conflict hint; see lastFreePhraseSlot for
+    // the fork allocator.)
     [[nodiscard]] inline int firstFreePhraseSlot(
         const std::array<Phrase, kPhrasesPerTrack>& phrases) noexcept
     {
         for (int i = 0; i < kPhrasesPerTrack; ++i)
+            if (!phrases[static_cast<std::size_t>(i)].initialised)
+                return i;
+        return -1;
+    }
+
+    // HIGHEST uninitialised phrase slot, or -1 when the pool is full. The
+    // auto-fork allocator (§23.3): performed scenes grow bottom-up from slot 0,
+    // so transient/library content (a fork's fresh phrase) is placed top-down —
+    // the two regions meet in the middle and "pool full" is when they collide.
+    [[nodiscard]] inline int lastFreePhraseSlot(
+        const std::array<Phrase, kPhrasesPerTrack>& phrases) noexcept
+    {
+        for (int i = kPhrasesPerTrack - 1; i >= 0; --i)
             if (!phrases[static_cast<std::size_t>(i)].initialised)
                 return i;
         return -1;

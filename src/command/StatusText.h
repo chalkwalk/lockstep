@@ -68,6 +68,8 @@ namespace lockstep::status
     inline juce::String phraseForked(int slot) { return "Forked -> Phrase " + juce::String(slot + 1); }
     inline juce::String phrasePoolFull() { return "Phrase pool full — no free slot to fork"; }
     inline juce::String confirmForkPhrase() { return "PHRASE SHARED — FORK?  P=CONFIRM  Func+P=CANCEL"; }
+    inline juce::String phraseForkPick() { return "SHARED — press a FREE slot to fork into"; }
+    inline juce::String phraseForkPickBusy() { return "Slot in use — pick a free slot (Play to retry)"; }
     inline juce::String deletedPart() { return "Deleted Part"; }
 
     // ---- cue balance (6.4, DESIGN §31) --------------------------------------

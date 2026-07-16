@@ -2427,10 +2427,12 @@ namespace lockstep
                         if (n != 1) label += juce::String("  SHR") + juce::String(n);
                         c.primary = label;
                     }
-                    model.stepBanner = juce::String("BROWSE ") + songLabel + " > T"
-                        + juce::String(t + 1)
-                        + " PHRASES   step=pick  Rec=copy  Play=paste  SHR=shared"
-                        + "   nav: track / scenes";
+                    model.stepBanner = ui.browserForkPick
+                        ? juce::String("FORK ") + songLabel + " > T" + juce::String(t + 1)
+                            + "   press a FREE (dim) slot to place the copy"
+                        : juce::String("BROWSE ") + songLabel + " > T" + juce::String(t + 1)
+                            + " PHRASES   step=pick  Rec=copy  Play=paste  SHR=shared"
+                            + "   nav: track / scenes";
                 }
             }
             else

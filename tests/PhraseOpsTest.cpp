@@ -60,10 +60,33 @@ namespace lockstep
         CHECK(firstFreePhraseSlot(pool) == -1, "full pool: no free slot");
     }
 
+    static void testLastFreeSlot()
+    {
+        std::array<Phrase, kPhrasesPerTrack> pool{};   // all uninitialised
+        CHECK(lastFreePhraseSlot(pool) == kPhrasesPerTrack - 1,
+              "empty pool: highest free is the last slot");
+
+        // Performed scenes grow from the bottom: forks fill from the top.
+        pool[15].initialised = true;
+        pool[14].initialised = true;
+        CHECK(lastFreePhraseSlot(pool) == 13, "top two taken: highest free is slot 13");
+
+        // first vs last diverge when the middle is free.
+        for (auto& ph : pool) ph.initialised = true;
+        pool[3].initialised = false;
+        pool[9].initialised = false;
+        CHECK(firstFreePhraseSlot(pool) == 3, "lowest free is 3");
+        CHECK(lastFreePhraseSlot(pool) == 9,  "highest free is 9");
+
+        for (auto& ph : pool) ph.initialised = true;
+        CHECK(lastFreePhraseSlot(pool) == -1, "full pool: no free slot");
+    }
+
     void runPhraseOpsTests()
     {
         testContentEqualIgnoresInitialised();
         testContentEqualDetectsDifference();
         testFirstFreeSlot();
+        testLastFreeSlot();
     }
 }

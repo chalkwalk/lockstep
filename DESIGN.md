@@ -4074,11 +4074,19 @@ holds Scenes and per-track Phrase pools. Copy/paste/clear reuse the
   SHR:N badge, §23.2), paste-into-a-shared-slot prompts to *fork* (paste
   as a fresh phrase, leaving the other Scenes' assignment intact) — this
   is the Kit-era replacement for the old Fork-Part chord. Identical-content
-  re-paste is a silent no-op (mirrors the Scene conflict skip). *Model
-  caveat:* with 16 phrase slots and 16 scenes, every slot is some scene's
-  diagonal home, so a fork consumes the lowest **unused** slot (an
-  as-yet-empty scene's diagonal) and re-points the active scene there;
-  forking is refused when the pool is full.
+  re-paste is a silent no-op (mirrors the Scene conflict skip). **Fork slot
+  allocation:** the *live* `Phrase + Play` fork auto-picks the **highest**
+  free slot; the *Browser* fork instead arms **fork-pick** (the status asks
+  you to press a destination) and accepts only a free slot, since the
+  browser shows every slot's occupancy and SHR badge. The direction follows
+  a convention: **performed Scenes grow bottom-up from slot 0, while a
+  track's phrase library / scratch grows top-down from slot 15** — the two
+  regions meet in the middle and "pool full" is when they collide (fork is
+  then refused). *Model note:* with 16 phrase slots and 16 Scenes every slot
+  is some Scene's diagonal home, so a fork consumes an **unused** slot (an
+  as-yet-empty Scene's diagonal) and re-points the active Scene there; a
+  future decoupling of phrase-pool size from Scene count would remove this
+  constraint outright.
 - **Song.** Whole-Song duplication is a Browser-level action (no live
   chord): select a Song, `Record` to copy, `Play` onto a free Song slot.
 

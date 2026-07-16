@@ -1047,18 +1047,27 @@ namespace lockstep
         CHECK(p.phraseSlotShared(0, 3), "share: row 3 shared by scenes 0 and 3");
         CHECK(!p.phraseSlotShared(0, 0), "share: row 0 no longer played by anyone");
 
-        // Make slot 15 the lone free slot so the fork target is deterministic (and
-        // distinct from both the diagonal and the shared row it protects).
-        for (int s = 0; s < kPhrasesPerTrack - 1; ++s)
+        // Auto-fork picks the HIGHEST free slot (§23.3): performed scenes grow from
+        // the bottom, so a fork is placed top-down. Leave slots 7 and 15 free.
+        for (int s = 0; s < kPhrasesPerTrack; ++s)
             p.songAt(0).tracks[0].phrases[static_cast<std::size_t>(s)].initialised = true;
+        p.songAt(0).tracks[0].phrases[7].initialised = false;
+        p.songAt(0).tracks[0].phrases[15].initialised = false;
         const int fslot = p.forkPhraseInto(0, grabbed);
-        CHECK(fslot == kPhrasesPerTrack - 1, "fork: lands on the lone free slot (15)");
+        CHECK(fslot == kPhrasesPerTrack - 1, "fork: lands on the HIGHEST free slot (15, not 7)");
         CHECK(p.songAt(0).tracks[0].phrases[static_cast<std::size_t>(fslot)].steps[3].trig,
               "fork: content landed in the fork slot");
         for (int b = 0; b < 500 && p.deviationPhraseIdxForTrack(0) != fslot; ++b)
             h.renderBlocks(1);
         CHECK(p.deviationPhraseIdxForTrack(0) == fslot,
               "fork: active scene re-pointed to the fork slot");
+
+        // Browser fork-PICK places into a caller-chosen free slot (slot 7 here)
+        // instead of the auto highest-free, and re-points the active scene there.
+        p.forkPhraseIntoSlot(0, 7, grabbed);
+        CHECK(p.songAt(0).tracks[0].phrases[7].steps[3].trig, "chosen fork: content in slot 7");
+        for (int b = 0; b < 500 && p.deviationPhraseIdxForTrack(0) != 7; ++b) h.renderBlocks(1);
+        CHECK(p.deviationPhraseIdxForTrack(0) == 7, "chosen fork: active scene re-pointed to slot 7");
     }
 
     // 9.17: a global mute armed to the Bar grid stays audible until the boundary,

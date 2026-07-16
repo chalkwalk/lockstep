@@ -4061,6 +4061,30 @@ namespace lockstep
             return true;
         }
 
+        // Fork-pick: after Play on a shared slot, the next step press names the
+        // destination (§23.3). The browser shows every slot, so you place the fork
+        // yourself — but only into a FREE slot, which keeps the fork's promise (no
+        // other scene disturbed). Pressing an occupied slot cancels the pick.
+        if (!scenes && uiState_.browserForkPick && btn == CB::Step && index >= 0 && index < 16)
+        {
+            uiState_.browserForkPick = false;
+            const bool free = !processor_.songAt(processor_.activePieceIdx())
+                                   .tracks[static_cast<std::size_t>(uiState_.browserTrack)]
+                                   .phrases[static_cast<std::size_t>(index)].initialised;
+            if (free)
+            {
+                processor_.forkPhraseIntoSlot(uiState_.browserTrack, index, clipboard_.clipPhrase);
+                uiState_.browserCursor = index;
+                setStatus(status::phraseForked(index));
+            }
+            else
+            {
+                setStatus(status::phraseForkPickBusy());
+            }
+            refreshSurface();
+            return true;
+        }
+
         // Step: on the Scenes page a press cues that Scene (§16 queue; double-tap =
         // the saved floor) and parks the cursor there. On the Phrases page it selects
         // the slot (the copy/paste cursor; Record copies it, Play pastes into it).
@@ -4078,8 +4102,9 @@ namespace lockstep
         }
 
         // Phrases page copy/paste (5.3 / DESIGN §23.3): Record grabs the cursor slot,
-        // Play pastes it into the cursor slot (fork-on-shared). The verbs mirror the
-        // live surface, so both routes share the same clipboard + fork machinery.
+        // Play pastes it into the cursor slot. Unlike the live gesture, a shared-slot
+        // paste here arms fork-PICK (you press the destination) rather than auto-
+        // forking into the highest free slot.
         if (!scenes && btn == CB::VerbRecord)
         {
             clipboard_.clipPhrase =
@@ -4091,7 +4116,24 @@ namespace lockstep
         }
         if (!scenes && btn == CB::VerbPlay)
         {
-            pastePhraseIntoSlot(uiState_.browserTrack, uiState_.browserCursor);
+            const int t = uiState_.browserTrack;
+            const int slot = uiState_.browserCursor;
+            if (clipboard_.type != ClipboardType::Pattern)
+                setStatus(status::noPhraseCopied());
+            else if (phraseContentEqual(clipboard_.clipPhrase,
+                                        processor_.phraseSlotSnapshot(t, slot)))
+                setStatus(status::phrasePasteNoOp());
+            else if (processor_.phraseSlotShared(t, slot))
+            {
+                uiState_.browserForkPick = true;
+                setStatus(status::phraseForkPick());
+            }
+            else
+            {
+                processor_.writePhraseSlot(t, slot, clipboard_.clipPhrase);
+                setStatus(status::pastedPhraseSlot(slot));
+            }
+            refreshSurface();
             return true;
         }
 

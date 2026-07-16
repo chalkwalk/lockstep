@@ -707,6 +707,19 @@ namespace lockstep
             CHECK(m.stepBanner.contains("copy") && m.stepBanner.contains("paste"),
                   "phrases banner advertises copy/paste");
         }
+
+        // Fork-pick mode: the banner switches to the placement prompt.
+        {
+            UiState ui;
+            ui.overlay = Overlay::Browser;
+            ui.browserPage = UiState::BrowserPage::Phrases;
+            ui.browserForkPick = true;
+
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            CHECK(m.stepBanner.startsWith("FORK"), "fork-pick banner leads with FORK");
+            CHECK(m.stepBanner.contains("FREE"), "fork-pick banner asks for a free slot");
+        }
     }
 
     // -------------------------------------------------------------------------

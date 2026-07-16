@@ -937,7 +937,12 @@ namespace lockstep
         }
         [[nodiscard]] bool phraseSlotShared(int track, int slot) const;
         [[nodiscard]] int firstFreePhraseSlotForTrack(int track) const;
+        [[nodiscard]] int lastFreePhraseSlotForTrack(int track) const;
         void writePhraseSlot(int track, int slot, const Phrase& phrase);
+        // forkPhraseIntoSlot: stamp into a caller-chosen slot + re-point the active
+        // scene (the browser's pick-a-destination path). forkPhraseInto: auto-pick
+        // the highest free slot (the live path); returns it, or -1 when full.
+        void forkPhraseIntoSlot(int track, int slot, const Phrase& phrase);
         int forkPhraseInto(int track, const Phrase& phrase);
 
         void pushSoundEntry(SoundEntry e) { project_.soundPool.push(std::move(e)); }

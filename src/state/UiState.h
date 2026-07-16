@@ -361,6 +361,10 @@ namespace lockstep
         BrowserPage browserPage = BrowserPage::Scenes;
         int browserTrack = 0;    // which track's phrase pool the Phrases page shows
         int browserCursor = 0;   // highlighted row (0..15) — the rename/select target
+        // Phrases page fork-pick (5.3 / §23.3): Play onto a SHARED slot arms this;
+        // the next free-slot step press places the fork there (browser = you pick the
+        // destination, since all 16 slots are visible).
+        bool browserForkPick = false;
 
         // Resets the browser's working view. Call from escapeOverlay(Browser).
         void resetBrowser() noexcept
@@ -368,6 +372,7 @@ namespace lockstep
             browserPage = BrowserPage::Scenes;
             browserTrack = 0;
             browserCursor = 0;
+            browserForkPick = false;
         }
 
         // Generator hub (9.10): true while the 3-key has been held ≥350 ms,
