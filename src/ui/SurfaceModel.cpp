@@ -2233,6 +2233,73 @@ namespace lockstep
                     c.level = static_cast<float>(cpos);
                 }
             }
+            else if (activeLayer == SurfaceLayer::Identity)
+            {
+                // 5.3 identity naming/colour overlay (§23.4). The grid IS the picker.
+                // Name page: the two rows show FULL composed candidates (live preview)
+                // — top row swaps the first half, bottom row the second. Colour page:
+                // one row of palette swatches. The selected cell in each row is bright.
+                if (ui.identityColourPage)
+                {
+                    for (int i = 0; i < 16; ++i)
+                    {
+                        SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                        c.button = ControllerButton::Step;
+                        c.index = i;
+                        c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                        c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                        const int swatches = static_cast<int>(kIdentityPalette.size());
+                        if (i < swatches)
+                        {
+                            const bool sel = (i == ui.identityColourSel);
+                            c.base = sel ? CellState::PaletteSwatchSel : CellState::PaletteSwatch;
+                            c.baseColour = kIdentityPalette[static_cast<std::size_t>(i)];
+                        }
+                        else
+                        {
+                            c.base = CellState::StepOutOfRange;
+                            c.baseColour = kStepOutRange;
+                        }
+                    }
+                }
+                else
+                {
+                    const NameMode mode =
+                        ui.identityMode[static_cast<std::size_t>(ui.identityScope)];
+                    const auto topWords = namegen::rowWords(mode, 0, ui.identityTopSeed);
+                    const auto botWords = namegen::rowWords(mode, 1, ui.identityBottomSeed);
+                    const int tSel = std::clamp(ui.identityTopSel, 0, kNameRowCells - 1);
+                    const int bSel = std::clamp(ui.identityBottomSel, 0, kNameRowCells - 1);
+                    const juce::Colour fillTint{ kScopeFill };
+
+                    for (int i = 0; i < 16; ++i)
+                    {
+                        SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                        c.button = ControllerButton::Step;
+                        c.index = i;
+                        c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                        c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                        const bool topRow = (i < kNameRowCells);
+                        const int j = topRow ? i : i - kNameRowCells;
+                        // Live full-word preview: top row swaps the first half (holding
+                        // the chosen bottom), bottom row swaps the second half.
+                        c.primary = topRow
+                                        ? juce::String(namegen::compose(
+                                              mode, topWords[static_cast<std::size_t>(j)],
+                                              botWords[static_cast<std::size_t>(bSel)]).c_str())
+                                        : juce::String(namegen::compose(
+                                              mode, topWords[static_cast<std::size_t>(tSel)],
+                                              botWords[static_cast<std::size_t>(j)]).c_str());
+                        const bool sel = topRow ? (j == tSel) : (j == bSel);
+                        c.base = sel ? CellState::NameCandidateSel : CellState::NameCandidate;
+                        c.baseColour = sel
+                                           ? juce::Colours::white.withAlpha(0.24f).getARGB()
+                                           : fillTint.withAlpha(0.12f).getARGB();
+                    }
+                }
+            }
             else
             {
 

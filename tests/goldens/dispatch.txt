@@ -1,339 +1,339 @@
 # Dispatch golden -- ROADMAP 9.12. Generated; re-bless with LOCKSTEP_REGEN_GOLDEN=1 and READ THE DIFF.
 # One block per binding-table row: the UiState/processor fields the gesture changes.
 
-L22 | Func idx=-1 | action=1
+L23 | Func idx=-1 | action=1
     down funcHeld: false -> true
     up   funcHeld: true -> false
 
-L22 | Func+Track idx=-1 | action=72
+L23 | Func+Track idx=-1 | action=72
     down funcHeld: false -> true
     down machineScopeHeld: false -> true
     down trackHeld: false -> true
     up   machineScopeHeld: true -> false
     up   trackHeld: true -> false
 
-L22 | Track idx=-1 | action=2
+L23 | Track idx=-1 | action=2
     down trackHeld: false -> true
     up   trackHeld: true -> false
 
-L22 | Phrase idx=-1 | action=3
+L23 | Phrase idx=-1 | action=3
     down phraseScopeHeld: false -> true
     up   phraseScopeHeld: true -> false
 
-L22 | Scene idx=-1 | action=4
+L23 | Scene idx=-1 | action=4
     down sceneHeld: false -> true
     up   sceneHeld: true -> false
 
-L22 | Morph idx=-1 | action=5
+L23 | Morph idx=-1 | action=5
     down morphHeld: false -> true
     up   morphHeld: true -> false
 
-L22 | Func+Song idx=-1 | action=13
+L23 | Func+Song idx=-1 | action=13
     down funcHeld: false -> true
     down songHeld: false -> true
     up   songHeld: true -> false
 
-L22 | Song idx=-1 | action=6
+L23 | Song idx=-1 | action=6
     down songHeld: false -> true
     up   songHeld: true -> false
 
-L22 | Scene+Mute idx=-1 | action=9
+L23 | Scene+Mute idx=-1 | action=9
     down muteHeld: false -> true
     down sceneHeld: false -> true
     down swingDismissed: false -> true
     up   muteHeld: true -> false
 
-L22 | Mute idx=-1 | action=7
+L23 | Mute idx=-1 | action=7
     down muteHeld: false -> true
     up   muteHeld: true -> false
 
-L14 | Morph+Mute+ToggleMute idx=-1 | action=49
+L15 | Morph+Mute+ToggleMute idx=-1 | action=49
     down morphHeld: false -> true
     down muteHeld: false -> true
 
-L16 | Func+Mute+ToggleMute idx=-1 | action=47
+L17 | Func+Mute+ToggleMute idx=-1 | action=47
     down funcHeld: false -> true
     down muteHeld: false -> true
 
-L16 | Scene+Mute+ToggleMute idx=-1 | action=48
+L17 | Scene+Mute+ToggleMute idx=-1 | action=48
     down muteHeld: false -> true
     down sceneHeld: false -> true
     down swingDismissed: false -> true
 
-L16 | Mute+ToggleMute idx=-1 | action=46
+L17 | Mute+ToggleMute idx=-1 | action=46
     down muteHeld: false -> true
 
-L22 | Fill idx=-1 | action=8
+L23 | Fill idx=-1 | action=8
     down fillHeld: false -> true
     up   fillHeld: true -> false
 
-L22 | Func+TapTempo idx=-1 | action=80
+L23 | Func+TapTempo idx=-1 | action=80
     down cueHeld: false -> true
     down funcHeld: false -> true
     up   cueHeld: true -> false
 
-L22 | TapTempo idx=-1 | action=14
+L23 | TapTempo idx=-1 | action=14
     (no observable state change)
 
-L22 | Func+Phrase+NavUp idx=-1 | action=76
+L23 | Func+Phrase+NavUp idx=-1 | action=76
     down funcHeld: false -> true
     down phraseScopeHeld: false -> true
     down phraseScopeUsed: false -> true
     down undo.Phrase: 0 -> 1
 
-L22 | Func+Track+NavUp idx=-1 | action=26
+L23 | Func+Track+NavUp idx=-1 | action=26
     down funcHeld: false -> true
     down machineScopeHeld: false -> true
     down swingDismissed: false -> true
     down trackHeld: false -> true
     down trackInputMode: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
-L22 | Func+Morph+NavUp idx=-1 | action=28
+L23 | Func+Morph+NavUp idx=-1 | action=28
     down funcHeld: false -> true
     down morphHeld: false -> true
     down morphNavQualifier: 0 -> 1
     up   morphNavQualifier: 1 -> 0
 
-L22 | Phrase+NavUp idx=-1 | action=76
+L23 | Phrase+NavUp idx=-1 | action=76
     down phraseScopeHeld: false -> true
     down phraseScopeUsed: false -> true
     down undo.Phrase: 0 -> 1
 
-L22 | Func+NavUp idx=-1 | action=22
+L23 | Func+NavUp idx=-1 | action=22
     down funcHeld: false -> true
     down seq.focusPattern: x...x...x...x... -> x...x...x...x...x...x...x...x...
     down seq.trackLength: 16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16, -> 32,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,
     down seq.trigsPerTrack: 4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0, -> 8,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,
 
-L22 | Track+NavUp idx=-1 | action=26
+L23 | Track+NavUp idx=-1 | action=26
     down swingDismissed: false -> true
     down trackHeld: false -> true
     down trackInputMode: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
-L22 | Morph+NavUp idx=-1 | action=28
+L23 | Morph+NavUp idx=-1 | action=28
     down morphHeld: false -> true
     down morphNavQualifier: 0 -> 1
     up   morphNavQualifier: 1 -> 0
 
-L22 | NavUp idx=-1 | action=16
+L23 | NavUp idx=-1 | action=16
     down activeTrack: 0 -> 1
     down proc.focusTrack: 0 -> 1
     down trackSection: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
-L22 | Func+NavLeft idx=-1 | action=24
+L23 | Func+NavLeft idx=-1 | action=24
     down funcHeld: false -> true
     down seq.focusPattern: x...x...x...x... -> ...x...x...x...x
 
-L22 | NavLeft idx=-1 | action=18
+L23 | NavLeft idx=-1 | action=18
     (no observable state change)
 
-L9 | Func+NavLeft idx=-1 | action=21
+L10 | Func+NavLeft idx=-1 | action=21
     down funcHeld: false -> true
     down seq.focusPattern: x...x...x...x... -> ...x...x...x...x
 
-L9 | NavLeft idx=-1 | action=21
+L10 | NavLeft idx=-1 | action=21
     (no observable state change)
 
-L12 | Func+NavLeft idx=-1 | action=21
+L13 | Func+NavLeft idx=-1 | action=21
     down funcHeld: false -> true
     down seq.focusPattern: x...x...x...x... -> ...x...x...x...x
 
-L12 | NavLeft idx=-1 | action=21
+L13 | NavLeft idx=-1 | action=21
     (no observable state change)
 
-L22 | Func+Phrase+NavDown idx=-1 | action=77
+L23 | Func+Phrase+NavDown idx=-1 | action=77
     down funcHeld: false -> true
     down phraseScopeHeld: false -> true
     down phraseScopeUsed: false -> true
     down undo.Phrase: 0 -> 1
 
-L22 | Func+Track+NavDown idx=-1 | action=27
+L23 | Func+Track+NavDown idx=-1 | action=27
     down funcHeld: false -> true
     down machineScopeHeld: false -> true
     down swingDismissed: false -> true
     down trackHeld: false -> true
     down trackInputMode: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
-L22 | Func+Morph+NavDown idx=-1 | action=29
+L23 | Func+Morph+NavDown idx=-1 | action=29
     down funcHeld: false -> true
     down morphHeld: false -> true
     down morphNavQualifier: 0 -> 2
     up   morphNavQualifier: 2 -> 0
 
-L22 | Phrase+NavDown idx=-1 | action=77
+L23 | Phrase+NavDown idx=-1 | action=77
     down phraseScopeHeld: false -> true
     down phraseScopeUsed: false -> true
     down undo.Phrase: 0 -> 1
 
-L22 | Func+NavDown idx=-1 | action=23
+L23 | Func+NavDown idx=-1 | action=23
     down funcHeld: false -> true
     down seq.focusPattern: x...x...x...x... -> x...x...
     down seq.trackLength: 16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16, -> 8,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,
     down seq.trigsPerTrack: 4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0, -> 2,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,
 
-L22 | Track+NavDown idx=-1 | action=27
+L23 | Track+NavDown idx=-1 | action=27
     down swingDismissed: false -> true
     down trackHeld: false -> true
     down trackInputMode: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
-L22 | Morph+NavDown idx=-1 | action=29
+L23 | Morph+NavDown idx=-1 | action=29
     down morphHeld: false -> true
     down morphNavQualifier: 0 -> 2
     up   morphNavQualifier: 2 -> 0
 
-L22 | NavDown idx=-1 | action=17
+L23 | NavDown idx=-1 | action=17
     (no observable state change)
 
-L22 | Func+NavRight idx=-1 | action=25
+L23 | Func+NavRight idx=-1 | action=25
     down funcHeld: false -> true
     down seq.focusPattern: x...x...x...x... -> .x...x...x...x..
 
-L22 | NavRight idx=-1 | action=19
+L23 | NavRight idx=-1 | action=19
     (no observable state change)
 
-L9 | Func+NavRight idx=-1 | action=20
+L10 | Func+NavRight idx=-1 | action=20
     down funcHeld: false -> true
     down seq.focusPattern: x...x...x...x... -> .x...x...x...x..
 
-L9 | NavRight idx=-1 | action=20
+L10 | NavRight idx=-1 | action=20
     (no observable state change)
 
-L12 | Func+NavRight idx=-1 | action=20
+L13 | Func+NavRight idx=-1 | action=20
     down funcHeld: false -> true
     down seq.focusPattern: x...x...x...x... -> .x...x...x...x..
 
-L12 | NavRight idx=-1 | action=20
+L13 | NavRight idx=-1 | action=20
     (no observable state change)
 
-L22 | Func+VerbSnapshot idx=-1 | action=33
+L23 | Func+VerbSnapshot idx=-1 | action=33
     down funcHeld: false -> true
 
-L22 | Track+VerbSnapshot idx=-1 | action=32
+L23 | Track+VerbSnapshot idx=-1 | action=32
     down ckpt.Track: 0 -> 1
     down swingDismissed: false -> true
     down trackHeld: false -> true
 
-L22 | Phrase+VerbSnapshot idx=-1 | action=32
+L23 | Phrase+VerbSnapshot idx=-1 | action=32
     down ckpt.Phrase: 0 -> 1
     down phraseScopeHeld: false -> true
 
-L22 | Scene+VerbSnapshot idx=-1 | action=32
+L23 | Scene+VerbSnapshot idx=-1 | action=32
     down ckpt.Scene: 0 -> 1
     down sceneHeld: false -> true
     down swingDismissed: false -> true
 
-L22 | VerbSnapshot idx=-1 | action=32
+L23 | VerbSnapshot idx=-1 | action=32
     down ckpt.Song: 0 -> 1
 
-L22 | Func+Song+VerbRecord idx=-1 | action=51
+L23 | Func+Song+VerbRecord idx=-1 | action=51
     down funcHeld: false -> true
     down songHeld: false -> true
     down swingDismissed: false -> true
 
-L22 | Func+Scene+VerbRecord idx=-1 | action=40
+L23 | Func+Scene+VerbRecord idx=-1 | action=40
     down clip.type: 0 -> 5
     down funcHeld: false -> true
     down sceneHeld: false -> true
     down swingDismissed: false -> true
 
-L22 | Track+VerbRecord idx=-1 | action=40
+L23 | Track+VerbRecord idx=-1 | action=40
     down clip.type: 0 -> 3
     down swingDismissed: false -> true
     down trackHeld: false -> true
 
-L22 | Phrase+VerbRecord idx=-1 | action=40
+L23 | Phrase+VerbRecord idx=-1 | action=40
     down clip.type: 0 -> 4
     down phraseScopeHeld: false -> true
 
-L22 | Scene+VerbRecord idx=-1 | action=43
+L23 | Scene+VerbRecord idx=-1 | action=43
     down sceneHeld: false -> true
     down swingDismissed: false -> true
 
-L22 | VerbRecord idx=-1 | action=34
+L23 | VerbRecord idx=-1 | action=34
     up   proc.recordArmed: false -> true
 
-L22 | Func+Scene+VerbPlay idx=-1 | action=41
+L23 | Func+Scene+VerbPlay idx=-1 | action=41
     down funcHeld: false -> true
     down sceneHeld: false -> true
     down swingDismissed: false -> true
 
-L22 | Track+VerbPlay idx=-1 | action=41
+L23 | Track+VerbPlay idx=-1 | action=41
     down swingDismissed: false -> true
     down trackHeld: false -> true
 
-L22 | Phrase+VerbPlay idx=-1 | action=41
+L23 | Phrase+VerbPlay idx=-1 | action=41
     down phraseScopeHeld: false -> true
 
-L22 | VerbPlay idx=-1 | action=35
+L23 | VerbPlay idx=-1 | action=35
     (no observable state change)
 
-L22 | Func+Track+VerbClear idx=-1 | action=75
+L23 | Func+Track+VerbClear idx=-1 | action=75
     down funcHeld: false -> true
     down machineScopeHeld: false -> true
     down swingDismissed: false -> true
     down trackHeld: false -> true
 
-L22 | Func+Morph+VerbClear idx=-1 | action=45
+L23 | Func+Morph+VerbClear idx=-1 | action=45
     down funcHeld: false -> true
     down morphHeld: false -> true
 
-L22 | Track+VerbClear idx=-1 | action=42
+L23 | Track+VerbClear idx=-1 | action=42
     down swingDismissed: false -> true
     down trackHeld: false -> true
     up   confirm.kind: 0 -> 8
     up   confirm.target: -1 -> 0
 
-L22 | Phrase+VerbClear idx=-1 | action=42
+L23 | Phrase+VerbClear idx=-1 | action=42
     down phraseScopeHeld: false -> true
     up   confirm.kind: 0 -> 10
 
-L22 | Scene+VerbClear idx=-1 | action=42
+L23 | Scene+VerbClear idx=-1 | action=42
     down sceneHeld: false -> true
     down swingDismissed: false -> true
 
-L22 | Morph+VerbClear idx=-1 | action=44
+L23 | Morph+VerbClear idx=-1 | action=44
     down morphHeld: false -> true
 
-L22 | Song+VerbClear idx=-1 | action=42
+L23 | Song+VerbClear idx=-1 | action=42
     down songHeld: false -> true
     down swingDismissed: false -> true
 
-L22 | Func+VerbClear idx=-1 | action=79
+L23 | Func+VerbClear idx=-1 | action=79
     down funcHeld: false -> true
 
-L22 | VerbClear idx=-1 | action=36
+L23 | VerbClear idx=-1 | action=36
     (no observable state change)
 
-L22 | Track+VerbClear idx=-1 | action=37
+L23 | Track+VerbClear idx=-1 | action=37
     down swingDismissed: false -> true
     down trackHeld: false -> true
     up   confirm.kind: 0 -> 8
     up   confirm.target: -1 -> 0
 
-L22 | Phrase+VerbClear idx=-1 | action=37
+L23 | Phrase+VerbClear idx=-1 | action=37
     down phraseScopeHeld: false -> true
     up   confirm.kind: 0 -> 10
 
-L22 | Scene+VerbClear idx=-1 | action=37
+L23 | Scene+VerbClear idx=-1 | action=37
     down sceneHeld: false -> true
     down swingDismissed: false -> true
 
-L22 | Track+VerbConfirm idx=-1 | action=50
+L23 | Track+VerbConfirm idx=-1 | action=50
     down swingDismissed: false -> true
     down trackHeld: false -> true
     down undo.Track: 0 -> 1
 
-L22 | Phrase+VerbConfirm idx=-1 | action=50
+L23 | Phrase+VerbConfirm idx=-1 | action=50
     down phraseScopeHeld: false -> true
     down undo.Phrase: 0 -> 1
 
-L22 | Func+VerbConfirm idx=-1 | action=39
+L23 | Func+VerbConfirm idx=-1 | action=39
     down funcHeld: false -> true
 
-L22 | VerbConfirm idx=-1 | action=38
+L23 | VerbConfirm idx=-1 | action=38
     (no observable state change)
 
-L10 | VerbConfirm idx=-1 | action=50
+L11 | VerbConfirm idx=-1 | action=50
     (no observable state change)
 
 L0 | Func+VerbConfirm idx=-1 | action=39
@@ -342,154 +342,154 @@ L0 | Func+VerbConfirm idx=-1 | action=39
 L0 | VerbConfirm idx=-1 | action=38
     (no observable state change)
 
-L22 | Func+Section idx=0 | action=31
+L23 | Func+Section idx=0 | action=31
     down funcHeld: false -> true
     down masterSection: -1 -> 0
 
-L22 | Func+Section idx=1 | action=31
+L23 | Func+Section idx=1 | action=31
     down funcHeld: false -> true
     down masterSection: -1 -> 1
 
-L22 | Func+Section idx=2 | action=31
+L23 | Func+Section idx=2 | action=31
     down funcHeld: false -> true
     down masterSection: -1 -> 2
 
-L22 | Func+Section idx=3 | action=31
+L23 | Func+Section idx=3 | action=31
     down funcHeld: false -> true
 
-L22 | Func+Section idx=4 | action=31
+L23 | Func+Section idx=4 | action=31
     down funcHeld: false -> true
 
-L22 | Func+Section idx=5 | action=31
+L23 | Func+Section idx=5 | action=31
     down funcHeld: false -> true
 
-L22 | Section idx=0 | action=30
+L23 | Section idx=0 | action=30
     down masterSection: -1 -> 3
 
-L22 | Section idx=1 | action=30
+L23 | Section idx=1 | action=30
     down trackSection: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
-L22 | Section idx=2 | action=30
+L23 | Section idx=2 | action=30
     down trackSection: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
-L22 | Section idx=3 | action=30
+L23 | Section idx=3 | action=30
     down trackSection: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
-L22 | Section idx=4 | action=30
+L23 | Section idx=4 | action=30
     (no observable state change)
 
-L22 | Section idx=5 | action=30
+L23 | Section idx=5 | action=30
     down masterSection: -1 -> 5
 
-L22 | Track+Section idx=1 | action=10
+L23 | Track+Section idx=1 | action=10
     down swingDismissed: false -> true
     down trackHeld: false -> true
     up   trackSection: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
-L22 | Track+Section idx=5 | action=11
+L23 | Track+Section idx=5 | action=11
     down swingDismissed: false -> true
     down trackHeld: false -> true
     up   masterSection: -1 -> 5
 
-L22 | Song+Section idx=5 | action=12
+L23 | Song+Section idx=5 | action=12
     down songHeld: false -> true
     down swingDismissed: false -> true
     up   masterSection: -1 -> 5
 
-L22 | Track+Section idx=3 | action=78
+L23 | Track+Section idx=3 | action=78
     down swingDismissed: false -> true
     down trackHeld: false -> true
     up   trackSection: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
-L22 | Func idx=-1 | action=1
+L23 | Func idx=-1 | action=1
     down funcHeld: false -> true
     up   funcHeld: true -> false
 
-L22 | Func idx=-1 | action=52
+L23 | Func idx=-1 | action=52
     down funcHeld: false -> true
     up   funcHeld: true -> false
 
-L22 | Track idx=-1 | action=2
+L23 | Track idx=-1 | action=2
     down trackHeld: false -> true
     up   trackHeld: true -> false
 
-L22 | Track idx=-1 | action=53
+L23 | Track idx=-1 | action=53
     down trackHeld: false -> true
     up   trackHeld: true -> false
 
-L22 | Phrase idx=-1 | action=3
+L23 | Phrase idx=-1 | action=3
     down phraseScopeHeld: false -> true
     up   phraseScopeHeld: true -> false
 
-L22 | Phrase idx=-1 | action=54
+L23 | Phrase idx=-1 | action=54
     down phraseScopeHeld: false -> true
     up   phraseScopeHeld: true -> false
 
-L22 | Scene idx=-1 | action=4
+L23 | Scene idx=-1 | action=4
     down sceneHeld: false -> true
     up   sceneHeld: true -> false
 
-L22 | Scene idx=-1 | action=55
+L23 | Scene idx=-1 | action=55
     down sceneHeld: false -> true
     up   sceneHeld: true -> false
 
-L22 | Morph idx=-1 | action=5
+L23 | Morph idx=-1 | action=5
     down morphHeld: false -> true
     up   morphHeld: true -> false
 
-L22 | Morph idx=-1 | action=56
+L23 | Morph idx=-1 | action=56
     down morphHeld: false -> true
     up   morphHeld: true -> false
 
-L22 | Song idx=-1 | action=6
+L23 | Song idx=-1 | action=6
     down songHeld: false -> true
     up   songHeld: true -> false
 
-L22 | Song idx=-1 | action=57
+L23 | Song idx=-1 | action=57
     down songHeld: false -> true
     up   songHeld: true -> false
 
-L22 | Mute idx=-1 | action=7
+L23 | Mute idx=-1 | action=7
     down muteHeld: false -> true
     up   muteHeld: true -> false
 
-L22 | Mute idx=-1 | action=58
+L23 | Mute idx=-1 | action=58
     down muteHeld: false -> true
     up   muteHeld: true -> false
 
-L22 | Fill idx=-1 | action=8
+L23 | Fill idx=-1 | action=8
     down fillHeld: false -> true
     up   fillHeld: true -> false
 
-L22 | Fill idx=-1 | action=59
+L23 | Fill idx=-1 | action=59
     down fillHeld: false -> true
     up   fillHeld: true -> false
 
-L22 | TapTempo idx=-1 | action=68
+L23 | TapTempo idx=-1 | action=68
     (no observable state change)
 
-L22 | VerbPlay idx=-1 | action=61
+L23 | VerbPlay idx=-1 | action=61
     (no observable state change)
 
-L22 | VerbPlay idx=-1 | action=62
+L23 | VerbPlay idx=-1 | action=62
     (no observable state change)
 
-L22 | VerbRecord idx=-1 | action=60
+L23 | VerbRecord idx=-1 | action=60
     up   proc.recordArmed: false -> true
 
-L22 | Func+VerbSnapshot idx=-1 | action=65
+L23 | Func+VerbSnapshot idx=-1 | action=65
     down funcHeld: false -> true
 
-L22 | NavRight idx=-1 | action=66
+L23 | NavRight idx=-1 | action=66
     (no observable state change)
 
-L22 | RecordArm idx=-1 | action=63
+L23 | RecordArm idx=-1 | action=63
     down proc.recordArmed: false -> true
 
-L22 | RecordArm idx=-1 | action=64
+L23 | RecordArm idx=-1 | action=64
     down proc.recordArmed: false -> true
 
-L22 | PlayStop idx=-1 | action=71
+L23 | PlayStop idx=-1 | action=71
     (no observable state change)
 
 

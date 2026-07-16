@@ -552,6 +552,65 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // 5.3: the Identity overlay re-skins the two step rows to composed name
+    // candidates (live full-word preview), with the selected half bright; the
+    // colour page shows palette swatches. Renders via SurfaceLayer::Identity.
+    // -------------------------------------------------------------------------
+    static void testIdentityOverlayRender()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ec;
+
+        // Name page.
+        {
+            UiState ui;
+            ui.overlay = Overlay::Identity;
+            ui.identityScope = IdentityScope::Song;
+            ui.identityMode[static_cast<std::size_t>(IdentityScope::Song)] = NameMode::AdjNoun;
+            ui.identityTopSeed = 123;
+            ui.identityBottomSeed = 456;
+            ui.identityTopSel = 2;
+            ui.identityBottomSel = 5;
+
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            CHECK(m.activeLayer == SurfaceLayer::Identity, "Identity overlay selects the Identity layer");
+
+            // Every cell shows a full composed candidate.
+            for (int i = 0; i < 16; ++i)
+                CHECK(!m.step[static_cast<std::size_t>(i)].primary.isEmpty(),
+                      "name cell shows a composed candidate");
+
+            // The selected half in each row is bright (NameCandidateSel).
+            CHECK(m.step[2].base == CellState::NameCandidateSel, "selected top cell is bright");
+            CHECK(m.step[13].base == CellState::NameCandidateSel, "selected bottom cell (8+5) is bright");
+            CHECK(m.step[0].base == CellState::NameCandidate, "unselected top cell is a candidate");
+
+            // Live preview cross-check: composed name matches namegen for the chosen pair.
+            const auto expect = juce::String(namegen::composeAt(
+                NameMode::AdjNoun, 123, 2, 456, 5).c_str());
+            CHECK(m.step[2].primary == expect, "top selected cell shows the current full name");
+            CHECK(m.step[13].primary == expect, "bottom selected cell shows the same full name");
+        }
+
+        // Colour page.
+        {
+            UiState ui;
+            ui.overlay = Overlay::Identity;
+            ui.identityColourPage = true;
+            ui.identityColourSel = 3;
+
+            const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                             GridDisplayMode::Ortholinear);
+            CHECK(m.step[3].base == CellState::PaletteSwatchSel, "selected swatch is ringed");
+            CHECK(m.step[0].base == CellState::PaletteSwatch, "unselected swatch is a plain swatch");
+            CHECK(m.step[0].baseColour == theme::kIdentityPalette[0], "swatch 0 shows palette colour 0");
+            CHECK(m.step[8].base == CellState::StepOutOfRange, "past 8 swatches: out of range");
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Test (#1): Track scope held on a Loop relabels the U/I/O verb cells to
     // loop controls (REC/PLAY/ERASE), state-aware, instead of COPY/PASTE/CLEAR.
     // A non-looper track keeps the clipboard verbs. functionRow[6]=U, [7]=I, [8]=O.
@@ -1442,6 +1501,7 @@ namespace lockstep
         testHomeKeyAnchors();
         testCueConsoleIndicator();
         testCueMixAffordance();
+        testIdentityOverlayRender();
         testLooperConsole();
         testTapeConsole();
         testGeneratorHubPrimary();

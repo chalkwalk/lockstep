@@ -5887,6 +5887,45 @@ namespace lockstep
         project_.soundPool.entries[static_cast<std::size_t>(i)].name = newName;
     }
 
+    void LockstepProcessor::setSoundColour(int i, int colour)
+    {
+        const auto* e = project_.soundPool.get(i);
+        if (!e) return;
+        project_.soundPool.entries[static_cast<std::size_t>(i)].colour = colour;
+    }
+
+    // 5.3 identity setters — the single write owners for Song/Scene name+colour.
+    // Guard indices; Song/Scene identity is durable state read only on the UI thread.
+    void LockstepProcessor::setSongName(int songIdx, const std::string& name)
+    {
+        if (songIdx < 0 || songIdx >= kNumSongs) return;
+        songAt(songIdx).name = name;
+    }
+
+    void LockstepProcessor::setSongColour(int songIdx, int colour)
+    {
+        if (songIdx < 0 || songIdx >= kNumSongs) return;
+        songAt(songIdx).colour = colour;
+    }
+
+    void LockstepProcessor::setSceneName(int songIdx, int sceneIdx, const std::string& name)
+    {
+        if (songIdx < 0 || songIdx >= kNumSongs
+            || sceneIdx < 0 || sceneIdx >= kScenesPerSong) return;
+        auto& sc = songAt(songIdx).scenes[static_cast<std::size_t>(sceneIdx)];
+        sc.name = name;
+        sc.initialised = true;   // a named scene is content (mirrors sceneHasContent)
+    }
+
+    void LockstepProcessor::setSceneColour(int songIdx, int sceneIdx, int colour)
+    {
+        if (songIdx < 0 || songIdx >= kNumSongs
+            || sceneIdx < 0 || sceneIdx >= kScenesPerSong) return;
+        auto& sc = songAt(songIdx).scenes[static_cast<std::size_t>(sceneIdx)];
+        sc.colour = colour;
+        if (colour >= 0) sc.initialised = true;
+    }
+
     void LockstepProcessor::liveSwapTrackSound(int track, int poolIndex)
     {
         if (track < 0 || track >= static_cast<int>(kNumTracks)) return;

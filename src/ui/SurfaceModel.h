@@ -208,6 +208,14 @@ namespace lockstep
         TapeConIdle = 232,         // an inert console cell
         TapeConRew = 233,          // << hold-to-wind rewind (standalone only, §40.2)
         TapeConFwd = 234,          // >> hold-to-wind fast-forward (standalone only)
+
+        // ---- Identity naming/colour overlay (5.3 / §23.4) --------------------
+        // The two step rows show full composed name candidates (live preview);
+        // the colour page shows palette swatches. *Sel = the currently chosen cell.
+        NameCandidate = 235,       // a composable name candidate (top or bottom row)
+        NameCandidateSel = 236,    // the selected half in its row (bright)
+        PaletteSwatch = 237,       // a colour-page swatch (its own hue via cell colour)
+        PaletteSwatchSel = 238,    // the selected swatch (ringed)
     };
 
     // Pure mapping for the §34.4 length-edit re-skin: classify an absolute step

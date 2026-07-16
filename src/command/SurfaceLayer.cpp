@@ -25,6 +25,12 @@ namespace lockstep
         if (ui.machinePickerOpen) { return SurfaceLayer::MachinePicker; }
         if (ui.generatorHubHeld) { return SurfaceLayer::GeneratorHub; }
 
+        // 5.3 identity naming/colour overlay: the grid is the name/colour picker.
+        // Sticky (entered explicitly), so it sits below the held pickers above but
+        // above the sequencer views — a stray section/scope press exits it (its
+        // OverlayDescriptor), it does not silently underlay them.
+        if (ui.overlay == Overlay::Identity) { return SurfaceLayer::Identity; }
+
         // KEY page of the signatures band: the grid hosts the modifier/symmetric
         // panel (DESIGN §4.10). The TIME page leaves the grid as the sequencer.
         if (ui.overlay == Overlay::Time && ui.sigPage == UiState::SigPage::Key)
@@ -117,6 +123,9 @@ namespace lockstep
                 return ui.routeConsoleActive
                            ? "ROUTING  (tap cell = cycle dest · P = commit · Func+P = cancel)"
                            : "CONSOLE";
+
+            case SurfaceLayer::Identity:
+                return ui.identityColourPage ? "PICK COLOUR" : "NAME";
 
             case SurfaceLayer::KeyPanel:
                 return "KEY MODIFIERS";

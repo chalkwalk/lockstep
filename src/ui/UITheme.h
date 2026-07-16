@@ -217,6 +217,32 @@ namespace lockstep::theme
     };
 
     // -------------------------------------------------------------------------
+    // Identity colour palette (5.3 / DESIGN §23.1/§24) — the swatches a Song /
+    // Scene / Sound can be tagged with. Index stored on disk (Song::colour etc.);
+    // -1 = unset. The headline use is grouping scenes "by eye" (intro / chorus /
+    // drop), so the hues are spread and distinct. Add-only: never reorder (a
+    // stored index would repaint a different colour).
+    // -------------------------------------------------------------------------
+    inline constexpr std::array<uint32_t, 8> kIdentityPalette = {
+        0xFFE0504Cu,  // red
+        0xFFE08A3Cu,  // orange
+        0xFFD8C038u,  // yellow
+        0xFF64C060u,  // green
+        0xFF40B0B4u,  // teal
+        0xFF5484E0u,  // azure
+        0xFF9464D0u,  // violet
+        0xFFD068B0u,  // magenta
+    };
+
+    // The ARGB for a stored identity colour index, or `unset` when idx is out of
+    // range (-1 = no colour assigned ⇒ slot-derived neutral at the call site).
+    inline uint32_t identityColour(int idx, uint32_t unset = 0xFF505050u) noexcept
+    {
+        if (idx < 0 || idx >= static_cast<int>(kIdentityPalette.size())) return unset;
+        return kIdentityPalette[static_cast<std::size_t>(idx)];
+    }
+
+    // -------------------------------------------------------------------------
     // Helper: build a juce::Colour from a packed ARGB uint32
     // -------------------------------------------------------------------------
     inline juce::Colour col(uint32_t argb) noexcept

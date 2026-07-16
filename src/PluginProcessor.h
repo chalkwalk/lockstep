@@ -903,6 +903,14 @@ namespace lockstep
         const SoundEntry* soundPoolEntry(int i) const { return project_.soundPool.get(i); }
         void removeSoundEntry(int i);   // quiesces engine, remaps soundId refs, removes entry
         void renameSoundEntry(int i, const std::string& name);
+        void setSoundColour(int i, int colour);   // 5.3 identity colour (palette index, -1 = unset)
+
+        // 5.3 identity setters (DESIGN §23.1) — the single write owners for a
+        // Song/Scene name+colour. Message-thread only (durable state read by the UI).
+        void setSongName(int songIdx, const std::string& name);
+        void setSongColour(int songIdx, int colour);
+        void setSceneName(int songIdx, int sceneIdx, const std::string& name);
+        void setSceneColour(int songIdx, int sceneIdx, int colour);
         void pushSoundEntry(SoundEntry e) { project_.soundPool.push(std::move(e)); }
 
         // Sample pool helpers — message-thread only.
