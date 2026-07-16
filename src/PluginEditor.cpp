@@ -117,6 +117,9 @@ namespace lockstep
                     ed.uiState_.machinePickerOpen = (param != 0);
                     ed.refreshSurface();
                     break;
+                case OverlayId::Identity:
+                    ed.openIdentityOverlay(static_cast<IdentityScope>(param));
+                    break;
             }
         }
         void selectMetaBand(MetaBandId id) override
@@ -3808,6 +3811,191 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // 5.3 identity naming/colour overlay (DESIGN §23.4).
+
+    // Stable per-entity seed for the hash-derived default: same slot keeps
+    // suggesting the same name until the user commits a change. (A future refinement
+    // could fold in the entity's content hash so the default tracks edits; §5.4.)
+    static std::uint32_t identitySeedFor(IdentityScope scope, int index) noexcept
+    {
+        std::uint32_t h = 2166136261u;
+        h = (h ^ static_cast<std::uint32_t>(scope)) * 16777619u;
+        h = (h ^ static_cast<std::uint32_t>(index + 1)) * 16777619u;
+        return h ? h : 1u;
+    }
+
+    void LockstepEditor::openIdentityOverlay(IdentityScope scope)
+    {
+        // Resolve the target index + its current colour from the focused entity.
+        int index = 0;
+        int curColour = -1;
+        switch (scope)
+        {
+            case IdentityScope::Song:
+                index = processor_.activePieceIdx();
+                curColour = processor_.songAt(index).colour;
+                break;
+            case IdentityScope::Scene:
+            {
+                index = processor_.activeSectionIdx();
+                const int songIdx = processor_.activePieceIdx();
+                curColour = processor_.songAt(songIdx)
+                                .scenes[static_cast<std::size_t>(index)].colour;
+                break;
+            }
+            case IdentityScope::Sound:
+            {
+                index = uiState_.identityIndex;  // set by the caller (SoundBank row)
+                const auto* e = processor_.soundPoolEntry(index);
+                curColour = e ? e->colour : -1;
+                break;
+            }
+        }
+
+        uiState_.overlay = Overlay::Identity;
+        uiState_.identityScope = scope;
+        uiState_.identityIndex = index;
+        uiState_.identityColourPage = false;
+        uiState_.identityColourSel = curColour;  // pre-select the current colour
+        uiState_.identityRawActive = false;
+        uiState_.identityRawText.clear();
+
+        // Hash-seeded default: mode stays as this scope's remembered mode; the row
+        // seeds + selections come from the entity's stable hash, so a valid name
+        // exists with zero presses (just Confirm).
+        const auto seed = namegen::defaultSeed(identitySeedFor(scope, index));
+        uiState_.identityTopSeed = seed.topSeed;
+        uiState_.identityBottomSeed = seed.bottomSeed;
+        uiState_.identityTopSel = seed.topSel;
+        uiState_.identityBottomSel = seed.bottomSel;
+
+        refreshMetaBand();
+        refreshSurface();
+    }
+
+    bool LockstepEditor::consumeIdentityKey(ControllerButton btn, int index)
+    {
+        if (uiState_.overlay != Overlay::Identity) return false;
+        using CB = ControllerButton;
+        const std::size_t sc = static_cast<std::size_t>(uiState_.identityScope);
+
+        // Nav: ←/→ cycle the naming mode (name page only); ↑/↓ reshuffle the two
+        // rows independently (no-ops on the colour page).
+        if (btn == CB::NavLeft || btn == CB::NavRight)
+        {
+            if (!uiState_.identityColourPage)
+            {
+                uiState_.identityMode[sc] =
+                    cycleNameMode(uiState_.identityMode[sc], btn == CB::NavRight ? +1 : -1);
+                refreshSurface();
+            }
+            return true;
+        }
+        if (btn == CB::NavUp || btn == CB::NavDown)
+        {
+            if (!uiState_.identityColourPage)
+            {
+                // Bump the row seed to reshuffle that row's eight candidates.
+                if (btn == CB::NavUp) uiState_.identityTopSeed += 0x9E3779B9u;
+                else                  uiState_.identityBottomSeed += 0x9E3779B9u;
+                refreshSurface();
+            }
+            return true;
+        }
+
+        // Re-press MOD (the key that opened the overlay) toggles name ↔ colour page.
+        if ((btn == CB::Section || btn == CB::MetaSection)
+            && index == LockstepProcessor::kModSecIdx)
+        {
+            uiState_.identityColourPage = !uiState_.identityColourPage;
+            refreshMetaBand();
+            refreshSurface();
+            return true;
+        }
+
+        // Step keys compose (name page) or pick a swatch (colour page).
+        if (btn == CB::Step)
+        {
+            if (uiState_.identityColourPage)
+            {
+                if (index >= 0 && index < static_cast<int>(theme::kIdentityPalette.size()))
+                {
+                    uiState_.identityColourSel = index;
+                    refreshSurface();
+                }
+            }
+            else if (index >= 0 && index < kNameRowCells)
+            {
+                uiState_.identityTopSel = index;      // top row swaps the first half
+                refreshSurface();
+            }
+            else if (index >= kNameRowCells && index < 2 * kNameRowCells)
+            {
+                uiState_.identityBottomSel = index - kNameRowCells;  // second half
+                refreshSurface();
+            }
+            uiState_.identityRawActive = false;  // a grid pick supersedes typed text
+            return true;
+        }
+
+        // P = commit, Func+P = cancel (the standard confirm/cancel grammar).
+        if (btn == CB::VerbConfirm || btn == CB::VerbDelete)
+        {
+            if (uiState_.funcHeld || btn == CB::VerbDelete) cancelIdentity();
+            else                                            commitIdentity();
+            return true;
+        }
+        return false;
+    }
+
+    void LockstepEditor::commitIdentity()
+    {
+        const std::size_t sc = static_cast<std::size_t>(uiState_.identityScope);
+        const int index = uiState_.identityIndex;
+
+        // The name: the typed power-path text if active, else the composed candidate.
+        std::string name;
+        if (uiState_.identityRawActive && !uiState_.identityRawText.empty())
+            name = uiState_.identityRawText.substr(0, kNameMaxChars);
+        else
+            name = namegen::composeAt(uiState_.identityMode[sc],
+                                      uiState_.identityTopSeed, uiState_.identityTopSel,
+                                      uiState_.identityBottomSeed, uiState_.identityBottomSel);
+
+        const int colour = uiState_.identityColourSel;  // -1 = leave unset
+        switch (uiState_.identityScope)
+        {
+            case IdentityScope::Song:
+                processor_.setSongName(index, name);
+                if (colour >= 0) processor_.setSongColour(index, colour);
+                break;
+            case IdentityScope::Scene:
+            {
+                const int songIdx = processor_.activePieceIdx();
+                processor_.setSceneName(songIdx, index, name);
+                if (colour >= 0) processor_.setSceneColour(songIdx, index, colour);
+                break;
+            }
+            case IdentityScope::Sound:
+                processor_.renameSoundEntry(index, name);
+                if (colour >= 0) processor_.setSoundColour(index, colour);
+                break;
+        }
+
+        setStatus(juce::String("Named: ") + juce::String(name));
+        escapeOverlay(uiState_, Overlay::Identity);
+        refreshMetaBand();
+        refreshSurface();
+    }
+
+    void LockstepEditor::cancelIdentity()
+    {
+        escapeOverlay(uiState_, Overlay::Identity);
+        refreshMetaBand();
+        refreshSurface();
+    }
+
+    // -------------------------------------------------------------------------
     // MHZ.9.3: column-exclusivity-aware modifier latch toggle.
 
     void LockstepEditor::setModifierLatch(ControllerButton cb, bool set)
@@ -4486,6 +4674,13 @@ namespace lockstep
         // While the cue console is open it owns the step grid + Nav paging, before
         // any cueHeld audition / Func-layer step remap can claim them.
         if (uiState_.overlay == Overlay::Cue && consumeCueStickyKey(ev.button, ev.index))
+            return true;
+
+        // 5.3: while the identity overlay is open it owns the step grid, Nav, the MOD
+        // page-toggle and P/Func+P commit/cancel — intercepted before the reducer's
+        // foreign-key exit and any normal step/verb dispatch. Other section/scope
+        // presses fall through to the reducer, which exits the overlay (its descriptor).
+        if (uiState_.overlay == Overlay::Identity && consumeIdentityKey(ev.button, ev.index))
             return true;
 
         // 5.5: while Cue is held, a step press auditions that step's resolved trig

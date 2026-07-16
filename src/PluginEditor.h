@@ -653,6 +653,16 @@ namespace lockstep
         void openCueConsole();
         bool consumeCueStickyKey(ControllerButton btn, int index = -1);
 
+        // 5.3 identity naming/colour overlay (DESIGN §23.4). openIdentityOverlay
+        // seeds the working state for the focused entity of `scope`; consumeIdentityKey
+        // owns the overlay's keys (Nav = mode/reshuffle, MOD re-press = page toggle,
+        // steps = compose/pick, P = commit, Func+P = cancel) — returns true when it
+        // handled the event. commit/cancel write via the processor's single setters.
+        void openIdentityOverlay(IdentityScope scope);
+        bool consumeIdentityKey(ControllerButton btn, int index = -1);
+        void commitIdentity();
+        void cancelIdentity();
+
         // MHZ.9.3: toggle one modifier's latch (set=true to engage, false to release).
         // When engaging, enforces column exclusivity (releases any other latch in the same column).
         void setModifierLatch(ControllerButton cb, bool set);

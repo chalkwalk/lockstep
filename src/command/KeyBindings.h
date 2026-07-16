@@ -155,6 +155,13 @@ namespace lockstep
         // "CUE" under Func. Appended per the ordinal-stability rule above.
         HoldCueScope,
 
+        // 5.3: identity/management surface, held under a container scope (§23.4).
+        // Song+hold(MOD) names the focused Song; Scene+hold(MOD) the focused Scene
+        // (Func+Song+hold(MOD) opens the browser — added in Item 4). Appended per
+        // the ordinal-stability rule above.
+        OpenSongIdentity,
+        OpenSceneIdentity,
+
         // Sentinel — keep last. Lets the Stage 6 guard test enumerate every action
         // and assert each one is either handled by CommandCore::handleAction or
         // explicitly listed as not-yet-migrated, so a new ActionId cannot be added

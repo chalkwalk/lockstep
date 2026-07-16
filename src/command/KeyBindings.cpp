@@ -287,6 +287,15 @@ namespace lockstep
         { CB::Section, 3, kModTrack, SL::Base, AId::OpenMixer, u8"MIXER", CS::Resting,
           Gesture::Hold, false },
 
+        // 5.3: the identity/management surface on MOD (index 4), held under a
+        // container scope (§23.4). Song+hold(MOD) names the focused Song;
+        // Scene+hold(MOD) the focused Scene. Same idiom as Track+hold(AMP)=MIXER:
+        // a tap pages the section, the hold opens the scope's management view.
+        { CB::Section, 4, kModSong, SL::Base, AId::OpenSongIdentity, u8"NAME SONG", CS::Resting,
+          Gesture::Hold, false },
+        { CB::Section, 4, kModScene, SL::Base, AId::OpenSceneIdentity, u8"NAME SCENE", CS::Resting,
+          Gesture::Hold, false },
+
         // ── 9.12: Gesture-axis rows ─────────────────────────────────────────────
         // These rows carry explicit gesture + promoted fields (last two columns).
         // Tap rows already exist above (defaulting to Gesture::Tap, promoted=false).

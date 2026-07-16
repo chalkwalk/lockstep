@@ -401,6 +401,14 @@ L23 | Track+Section idx=3 | action=78
     down trackHeld: false -> true
     up   trackSection: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, -> 3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 
+L23 | Song+Section idx=4 | action=81
+    down songHeld: false -> true
+    down swingDismissed: false -> true
+
+L23 | Scene+Section idx=4 | action=82
+    down sceneHeld: false -> true
+    down swingDismissed: false -> true
+
 L23 | Func idx=-1 | action=1
     down funcHeld: false -> true
     up   funcHeld: true -> false

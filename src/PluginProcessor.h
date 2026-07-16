@@ -1425,6 +1425,7 @@ namespace lockstep
         static constexpr int kEnvSlots     = TrackEnvState::kNumSlots;       // 6
         static constexpr int kFltrSecIdx   = 2;  // canonical FLTR section index
         static constexpr int kAmpSecIdx    = 3;  // canonical AMP section index
+        static constexpr int kModSecIdx    = 4;  // canonical MOD section index (5.3 identity key)
 
         // 6.4a: the FROZEN storage key for a cue P-Lock / cue morph endpoint. The
         // cue cell's DISPLAY position (ampCueSlot) numerically aliases

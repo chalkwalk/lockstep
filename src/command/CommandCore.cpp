@@ -308,6 +308,16 @@ namespace lockstep
                 fx.selectMetaBand(CommandEffects::MetaBandId::Mixer);
                 return true;
 
+            // 5.3: open the identity/management overlay for a container scope. The
+            // binding row names WHICH scope (Song vs Scene), so the param carries the
+            // IdentityScope; the editor resolves the focused index and seeds defaults.
+            case AId::OpenSongIdentity:
+                fx.openOverlay(CommandEffects::OverlayId::Identity, 0);  // IdentityScope::Song
+                return true;
+            case AId::OpenSceneIdentity:
+                fx.openOverlay(CommandEffects::OverlayId::Identity, 1);  // IdentityScope::Scene
+                return true;
+
             case AId::MachineCopy:  return verbs::machine(CB::VerbRecord, ctx, fx);
             case AId::MachinePaste: return verbs::machine(CB::VerbPlay, ctx, fx);
             case AId::MachineInit:  return verbs::machine(CB::VerbClear, ctx, fx);
