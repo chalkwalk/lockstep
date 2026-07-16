@@ -7362,11 +7362,13 @@ namespace lockstep
             // strip — peripheral vision, on the one element the eye treats as decoration.
             captureIndicatorRegion_ = band.removeFromRight(150).reduced(4, 6);
 
-            // Sg:Sc identity, then the time readout (BPM · time-sig · key-sig) fill the
-            // middle. Both are painted (paintTransportBand), not components: they are
-            // readouts, and a Label per readout was how the old header grew a dashboard.
-            songSceneRegion_ = band.removeFromRight(90).reduced(4, 6);
-            tempoReadout_.setBounds(band.reduced(8, 4));
+            // Time readout (BPM · time-sig · key-sig) takes a fixed left slice; the
+            // Sg:Sc identity then fills the ENTIRE remaining middle out to the capture
+            // indicator (the hard-right reserve), so user-assigned names actually fit.
+            // Both are painted (paintTransportBand), not components: they are readouts,
+            // and a Label per readout was how the old header grew a dashboard.
+            tempoReadout_.setBounds(band.removeFromLeft(230).reduced(8, 4));
+            songSceneRegion_ = band.reduced(4, 6);
         }
 
         // S8 (§40.6): the timeline strip is PERMANENT (display-only chrome, fence #5) —

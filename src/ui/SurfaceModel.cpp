@@ -2244,6 +2244,32 @@ namespace lockstep
                         c.border.colour = kHomeAmber;
                     }
 
+                    // 5.3 Item B: user-assigned names on the hold-selector cells
+                    // (mirrors the Browser). Song scope names songs; Scene scope
+                    // names the active song's scenes. Unnamed / non-name scopes
+                    // (Track, Phrase) fall back to the 1-based slot index in the
+                    // render path. Only occupied cells carry a name (empty cells
+                    // show the +/~ create glyph).
+                    if (avail && !isEmpty)
+                    {
+                        if (ui.songHeld)
+                        {
+                            const auto& sg = proc.arrangement()
+                                .songs[static_cast<std::size_t>(i)];
+                            if (!sg.name.empty())
+                                c.primary = juce::String(sg.name.c_str());
+                        }
+                        else if (ui.sceneHeld)
+                        {
+                            const auto& sng = proc.arrangement().songs[
+                                static_cast<std::size_t>(proc.activePieceIdx())];
+                            const auto& scn =
+                                sng.scenes[static_cast<std::size_t>(i)];
+                            if (!scn.name.empty())
+                                c.primary = juce::String(scn.name.c_str());
+                        }
+                    }
+
                     // level encodes queue position for badge rendering in paintStepRows
                     c.level = static_cast<float>(cpos);
                 }

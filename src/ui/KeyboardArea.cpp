@@ -1820,10 +1820,14 @@ namespace lockstep
                         g.drawRoundedRectangle(cell.toFloat(), 4.0f, 1.5f);
                     }
 
-                    // Label
+                    // Label. Occupied selector cells prefer a model-supplied name
+                    // (5.3 Item B — Song/Scene identity); otherwise the 1-based slot
+                    // number. drawFittedText shrinks a long name to fit the cell.
                     const juce::String label = isEmpty
                                                    ? (uiState_.funcHeld ? "+" : "~")
-                                                   : juce::String(idx + 1);
+                                                   : (sc.primary.isNotEmpty()
+                                                          ? sc.primary
+                                                          : juce::String(idx + 1));
                     const juce::Colour textCol = !avail
                                                      ? juce::Colour::fromRGB(50, 55, 60)
                                                  : isEmpty
@@ -1832,7 +1836,7 @@ namespace lockstep
                                                                : juce::Colours::white.withAlpha(isCurrent ? 0.90f : 0.65f));
                     g.setColour(textCol);
                     g.setFont(juce::Font(juce::FontOptions(9.0f)));
-                    g.drawText(label, cell.reduced(2), juce::Justification::centred);
+                    g.drawFittedText(label, cell.reduced(2), juce::Justification::centred, 1);
 
                     // Chain-position badge (cpos encoded in sc.level by builder)
                     if (cpos > 0 && !isEmpty)
