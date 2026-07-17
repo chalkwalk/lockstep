@@ -141,6 +141,7 @@ add_executable(lockstep_dispatch_tests
     ProductTypefaceTest.cpp
     SurfaceRenderTest.cpp
     RegionOracleTest.cpp
+    MzDriveTest.cpp
     ../src/PluginEditorFactory.cpp   # the real createEditor() (not the test stub)
     ../src/PluginEditor.cpp
     ../src/ui/ChromeLookAndFeel.cpp

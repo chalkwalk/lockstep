@@ -207,6 +207,53 @@ namespace lockstep::test
         }
         UiDriver& clickDesign(juce::Point<float> design) { return clickPhysical(toPhysical(design)); }
 
+        // Press, move, release -- the gesture the MZ's rotaries only respond to.
+        //
+        // Every drag event goes to the component that was PRESSED, not to whatever is
+        // under the moving pointer. That is JUCE's real semantic (a drag belongs to its
+        // mouseDown), and it is not a detail: a rotary drag leaves the knob's own bounds
+        // almost immediately, so re-resolving the target per step would deliver the
+        // interesting half of the gesture to whatever it happened to slide over.
+        //
+        // The intermediate steps matter too. A down-then-up with no drag between is a
+        // click, and a rotary reads it as a value of zero movement -- the state under
+        // test would never change and the test would look like a product bug.
+        UiDriver& dragPhysical(juce::Point<float> from, juce::Point<float> to, int steps = 8)
+        {
+            auto* target = targetAt(from);
+            deliver(target, MouseKind::Down, from, from, juce::ModifierKeys::leftButtonModifier);
+            advanceMs(1.0);
+
+            for (int i = 1; i <= steps; ++i)
+            {
+                const auto t = static_cast<float>(i) / static_cast<float>(steps);
+                deliver(target, MouseKind::Drag, from + (to - from) * t, from,
+                        juce::ModifierKeys::leftButtonModifier);
+                advanceMs(1.0);
+            }
+
+            deliver(target, MouseKind::Up, to, from, juce::ModifierKeys::leftButtonModifier);
+            return advanceMs(1.0);
+        }
+
+        // Drag one of the MZ's eight rotaries vertically, by a distance in DESIGN
+        // pixels. Negative = upward = increase (JUCE's RotaryHorizontalVerticalDrag
+        // reads dx + -dy).
+        //
+        // Why a real drag and not setValue: the P-Lock capture arms in the slider's
+        // onDragStart (ManipulationZone.cpp:78), which setValue does not fire. A test
+        // that wrote the value directly would report a working param edit and would be
+        // blind to the entire held-step routing -- the half most likely to break.
+        UiDriver& dragMZSlider(int slot, float dyDesignPx, int steps = 8)
+        {
+            const auto knob = DispatchProbe::mzSliderBounds(editor(), slot).toFloat();
+            jassert(!knob.isEmpty());   // slot not laid out: wrong band, or MZ never sized?
+
+            const auto centre = knob.getCentre() + DispatchProbe::mz(editor()).getTopLeft().toFloat();
+            return dragPhysical(toPhysical(centre), toPhysical(centre + juce::Point<float>{ 0.0f, dyDesignPx }),
+                                steps);
+        }
+
         // Click step cell absIdx where it is actually drawn, at whatever scale.
         UiDriver& clickStep(int absIdx)
         {
@@ -255,24 +302,42 @@ namespace lockstep::test
             return sSyntheticKeys.count(rawCode) > 0;
         }
 
-        void sendMouse(bool down, juce::Point<float> physical, juce::ModifierKeys mods)
-        {
-            auto* target = editor().getComponentAt(physical.roundToInt());
-            if (target == nullptr)
-                target = &editor();
+        enum class MouseKind { Down, Drag, Up };
 
+        // Deliver one event to a KNOWN target. Down/Up resolve their own target from
+        // the point; a drag must not -- see dragPhysical.
+        void deliver(juce::Component* target, MouseKind kind,
+                     juce::Point<float> physical, juce::Point<float> physicalDown,
+                     juce::ModifierKeys mods)
+        {
             const auto local = target->getLocalPoint(&editor(), physical);
+            const auto localDown = target->getLocalPoint(&editor(), physicalDown);
             auto srcRef = juce::Desktop::getInstance().getMainMouseSource();   // returns by value
             const auto t = juce::Time::getCurrentTime();
             const juce::MouseEvent ev(srcRef, local, mods,
                                       juce::MouseInputSource::defaultPressure,
                                       juce::MouseInputSource::defaultOrientation,
                                       juce::MouseInputSource::defaultRotation,
-                                      0.0f, 0.0f, target, target, t, local, t, 1, false);
-            if (down)
-                target->mouseDown(ev);
-            else
-                target->mouseUp(ev);
+                                      0.0f, 0.0f, target, target, t, localDown, t, 1,
+                                      kind != MouseKind::Down);
+            switch (kind)
+            {
+                case MouseKind::Down: target->mouseDown(ev); break;
+                case MouseKind::Drag: target->mouseDrag(ev); break;
+                case MouseKind::Up:   target->mouseUp(ev);   break;
+            }
+        }
+
+        [[nodiscard]] juce::Component* targetAt(juce::Point<float> physical)
+        {
+            auto* target = editor().getComponentAt(physical.roundToInt());
+            return target != nullptr ? target : &editor();
+        }
+
+        void sendMouse(bool down, juce::Point<float> physical, juce::ModifierKeys mods)
+        {
+            deliver(targetAt(physical), down ? MouseKind::Down : MouseKind::Up,
+                    physical, physical, mods);
         }
 
         Rig rig_;

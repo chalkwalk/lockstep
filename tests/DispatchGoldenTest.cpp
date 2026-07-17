@@ -795,6 +795,8 @@ namespace lockstep
     void runSurfaceRenderTests(int& failed);
     // Defined in RegionOracleTest.cpp -- drawn cells match the model that describes them.
     void runRegionOracleTests(int& failed);
+    // Defined in MzDriveTest.cpp -- the rotaries, driven by real drags.
+    void runMzDriveTests(int& failed);
 }
 
 int main()
@@ -811,6 +813,7 @@ int main()
     lockstep::runProductTypefaceTests(failed);
     lockstep::runSurfaceRenderTests(failed);
     lockstep::runRegionOracleTests(failed);
+    lockstep::runMzDriveTests(failed);
     std::fprintf(stderr, failed == 0 ? "All dispatch golden tests passed.\n"
                                      : "%d dispatch golden test(s) FAILED.\n", failed);
     return failed == 0 ? 0 : 1;

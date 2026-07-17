@@ -21,6 +21,7 @@
 
 #include "../src/PluginEditor.h"
 #include "../src/PluginProcessor.h"
+#include "../src/machine/FMMachine.h"
 #include "../src/ui/mode/GestureRecognizer.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -102,6 +103,26 @@ namespace lockstep
         }
         static juce::Rectangle<int> meter(const LockstepEditor& ed) { return ed.masterChromeRegion_; }
 
+        // -- the Manipulation Zone's eight rotaries ------------------------------
+        // Where a knob actually IS, read from the laid-out slider (MZ-local coords).
+        static juce::Rectangle<int> mzSliderBounds(const LockstepEditor& ed, int slot)
+        {
+            return ed.manipulationZone_.sliders_[static_cast<std::size_t>(slot)].getBounds();
+        }
+        // Which absolute param slot the zone's slot 0 maps to -- i.e. WHICH page of
+        // params is on screen. Section selection lands here and nowhere else, which is
+        // why a UiState-only signature cannot see a section key doing anything.
+        static int mzSlotOffset(const LockstepEditor& ed) noexcept
+        {
+            return ed.manipulationZone_.slotOffset();
+        }
+        // The scope the shown page resolved from (Machine/Track/Scene/...): the other
+        // half of "which page is up", and likewise invisible in UiState.
+        static SecOrigin mzPageOrigin(const LockstepEditor& ed) noexcept
+        {
+            return ed.manipulationZone_.pageOrigin_;
+        }
+
         // -- UI scale + mouse (UI harness Tier 2) --------------------------------
         // The editor lays out on a FIXED design canvas and stamps
         // AffineTransform::scale on every child (Item E). So a physical pixel is not
@@ -112,6 +133,14 @@ namespace lockstep
         static bool masterDragActive(const LockstepEditor& ed) noexcept { return ed.masterDrag_.active; }
 
         static KeyboardArea& keyboard(LockstepEditor& ed) noexcept { return ed.keyboardArea_; }
+
+        // Produce a surface frame NOW, synchronously.
+        //
+        // This is the editor's own single frame producer (DESIGN §35.9.1) -- the one the
+        // invalidation channel calls. In production it arrives asynchronously after a
+        // refreshSurface(); a test that needs the MZ's sliders to reflect a machine it
+        // just installed would otherwise be reading a zone that has not been told yet.
+        static void frame(LockstepEditor& ed) { ed.renderSurfaceFrame(); }
 
         // The surface model the LIVE editor would paint right now.
         //
@@ -248,6 +277,28 @@ namespace lockstep
         }
         ~Rig() { editor.reset(); }   // editor before processor: it holds a reference
     };
+
+    // Give a track a machine with real params and real sections.
+    //
+    // The rig's default is StubMachine: numParams() == 0, numSections() == 0. That is
+    // right for most dispatch tests (there is nothing to configure) but it quietly
+    // makes every param and section question VACUOUS -- a section key on a stub track
+    // genuinely does nothing, so a test asserting "the key did something" cannot pass,
+    // and one asserting "nothing broke" passes without proving anything. FMMachine has
+    // the largest schema (kNumSections = 8, i.e. indices 0..7).
+    //
+    // TRAP, learned the hard way: setTrackMachine WIPES the sequence when the outgoing
+    // machine is the stub ("Stub -> real machine: wipe"). So trigs must be seeded AFTER
+    // the install -- the Rig ctor's seeding does not survive it, and losing it silently
+    // takes the prior state that makes destructive verbs observable at all.
+    inline void installRealMachine(Rig& rig, int track = 0)
+    {
+        rig.proc->setTrackMachine(track, FMMachine::kMachineId);
+
+        auto& seq = rig.proc->sequence();
+        for (int s = 0; s < 16; s += 4)
+            seq.tracks[static_cast<std::size_t>(track)].steps[static_cast<std::size_t>(s)].trig = true;
+    }
 
     // Freeze the rig's clock at a fixed epoch.
     //

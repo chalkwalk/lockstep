@@ -54,6 +54,14 @@ namespace lockstep
         void setSlotOffset(int offset);
         [[nodiscard]] int slotOffset() const { return slotOffset_; }
 
+        // The same single named friend PluginEditor and KeyboardArea grant
+        // (tests/EditorRig.h). The harness drives the rotaries with real mouse drags --
+        // the only way to reach onDragStart, where P-Lock capture arms -- so it needs
+        // to know where a knob IS. It reads that from the laid-out slider itself; a
+        // test that recomputed the MZ's cell arithmetic would agree with itself rather
+        // than with the screen.
+        friend struct DispatchProbe;
+
         // Set the section title for normal (band==None) mode — shown in the MZ header strip.
         // Call from PluginEditor whenever the active section or page changes.
         void setNormalTitle(const juce::String& title, int page, int pageCount);
