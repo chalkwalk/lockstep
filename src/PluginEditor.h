@@ -85,6 +85,19 @@ namespace lockstep
         friend struct DispatchProbe;
 
     private:
+        // §20 single owner: the editor's ONE clock. Every gesture-timing read
+        // funnels here, so a test can hold time still and advance it deliberately
+        // instead of sleeping. testNowMs_ < 0 (production) => wall clock.
+        // Enforced by tests/ClockFunnelGuardTest.cpp: this is the only site in
+        // PluginEditor.cpp/.h allowed to read juce::Time's millisecond counter.
+        [[nodiscard]] double nowMs() const noexcept
+        {
+            return testNowMs_ >= 0.0 ? testNowMs_
+                                     : juce::Time::getMillisecondCounterHiRes();  // clock funnel owner
+        }
+        // Set only via DispatchProbe (tests). Never written by production code.
+        double testNowMs_ = -1.0;
+
         LockstepProcessor& processor_;
         QwertyOverlay qwerty_;
         EditMode editMode_;
@@ -539,7 +552,8 @@ namespace lockstep
 
         // Transient status line — shows CPC operation result for ~1.5s.
         juce::String statusMessage_;
-        juce::uint32 statusSetMs_ = 0;
+        // Stamped from nowMs() so toast aging follows the same clock as gestures.
+        double statusSetMs_ = 0.0;
         // C3: persistent "N sample(s) missing" banner, recomputed each timer tick
         // from the IO-free pool flags (rescanMissing does the disk stat). Unlike the
         // fading toast, this stays until the samples are relinked so a load-time or

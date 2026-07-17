@@ -164,21 +164,21 @@ namespace lockstep
         // (per-lane token so lanes don't cross-trigger) is the instant override.
         void globalMuteToggle(int track) override
         {
-            const double now = juce::Time::getMillisecondCounterHiRes();
+            const double now = ed.nowMs();
             const bool dbl = ed.gesture_.doubleTap(kMuteStepTokenBase + track, now);
             ed.processor_.queueGlobalMuteToggle(track, dbl);
             ed.refreshSurface();
         }
         void soloToggle(int track) override
         {
-            const double now = juce::Time::getMillisecondCounterHiRes();
+            const double now = ed.nowMs();
             const bool dbl = ed.gesture_.doubleTap(kMuteStepTokenBase + 16 + track, now);
             ed.processor_.queueSolo(track, dbl);
             ed.refreshSurface();
         }
         void sceneMuteToggle(int track) override
         {
-            const double now = juce::Time::getMillisecondCounterHiRes();
+            const double now = ed.nowMs();
             const bool dbl = ed.gesture_.doubleTap(kMuteStepTokenBase + 32 + track, now);
             ed.processor_.queueSceneMute(track, dbl);
             ed.refreshSurface();
@@ -467,7 +467,7 @@ namespace lockstep
             // one empty page past the end so a longer length can be set.
             if (ed.keyboardArea_.currentPage() >= ed.keyboardArea_.numPages() - 1)
             {
-                const double now = juce::Time::getMillisecondCounterHiRes();
+                const double now = ed.nowMs();
                 if (ed.gesture_.doubleTap(GestureRecognizer::kNavRightUnlock, now))
                 {
                     ed.keyboardArea_.unlockScrollPastEnd();
@@ -1402,7 +1402,7 @@ namespace lockstep
     // the lifecycle callbacks happen here.
     void LockstepEditor::runCaptureOut(const CaptureController::Out& out)
     {
-        const double now = juce::Time::getMillisecondCounterHiRes();
+        const double now = nowMs();
 
         if (out.start)
         {
@@ -1488,7 +1488,7 @@ namespace lockstep
                     if (captureLastFile_.existsAsFile())
                         captureLastFile_.deleteFile();
                     captureController_.onFinalized(
-                        juce::Time::getMillisecondCounterHiRes());
+                        nowMs());
                     next();
                 }
                 // result 3 / 0 = Cancel — stay open, keep recording.
@@ -1658,7 +1658,7 @@ namespace lockstep
         const Phase ph = captureController_.phase();
         if (ph == Phase::Idle) return;
 
-        const double now = juce::Time::getMillisecondCounterHiRes();
+        const double now = nowMs();
         const float pulse = 0.5f + 0.5f * std::sin(static_cast<float>(now) * 0.006f);
         const bool showDetail = (now < captureDetailUntilMs_) || ph == Phase::JustSaved;
 
@@ -1812,7 +1812,7 @@ namespace lockstep
         // Generator hub (9.10): promote a held 3-key to the hub picker after 350 ms.
         if (tapTempoPhysHeld_ && !uiState_.generatorHubHeld)
         {
-            const double nowMs = juce::Time::getMillisecondCounterHiRes();
+            const double nowMs = this->nowMs();
             if (nowMs - tapTempoArmMs_ >= GestureRecognizer::kLongPressMs)
             {
                 // 9.12 st.7f: the table already says TAP + hold = GEN HUB. Fire the row,
@@ -1827,7 +1827,7 @@ namespace lockstep
         // the table decided which one at arm time, so adding a picker adds no code here.
         if (sectionHoldAction_ != ActionId::None && !sectionHoldFired_)
         {
-            const double nowMs = juce::Time::getMillisecondCounterHiRes();
+            const double nowMs = this->nowMs();
             if (gesture_.longPressElapsed(kSectionHoldToken, nowMs))
             {
                 sectionHoldFired_ = true;
@@ -1840,7 +1840,7 @@ namespace lockstep
         // announces itself, which is what makes it safe to put a destructive verb on.
         if (clearHoldArmed_ && !clearHoldFired_)
         {
-            const double nowMs = juce::Time::getMillisecondCounterHiRes();
+            const double nowMs = this->nowMs();
             if (gesture_.longPressElapsed(kDeleteHoldToken, nowMs))
             {
                 clearHoldFired_ = true;
@@ -1854,7 +1854,7 @@ namespace lockstep
         // any param write or a move during the hold cancels the arm (wasParamWritten).
         {
             auto& ctx = processor_.editContext();
-            const double nowMs = juce::Time::getMillisecondCounterHiRes();
+            const double nowMs = this->nowMs();
             if (!stepInspectorFiredMidHold_ && !uiState_.pLockClearMode
                 && ctx.heldSteps().size() == 1 && !ctx.wasParamWritten())
             {
@@ -1871,7 +1871,7 @@ namespace lockstep
         // CAPTURE long-press fires mid-hold (discard in the just-saved window /
         // reveal folder when idle), then the per-tick finalize rule runs.
         {
-            const double nowMs = juce::Time::getMillisecondCounterHiRes();
+            const double nowMs = this->nowMs();
             if (captureCellHeld_ && !captureLongPressFired_
                 && gesture_.longPressElapsed(kCaptureToken, nowMs))
             {
@@ -1995,7 +1995,7 @@ namespace lockstep
         // Master peak high-water mark: jump to a new peak, hold ~1.5 s, then decay.
         // Clip latch: trips at 0 dBFS, auto-clears ~2.5 s after the last clip.
         {
-            const double nowMs = juce::Time::getMillisecondCounterHiRes();
+            const double nowMs = this->nowMs();
             auto trackHold = [&](float raw, float& hold, double& holdMs,
                                  bool& clip, double& clipMs) {
                 // Strict `>`: at idle raw==hold==0, so `>=` would latch a new
@@ -2129,7 +2129,8 @@ namespace lockstep
         {
             StatusInput si;
             si.toast = statusMessage_;
-            si.toastAgeMs = juce::Time::getMillisecondCounter() - statusSetMs_;
+            si.toastAgeMs = static_cast<juce::uint32>(
+                juce::jmax(0.0, nowMs() - statusSetMs_));
             si.toastDurationMs = kStatusDurationMs;
             si.missingSamples = missingSampleBanner_;
             // 9.30 st.2: the badges that used to live in the header dashboard. The
@@ -2903,7 +2904,7 @@ namespace lockstep
         if (fxPickerCellIsLoaded(index, master))
         {
             gesture_.armLongPress(kFxPickerCellLongPressToken,
-                                  juce::Time::getMillisecondCounterHiRes());
+                                  nowMs());
             fxPickerRemoveArmed_  = true;
             fxPickerRemoveMaster_ = master;
             return true;  // resolved on key-up in fxPickerStepUp
@@ -2920,7 +2921,7 @@ namespace lockstep
         fxPickerRemoveArmed_ = false;
         const bool master = fxPickerRemoveMaster_;
         using LPR = GestureRecognizer::LongPressResult;
-        const double now = juce::Time::getMillisecondCounterHiRes();
+        const double now = nowMs();
         if (gesture_.checkLongPress(kFxPickerCellLongPressToken, now) == LPR::LongHold)
             removeFxPickerSlot(master);
         else
@@ -4130,7 +4131,7 @@ namespace lockstep
             uiState_.browserCursor = index;
             if (scenes)
             {
-                const double now = juce::Time::getMillisecondCounterHiRes();
+                const double now = nowMs();
                 const bool dbl = gesture_.doubleTap(kBrowserSceneTokenBase + index, now);
                 processor_.queueScene(index, dbl);
             }
@@ -4539,7 +4540,7 @@ namespace lockstep
                     // MHZ.9.4: Func never latches; double-tap = universal escape.
                     // Cancels latches and any active overlay (Euclid / sticky modes).
                     {
-                        const double now = juce::Time::getMillisecondCounterHiRes();
+                        const double now = nowMs();
                         if (gesture_.doubleTap(1000 + static_cast<int>(CB::Func), now))
                         {
                             if (uiState_.latch.any() || processor_.editContext().hasAnyLatchedStep())
@@ -4685,7 +4686,7 @@ namespace lockstep
 
     void LockstepEditor::handleModifierTap(ControllerButton cb, bool currentlyLatched)
     {
-        const double now = juce::Time::getMillisecondCounterHiRes();
+        const double now = nowMs();
         const bool dbl = gesture_.doubleTap(1000 + static_cast<int>(cb), now);
         if (currentlyLatched && !dbl)
         {
@@ -4843,7 +4844,7 @@ namespace lockstep
         if (ev.button == CB::TapTempo)
         {
             tapTempoPhysHeld_ = true;
-            tapTempoArmMs_ = juce::Time::getMillisecondCounterHiRes();
+            tapTempoArmMs_ = nowMs();
             return true;
         }
 
@@ -4857,7 +4858,7 @@ namespace lockstep
             && ev.index == LockstepProcessor::kAmpSecIdx)
         {
             gesture_.armLongPress(kCueConsoleLongPressToken,
-                                  juce::Time::getMillisecondCounterHiRes());
+                                  nowMs());
             cueConsoleArmed_ = true;
             return true;  // deferred to key-up
         }
@@ -5064,7 +5065,7 @@ namespace lockstep
                         fxSectionPickerWantsMaster_ =
                             (hold.action == ActionId::OpenMasterFxPicker);
                         gesture_.armLongPress(kSectionHoldToken,
-                                              juce::Time::getMillisecondCounterHiRes());
+                                              nowMs());
                         if (heldSectionRawCode_ < 0)
                         {
                             heldSectionRawCode_ = rawCode;
@@ -5087,7 +5088,7 @@ namespace lockstep
                         && ev.index == processor_.trackConsoleSection(at))
                     {
                         gesture_.armLongPress(kMachineConsoleLongPressToken,
-                                              juce::Time::getMillisecondCounterHiRes());
+                                              nowMs());
                         machineConsoleArmed_ = true;
                         if (heldSectionRawCode_ < 0)
                         {
@@ -5126,7 +5127,7 @@ namespace lockstep
                 if (uiState_.muteHeld && uiState_.relaunchHeld
                     && ev.index >= 0 && ev.index < static_cast<int>(kNumTracks))
                 {
-                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    const double now = nowMs();
                     const bool dbl = gesture_.doubleTap(kRelaunchStepTokenBase + ev.index, now);
                     processor_.queueRelaunch(ev.index, dbl);
                     refreshSurface();
@@ -5218,7 +5219,7 @@ namespace lockstep
                             return true;
                         }
                         const int st = processor_.looperState(trk);  // 0 Idle..5 Armed
-                        const double nowMs = juce::Time::getMillisecondCounterHiRes();
+                        const double nowMs = this->nowMs();
                         switch (ev.index)
                         {
                             case 0:  // REC/DUB — tap = record verb (2-tap=now);
@@ -5405,7 +5406,7 @@ namespace lockstep
                                          // WHILE recording = retro backfill the
                                          // run-up before the punch-in, not punch-out)
                                 {
-                                    const double nowMs = juce::Time::getMillisecondCounterHiRes();
+                                    const double nowMs = this->nowMs();
                                     const bool dbl = gesture_.doubleTap(kTapeRecordToken, nowMs);
                                     if (dbl && processor_.tapeRecording(mct))
                                     {
@@ -5615,7 +5616,7 @@ namespace lockstep
                         const bool occupied = isActive || processor_.songSlotOccupied(ev.index);
                         if (occupied)
                         {
-                            const double now = juce::Time::getMillisecondCounterHiRes();
+                            const double now = nowMs();
                             const bool dbl = gesture_.doubleTap(kSongStepTokenBase + ev.index, now);
                             processor_.queueSongSwitch(ev.index, dbl);
                         }
@@ -5686,7 +5687,7 @@ namespace lockstep
                     if (ev.index >= 0 && ev.index < kPhrasesPerTrack
                         && processor_.phraseSlotOccupied(keyboardArea_.getActiveTrack(), ev.index))
                     {
-                        const double now = juce::Time::getMillisecondCounterHiRes();
+                        const double now = nowMs();
                         const bool dbl = gesture_.doubleTap(kPhraseStepTokenBase + ev.index, now);
                         processor_.queuePhraseDeviation(keyboardArea_.getActiveTrack(), ev.index, dbl);
                     }
@@ -5957,7 +5958,7 @@ namespace lockstep
                     uiState_.stepMoveActive = false;
                     // Arm the long-press → StepInspector gesture. Only a lone held step
                     // (checked at fire time) opens it; a second press cancels the arm.
-                    gesture_.armLongPress(absStep, juce::Time::getMillisecondCounterHiRes());
+                    gesture_.armLongPress(absStep, nowMs());
                     refreshMetaBand();
 
                     refreshSurface();
@@ -6007,7 +6008,7 @@ namespace lockstep
                     if (ev.index >= 0 && ev.index < kPhrasesPerTrack
                         && processor_.phraseSlotOccupied(keyboardArea_.getActiveTrack(), ev.index))
                     {
-                        const double now = juce::Time::getMillisecondCounterHiRes();
+                        const double now = nowMs();
                         const bool dbl = gesture_.doubleTap(kPhraseStepTokenBase + ev.index, now);
                         processor_.queuePhraseDeviation(keyboardArea_.getActiveTrack(), ev.index, dbl);
                     }
@@ -6153,7 +6154,7 @@ namespace lockstep
                 if (playKeyHeld_) return true;  // ignore key repeat
                 playKeyHeld_ = true;
 
-                const double now = juce::Time::getMillisecondCounterHiRes();
+                const double now = nowMs();
                 // Layered stop by Play tap-count (DESIGN): 1 = play/graceful-stop
                 // toggle, 2 = track cut (sends+master ring), 3 = master cut (dead).
                 // All hold phase; rewind is decoupled onto hold-Record. Immediate-
@@ -6178,7 +6179,7 @@ namespace lockstep
                 if (deleteHoldCapable())
                 {
                     gesture_.armLongPress(kDeleteHoldToken,
-                                          juce::Time::getMillisecondCounterHiRes());
+                                          nowMs());
                     clearHoldArmed_ = true;
                     clearHoldFired_ = false;
                     return true;   // deferred
@@ -6202,7 +6203,7 @@ namespace lockstep
                 if (editMode_.scopeState().func && uiState_.songHeld)
                 {
                     gesture_.armLongPress(kCaptureToken,
-                                          juce::Time::getMillisecondCounterHiRes());
+                                          nowMs());
                     captureCellHeld_ = true;
                     captureLongPressFired_ = false;
                     return true;  // action deferred to key-up
@@ -6249,7 +6250,7 @@ namespace lockstep
                 // key-up (mirrors the CAPTURE cell); the timer may fire the reset
                 // mid-hold.
                 gesture_.armLongPress(kTransportResetToken,
-                                      juce::Time::getMillisecondCounterHiRes());
+                                      nowMs());
                 recordResetHeld_ = true;
                 recordResetFired_ = false;
                 return true;
@@ -6394,7 +6395,7 @@ namespace lockstep
                 // Func+Y = Restore. Resolve on key-up (tap = pop one, hold = jump to floor).
                 if (sectionSuiteScopeHeld(uiState_)) return true;
                 gesture_.armLongPress(kRestoreLongPressToken,
-                                      juce::Time::getMillisecondCounterHiRes());
+                                      nowMs());
                 return true;
 
             // ControllerButton::PlayStop — migrated to CommandCore::handleDown (8.4h)
@@ -6410,7 +6411,7 @@ namespace lockstep
                 processor_.transportStopReset();
                 return true;
             case ControllerButton::RecordArm: {
-                const double now = juce::Time::getMillisecondCounterHiRes();
+                const double now = nowMs();
                 const bool isDouble = gesture_.doubleTap(
                     1000 + static_cast<int>(ControllerButton::RecordArm), now);
                 if (isDouble)
@@ -6680,7 +6681,7 @@ namespace lockstep
                 if (cueConsoleArmed_)
                 {
                     using LPR = GestureRecognizer::LongPressResult;
-                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    const double now = nowMs();
                     if (gesture_.checkLongPress(kCueConsoleLongPressToken, now) == LPR::LongHold)
                     {
                         openCueConsole();
@@ -6701,7 +6702,7 @@ namespace lockstep
                 if (sectionHoldAction_ != ActionId::None)
                 {
                     using LPR = GestureRecognizer::LongPressResult;
-                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    const double now = nowMs();
                     const bool trackFx = (sectionHoldAction_ == ActionId::OpenTrackFxPicker);
 
                     if (sectionHoldFired_)
@@ -6779,7 +6780,7 @@ namespace lockstep
                 if (machineConsoleArmed_)
                 {
                     using LPR = GestureRecognizer::LongPressResult;
-                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    const double now = nowMs();
                     if (gesture_.checkLongPress(kMachineConsoleLongPressToken, now) == LPR::LongHold)
                     {
                         if (uiState_.machineConsoleOpen)
@@ -7094,7 +7095,7 @@ namespace lockstep
                 // copy of it. It used to be a copy, and the copy dropped restoreOne()'s
                 // bool on the floor: 9.4 item A's "NOTHING TO RESTORE" was live on the
                 // table path and unreachable from the keys the player actually presses.
-                const double now = juce::Time::getMillisecondCounterHiRes();
+                const double now = nowMs();
                 using LPR = GestureRecognizer::LongPressResult;
                 switch (gesture_.checkLongPress(kRestoreLongPressToken, now))
                 {
@@ -7114,7 +7115,7 @@ namespace lockstep
 
             case CB::VerbRecord: {
                 using LPR = GestureRecognizer::LongPressResult;
-                const double now = juce::Time::getMillisecondCounterHiRes();
+                const double now = nowMs();
                 // CAPTURE cell resolution (tape deck).
                 if (captureCellHeld_)
                 {
@@ -7182,7 +7183,7 @@ namespace lockstep
                 if (clearHoldArmed_)
                 {
                     using LPR = GestureRecognizer::LongPressResult;
-                    const double now = juce::Time::getMillisecondCounterHiRes();
+                    const double now = nowMs();
                     if (clearHoldFired_)
                     {
                         gesture_.cancelLongPress();
@@ -7292,7 +7293,7 @@ namespace lockstep
 
     void LockstepEditor::handleTapTempo()
     {
-        const double now = juce::Time::getMillisecondCounterHiRes();
+        const double now = nowMs();
 
         int kept = 0;
         for (int i = 0; i < tapCount_; ++i)
@@ -7650,7 +7651,7 @@ namespace lockstep
     void LockstepEditor::setStatus(const juce::String& msg)
     {
         statusMessage_ = msg;
-        statusSetMs_ = juce::Time::getMillisecondCounter();
+        statusSetMs_ = nowMs();
         repaint();   // chrome only: the transient status line carries no cell state
     }
 
