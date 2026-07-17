@@ -191,84 +191,95 @@ namespace lockstep
         markSurfaceDirty();
     }
 
-    int KeyboardArea::stepCellAt(juce::Point<int> pos) const
+    KeyboardArea::StepGridGeom KeyboardArea::stepGridGeom() const
     {
         const auto areas = computeRowAreas();
-        auto stepArea = areas.step;
-        stepArea.removeFromBottom(kNavRowH);
-        const auto cellArea = stepArea;
 
-        if (!cellArea.contains(pos))
-            return -1;
+        StepGridGeom s;
+        s.cellArea = areas.step;
+        s.cellArea.removeFromBottom(kNavRowH);
+        s.intraStepGap = areas.intraStepGap;
 
         static constexpr int kTotalGridCols = kCols + 2;  // 2 modifier cols + 8 step cols
-        const bool useClnGap = (displayMode_ == GridDisplayMode::Clean);
-        const int intraStepGap = areas.intraStepGap;
 
-        int cellW, staggerA, staggerZ;
         if (displayMode_ == GridDisplayMode::Staggered)
         {
-            const int hu = staggerHalfUnit(cellArea.getWidth());
-            cellW = staggerCellW(hu);
-            staggerA = staggerOffsetA(hu);
-            staggerZ = staggerOffsetZ(hu);
+            const int hu = staggerHalfUnit(s.cellArea.getWidth());
+            s.cellW = staggerCellW(hu);
+            s.staggerA = staggerOffsetA(hu);
+            s.staggerZ = staggerOffsetZ(hu);
         }
-        else if (useClnGap)
+        else if (displayMode_ == GridDisplayMode::Clean)
         {
-            cellW = (cellArea.getWidth() - kClnColGap) / kTotalGridCols;
-            staggerA = 0;
-            staggerZ = 0;
+            s.cellW = (s.cellArea.getWidth() - kClnColGap) / kTotalGridCols;
         }
         else  // Ortholinear
         {
-            cellW = (cellArea.getWidth() - (kTotalGridCols - 1) * kOrlGap) / kTotalGridCols;
-            staggerA = 0;
-            staggerZ = 0;
+            s.cellW = (s.cellArea.getWidth() - (kTotalGridCols - 1) * kOrlGap) / kTotalGridCols;
         }
-        const int cellH = (cellArea.getHeight() - intraStepGap) / kRows;
-        if (cellW <= 0 || cellH <= 0)
-            return -1;
 
-        // Row detection — handle optional intra-step gap for ORL.
-        const int relY = pos.getY() - cellArea.getY();
-        int row = -1;
-        if (relY >= 0 && relY < cellH)
-            row = 0;
-        else if (relY >= cellH + intraStepGap && relY < 2 * cellH + intraStepGap)
-            row = 1;
-        if (row < 0)
-            return -1;
+        s.cellH = (s.cellArea.getHeight() - s.intraStepGap) / kRows;
+        return s;
+    }
 
-        const int rowStagger = (row == 0) ? staggerA : staggerZ;
-        const int relX = pos.getX() - cellArea.getX() - rowStagger;
+    juce::Rectangle<int> KeyboardArea::gridCellBounds(int row, int col) const
+    {
+        const auto s = stepGridGeom();
+        if (s.cellW <= 0 || s.cellH <= 0)
+            return {};
 
-        int col;
-        if (useClnGap)
-        {
-            // Cols 0/1 = modifiers, gap, cols 2+ = steps.
-            if (relX < 0) return -1;
-            if (relX < 2 * cellW) col = relX / cellW;
-            else if (relX < 2 * cellW + kClnColGap) return -1;
-            else col = 2 + (relX - 2 * cellW - kClnColGap) / cellW;
-        }
+        const int y = s.cellArea.getY() + row * s.cellH + (row > 0 ? s.intraStepGap : 0);
+        const int stagger = (row == 0) ? s.staggerA : s.staggerZ;
+
+        int x;
+        if (displayMode_ == GridDisplayMode::Clean)
+            // The step block is pushed right by one gap; cols 0/1 (modifiers) sit left
+            // of it. (Written as `col * cellW + gap` rather than the old
+            // `2*cellW + gap + (col-2)*cellW` -- same value, one branch fewer.)
+            x = s.cellArea.getX() + stagger + col * s.cellW + (col >= 2 ? kClnColGap : 0);
         else if (displayMode_ == GridDisplayMode::Ortholinear)
-        {
-            const int pitch = cellW + kOrlGap;
-            if (relX < 0 || pitch <= 0) return -1;
-            col = relX / pitch;
-            if (relX % pitch >= cellW) return -1;  // click in gap
-        }
+            x = s.cellArea.getX() + col * (s.cellW + kOrlGap);
         else
+            x = s.cellArea.getX() + stagger + col * s.cellW;
+
+        return { x, y, s.cellW, s.cellH };
+    }
+
+    juce::Rectangle<int> KeyboardArea::boundsForStep(int absIdx) const
+    {
+        const int rel = absIdx - stepPage_ * kPageSteps;
+        if (rel < 0 || rel >= kPageSteps)
+            return {};   // not on this page
+
+        return gridCellBounds(rel / kCols, 2 + (rel % kCols));
+    }
+
+    int KeyboardArea::stepCellAt(juce::Point<int> pos) const
+    {
+        // The inverse of boundsForStep BY CONSTRUCTION: ask each cell on the page
+        // whether it contains the point. Sixteen rectangle tests -- cheaper than the
+        // paint it precedes, and it cannot disagree with where the cells are drawn,
+        // which the old hand-inverted arithmetic could and nothing would have noticed.
+        //
+        // The gaps fall out for free: a point between two cells (the ORL inter-column
+        // gap, Clean's block gap, the gap between rows) is inside no rectangle, so it
+        // is a miss without a special case saying so.
+        const auto grid = stepGridGeom();
+        if (!grid.cellArea.contains(pos))
+            return -1;   // outside the step rows entirely (a Staggered row can overhang)
+
+        const int base = stepPage_ * kPageSteps;
+        for (int rel = 0; rel < kPageSteps; ++rel)
         {
-            col = relX / cellW;
+            const int absIdx = base + rel;
+            if (!boundsForStep(absIdx).contains(pos))
+                continue;
+
+            // The cell exists but the step does not: past the track's length it is
+            // drawn dimmed and is not clickable.
+            return absIdx < trackLength() ? absIdx : -1;
         }
-
-        // Cols 0 and 1 are modifier cells — not step cells.
-        if (col <= 1 || col >= kTotalGridCols)
-            return -1;
-
-        const int absIdx = stepPage_ * kPageSteps + row * kCols + (col - 2);
-        return absIdx < trackLength() ? absIdx : -1;
+        return -1;
     }
 
     // -------------------------------------------------------------------------
@@ -948,49 +959,16 @@ namespace lockstep
             "D", "F", "G", "H", "J", "K", "L", ";",
             "C", "V", "B", "N", "M", ",", ".", "/"
         };
-        // MHX: 2 modifier columns (A/S | Z/X) + 8 step columns = 10 total.
-        static constexpr int kTotalGridCols = kCols + 2;
         const bool showKeyLetters = (displayMode_ != GridDisplayMode::Clean);
-        const bool useClnGap = (displayMode_ == GridDisplayMode::Clean);
-        const int intraStepGap = (displayMode_ == GridDisplayMode::Ortholinear) ? kOrlGap : 0;
 
-        int cellW, staggerA, staggerZ;
-        if (displayMode_ == GridDisplayMode::Staggered)
-        {
-            const int hu = staggerHalfUnit(cellArea.getWidth());
-            cellW = staggerCellW(hu);
-            staggerA = staggerOffsetA(hu);
-            staggerZ = staggerOffsetZ(hu);
-        }
-        else if (useClnGap)
-        {
-            cellW = (cellArea.getWidth() - kClnColGap) / kTotalGridCols;
-            staggerA = 0;
-            staggerZ = 0;
-        }
-        else  // Ortholinear
-        {
-            cellW = (cellArea.getWidth() - (kTotalGridCols - 1) * kOrlGap) / kTotalGridCols;
-            staggerA = 0;
-            staggerZ = 0;
-        }
-        const int cellH = (cellArea.getHeight() - intraStepGap) / kRows;
-
-        auto rowY = [&](int row) -> int {
-            return cellArea.getY() + row * cellH + (row > 0 ? intraStepGap : 0);
-        };
-
-        // col 0/1 = modifiers, col 2+ = steps.
-        auto colX = [&](int row, int col) -> int {
-            const int stagger = (row == 0) ? staggerA : staggerZ;
-            if (useClnGap && col >= 2)
-                return cellArea.getX() + stagger + 2 * cellW + kClnColGap + (col - 2) * cellW;
-            if (useClnGap)
-                return cellArea.getX() + stagger + col * cellW;
-            if (displayMode_ == GridDisplayMode::Ortholinear)
-                return cellArea.getX() + col * (cellW + kOrlGap);
-            return cellArea.getX() + stagger + col * cellW;
-        };
+        // Geometry comes from the single owner (stepGridGeom / gridCellBounds), which
+        // the hit test reads too -- this used to be a hand-mirrored second copy of it.
+        // `cell(row, col)` is just a local name; cols 0/1 are the modifier cells and
+        // 2..9 the steps, as everywhere else.
+        const auto grid = stepGridGeom();
+        const int cellH = grid.cellH;
+        auto cellAt = [this](int row, int col) { return gridCellBounds(row, col); };
+        auto rowY = [&cellAt](int row) { return cellAt(row, 0).getY(); };
 
         // Edge anchor rows
         for (int row = 0; row < kRows; ++row)
@@ -1009,9 +987,7 @@ namespace lockstep
                 for (int mc = 0; mc < 2; ++mc)
                 {
                     const int modIdx = 4 + row * 2 + mc;
-                    const int x = colX(row, mc);
-                    const int y = rowY(row);
-                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH);
+                    const auto cell = cellAt(row, mc);
                     paintCell(g, cell, model.modifiers[static_cast<std::size_t>(modIdx)],
                               showKeyLetters);
                 }
@@ -1031,8 +1007,7 @@ namespace lockstep
                 {
                     const int idx = row * kCols + col2;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
-                    const auto cell = juce::Rectangle<int>(colX(row, col2 + 2), rowY(row),
-                                                           cellW, cellH).reduced(2);
+                    const auto cell = cellAt(row, col2 + 2).reduced(2);
                     paintGridCellFill(g, cell, sc);
                     // Border decoration channel (e.g. the Browser playhead ring).
                     if (sc.border.present)
@@ -1074,9 +1049,7 @@ namespace lockstep
                 {
                     const int idx = row * kCols + col;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
-                    const int x = colX(row, col + 2);
-                    const int y = rowY(row);
-                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                    const auto cell = cellAt(row, col + 2).reduced(2);
 
                     const bool live = sc.base != CellState::StepOutOfRange;
                     paintGridCellFill(g, cell, sc);
@@ -1120,9 +1093,7 @@ namespace lockstep
                     const bool avail = sc.base != CellState::MachineUnavailable;
                     const bool isCurrent = sc.base == CellState::MachineCurrent;
 
-                    const int x = colX(row, col + 2);
-                    const int y = rowY(row);
-                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                    const auto cell = cellAt(row, col + 2).reduced(2);
 
                     paintGridCellFill(g, cell, sc);
 
@@ -1168,9 +1139,7 @@ namespace lockstep
                     const bool isCurrent = sc.base == CellState::EffectLoaded;
                     const bool isOther = sc.base == CellState::EffectLoadedOther;
 
-                    const int x = colX(row, col2 + 2);
-                    const int y = rowY(row);
-                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                    const auto cell = cellAt(row, col2 + 2).reduced(2);
 
                     paintGridCellFill(g, cell, sc);
 
@@ -1231,9 +1200,7 @@ namespace lockstep
                     const bool isCurrent = sc.base == CellState::EffectLoaded;
                     const bool isOther = sc.base == CellState::EffectLoadedOther;
 
-                    const int x = colX(row, col2 + 2);
-                    const int y = rowY(row);
-                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                    const auto cell = cellAt(row, col2 + 2).reduced(2);
 
                     paintGridCellFill(g, cell, sc);
 
@@ -1289,9 +1256,7 @@ namespace lockstep
                 {
                     const int idx = row * kCols + col2;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
-                    const int x = colX(row, col2 + 2);
-                    const int y = rowY(row);
-                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                    const auto cell = cellAt(row, col2 + 2).reduced(2);
 
                     paintGridCellFill(g, cell, sc);
                     paintGridCellText(g, cell, sc, 0.90f);
@@ -1318,9 +1283,7 @@ namespace lockstep
                 {
                     const int idx = row * kCols + col2;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
-                    const int x = colX(row, col2 + 2);
-                    const int y = rowY(row);
-                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                    const auto cell = cellAt(row, col2 + 2).reduced(2);
 
                     paintGridCellFill(g, cell, sc);
                     paintGridCellText(g, cell, sc, 0.90f);
@@ -1348,9 +1311,7 @@ namespace lockstep
                 {
                     const int idx = row * kCols + col2;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
-                    const int x = colX(row, col2 + 2);
-                    const int y = rowY(row);
-                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                    const auto cell = cellAt(row, col2 + 2).reduced(2);
 
                     paintGridCellFill(g, cell, sc);
                     paintGridCellText(g, cell, sc, 0.90f);
@@ -1381,9 +1342,7 @@ namespace lockstep
                 {
                     const int cellIdx = row * kCols + col2;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(cellIdx)];
-                    const int x = colX(row, col2 + 2);
-                    const int y = rowY(row);
-                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                    const auto cell = cellAt(row, col2 + 2).reduced(2);
 
                     // Fill from model
                     g.setColour(juce::Colour(sc.baseColour));
@@ -1557,9 +1516,7 @@ namespace lockstep
                                             ? lockedSlots[static_cast<std::size_t>(cellIdx)]
                                             : -1;
 
-                    const int x = colX(row, col + 2);
-                    const int y = rowY(row);
-                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                    const auto cell = cellAt(row, col + 2).reduced(2);
 
                     // Fill from model
                     g.setColour(juce::Colour(sc.baseColour));
@@ -1624,9 +1581,7 @@ namespace lockstep
                     {
                         const int cellIdx = row * kCols + col2;
                         const SurfaceCell& sc = model.step[static_cast<std::size_t>(cellIdx)];
-                        const int x = colX(row, col2 + 2);
-                        const int y = rowY(row);
-                        const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                        const auto cell = cellAt(row, col2 + 2).reduced(2);
 
                         const int semitone = kPianoNoteOffset[static_cast<std::size_t>(cellIdx)];
                         const char* name = kPianoNoteNames[static_cast<std::size_t>(cellIdx)];
@@ -1675,9 +1630,7 @@ namespace lockstep
                     {
                         const int cellIdx = row * kCols + col2;
                         const SurfaceCell& sc = model.step[static_cast<std::size_t>(cellIdx)];
-                        const int x = colX(row, col2 + 2);
-                        const int y = rowY(row);
-                        const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                        const auto cell = cellAt(row, col2 + 2).reduced(2);
 
                         // Fill from model (gradient colour, pressed → white)
                         g.setColour(juce::Colour(sc.baseColour));
@@ -1722,9 +1675,7 @@ namespace lockstep
                 {
                     const int idx = row * kCols + col2;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
-                    const int x = colX(row, col2 + 2);
-                    const int y = rowY(row);
-                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                    const auto cell = cellAt(row, col2 + 2).reduced(2);
 
                     // Fill from model (fixes: builder now computes correct colour)
                     g.setColour(juce::Colour(sc.baseColour));
@@ -1777,9 +1728,7 @@ namespace lockstep
                 {
                     const int idx = row * kCols + col;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
-                    const int x = colX(row, col + 2);
-                    const int y = rowY(row);
-                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                    const auto cell = cellAt(row, col + 2).reduced(2);
 
                     const bool avail = sc.base != CellState::SelectorOutRange;
                     const bool isEmpty = sc.base == CellState::SelectorEmpty;
@@ -1877,9 +1826,7 @@ namespace lockstep
                 {
                     const int localIdx = row * kCols + col;
                     const SurfaceCell& sc = model.step[static_cast<std::size_t>(localIdx)];
-                    const int x = colX(row, col + 2);
-                    const int y = rowY(row);
-                    const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                    const auto cell = cellAt(row, col + 2).reduced(2);
 
                     paintGridCellFill(g, cell, sc);
                     if (sc.base != CellState::MorphPoleDark)
@@ -1919,9 +1866,7 @@ namespace lockstep
                 const bool inRange = absIdx < trackLen;
                 const SurfaceCell& sc = model.step[static_cast<std::size_t>(localIdx)];
 
-                const int x = colX(row, col + 2);
-                const int y = rowY(row);
-                const auto cell = juce::Rectangle<int>(x, y, cellW, cellH).reduced(2);
+                const auto cell = cellAt(row, col + 2).reduced(2);
 
                 // Body fill — from model (fixes always-green: baseColour uses scopeColourFromState)
                 if (sc.base == CellState::StepOutOfRange)

@@ -151,6 +151,39 @@ namespace lockstep
         void clampPage();
         int stepCellAt(juce::Point<int> pos) const;
 
+        // ── Step-grid geometry: ONE owner (PRINCIPLES §20) ────────────────────
+        // This layout used to be computed twice. stepCellAt inverted point->cell with
+        // hand-written arithmetic, while paintStepRows rebuilt the same grid in its own
+        // colX/rowY lambdas -- and each of the three display modes (plus the stagger)
+        // was mirrored by hand in both. Nothing made the two move together, so a change
+        // to one was a silent promise about the other: the surface still LOOKS correct
+        // while clicks land on the wrong cell, which is the Item E bug class and is
+        // invisible to a test that recomputes the geometry itself.
+        //
+        // Now paint asks where a cell is, and the hit test asks which cell contains a
+        // point -- both from here. They cannot disagree, because there is only one
+        // answer. (The section row has always worked this way; see sectionCellBounds,
+        // shared by its paint and its hit test. This brings the step row into line.)
+        struct StepGridGeom
+        {
+            juce::Rectangle<int> cellArea;   // the two step rows; nav row already removed
+            int cellW = 0;
+            int cellH = 0;
+            int staggerA = 0;      // row 0 (A row) horizontal offset — Staggered mode
+            int staggerZ = 0;      // row 1 (Z row)
+            int intraStepGap = 0;  // vertical gap between the rows — ORL only
+        };
+        [[nodiscard]] StepGridGeom stepGridGeom() const;
+
+        // One cell of the 10-column grid: cols 0/1 are the modifier cells (A/S | Z/X),
+        // cols 2..9 are the eight steps. Empty if the grid has collapsed to nothing.
+        [[nodiscard]] juce::Rectangle<int> gridCellBounds(int row, int col) const;
+
+        // The cell for an ABSOLUTE step index, or empty when it is not on the current
+        // page. Geometry only: a step past the track's length still has a cell (paint
+        // draws it dimmed as out-of-range) -- refusing it is stepCellAt's job, not this.
+        [[nodiscard]] juce::Rectangle<int> boundsForStep(int absIdx) const;
+
         // Section helpers (from SectionBar)
         juce::Rectangle<int> sectionCellBounds(int cellIndex,
                                                juce::Rectangle<int> area) const;

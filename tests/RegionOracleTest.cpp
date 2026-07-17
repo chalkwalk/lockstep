@@ -148,17 +148,30 @@ namespace
         return dr * dr + dg * dg + db * db;
     }
 
-    int checkAllCells(UiDriver& d, double scale, int& failed)
+    const char* modeName(GridDisplayMode m)
+    {
+        switch (m)
+        {
+            case GridDisplayMode::Staggered:   return "Staggered";
+            case GridDisplayMode::Ortholinear: return "Ortholinear";
+            case GridDisplayMode::Clean:       return "Clean";
+        }
+        return "?";
+    }
+
+    int checkAllCells(UiDriver& d, double scale, GridDisplayMode mode, int& failed)
     {
         auto& ed = d.editor();
-        const auto img = d.renderAt(static_cast<int>(kDesignW * scale),
-                                    static_cast<int>(kDesignH * scale));
+        ed.setSize(static_cast<int>(kDesignW * scale), static_cast<int>(kDesignH * scale));
+        DispatchProbe::setGridMode(ed, mode);   // re-lays out at the size just set
+
+        const auto img = d.render();
         const auto model = d.surface();
         int checked = 0;
 
         auto fail = [&](const juce::String& what, const juce::String& why) {
-            std::fprintf(stderr, "FAIL [RegionOracle] %s at %.3gx: %s\n",
-                         what.toRawUTF8(), scale, why.toRawUTF8());
+            std::fprintf(stderr, "FAIL [RegionOracle] %s at %.3gx/%s: %s\n",
+                         what.toRawUTF8(), scale, modeName(mode), why.toRawUTF8());
             ++failed;
         };
 
@@ -222,25 +235,37 @@ namespace
 
     void testCellsRenderTheirModelColour(int& failed)
     {
-        // 1.0 = the design canvas (transform is a no-op); 1.2 = what the product ships
-        // at; 1.4141 = the rig's own size, deliberately non-integer so the transform
-        // lands cells on fractional pixel boundaries. If a cell survives all three, the
-        // scale path is honest.
+        // Scales: 1.0 = the design canvas (transform is a no-op); 1.2 = what the product
+        // ships at; 1.4141 = the rig's own size, deliberately non-integer so cells land
+        // on fractional pixel boundaries.
+        //
+        // Modes: all three, because all three have their own cell arithmetic (the
+        // stagger's half-unit offsets, ORL's inter-column gaps, Clean's block gap) and
+        // each was hand-mirrored between paint and hit test. The layout test next door
+        // checks the ROW areas in every mode but never a cell, so before this loop the
+        // two rarer modes' step geometry had no test at all -- which is a poor place to
+        // stand while refactoring exactly that code (WI-4).
         for (const double scale : { 1.0, 1.2, 1400.0 / 990.0 })
         {
-            UiDriver d;
-            const int checked = checkAllCells(d, scale, failed);
-
-            // Self-check: if the scan silently stopped finding cells, every assertion
-            // above would vacuously pass forever. 16 steps + 6 section keys = 22, minus
-            // any translucent fills skipped.
-            if (checked < 16)
+            for (const auto mode : { GridDisplayMode::Staggered,
+                                     GridDisplayMode::Ortholinear,
+                                     GridDisplayMode::Clean })
             {
-                std::fprintf(stderr,
-                             "FAIL [RegionOracle] at %.3gx only %d cells were checked -- the "
-                             "scan is finding nothing, so the greens above mean nothing\n",
-                             scale, checked);
-                ++failed;
+                UiDriver d;
+                const int checked = checkAllCells(d, scale, mode, failed);
+
+                // Self-check: if the scan silently stopped finding cells, every assertion
+                // above would vacuously pass forever. 16 steps + 6 section keys = 22,
+                // minus any translucent fills skipped.
+                if (checked < 16)
+                {
+                    std::fprintf(stderr,
+                                 "FAIL [RegionOracle] at %.3gx/%s only %d cells were checked "
+                                 "-- the scan is finding nothing, so the greens above mean "
+                                 "nothing\n",
+                                 scale, modeName(mode), checked);
+                    ++failed;
+                }
             }
         }
     }
