@@ -28,81 +28,14 @@
 // file exists to catch, so re-blessing without reading is the one way to make
 // this test worthless.
 
-#include "../src/PluginEditor.h"
-#include "../src/PluginProcessor.h"
+#include "EditorRig.h"
+
 #include "../src/command/KeyBindings.h"
 
-#include <juce_gui_basics/juce_gui_basics.h>
-#include "../src/ui/mode/GestureRecognizer.h"
 #include <cstdio>
 #include <functional>
 #include <map>
 #include <memory>
-
-namespace lockstep
-{
-    // The one seam into dispatch (friended in PluginEditor.h): the entry points stay
-    // private to production code.
-    struct DispatchProbe
-    {
-        // FIDELITY (7b). Every real input path -- QWERTY, mouse, controller -- runs
-        // the raw event through resolveLayer() BEFORE dispatch (ButtonLayers.h says
-        // so in its first line). The first version of this probe called dispatchDown
-        // directly and skipped it, so `Func+Y` never became CB::Restore and the
-        // golden recorded RESTORE as "pushes a second checkpoint" -- a path the
-        // product never takes. A net that models a different input path than the
-        // instrument is worse than no net: it is green about fiction.
-        static ControllerEvent layered(const LockstepEditor& ed, ControllerEvent raw)
-        {
-            const UiState& u = ed.uiState_;
-            const LayerContext lctx{ u.funcHeld,
-                                     u.trackHeld || u.latch.track,
-                                     u.muteHeld || u.latch.mute };
-            return resolveLayer(raw, lctx);
-        }
-        static bool down(LockstepEditor& ed, ControllerEvent ev)
-        {
-            return ed.dispatchDown(layered(ed, ev), 0);
-        }
-        static void up(LockstepEditor& ed, ControllerEvent ev)
-        {
-            ed.dispatchUp(layered(ed, ev), 0);
-        }
-        static const UiState& ui(const LockstepEditor& ed) { return ed.uiState_; }
-        static int activeTrack(const LockstepEditor& ed) { return ed.keyboardArea_.getActiveTrack(); }
-        static const Clipboard& clip(const LockstepEditor& ed) { return ed.clipboard_; }
-        // 7c: the step page lives in KeyboardArea, not UiState, so a UiState-only
-        // digest recorded every page-nav gesture as "(no observable state change)".
-        static int page(const LockstepEditor& ed) { return ed.keyboardArea_.currentPage(); }
-
-        // 9.30 st.6 — layout verification. Real pixels, traced through resized(), never
-        // arithmetic done in a comment: the bands were reordered and re-sized, and the
-        // only honest way to know the grid still fits is to lay it out and MEASURE it.
-        static juce::Rectangle<int> kbBounds(const LockstepEditor& ed)
-        {
-            return ed.keyboardArea_.getBounds();
-        }
-        // (KeyboardArea::computeRowAreas is private; the step grid's real estate is
-        //  measured through the public nav-area + component bounds instead, which is
-        //  the same geometry the paint path uses.)
-        static juce::Rectangle<int> navArea(const LockstepEditor& ed)
-        {
-            return ed.keyboardArea_.navAreaBounds();
-        }
-        static void setGridMode(LockstepEditor& ed, GridDisplayMode m)
-        {
-            ed.applyDisplayMode(m);
-            ed.resized();
-        }
-        static juce::Rectangle<int> inspector(const LockstepEditor& ed) { return ed.inspectorRow_; }
-        static juce::Rectangle<int> popover(const LockstepEditor& ed) { return ed.confirmPopoverRegion_; }
-        static juce::Rectangle<int> mz(const LockstepEditor& ed)
-        {
-            return ed.manipulationZone_.getBounds();
-        }
-        static juce::Rectangle<int> meter(const LockstepEditor& ed) { return ed.masterChromeRegion_; }
-    };
-}
 
 namespace lockstep
 {
@@ -394,42 +327,16 @@ namespace
         return d;
     }
 
-    // ---------------------------------------------------------------------------
-    // A fresh editor per case: gestures mutate state, so cases must not contaminate
-    // each other. Heap, always (see the Arrangement note at the top).
-    // ---------------------------------------------------------------------------
-    struct Rig
+    // The golden's state digest over a rig. Free function, not a Rig member: Rig
+    // lives in EditorRig.h and is shared with the interaction harness, while
+    // digest()/verbDigest() are this net's private business.
+    Digest snap(const Rig& rig)
     {
-        std::unique_ptr<LockstepProcessor> proc;
-        std::unique_ptr<LockstepEditor> editor;
-
-        Rig()
-        {
-            proc = std::make_unique<LockstepProcessor>();
-            proc->setRateAndBufferSizeDetails(44100.0, 512);
-
-            // PRIOR STATE (7b). A blank project makes destructive verbs invisible:
-            // Clear on an empty phrase changes nothing, so the golden would record
-            // "no observable state change" and stay green even if Clear stopped
-            // working. Seed trigs so Clear/Paste/Init have something to destroy.
-            auto& seq = proc->sequence();
-            for (std::size_t t = 0; t < 4; ++t)
-                for (int s = 0; s < 16; s += 4)
-                    seq.tracks[t].steps[static_cast<std::size_t>(s)].trig = true;
-
-            editor = std::make_unique<LockstepEditor>(*proc);
-            editor->setSize(1400, 900);
-        }
-        ~Rig() { editor.reset(); }   // editor before processor: it holds a reference
-
-        Digest snap() const
-        {
-            Digest d = digest(DispatchProbe::ui(*editor), *proc);
-            for (auto& [k, v] : verbDigest(*editor, *proc))
-                d[k] = v;
-            return d;
-        }
-    };
+        Digest d = digest(DispatchProbe::ui(*rig.editor), *rig.proc);
+        for (auto& [k, v] : verbDigest(*rig.editor, *rig.proc))
+            d[k] = v;
+        return d;
+    }
 
     juce::String renderCase(const KeyBinding& row, const Digest& base)
     {
@@ -451,12 +358,12 @@ namespace
         // `up` is what survives the release.
         const int idx = row.index >= 0 ? row.index : 0;
         (void)DispatchProbe::down(*rig.editor, CE{ CE::Type::ButtonDown, row.button, idx, 0 });
-        const Digest afterDown = rig.snap();
+        const Digest afterDown = snap(rig);
 
         DispatchProbe::up(*rig.editor, CE{ CE::Type::ButtonUp, row.button, idx, 0 });
         // Snapshot before releasing the row's modifiers: a held scope is half the
         // gesture, and releasing first would erase the state the row just produced.
-        const Digest afterUp = rig.snap();
+        const Digest afterUp = snap(rig);
 
         for (auto it = held.rbegin(); it != held.rend(); ++it)
             DispatchProbe::up(*rig.editor, CE{ CE::Type::ButtonUp, *it, 0, 0 });
@@ -537,7 +444,7 @@ namespace
                 DispatchProbe::up(*rig.editor, CE{ CE::Type::ButtonUp, *it, 0, 0 });
         }
 
-        const Digest after = rig.snap();
+        const Digest after = snap(rig);
         juce::String line;
         line << "SCENARIO " << name << "\n";
         int changes = 0;
@@ -710,7 +617,7 @@ void runCueConsoleTests(int& failed)
 
 void runDispatchGoldenTests(int& failed)
 {
-    const Digest base = Rig{}.snap();
+    const Digest base = [] { Rig r; return snap(r); }();
 
     juce::String out;
     out << "# Dispatch golden -- ROADMAP 9.12. Generated; re-bless with "
@@ -753,7 +660,7 @@ void runDispatchGoldenTests(int& failed)
     // original observable diff (track 0 falls silent). The base digest is taken WITH
     // the same setup, so scene-2 creation nets out and only the deviation shows.
     auto occupyPhrase2 = [](LockstepProcessor& p) { p.createDefaultScene(2); };
-    const Digest baseP2 = [&] { Rig r; occupyPhrase2(*r.proc); return r.snap(); }();
+    const Digest baseP2 = [&] { Rig r; occupyPhrase2(*r.proc); return snap(r); }();
     out << renderScenario("deviate track 0 to phrase 2 (persists)",
                           { { { CB::PhraseScope }, CB::Step, 2 } },
                           baseP2, occupyPhrase2)
