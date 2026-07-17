@@ -655,6 +655,67 @@ namespace lockstep
     }
 
     // -------------------------------------------------------------------------
+    // 5.3 (play-test): a held Song's selector cells carry the song's NAME and its
+    // identity COLOUR -- exactly as Scene already did. The model always built this
+    // (c.primary was populated for Song all along); the screen renderer was consuming
+    // a hand-copied predicate that had omitted songHeld, so Song showed bare numbers.
+    // This test is model-side, where the fix's payload actually lives, and it pins
+    // both halves plus the no-regression case.
+    static void testSongSelectorIdentity()
+    {
+        EngineHarness h;
+        auto& proc = h.processor();
+        EditContext ec;
+
+        // Song 2: named + coloured (palette index 3). Song 3: occupied but no identity.
+        constexpr int kNamed = 2;
+        constexpr int kBareOccupied = 3;
+        constexpr int kColourIdx = 3;
+        auto& arr = proc.arrangement();
+        arr.songs[static_cast<std::size_t>(kNamed)].initialised = true;
+        arr.songs[static_cast<std::size_t>(kBareOccupied)].initialised = true;
+        proc.setSongName(kNamed, "VERSE");
+        proc.setSongColour(kNamed, kColourIdx);
+
+        UiState ui;
+        ui.songHeld = true;
+        const auto m = buildSurfaceModel(ui, ec, nullptr, proc, 0, 0,
+                                         GridDisplayMode::Ortholinear);
+
+        // The layer the renderer branches on. Before the SSOT fix a held Song did not
+        // resolve to ScopeSelector in the copied predicate; it does in the real one.
+        CHECK(m.activeLayer == SurfaceLayer::ScopeSelector,
+              "Song held resolves to the ScopeSelector layer");
+        CHECK(layerStepRender(SurfaceLayer::ScopeSelector) == StepRenderKind::Custom,
+              "ScopeSelector has a bespoke paint branch (classifier tells the truth)");
+
+        // Name.
+        CHECK(m.step[static_cast<std::size_t>(kNamed)].primary == "VERSE",
+              "named song cell carries the name, not the slot number");
+
+        // Fill = the identity colour, not the flat scope tint. Compare against BOTH so
+        // "it changed" cannot masquerade as "it is right": the occupied alpha is 0.18.
+        const auto identity = juce::Colour(theme::identityColour(kColourIdx));
+        const auto scopeTint = scopeColourFromState(ui);
+        CHECK(m.step[static_cast<std::size_t>(kNamed)].baseColour
+                  == identity.withAlpha(0.18f).getARGB(),
+              "named+coloured song cell fills from its identity colour");
+        CHECK(m.step[static_cast<std::size_t>(kNamed)].baseColour
+                  != scopeTint.withAlpha(0.18f).getARGB(),
+              "...and NOT from the flat scope tint");
+
+        // No-regression: an occupied song with no identity still fills from scopeTint,
+        // so every existing selector (Track, Phrase, uncoloured songs) is untouched.
+        CHECK(m.step[static_cast<std::size_t>(kBareOccupied)].baseColour
+                  == scopeTint.withAlpha(0.18f).getARGB(),
+              "an uncoloured occupied song still fills from the scope tint (no regression)");
+        CHECK(m.step[static_cast<std::size_t>(kBareOccupied)].primary.isEmpty()
+                  || m.step[static_cast<std::size_t>(kBareOccupied)].primary
+                         == juce::String(kBareOccupied + 1),
+              "an unnamed song falls back to its 1-based slot number");
+    }
+
+    // -------------------------------------------------------------------------
     // 5.3 Browser (§23.2): the Scenes page lists 16 scenes (name/slot label, the
     // cursor bright, the playhead bordered); the Phrases page lists a track's 16
     // phrases with the SHR badge. Renders via the generic SurfaceLayer::Browser.
@@ -1616,6 +1677,7 @@ namespace lockstep
         testCueConsoleIndicator();
         testCueMixAffordance();
         testIdentityOverlayRender();
+        testSongSelectorIdentity();
         testBrowserOverlayRender();
         testLooperConsole();
         testTapeConsole();

@@ -273,6 +273,29 @@ namespace
                          == CaptureController::Phase::Armed;
               } },
 
+            // A held Song selector, with a named + coloured song (play-test WI-3). This
+            // is the frame that pictures the fix: before it, a held Song showed bare slot
+            // numbers in a flat tint (Scene already showed names). Set up two named,
+            // identity-coloured songs, then hold Song. reached asserts both the layer and
+            // that the identity actually took, so a scene that silently reverted could
+            // not be blessed as the fix.
+            { "song-held-named", kShipW, kShipH,
+              [](UiDriver& d) {
+                  auto& arr = d.proc().arrangement();
+                  arr.songs[1].initialised = true;
+                  arr.songs[2].initialised = true;
+                  d.proc().setSongName(1, "VERSE");
+                  d.proc().setSongColour(1, 3);
+                  d.proc().setSongName(2, "CHORUS");
+                  d.proc().setSongColour(2, 6);
+                  d.press(CB::SongScope);
+              },
+              [](UiDriver& d) {
+                  return d.ui().songHeld
+                         && std::string(d.proc().arrangement().songs[1].name) == "VERSE"
+                         && d.proc().arrangement().songs[1].colour == 3;
+              } },
+
             // A real machine's param page: eight live rotaries with labels and values,
             // which is the MZ's actual job and is otherwise never rendered by a test
             // (the rig's stub machine has no params to show).

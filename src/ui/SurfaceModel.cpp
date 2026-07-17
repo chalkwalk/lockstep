@@ -2251,6 +2251,30 @@ namespace lockstep
                     const bool isNext = cpos == 1 || isQueuedDeviation;
                     const bool isChain = cpos >= 2;
 
+                    // 5.3: an occupied Song/Scene cell wears its OWN identity colour, not
+                    // the flat scope tint -- the same rule the Browser uses
+                    // (SurfaceModel.cpp Scene branch below). The alpha ladder that
+                    // encodes cell STATE (current/next/chain/...) is applied on top of
+                    // whichever tint that is, so state stays readable either way. Scopes
+                    // with no identity (Track, Phrase) and unset entities keep scopeTint,
+                    // so those cells render exactly as before. The border and badge stay
+                    // scopeTint (in the paint path) so the SCOPE is still legible once the
+                    // fill goes identity-coloured.
+                    int identityIdx = -1;
+                    if (avail && !isEmpty)
+                    {
+                        if (ui.songHeld)
+                            identityIdx = proc.arrangement()
+                                .songs[static_cast<std::size_t>(i)].colour;
+                        else if (ui.sceneHeld)
+                            identityIdx = proc.arrangement()
+                                .songs[static_cast<std::size_t>(proc.activePieceIdx())]
+                                .scenes[static_cast<std::size_t>(i)].colour;
+                    }
+                    const juce::Colour tint = identityIdx >= 0
+                        ? juce::Colour(theme::identityColour(identityIdx))
+                        : scopeTint;
+
                     // CellState token + fill colour
                     if (!avail)
                     {
@@ -2265,28 +2289,28 @@ namespace lockstep
                     else if (isNext)
                     {
                         c.base = CellState::SelectorNext;
-                        c.baseColour = scopeTint.withAlpha(0.80f).getARGB();
+                        c.baseColour = tint.withAlpha(0.80f).getARGB();
                     }
                     else if (isChain)
                     {
                         c.base = CellState::SelectorChain;
-                        c.baseColour = scopeTint.withAlpha(0.42f).getARGB();
+                        c.baseColour = tint.withAlpha(0.42f).getARGB();
                     }
                     else if (isDeviated)
                     {
                         // Phrase currently playing due to a live track deviation.
                         c.base = CellState::SelectorDeviated;
-                        c.baseColour = scopeTint.withAlpha(0.70f).getARGB();
+                        c.baseColour = tint.withAlpha(0.70f).getARGB();
                     }
                     else if (isCurrent)
                     {
                         c.base = CellState::SelectorCurrent;
-                        c.baseColour = juce::Colours::white.interpolatedWith(scopeTint, 0.30f).getARGB();
+                        c.baseColour = juce::Colours::white.interpolatedWith(tint, 0.30f).getARGB();
                     }
                     else
                     {
                         c.base = CellState::SelectorOccupied;
-                        c.baseColour = scopeTint.withAlpha(0.18f).getARGB();
+                        c.baseColour = tint.withAlpha(0.18f).getARGB();
                     }
 
                     // Dual-marker (DESIGN §4.7): border the scene's global/home

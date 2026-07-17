@@ -1717,7 +1717,14 @@ namespace lockstep
 
         // MHZ.2.1: scope re-skin — Slice 4: consume model.step[] built by builder.
         // Fill and pressed derive from model; border, text, badge stay inline.
-        const bool scopeReskin = uiState_.trackHeld || uiState_.phraseScopeHeld || uiState_.sceneHeld;
+        //
+        // Consume the resolved layer the model already hoists (SurfaceModel.h:
+        // activeLayer, SSOT resolveActiveLayer), NOT a hand-copied predicate. The copy
+        // had drifted: it listed Track/Phrase/Scene but not Song, so a held Song showed
+        // bare slot numbers while Scene showed names -- and the builder was populating
+        // c.primary for Song all along. resolveActiveLayer is also precedence-correct
+        // (Euclid, Mute, LengthEdit outrank the selector) where a raw OR is not.
+        const bool scopeReskin = (model.activeLayer == SurfaceLayer::ScopeSelector);
         if (scopeReskin)
         {
             const juce::Colour scopeTint = scopeColourFromState(uiState_);

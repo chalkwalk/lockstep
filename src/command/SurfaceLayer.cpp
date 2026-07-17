@@ -193,6 +193,7 @@ namespace lockstep
             case SurfaceLayer::MuteRelaunchView: // uiState_.muteHeld branch
             case SurfaceLayer::MuteView:         // uiState_.muteHeld branch
             case SurfaceLayer::MorphStepView:    // uiState_.morphHeld && !funcHeld
+            case SurfaceLayer::ScopeSelector:    // KeyboardArea.cpp scopeReskin branch
             case SurfaceLayer::LooperConsole:    // activeLayer == LooperConsole
             case SurfaceLayer::MachineConsole:   // activeLayer == MachineConsole
                 return StepRenderKind::Custom;
@@ -207,7 +208,6 @@ namespace lockstep
             case SurfaceLayer::ChromaticInput:
             case SurfaceLayer::LevelsInput:
             case SurfaceLayer::LengthEdit:
-            case SurfaceLayer::ScopeSelector:
             case SurfaceLayer::Base:
                 return StepRenderKind::Sequencer;
         }
