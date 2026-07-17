@@ -915,7 +915,40 @@ Also pins **LATCH IMPLIES HELD**: `keyPressed` doesn't OR the latch into
 `qwerty_.resolve` (everything else does) and is correct only because
 `CommandCore::handleUp` never clears `xxxHeld` while latched. The suspected
 divergence was not real; the invariant holding it up now has a test. Tier 3
-(offscreen pixel rendering) deferred — no consumer yet.
+(offscreen pixel rendering) deferred — shipped as 9.35.
+
+### 9.35 — The UI, seen  *[SHIPPED 2026-07-16]*
+9.34's Tier 3, plus the geometry duplication it existed to protect. Nothing
+verified what was *drawn*: a lost transform, a paint/hit-test drift or a colour
+regression stayed invisible because no test rendered pixels.
+
+**Inter, embedded, product-wide** (`assets/fonts/`, OFL-1.1 — see THIRDPARTY.md).
+Every Font in `src/` names no family, so the surface rendered in whatever each
+machine called "sans": a look nobody chose, and glyphs that were never the same
+twice. The hook must be `getTypefaceForFont` on the **default** LookAndFeel — a
+typeface-less Font never consults the component's — hence
+`installProductLookAndFeel()`. Bold resolves to the real Bold cut; one face for
+both would render every bold label regular, legibly and wrongly.
+
+**Three visual layers, cheapest first.** `surface()` (the model) → the **region
+oracle** (per-cell: the model's colour vs the rendered median at the cell the
+product's own hit test claims — no golden file, so a deliberate restyle needs no
+re-blessing; runs 3 scales × 3 display modes) → **scene goldens** (6 blessed
+frames for the chrome that has no model; fuzzy by necessity, `LOCKSTEP_REGEN_GOLDEN=1`).
+Rests on renders being reproducible: `ManipulationZone`/`TimelineStrip` no longer
+read the wall clock mid-paint (`setAnimClockMs`, now guarded).
+
+**Step geometry has one owner** (`boundsForStep`/`gridCellBounds`). Paint and hit
+test each computed the layout, hand-mirrored across all three display modes;
+`stepCellAt` is now their inverse *by construction*. Landed with the region test
+green before and after. Function row is the same disease, untouched.
+
+**Drags** (`dragPhysical`/`dragMZSlider`): the MZ arms P-Lock capture in
+`onDragStart`, so `setValue` can never test where a value lands. The parity sweep
+went 19/22 → 22/22 — and the plan's explanation was wrong: measured, the signature
+(mzOff/mzOrg) closes it alone, the fixture never mattered. Both numbers anyone had
+asserted in this arc turned out wrong when measured; the scene budget likewise
+cleared an obvious canary by only 1.2× until tightened 10×.
 
 ## Phase 5 — Performance Depth  *[partial: 5.1/5.2/5.7/5.7c/5.10 shipped; 5.3 next (active arc); 5.4/5.8/5.9 open]*
 

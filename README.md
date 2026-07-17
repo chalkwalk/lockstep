@@ -2325,9 +2325,15 @@ edits alike ([§5.7](#57-parameter-editing-p-locks),
 
 Lockstep is released under the **GPL**. Time-stretching and pitch-shifting for the
 sample players (Stretch, Stream) use the **Bungee** engine (MPL-2.0), which vendors
-**Eigen** (MPL-2.0) and **PFFFT** (BSD-like) — all GPL-compatible. See
-[`THIRDPARTY.md`](THIRDPARTY.md) for the full component list and the MPL
-file-level-copyleft obligation.
+**Eigen** (MPL-2.0) and **PFFFT** (BSD-like) — all GPL-compatible. The surface renders
+in **Inter** (SIL Open Font License 1.1), embedded in the binary from
+`assets/fonts/`. See [`THIRDPARTY.md`](THIRDPARTY.md) for the full component list and
+the MPL file-level-copyleft obligation.
+
+**The typeface is part of the instrument.** Lockstep ships Inter and renders every
+label with it rather than asking the host machine for "a sans-serif". The surface then
+looks the same on every machine — you can read a screenshot of someone else's set, and
+the layout cannot shift under you because a distro changed its default font.
 
 **A440 tuning.** Sample, Slice and Stretch expose an **A440** mode (`Auto` / `Raw`):
 in **Auto** (the default) a sample plays with its detected tuning deviation cancelled

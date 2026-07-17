@@ -14,6 +14,19 @@ all GPL-compatible. This file records their licences and any obligations.
 | **PFFFT** | `modules/bungee/submodules/pffft/` | BSD-like (FFTPACK-derived) | FFT backend for Bungee. |
 | **Signalsmith DSP** | `modules/signalsmith-dsp/` (submodule) | MIT | Header-only DSP primitives: fractional-delay interpolators (Lagrange/Kaiser-sinc/Hermite), biquad/allpass filters, envelopes, spectral. Vendored + `-Werror`/C++20-validated in the test suite (9.24 S1) and available for future use. *In practice the shipped 9.24 effects use the project's own 4-point `hermite4` (`src/dsp/Interpolation.h`) for fractional taps — already needed by SamplePlayer — and a homegrown FIR Hilbert for the SSB frequency shifter (Signalsmith ships no Hilbert), so Signalsmith is currently a validated dependency rather than a load-bearing one.* |
 
+## Fonts
+
+| Component | Path | Licence | Notes |
+|-----------|------|---------|-------|
+| **Inter** | `assets/fonts/Inter-{Regular,Bold}.ttf` | **OFL-1.1** (`assets/fonts/OFL.txt`) | The product typeface (9.35). Inter 4.1 upstream; the two static cuts the surface asks for, embedded via `juce_add_binary_data(lockstep_fonts …)` and installed as the default LookAndFeel's typeface. The variable font is deliberately not vendored — a face instanced per size is exactly the render nondeterminism the embed exists to remove. |
+
+**OFL-1.1 obligation.** The licence permits bundling and redistribution with software,
+including sale of that software, provided the font itself is not sold on its own and
+the licence text travels with it (`assets/fonts/OFL.txt`, embedded copies excepted).
+The Reserved Font Name is *Inter*: a **modified** version may not be distributed under
+that name. Lockstep ships the cuts unmodified, so no rename is required — but that
+constraint binds anyone who re-generates or subsets them.
+
 ## MPL-2.0 obligation (Bungee + Eigen)
 
 The Mozilla Public License 2.0 is **file-level copyleft** and is GPL-compatible
