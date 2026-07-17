@@ -781,6 +781,12 @@ void runDispatchGoldenTests(int& failed)
 }
 }   // namespace lockstep
 
+namespace lockstep
+{
+    // Defined in UiDriverSelfTest.cpp -- the interaction harness proving itself.
+    void runUiDriverSelfTests(int& failed);
+}
+
 int main()
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
@@ -789,6 +795,7 @@ int main()
     lockstep::runChromeLayoutTests(failed);
     lockstep::runCueGestureTests(failed);
     lockstep::runCueConsoleTests(failed);
+    lockstep::runUiDriverSelfTests(failed);
     std::fprintf(stderr, failed == 0 ? "All dispatch golden tests passed.\n"
                                      : "%d dispatch golden test(s) FAILED.\n", failed);
     return failed == 0 ? 0 : 1;
