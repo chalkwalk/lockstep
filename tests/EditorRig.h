@@ -150,6 +150,47 @@ namespace lockstep
             return img;
         }
 
+        // The bounding box of a step cell, in KeyboardArea-LOCAL (design) coordinates.
+        //
+        // Same principle as centerOfStep below -- SCAN the product's own hit test, do
+        // not recompute the layout -- but keeping the extent, not just the centroid, so
+        // a region of the cell can be examined rather than a single pixel. Empty if the
+        // cell is not on screen.
+        //
+        // The 2 px scan step costs up to 2 px of extent per side. Every caller insets
+        // the result substantially, so it does not matter; if one ever does not, it
+        // should scan at 1 px rather than trust this to be tight.
+        static juce::Rectangle<int> stepCellBounds(LockstepEditor& ed, int absIdx)
+        {
+            auto& kb = ed.keyboardArea_;
+            int minX = kb.getWidth(), minY = kb.getHeight(), maxX = -1, maxY = -1;
+            for (int y = 0; y < kb.getHeight(); y += 2)
+            {
+                for (int x = 0; x < kb.getWidth(); x += 2)
+                {
+                    if (kb.stepCellAt({ x, y }) != absIdx)
+                        continue;
+                    minX = juce::jmin(minX, x);
+                    minY = juce::jmin(minY, y);
+                    maxX = juce::jmax(maxX, x);
+                    maxY = juce::jmax(maxY, y);
+                }
+            }
+            if (maxX < 0)
+                return {};
+            return juce::Rectangle<int>::leftTopRightBottom(minX, minY, maxX + 1, maxY + 1);
+        }
+
+        // A section-row cell's bounds, from the accessor the PAINT path uses
+        // (sectionCellBounds + computeRowAreas), in KeyboardArea-local coordinates.
+        // The section row already has a shared geometry owner, so there is nothing to
+        // scan for -- this is the shape the step row is being moved towards (WI-4).
+        static juce::Rectangle<int> sectionCellBounds(LockstepEditor& ed, int cellIdx)
+        {
+            auto& kb = ed.keyboardArea_;
+            return kb.sectionCellBounds(cellIdx, kb.computeRowAreas().section);
+        }
+
         // The centre of a step cell, in KeyboardArea-LOCAL (design) coordinates.
         //
         // Found by SCANNING the real hit test (KeyboardArea::stepCellAt) rather than
