@@ -455,6 +455,28 @@ namespace lockstep
         GridDisplayMode gridMode_ = GridDisplayMode::Staggered;
         juce::ApplicationProperties appProps_;
 
+        // 5.3 Item E: uniform UI scale. The editor lays out in a FIXED design canvas
+        // (kDesignW x kDesignH) and every child carries an AffineTransform::scale so
+        // the whole surface (fonts included) enlarges crisply. The window is
+        // resizable with a locked aspect ratio; the scale is derived from the actual
+        // width. Persisted with Item A's discipline (never written on construction).
+        static constexpr int kDesignW = 990;
+        static constexpr int kDesignH = 626;
+        double uiScale_ = 1.2;              // default; overridden from prefs
+        double lastPersistedScale_ = -1.0;  // avoid redundant pref writes
+        void applyChildScale();             // stamp scale transform on every child
+        void persistUiScale();              // explicit-change write (Item A discipline)
+
+        // Aspect-locked constrainer whose resizeEnd persists the scale — so a
+        // programmatic setSize (construction, tests) never writes prefs, and an
+        // interactive drag writes exactly once when the user lets go.
+        struct ScaleConstrainer : juce::ComponentBoundsConstrainer
+        {
+            std::function<void()> onResizeEnd;
+            void resizeEnd() override { if (onResizeEnd) onResizeEnd(); }
+        };
+        ScaleConstrainer scaleConstrainer_;
+
         // Diagnostic metering state — UI-thread copies with ballistic decay,
         // updated each timerCallback() from the processor's atomic meters.
         std::array<float, kNumTracks> trackMeter_{};

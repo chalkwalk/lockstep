@@ -1245,7 +1245,24 @@ namespace lockstep
         keyboardArea_.setPressTracker(&pressTracker_);
 
 
-        setSize(990, 626);  // MHX 4x2 MZ band; S8: +22 permanent timeline strip row
+        // 5.3 Item E: uniform UI scale + aspect-locked resizable window. Read the
+        // persisted scale (Item A discipline: apply on construction WITHOUT writing).
+        // Default 1.2 for immediate legibility; drag the window to taste. The layout
+        // stays on the fixed kDesignW x kDesignH canvas; applyChildScale (in resized)
+        // stamps the scale transform on every child so the whole surface enlarges.
+        if (auto* prefs = appProps_.getUserSettings())
+            uiScale_ = juce::jlimit(0.75, 3.0, prefs->getDoubleValue("uiScale", 1.2));
+
+        scaleConstrainer_.setFixedAspectRatio(
+            static_cast<double>(kDesignW) / static_cast<double>(kDesignH));
+        scaleConstrainer_.setSizeLimits(kDesignW * 3 / 4, kDesignH * 3 / 4,
+                                        kDesignW * 3, kDesignH * 3);
+        scaleConstrainer_.onResizeEnd = [this] { persistUiScale(); };
+        setConstrainer(&scaleConstrainer_);
+        setResizable(true, true);
+        lastPersistedScale_ = uiScale_;   // ctor size is not a user change
+        setSize(juce::roundToInt(kDesignW * uiScale_),
+                juce::roundToInt(kDesignH * uiScale_));   // MHX 4x2 MZ band; +22 timeline row
         setWantsKeyboardFocus(true);
 
         // Controller surfaces (DESIGN §35).
@@ -2426,7 +2443,11 @@ namespace lockstep
         // its own, so its meter is its fader. The per-track VU drags this replaced
         // are gone -- the MIXER band is where track levels are played.
         masterDrag_ = {};
-        if (e.eventComponent == this && masterChromeRegion_.contains(e.getPosition()))
+        // 5.3 Item E: the editor draws masterChromeRegion_ in logical coords but its
+        // own mouse events arrive in physical (scaled) coords — map back to logical.
+        const auto logicalPos =
+            (e.position / static_cast<float>(uiScale_)).roundToInt();
+        if (e.eventComponent == this && masterChromeRegion_.contains(logicalPos))
         {
             if (auto* p = processor_.apvts().getParameter(ParamIDs::outputGain))
             {
@@ -2512,12 +2533,18 @@ namespace lockstep
 
     void LockstepEditor::paint(juce::Graphics& g)
     {
-        g.fillAll(juce::Colour::fromRGB(20, 22, 26));
+        g.fillAll(juce::Colour::fromRGB(20, 22, 26));  // backdrop fills the full window
+        // 5.3 Item E: editor-owned painting is authored in the logical design canvas;
+        // the scale transform enlarges it to match the scaled children.
+        g.addTransform(juce::AffineTransform::scale(static_cast<float>(uiScale_)));
         paintMeters(g);  // per-track VU underlaid behind the track buttons
     }
 
     void LockstepEditor::paintOverChildren(juce::Graphics& g)
     {
+        // 5.3 Item E: match the child scale for all editor-owned overlays below.
+        g.addTransform(juce::AffineTransform::scale(static_cast<float>(uiScale_)));
+
         // Persistent per-track state overlays FIRST — they must show in every mode
         // (incl. the unmodified resting state). The held-context preview below
         // early-returns when nothing is held, so these have to precede it.
@@ -2615,11 +2642,10 @@ namespace lockstep
         g.setColour(juce::Colour::fromRGB(255, 180, 50).withAlpha(0.12f));
         g.fillAll();
         g.setColour(juce::Colour::fromRGB(255, 180, 50).withAlpha(0.7f));
-        g.drawRect(getLocalBounds().reduced(4), 2);
+        const auto canvas = juce::Rectangle<int>(0, 0, kDesignW, kDesignH);  // logical
+        g.drawRect(canvas.reduced(4), 2);
         g.setFont(juce::Font(juce::FontOptions(16.0f)).boldened());
-        g.drawText("Drop to add to pool",
-                   getLocalBounds(),
-                   juce::Justification::centred);
+        g.drawText("Drop to add to pool", canvas, juce::Justification::centred);
     }
 
     // -------------------------------------------------------------------------
@@ -7345,9 +7371,49 @@ namespace lockstep
         }
     }
 
+    // 5.3 Item E: stamp the current UI scale onto every direct child so the whole
+    // surface renders enlarged from the fixed design-canvas layout. getChildren()
+    // covers all children generically (every one is added in the constructor), so a
+    // new child can never be silently left at 1x.
+    void LockstepEditor::applyChildScale()
+    {
+        const auto t = juce::AffineTransform::scale(static_cast<float>(uiScale_));
+        for (auto* child : getChildren())
+            if (child != nullptr)
+                child->setTransform(t);
+    }
+
+    // Persist the UI scale with Item A's discipline: only on an explicit change
+    // (a user resize), never on construction, and only when it actually moved — so a
+    // stream of resize frames does not thrash the shared prefs file.
+    void LockstepEditor::persistUiScale()
+    {
+        if (std::abs(uiScale_ - lastPersistedScale_) < 1.0e-4)
+            return;
+        lastPersistedScale_ = uiScale_;
+        if (auto* prefs = appProps_.getUserSettings())
+        {
+            prefs->setValue("uiScale", uiScale_);
+            prefs->saveIfNeeded();
+        }
+    }
+
     void LockstepEditor::resized()
     {
-        auto bounds = getLocalBounds();
+        // 5.3 Item E: derive the scale from the actual (aspect-locked) width, stamp it
+        // on every child, then lay out on the FIXED design canvas. All child bounds and
+        // every editor-painted region below are in logical (kDesignW x kDesignH) space;
+        // the per-child transform (and the g.addTransform in paint) enlarge them.
+        uiScale_ = (getWidth() > 0)
+                       ? juce::jlimit(0.5, 4.0, static_cast<double>(getWidth()) / kDesignW)
+                       : uiScale_;
+        applyChildScale();
+        // Persistence is NOT here: resized() also fires for programmatic setSize
+        // (construction, tests) and for every frame of an interactive drag. The
+        // constrainer's resizeEnd (wired in the ctor) persists once, on the user's
+        // explicit resize only — Item A's discipline applied to the scale.
+
+        auto bounds = juce::Rectangle<int>(0, 0, kDesignW, kDesignH);
 
         // (9.30 st.5: the full-width master strip that used to sit here is GONE. The
         //  meter is now a vertical column beside the crossfader — see the MZ block
@@ -7500,7 +7566,7 @@ namespace lockstep
         // and the nav row. Give it the remaining space; it handles the internal layout.
         keyboardArea_.setBounds(bounds);
 
-        greyoutLayer_.setBounds(getLocalBounds());
+        greyoutLayer_.setBounds(0, 0, kDesignW, kDesignH);   // full logical canvas (Item E)
 
         poolOverlay_.setBounds(manipulationZone_.getBounds()
                                    .withBottom(keyboardArea_.getY() + keyboardArea_.stepRowsLocalY()));
