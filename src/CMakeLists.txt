@@ -7,6 +7,24 @@ endif()
 add_subdirectory(deckcore)
 
 # ---------------------------------------------------------------------------
+# Embedded product typeface (Inter, OFL-1.1 — see assets/fonts/OFL.txt).
+#
+# The surface renders with the SAME glyphs everywhere: a platform-default sans
+# varies by distro and by machine, which is both a look the product never chose
+# and the reason a rendered frame could not be compared against a golden. Only
+# the two static cuts the product actually asks for are embedded (every Font in
+# src/ is either plain or .boldened()); the variable font is not, because a
+# typeface JUCE has to instance per size is exactly the nondeterminism this
+# removes.
+# ---------------------------------------------------------------------------
+juce_add_binary_data(lockstep_fonts
+    NAMESPACE LockstepFonts
+    HEADER_NAME LockstepFonts.h
+    SOURCES
+        ${CMAKE_SOURCE_DIR}/assets/fonts/Inter-Regular.ttf
+        ${CMAKE_SOURCE_DIR}/assets/fonts/Inter-Bold.ttf)
+
+# ---------------------------------------------------------------------------
 # Shared core static library: sequencer, machine, IO, state. Linked into
 # the plugin target so the same code drives every format.
 # ---------------------------------------------------------------------------
@@ -151,6 +169,7 @@ target_sources(Lockstep
     PRIVATE
         PluginEditorFactory.cpp
         PluginEditor.cpp
+        ui/ChromeLookAndFeel.cpp
         ui/KeyButton.cpp
         ui/KeyboardArea.cpp
         ui/MetaBand.cpp
@@ -175,6 +194,7 @@ target_sources(Lockstep
 target_link_libraries(Lockstep
     PRIVATE
         lockstep_engine
+        lockstep_fonts
         juce::juce_audio_plugin_client
     PUBLIC
         juce::juce_recommended_config_flags

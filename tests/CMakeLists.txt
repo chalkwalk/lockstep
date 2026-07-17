@@ -138,8 +138,10 @@ add_executable(lockstep_dispatch_tests
     UiDriverSelfTest.cpp
     SyntheticKeyboardTest.cpp
     SyntheticMouseTest.cpp
+    ProductTypefaceTest.cpp
     ../src/PluginEditorFactory.cpp   # the real createEditor() (not the test stub)
     ../src/PluginEditor.cpp
+    ../src/ui/ChromeLookAndFeel.cpp
     ../src/ui/KeyButton.cpp
     ../src/ui/KeyboardArea.cpp
     ../src/ui/MetaBand.cpp
@@ -163,6 +165,7 @@ add_executable(lockstep_dispatch_tests
 
 target_link_libraries(lockstep_dispatch_tests PRIVATE
     lockstep_engine
+    lockstep_fonts
     juce::juce_gui_extra
     juce::juce_gui_basics
     juce::juce_core

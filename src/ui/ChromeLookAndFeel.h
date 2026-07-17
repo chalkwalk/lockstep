@@ -74,6 +74,17 @@ namespace lockstep
             setColour(juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
         }
 
+        // The product typeface. Every Font in src/ is the unnamed default sans, so this
+        // one hook decides what the WHOLE surface renders with -- not just the chrome
+        // this class is otherwise about.
+        //
+        // It has to live on a LookAndFeel because that is the only seam JUCE offers: a
+        // typeface-less Font resolves through LookAndFeel::getDefaultLookAndFeel(), NOT
+        // through the component's look-and-feel (juce_Font.cpp:110). Hence
+        // installProductLookAndFeel() below -- the editor's own chromeLnf_ member can
+        // never serve, whatever it is set on.
+        juce::Typeface::Ptr getTypefaceForFont(const juce::Font&) override;
+
         juce::Font getTextButtonFont(juce::TextButton&, int /*buttonHeight*/) override
         {
             return juce::Font(juce::FontOptions(kFontH));
@@ -149,4 +160,9 @@ namespace lockstep
             label.setJustificationType(juce::Justification::centredLeft);
         }
     };
+
+    // Install the product look (and with it the embedded typeface) as JUCE's default.
+    // Idempotent; call it from the editor's constructor. See ChromeLookAndFeel.cpp for
+    // why the instance is a process-lifetime one and not the editor's member.
+    void installProductLookAndFeel();
 }

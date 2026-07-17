@@ -837,6 +837,11 @@ namespace lockstep
           editorEffects_(std::make_unique<EditorEffects>(*this)),
           soundBankOverlay_(proc)
     {
+        // The embedded product typeface, on JUCE's DEFAULT look-and-feel. It cannot ride
+        // on chromeLnf_ below: a Font that names no typeface (all of ours) resolves
+        // through the default look-and-feel, never through the component's.
+        installProductLookAndFeel();
+
         // The chrome look, installed on the editor so EVERY child inherits it -- the
         // file bar, the transport, the rail buttons and the combo boxes were each
         // styled (or not styled) where they were built, which is why the same widget
