@@ -114,6 +114,29 @@ namespace
                 ++trigs;
         check(trigs == 4, "paste landed track 0's four trigs on track 5");
     }
+    // surface() must reflect the LIVE editor, or an interaction test would be
+    // asserting on a stub that happens to sit nearby. Held keys are the sharpest
+    // proof available: the model reads them from the same PressTracker the real
+    // paint path passes, so a synthetic press has to show up as a pressed cell.
+    void testSurfaceReflectsLiveState(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [UiDriver/surface] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        check(!d.surface().step[0].pressed, "baseline: step 0's cell is not pressed");
+
+        // Hold 'D' (step 0's key) without releasing. The model reads presses from the
+        // same PressTracker the real paint path passes it, so the synthetic key has
+        // to appear -- on exactly step 0's cell and no other.
+        d.keyDown('D');
+        check(d.surface().step[0].pressed, "a held key shows as its own cell, pressed");
+        check(!d.surface().step[1].pressed, "and not as its neighbour's");
+
+        d.keyUp('D');
+        check(!d.surface().step[0].pressed, "releasing the key un-presses the cell");
+    }
 }   // namespace
 
 void runUiDriverSelfTests(int& failed)
@@ -121,5 +144,6 @@ void runUiDriverSelfTests(int& failed)
     testDoubleTapWindow(failed);
     testCueConsoleLongPress(failed);
     testCopyPasteReadsAsProse(failed);
+    testSurfaceReflectsLiveState(failed);
 }
 }   // namespace lockstep

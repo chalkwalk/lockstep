@@ -113,6 +113,22 @@ namespace lockstep
 
         static KeyboardArea& keyboard(LockstepEditor& ed) noexcept { return ed.keyboardArea_; }
 
+        // The surface model the LIVE editor would paint right now.
+        //
+        // Mirrors KeyboardArea::paint's buildSurfaceModel call exactly (same args,
+        // same order) -- that is the whole point: an interaction test asserts on what
+        // the screen WOULD show after the gesture, not on a model assembled from
+        // stubs. If paint's argument list ever changes, this must change with it or
+        // the harness starts describing a surface nobody sees.
+        static SurfaceModel surface(LockstepEditor& ed)
+        {
+            auto& kb = ed.keyboardArea_;
+            return buildSurfaceModel(kb.uiState_, ed.processor_.editContext(), kb.pressTracker_,
+                                     ed.processor_, kb.uiState_.activeTrack, kb.stepPage_,
+                                     kb.displayMode_, kb.slotOffset_, kb.crossfaderValue_,
+                                     kb.morphView_);
+        }
+
         // The centre of a step cell, in KeyboardArea-LOCAL (design) coordinates.
         //
         // Found by SCANNING the real hit test (KeyboardArea::stepCellAt) rather than

@@ -897,6 +897,26 @@ editor so every chrome child inherits it; a base, not a straitjacket
 a per-component colour override that doesn't claim `// semantic colour:
 <reason>`. DESIGN §42.2a.
 
+### 9.34 — The UI, driven like a human drives it  *[SHIPPED 2026-07-16]*
+`tests/UiDriver.h` (in `lockstep_dispatch_tests`): interaction tests written as
+gesture verbs against a real headless editor — `press/tap/doubleTap/longPress/
+chord/step` at the ControllerEvent layer, `keyTap`/`clickStep`/`clickDesign`
+through the REAL scancode and mouse paths, `surface()` for what the editor would
+actually paint. Closes the two layers the golden net enters below (QWERTY resolve
++ repeat/release, and mouse hit-testing through Item E's UI-scale transform — the
+bug class no headless test could see).
+
+Rests on the editor having ONE clock (`nowMs()`, enforced by
+`ClockFunnelGuardTest`): time is frozen and advanced, never slept through, so a
+gesture boundary can be asserted from both sides (kDoubleTapMs ±10) — which a
+wall-clock test cannot do at all. Dispatch golden 12.3s → 6.2s, byte-identical.
+
+Also pins **LATCH IMPLIES HELD**: `keyPressed` doesn't OR the latch into
+`qwerty_.resolve` (everything else does) and is correct only because
+`CommandCore::handleUp` never clears `xxxHeld` while latched. The suspected
+divergence was not real; the invariant holding it up now has a test. Tier 3
+(offscreen pixel rendering) deferred — no consumer yet.
+
 ## Phase 5 — Performance Depth  *[partial: 5.1/5.2/5.7/5.7c/5.10 shipped; 5.3 next (active arc); 5.4/5.8/5.9 open]*
 
 The depth pass on top of the frozen surface: timing feel, scenes, pattern/part

@@ -219,6 +219,9 @@ namespace lockstep::test
         }
 
         // -- observation ---------------------------------------------------------
+        // What the live editor would paint right now -- so a test can assert on the
+        // surface a gesture produces, not merely on the state behind it.
+        [[nodiscard]] SurfaceModel surface() { return DispatchProbe::surface(editor()); }
         [[nodiscard]] const UiState& ui() const { return DispatchProbe::ui(*rig_.editor); }
         [[nodiscard]] int activeTrack() const { return DispatchProbe::activeTrack(*rig_.editor); }
         [[nodiscard]] LockstepProcessor& proc() { return *rig_.proc; }
