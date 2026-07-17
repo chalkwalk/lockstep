@@ -139,6 +139,7 @@ add_executable(lockstep_dispatch_tests
     SyntheticKeyboardTest.cpp
     SyntheticMouseTest.cpp
     ProductTypefaceTest.cpp
+    SurfaceRenderTest.cpp
     ../src/PluginEditorFactory.cpp   # the real createEditor() (not the test stub)
     ../src/PluginEditor.cpp
     ../src/ui/ChromeLookAndFeel.cpp

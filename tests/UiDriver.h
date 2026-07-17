@@ -222,6 +222,21 @@ namespace lockstep::test
         // What the live editor would paint right now -- so a test can assert on the
         // surface a gesture produces, not merely on the state behind it.
         [[nodiscard]] SurfaceModel surface() { return DispatchProbe::surface(editor()); }
+
+        // Tier 3: the actual pixels. surface() says what the editor MEANS to draw;
+        // this is what it draws. The gap between the two is where a lost transform, a
+        // paint/hit-test drift or a colour regression lives -- all invisible to every
+        // other verb here.
+        [[nodiscard]] juce::Image render() { return DispatchProbe::render(editor()); }
+
+        // Render at a specific window size. setSize drives resized(), which is where
+        // the editor re-derives uiScale_ and re-stamps every child's transform -- so
+        // this is how a test asks "does it still hold together at 1.2x?".
+        [[nodiscard]] juce::Image renderAt(int w, int h)
+        {
+            editor().setSize(w, h);
+            return render();
+        }
         [[nodiscard]] const UiState& ui() const { return DispatchProbe::ui(*rig_.editor); }
         [[nodiscard]] int activeTrack() const { return DispatchProbe::activeTrack(*rig_.editor); }
         [[nodiscard]] LockstepProcessor& proc() { return *rig_.proc; }

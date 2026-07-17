@@ -40,6 +40,15 @@ namespace lockstep
         void timerCallback() override;
         void mouseDown(const juce::MouseEvent& e) override;
 
+        // The animation phase clock, pushed from the editor's ONE clock (§20; see
+        // LockstepEditor::nowMs). Purely cosmetic -- it drives the CC-learn pulse --
+        // but it used to be an inline wall-clock read at paint time, which meant two
+        // paints of identical state produced different pixels. That is fine for an eye
+        // and fatal for a rendered-frame comparison, so the phase now arrives from
+        // outside instead of being fetched from the world mid-paint. Resting at 0 is a
+        // valid phase, so a component nobody pushes to still paints.
+        void setAnimClockMs(double ms) noexcept { animClockMs_ = ms; }
+
         // Set the base slot offset within the 48-slot frame.
         // Slot i in the zone maps to absolute slot (slotOffset_ + i).
         void setSlotOffset(int offset);
@@ -162,6 +171,7 @@ namespace lockstep
         std::array<juce::TextButton, kNumSlots> clearBtns_;
         juce::TextButton samplePickerBtn_;  // replaces sliders_[i] when a sample slot is in view
         bool updatingFromTimer_ = false;
+        double animClockMs_ = 0.0;   // see setAnimClockMs
 
         // Incremental-delta tracking for on-screen density master edits.
         // JUCE RotaryHorizontalVerticalDrag accumulates from the drag origin and

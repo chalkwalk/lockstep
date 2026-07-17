@@ -19,10 +19,20 @@
 // test enforces it: the editor's sources may contain exactly one read of JUCE's
 // millisecond counter -- the one inside nowMs(), marked `// clock funnel owner`.
 //
-// If you are here because this test failed: call nowMs() instead. It is private
-// and lives in PluginEditor.h. Cosmetic paint clocks in KeyboardArea /
-// ManipulationZone / TimelineStrip are deliberately NOT covered -- they drive
-// animation phase, never a gesture decision, and no test asserts on them.
+// The cosmetic paint clocks were exempt for one stated reason: they drive animation
+// phase, never a gesture decision, and no test asserted on them. Tier 3 made the
+// second half false. A frame is now rendered and compared, so a paint that reads the
+// wall clock is a paint whose output depends on WHEN it ran -- the same state renders
+// twice as two different images, and every comparison downstream becomes a coin toss
+// that fails once in a while for no reason anyone can reproduce. So they are covered
+// now too: ManipulationZone and TimelineStrip take their phase from the editor via
+// setAnimClockMs(), and may read no clock of their own.
+//
+// If you are here because this test failed: in the editor, call nowMs() (private, in
+// PluginEditor.h). In a painting component, take the value from outside -- add a
+// setter the editor pushes nowMs() into from its timer, as those two do. A component
+// that fetches the time mid-paint cannot be rendered reproducibly, whatever else it
+// gets right.
 
 #include "TestHarness.h"
 
@@ -32,10 +42,15 @@ namespace lockstep
 {
 namespace
 {
-    // The editor owns the gesture clock; both halves of it are scanned.
+    // The editor owns the gesture clock; both halves of it are scanned. The two
+    // painting components are scanned for the Tier 3 reason above -- they own no clock
+    // at all, so any read in them is an offence (only nowMs()'s own read, in
+    // PluginEditor.h, carries the marker).
     const char* const kEditorFiles[] = {
         "PluginEditor.cpp",
         "PluginEditor.h",
+        "ui/ManipulationZone.cpp",
+        "ui/TimelineStrip.cpp",
     };
 
     const char* const kMarker = "// clock funnel owner";

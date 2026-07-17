@@ -106,11 +106,13 @@ namespace lockstep
             g.fillRect(mx, reel.getY(), glow > 0.5f ? 2 : 1, reel.getHeight());
         }
 
-        // Playhead cursor — bright, and pulsing while recording (wall-clock sine).
+        // Playhead cursor — bright, and pulsing while recording (sine on the editor's
+        // clock, pushed in via setAnimClockMs; a paint that fetched the time itself
+        // could not be rendered twice the same).
         float pulse = 1.0f;
         if (model_.recording)
         {
-            const double t = static_cast<double>(juce::Time::getMillisecondCounter()) * 0.006;
+            const double t = animClockMs_ * 0.006;
             pulse = 0.6f + 0.4f * static_cast<float>(0.5 * (1.0 + std::sin(t)));
         }
         auto cursorCol = juce::Colour(model_.recording ? 0xFFFF5050u : 0xFFE8E8E8u);

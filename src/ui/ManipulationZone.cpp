@@ -1176,7 +1176,7 @@ namespace lockstep
             return;  // meta bands: no CC badges or learn overlays
 
         const int track = area_.getActiveTrack();
-        const bool pulse = (juce::Time::getMillisecondCounter() / 300) % 2 == 0;
+        const bool pulse = (static_cast<std::int64_t>(animClockMs_) / 300) % 2 == 0;
 
         juce::ignoreUnused(track);
 

@@ -2172,6 +2172,15 @@ namespace lockstep
             }
         }
 
+        // The animation phase for the two components that have one. They used to read
+        // the wall clock inline at paint time, which made a painted frame depend on
+        // WHEN it was painted -- so the same state rendered twice was not the same
+        // pixels, and nothing downstream could compare a frame to anything. Both now
+        // take the phase from the editor's single clock (§20), at this 30 Hz tick.
+        // Unchanged on screen: nowMs() is the wall clock in production.
+        manipulationZone_.setAnimClockMs(nowMs());
+        timelineStrip_.setAnimClockMs(nowMs());
+
         // S8 (§40.6): the timeline strip is ALWAYS on — its row is permanent, so no
         // appear/disappear relayout. Rebuild the model each tick (cheap) so the
         // cursor + captions track the transport with or without a tape.

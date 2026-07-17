@@ -129,6 +129,27 @@ namespace lockstep
                                      kb.morphView_);
         }
 
+        // -- Tier 3: pixels ------------------------------------------------------
+        // The editor, rendered offscreen exactly as the host would paint it.
+        //
+        // paintEntireComponent walks the child tree applying each child's
+        // AffineTransform, which is the whole reason this is worth doing: it is the
+        // same walk the screen gets, so a child that lost its transform renders wrong
+        // HERE too. A test that composited the children itself would be checking its
+        // own arithmetic and would happily stay green through exactly the bug this is
+        // meant to catch (Item E).
+        //
+        // Reproducible only because the paint clocks are pushed, not read (see
+        // setAnimClockMs + ClockFunnelGuardTest): render the same frozen state twice
+        // and the bytes match.
+        static juce::Image render(LockstepEditor& ed)
+        {
+            juce::Image img(juce::Image::ARGB, ed.getWidth(), ed.getHeight(), true);
+            juce::Graphics g(img);
+            ed.paintEntireComponent(g, true);
+            return img;
+        }
+
         // The centre of a step cell, in KeyboardArea-LOCAL (design) coordinates.
         //
         // Found by SCANNING the real hit test (KeyboardArea::stepCellAt) rather than
