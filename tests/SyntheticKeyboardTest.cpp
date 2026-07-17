@@ -19,6 +19,14 @@
 // The verdict was "no bug, for a reason worth pinning" -- see testLatchApplies-
 // ToKeyboard. Which is the point of a differential test: it answers, rather than
 // leaving a plausible code-reading to be argued about.
+//
+// HOW SHARP IS IT. Measured, not asserted: shift the controller twin's index by one
+// and every one of the 22 indexed keys (6 section + 16 step) fails. It caught 19 of
+// 22 before mzOff/mzOrg were added to sig() -- the three misses were the section keys
+// whose only visible effect is the param page they put in the Manipulation Zone. A
+// signature that cannot see a key's effect gives that key a free pass forever, and
+// the test still reads as though it covers it. Re-measure this way after changing
+// sig(); a number nobody has checked lately is just a story.
 
 #include "UiDriver.h"
 
@@ -52,11 +60,14 @@ namespace
           << static_cast<int>(u.latch.fill) << "]"
           << " at=" << d.activeTrack()
           << " pg=" << DispatchProbe::page(d.editor())
-          << " msec=" << u.masterSection;
-        // (A bare section key's selection lands in ManipulationZone, not UiState, so
-        //  neither this signature nor the golden's digest can see WHICH section a
-        //  section key chose -- only that the two paths agree on everything else.
-        //  Section-key index parity is the one thing this sweep does not pin.)
+          << " msec=" << u.masterSection
+          // What the section keys actually DO. A section key's effect is to put a page
+          // of params in the Manipulation Zone -- that lands in the MZ, not in UiState,
+          // so a UiState-only signature could see only that a key was pressed, never
+          // WHICH page it chose. Both halves are needed: the slot offset says which
+          // page, the origin says which scope it resolved from.
+          << " mzOff=" << DispatchProbe::mzSlotOffset(d.editor())
+          << " mzOrg=" << static_cast<int>(DispatchProbe::mzPageOrigin(d.editor()));
 
         // The trig MAP, not a count. A count is the trap: tapping step 1 instead of
         // step 2 leaves the same number of trigs, so a count-based signature calls
@@ -108,14 +119,27 @@ namespace
             check(expected.button != CB::None,
                   juce::String("key ") + juce::String(code) + " resolves to a real button");
 
+            // Both twins get a real machine, so the section keys resolve MACHINE-owned
+            // param pages as well as the scope-owned ones a bare stub track offers --
+            // a richer surface to compare, closer to any real use.
+            //
+            // It is NOT what closed the sweep's blind spot, though it was expected to
+            // be. Measured, three ways: the mzOff/mzOrg signature alone catches 22/22
+            // even on the stub machine; a real machine with the old signature still
+            // catches only 19. The section keys were never doing nothing -- they move
+            // the MZ's page regardless of what machine the track has, because sections
+            // resolve through the scope stack. The gap was never in the fixture. It was
+            // that nothing was LOOKING at the MZ.
             juce::String viaKeyboard, viaController;
             {
                 UiDriver d;
+                installRealMachine(d.rig());
                 d.keyTap(code);
                 viaKeyboard = sig(d);
             }
             {
                 UiDriver d;
+                installRealMachine(d.rig());
                 d.tap(expected.button, expected.index);
                 viaController = sig(d);
             }
