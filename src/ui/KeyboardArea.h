@@ -116,6 +116,12 @@ namespace lockstep
         static constexpr int kCols = 8;
         static constexpr int kRows = 2;
 
+        // The same single named friend PluginEditor grants (tests/EditorRig.h). The
+        // synthetic-mouse harness needs the cell geometry to aim at -- and must read
+        // it from the hit test the paint path itself uses, never recompute it: a test
+        // that does its own layout arithmetic agrees with itself, not with the screen.
+        friend struct DispatchProbe;
+
     private:
         // Route a surface-changing state edit through the one invalidation channel
         // (PRINCIPLES §22), so screen and controllers move together. The bare

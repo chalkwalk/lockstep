@@ -137,6 +137,7 @@ add_executable(lockstep_dispatch_tests
     DispatchGoldenTest.cpp
     UiDriverSelfTest.cpp
     SyntheticKeyboardTest.cpp
+    SyntheticMouseTest.cpp
     ../src/PluginEditorFactory.cpp   # the real createEditor() (not the test stub)
     ../src/PluginEditor.cpp
     ../src/ui/KeyButton.cpp

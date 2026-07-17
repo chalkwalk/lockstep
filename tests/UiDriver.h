@@ -60,6 +60,14 @@ namespace lockstep::test
             sSyntheticKeys.clear();
             DispatchProbe::press(editor()).setKeyDownFn(&syntheticKeyOracle);
             freeze(rig_);
+
+            // Component::getComponentAt is gated on visibleFlag, and a bare
+            // heap-constructed editor has never been shown -- in the product the host
+            // window does this. Without it every click hit-tests to nothing and
+            // silently falls through to the editor, which looks exactly like a
+            // routing bug. (The spike in SyntheticMouseTest caught this; it is why
+            // the spike exists.)
+            editor().setVisible(true);
         }
 
         ~UiDriver()
@@ -159,6 +167,57 @@ namespace lockstep::test
         }
         UiDriver& keyTap(int keyCode) { return keyDown(keyCode).keyUp(keyCode); }
 
+        // -- Tier 2: the real mouse path -----------------------------------------
+        // Routed through Component::getComponentAt + getLocalPoint, which is what
+        // makes this worth doing: BOTH are transform-aware, so the click is resolved
+        // against the same AffineTransform stack the paint path draws through. Aiming
+        // a hand-computed local coordinate at a child's mouseDown would test nothing
+        // -- it would bypass precisely the mapping that can be wrong.
+        //
+        // Limits, deliberately: no event bubbling to parents, no MouseListener
+        // fan-out, no drag synthesis. This delivers to the component JUCE says is
+        // under the point, which is the question being asked.
+        // Press and release are SEPARATE, because plenty of state lives only between
+        // them: a master-VU drag is armed on down and disarmed on up, so a
+        // press-and-release helper can never observe it. (Learned the hard way -- the
+        // meter test failed against a perfectly working editor.)
+        UiDriver& pressPhysical(juce::Point<float> physical,
+                                juce::ModifierKeys mods = juce::ModifierKeys::leftButtonModifier)
+        {
+            sendMouse(true, physical, mods);
+            return advanceMs(1.0);
+        }
+        UiDriver& releasePhysical(juce::Point<float> physical,
+                                  juce::ModifierKeys mods = juce::ModifierKeys::leftButtonModifier)
+        {
+            sendMouse(false, physical, mods);
+            return advanceMs(1.0);
+        }
+        UiDriver& clickPhysical(juce::Point<float> physical,
+                                juce::ModifierKeys mods = juce::ModifierKeys::leftButtonModifier)
+        {
+            return pressPhysical(physical, mods).releasePhysical(physical, mods);
+        }
+
+        // A point in DESIGN space (what the layout code and the eye use), converted
+        // to the physical pixel it currently occupies.
+        [[nodiscard]] juce::Point<float> toPhysical(juce::Point<float> design) const
+        {
+            return design * static_cast<float>(DispatchProbe::uiScale(*rig_.editor));
+        }
+        UiDriver& clickDesign(juce::Point<float> design) { return clickPhysical(toPhysical(design)); }
+
+        // Click step cell absIdx where it is actually drawn, at whatever scale.
+        UiDriver& clickStep(int absIdx)
+        {
+            const auto localCentre = DispatchProbe::centerOfStep(editor(), absIdx);
+            jassert(localCentre.x >= 0.0f);   // cell not on screen: wrong page/mode?
+            auto& kb = DispatchProbe::keyboard(editor());
+            // KeyboardArea-local design point -> editor design space -> physical.
+            const auto designPt = localCentre + kb.getBounds().getTopLeft().toFloat();
+            return clickPhysical(toPhysical(designPt));
+        }
+
         // -- observation ---------------------------------------------------------
         [[nodiscard]] const UiState& ui() const { return DispatchProbe::ui(*rig_.editor); }
         [[nodiscard]] int activeTrack() const { return DispatchProbe::activeTrack(*rig_.editor); }
@@ -176,6 +235,26 @@ namespace lockstep::test
         static bool syntheticKeyOracle(int rawCode)
         {
             return sSyntheticKeys.count(rawCode) > 0;
+        }
+
+        void sendMouse(bool down, juce::Point<float> physical, juce::ModifierKeys mods)
+        {
+            auto* target = editor().getComponentAt(physical.roundToInt());
+            if (target == nullptr)
+                target = &editor();
+
+            const auto local = target->getLocalPoint(&editor(), physical);
+            auto srcRef = juce::Desktop::getInstance().getMainMouseSource();   // returns by value
+            const auto t = juce::Time::getCurrentTime();
+            const juce::MouseEvent ev(srcRef, local, mods,
+                                      juce::MouseInputSource::defaultPressure,
+                                      juce::MouseInputSource::defaultOrientation,
+                                      juce::MouseInputSource::defaultRotation,
+                                      0.0f, 0.0f, target, target, t, local, t, 1, false);
+            if (down)
+                target->mouseDown(ev);
+            else
+                target->mouseUp(ev);
         }
 
         Rig rig_;

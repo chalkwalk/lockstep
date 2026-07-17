@@ -787,6 +787,8 @@ namespace lockstep
     void runUiDriverSelfTests(int& failed);
     // Defined in SyntheticKeyboardTest.cpp -- the real QWERTY path.
     void runSyntheticKeyboardTests(int& failed);
+    // Defined in SyntheticMouseTest.cpp -- the real mouse path, at UI scale.
+    void runSyntheticMouseTests(int& failed);
 }
 
 int main()
@@ -799,6 +801,7 @@ int main()
     lockstep::runCueConsoleTests(failed);
     lockstep::runUiDriverSelfTests(failed);
     lockstep::runSyntheticKeyboardTests(failed);
+    lockstep::runSyntheticMouseTests(failed);
     std::fprintf(stderr, failed == 0 ? "All dispatch golden tests passed.\n"
                                      : "%d dispatch golden test(s) FAILED.\n", failed);
     return failed == 0 ? 0 : 1;

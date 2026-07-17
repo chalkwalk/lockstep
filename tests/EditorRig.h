@@ -101,6 +101,45 @@ namespace lockstep
             return ed.manipulationZone_.getBounds();
         }
         static juce::Rectangle<int> meter(const LockstepEditor& ed) { return ed.masterChromeRegion_; }
+
+        // -- UI scale + mouse (UI harness Tier 2) --------------------------------
+        // The editor lays out on a FIXED design canvas and stamps
+        // AffineTransform::scale on every child (Item E). So a physical pixel is not
+        // a design pixel, and "the click lands where the cell is drawn" became a
+        // property that can break silently -- no test could see it, because no test
+        // had a mouse.
+        static double uiScale(const LockstepEditor& ed) noexcept { return ed.uiScale_; }
+        static bool masterDragActive(const LockstepEditor& ed) noexcept { return ed.masterDrag_.active; }
+
+        static KeyboardArea& keyboard(LockstepEditor& ed) noexcept { return ed.keyboardArea_; }
+
+        // The centre of a step cell, in KeyboardArea-LOCAL (design) coordinates.
+        //
+        // Found by SCANNING the real hit test (KeyboardArea::stepCellAt) rather than
+        // recomputing the layout: the harness must aim at whatever the product thinks
+        // the cell is, or it proves only that the test's arithmetic matches itself.
+        // Returns the centroid of the matching pixels; {-1,-1} if the cell is not on
+        // screen (wrong page, or a display mode that hides it).
+        static juce::Point<float> centerOfStep(LockstepEditor& ed, int absIdx)
+        {
+            auto& kb = ed.keyboardArea_;
+            juce::Point<int> sum{ 0, 0 };
+            int n = 0;
+            for (int y = 0; y < kb.getHeight(); y += 2)
+            {
+                for (int x = 0; x < kb.getWidth(); x += 2)
+                {
+                    if (kb.stepCellAt({ x, y }) != absIdx)
+                        continue;
+                    sum += juce::Point<int>{ x, y };
+                    ++n;
+                }
+            }
+            if (n == 0)
+                return { -1.0f, -1.0f };
+            return { static_cast<float>(sum.x) / static_cast<float>(n),
+                     static_cast<float>(sum.y) / static_cast<float>(n) };
+        }
     };
 
     // ---------------------------------------------------------------------------
