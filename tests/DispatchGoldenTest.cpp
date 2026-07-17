@@ -785,6 +785,8 @@ namespace lockstep
 {
     // Defined in UiDriverSelfTest.cpp -- the interaction harness proving itself.
     void runUiDriverSelfTests(int& failed);
+    // Defined in SyntheticKeyboardTest.cpp -- the real QWERTY path.
+    void runSyntheticKeyboardTests(int& failed);
 }
 
 int main()
@@ -796,6 +798,7 @@ int main()
     lockstep::runCueGestureTests(failed);
     lockstep::runCueConsoleTests(failed);
     lockstep::runUiDriverSelfTests(failed);
+    lockstep::runSyntheticKeyboardTests(failed);
     std::fprintf(stderr, failed == 0 ? "All dispatch golden tests passed.\n"
                                      : "%d dispatch golden test(s) FAILED.\n", failed);
     return failed == 0 ? 0 : 1;

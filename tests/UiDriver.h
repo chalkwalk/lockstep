@@ -42,8 +42,10 @@
 #include "../src/io/ControllerEvent.h"
 #include "../src/ui/mode/GestureRecognizer.h"
 
+#include <juce_gui_basics/juce_gui_basics.h>
 #include <initializer_list>
 #include <iterator>
+#include <set>
 
 namespace lockstep::test
 {
@@ -55,8 +57,22 @@ namespace lockstep::test
     public:
         UiDriver()
         {
+            sSyntheticKeys.clear();
+            DispatchProbe::press(editor()).setKeyDownFn(&syntheticKeyOracle);
             freeze(rig_);
         }
+
+        ~UiDriver()
+        {
+            // Restore the OS oracle: the seam is process-global, and a stale
+            // synthetic answer outliving its driver would be a very confusing bug
+            // to chase from the other side.
+            DispatchProbe::press(editor()).setKeyDownFn(nullptr);
+            sSyntheticKeys.clear();
+        }
+
+        UiDriver(const UiDriver&) = delete;
+        UiDriver& operator=(const UiDriver&) = delete;
 
         // -- time ---------------------------------------------------------------
         UiDriver& advanceMs(double ms)
@@ -120,6 +136,29 @@ namespace lockstep::test
 
         UiDriver& step(int n) { return tap(CB::Step, n); }
 
+        // -- Tier 2: the real QWERTY path ----------------------------------------
+        // keyPressed() is where the scancode becomes a ControllerEvent (via
+        // QwertyOverlay::resolve) -- the layer Tier 1 enters below. Everything the
+        // key map, the Func/Track/Mute held-flag plumbing and the repeat suppression
+        // do lives HERE and nowhere else, so it is only ever exercised this way.
+        //
+        // JUCE has no key-up callback: releases are found by keyStateChanged asking
+        // the OS which tracked keys are still down. sSyntheticKeys is that answer
+        // for keys the OS never saw.
+        UiDriver& keyDown(int keyCode)
+        {
+            sSyntheticKeys.insert(keyCode);
+            editor().keyPressed(juce::KeyPress(keyCode, juce::ModifierKeys(), 0), nullptr);
+            return advanceMs(1.0);
+        }
+        UiDriver& keyUp(int keyCode)
+        {
+            sSyntheticKeys.erase(keyCode);
+            editor().keyStateChanged(false, nullptr);   // the editor diffs and synthesizes the up
+            return advanceMs(1.0);
+        }
+        UiDriver& keyTap(int keyCode) { return keyDown(keyCode).keyUp(keyCode); }
+
         // -- observation ---------------------------------------------------------
         [[nodiscard]] const UiState& ui() const { return DispatchProbe::ui(*rig_.editor); }
         [[nodiscard]] int activeTrack() const { return DispatchProbe::activeTrack(*rig_.editor); }
@@ -129,6 +168,16 @@ namespace lockstep::test
         [[nodiscard]] Rig& rig() { return rig_; }
 
     private:
+        // The OS key-state answer for synthetic keys. Static because the oracle is a
+        // plain function pointer (PressTracker stays allocation-free) -- which is why
+        // only one driver may be live at a time; see the header note.
+        inline static std::set<int> sSyntheticKeys;
+
+        static bool syntheticKeyOracle(int rawCode)
+        {
+            return sSyntheticKeys.count(rawCode) > 0;
+        }
+
         Rig rig_;
     };
 }   // namespace lockstep::test

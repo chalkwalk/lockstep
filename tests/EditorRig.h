@@ -62,6 +62,10 @@ namespace lockstep
         // digest recorded every page-nav gesture as "(no observable state change)".
         static int page(const LockstepEditor& ed) { return ed.keyboardArea_.currentPage(); }
 
+        // The editor's press state -- and, through it, the substitutable key-state
+        // oracle the synthetic-keyboard harness installs (see PressTracker.h).
+        static PressTracker& press(LockstepEditor& ed) noexcept { return ed.pressTracker_; }
+
         // -- virtual time (UI harness Tier 1) -----------------------------------
         // The editor reads its gesture clock through nowMs() (see the WI-1 funnel
         // and tests/ClockFunnelGuardTest.cpp). Setting testNowMs_ freezes it, so a

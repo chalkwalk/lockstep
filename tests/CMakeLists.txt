@@ -136,6 +136,7 @@ add_test(NAME SurfaceModelTest COMMAND lockstep_tests)
 add_executable(lockstep_dispatch_tests
     DispatchGoldenTest.cpp
     UiDriverSelfTest.cpp
+    SyntheticKeyboardTest.cpp
     ../src/PluginEditorFactory.cpp   # the real createEditor() (not the test stub)
     ../src/PluginEditor.cpp
     ../src/ui/KeyButton.cpp

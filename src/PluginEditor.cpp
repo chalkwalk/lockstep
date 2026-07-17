@@ -2205,8 +2205,8 @@ namespace lockstep
         });
         if (!toRelease.empty())
         {
-            std::erase_if(heldKeys_, [](int code) {
-                return !juce::KeyPress::isKeyCurrentlyDown(code);
+            std::erase_if(heldKeys_, [this](int code) {
+                return !pressTracker_.physicallyDown(code);
             });
             for (auto& [src, relEv] : toRelease)
             {
@@ -7256,8 +7256,8 @@ namespace lockstep
     bool LockstepEditor::keyStateChanged(bool isKeyDown, juce::Component*)
     {
         // Purge released keys from the repeat-suppression set.
-        std::erase_if(heldKeys_, [](int code) {
-            return !juce::KeyPress::isKeyCurrentlyDown(code);
+        std::erase_if(heldKeys_, [this](int code) {
+            return !pressTracker_.physicallyDown(code);
         });
 
         // Diff PressTracker against physical key state; synthesize ButtonUp for

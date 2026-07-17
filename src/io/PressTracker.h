@@ -70,6 +70,26 @@ namespace lockstep
             return it->second;
         }
 
+        // Is this raw key code physically down right now?
+        //
+        // JUCE gives no key-UP callback, so every release in the product is found by
+        // asking the OS this question about each tracked key (see
+        // forEachReleasedKeyboard and the editor's keyStateChanged). That makes the
+        // OS the sole authority on release -- and a synthetic key press, which the
+        // OS has never heard of, is therefore released instantly. So the oracle is
+        // substitutable: a test supplies its own key-state answer and the whole
+        // release path downstream runs unmodified, which is the point (a harness
+        // that skipped this path would be testing a fiction).
+        //
+        // §20: PressTracker already owns press state, so it owns this question too.
+        [[nodiscard]] bool physicallyDown(int rawCode) const { return keyDownFn_(rawCode); }
+
+        using KeyDownFn = bool (*)(int rawCode);
+
+        // Test seam ONLY (tests/UiDriver.h). Plain function pointer: no allocation,
+        // no indirection cost in the default path. Passing nullptr restores the OS.
+        void setKeyDownFn(KeyDownFn fn) noexcept { keyDownFn_ = (fn != nullptr) ? fn : &defaultKeyDown; }
+
         // Call fn(source, button, index) for every keyboard entry whose key is no
         // longer physically down.  Used by keyStateChanged to synthesize ButtonUp events.
         template <typename F>
@@ -79,7 +99,7 @@ namespace lockstep
             {
                 if (src <= 0)   // skip kMouseSource (0) and kControllerSource (-1)
                     continue;
-                if (!juce::KeyPress::isKeyCurrentlyDown(src))
+                if (!physicallyDown(src))
                     fn(src, entry.button, entry.index);
             }
         }
@@ -87,6 +107,9 @@ namespace lockstep
         [[nodiscard]] bool anyHeld() const { return !entries_.empty(); }
 
     private:
+        static bool defaultKeyDown(int rawCode) { return juce::KeyPress::isKeyCurrentlyDown(rawCode); }
+
         std::unordered_map<int, Entry> entries_;
+        KeyDownFn keyDownFn_ = &defaultKeyDown;
     };
 }
