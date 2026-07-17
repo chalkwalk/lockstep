@@ -795,6 +795,8 @@ namespace lockstep
     void runSurfaceRenderTests(int& failed);
     // Defined in RegionOracleTest.cpp -- drawn cells match the model that describes them.
     void runRegionOracleTests(int& failed);
+    // Defined in RepaintRegionTest.cpp -- the editor invalidates the pixels it paints.
+    void runRepaintRegionTests(int& failed);
     // Defined in MzDriveTest.cpp -- the rotaries, driven by real drags.
     void runMzDriveTests(int& failed);
     // Defined in SceneGoldenTest.cpp -- whole blessed frames, fuzzily compared.
@@ -815,6 +817,7 @@ int main()
     lockstep::runProductTypefaceTests(failed);
     lockstep::runSurfaceRenderTests(failed);
     lockstep::runRegionOracleTests(failed);
+    lockstep::runRepaintRegionTests(failed);
     lockstep::runMzDriveTests(failed);
     lockstep::runSceneGoldenTests(failed);
     std::fprintf(stderr, failed == 0 ? "All dispatch golden tests passed.\n"

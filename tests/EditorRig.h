@@ -102,6 +102,12 @@ namespace lockstep
             return ed.manipulationZone_.getBounds();
         }
         static juce::Rectangle<int> meter(const LockstepEditor& ed) { return ed.masterChromeRegion_; }
+        // The track-number + VU band. Like meter() above, this is a LOGICAL
+        // (design-canvas) rect -- everything resized() caches is. See DesignCanvas.h.
+        static juce::Rectangle<int> trackRow(const LockstepEditor& ed)
+        {
+            return ed.trackRowChromeRegion_;
+        }
 
         // -- the Manipulation Zone's eight rotaries ------------------------------
         // Where a knob actually IS, read from the laid-out slider (MZ-local coords).

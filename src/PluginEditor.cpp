@@ -2086,15 +2086,15 @@ namespace lockstep
                 // strip + the track/VU row, so invalidate just those bands rather
                 // than the whole editor (a full 30 Hz repaint of the grid /
                 // keyboard / MZ was the idle-CPU / fan culprit).
-                repaint(masterChromeRegion_);
-                repaint(trackRowChromeRegion_);
+                repaintLogical(masterChromeRegion_);
+                repaintLogical(trackRowChromeRegion_);
             }
             // 9.30 st.3: the capture indicator moved to the transport band, so its
             // scoped repaint must move with it — a pulsing dot in a region nobody
             // invalidates is a dot that does not pulse (PRINCIPLES §22: the region and
             // the pixels are one decision).
             if (captureController_.phase() != CaptureController::Phase::Idle)
-                repaint(transportBandRegion_);   // chrome only: the capture indicator animates
+                repaintLogical(transportBandRegion_);   // chrome only: the capture indicator animates
         }
 
         // Update the scope-coloured tempo + time-sig readout.
@@ -2164,11 +2164,11 @@ namespace lockstep
             if (confirmUp != confirmPopoverUp_)
             {
                 confirmPopoverUp_ = confirmUp;
-                repaint(confirmPopoverRegion_);   // chrome only: the confirm pop-over carries no cell state
+                repaintLogical(confirmPopoverRegion_);   // chrome only: the confirm pop-over carries no cell state
             }
             else if (confirmUp)
             {
-                repaint(confirmPopoverRegion_);   // chrome only: re-derived every frame, by design (§42.2)
+                repaintLogical(confirmPopoverRegion_);   // chrome only: re-derived every frame, by design (§42.2)
             }
         }
 
@@ -2460,8 +2460,7 @@ namespace lockstep
         masterDrag_ = {};
         // 5.3 Item E: the editor draws masterChromeRegion_ in logical coords but its
         // own mouse events arrive in physical (scaled) coords — map back to logical.
-        const auto logicalPos =
-            (e.position / static_cast<float>(uiScale_)).roundToInt();
+        const auto logicalPos = design::toLogical(e.position, uiScale_);
         if (e.eventComponent == this && masterChromeRegion_.contains(logicalPos))
         {
             if (auto* p = processor_.apvts().getParameter(ParamIDs::outputGain))
@@ -2473,7 +2472,7 @@ namespace lockstep
                     p->beginChangeGesture();
                     p->setValueNotifyingHost(p->convertTo0to1(0.0f));
                     p->endChangeGesture();
-                    repaint(masterChromeRegion_);  // chrome only: gain tick follows the reset
+                    repaintLogical(masterChromeRegion_);  // chrome only: gain tick follows the reset
                     return;
                 }
                 masterDrag_.active = true;
@@ -2533,7 +2532,7 @@ namespace lockstep
         const int dy = masterDrag_.startY - e.getScreenY();  // up = louder
         const float db = meter::masterDragDb(masterDrag_.startDb, dy, range.start, range.end);
         p->setValueNotifyingHost(p->convertTo0to1(db));
-        repaint(masterChromeRegion_);  // chrome only: gain tick tracks the master drag
+        repaintLogical(masterChromeRegion_);  // chrome only: gain tick tracks the master drag
     }
 
     void LockstepEditor::mouseUp(const juce::MouseEvent& /*e*/)

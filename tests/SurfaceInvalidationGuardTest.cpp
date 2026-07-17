@@ -27,8 +27,12 @@
 
 #include <juce_core/juce_core.h>
 
+#include <cstring>
+
 namespace lockstep
 {
+    void runLogicalRepaintGuard();
+
 namespace
 {
     // Files that own the performance surface. Overlays with their own private
@@ -148,6 +152,80 @@ void runSurfaceInvalidationGuardTests()
     CHECK(offenders.isEmpty(),
           juce::String("unrouted repaint(): use refreshSurface() (PRINCIPLES 22), or mark it "
                        "`// chrome only: <reason>` when it has no cell state:\n    ")
+              + offenders.joinIntoString("\n    "));
+
+    runLogicalRepaintGuard();
+}
+
+// ---------------------------------------------------------------------------
+// The COORDINATE half of the same discipline (5.3 Item E).
+//
+// The rule above is about *whether* the right channel is used. This one is about
+// *where*: LockstepEditor lays out on a fixed logical design canvas and scales it to
+// the window, so every region it caches is in design pixels -- but
+// Component::repaint(Rectangle) takes physical ones. At the shipped 1.2x default the
+// two do not overlap at all, so the region never redraws. No paint code is wrong, no
+// state is wrong, and nothing renders: the VU meters simply froze, and every visual
+// test stayed green because paintEntireComponent ignores invalid regions entirely.
+//
+// It went unnoticed at all seven call sites at once, which is the signature of a rule
+// that lives in someone's head. So: in PluginEditor.cpp an unqualified repaint() with
+// an argument must be repaintLogical(). A bare repaint() is fine (no coordinates to
+// get wrong), and a repaint on a CHILD (`someChild_.repaint(r)`) is fine too -- the
+// child's own coordinate space is already the scaled one.
+// ---------------------------------------------------------------------------
+void runLogicalRepaintGuard()
+{
+    const juce::File f = juce::File(juce::String(LOCKSTEP_SRC_DIR)).getChildFile("PluginEditor.cpp");
+    CHECK(f.existsAsFile(), "PluginEditor.cpp exists");
+
+    juce::StringArray lines;
+    lines.addLines(f.loadFileAsString());
+
+    juce::StringArray offenders;
+    int routed = 0;
+
+    for (int i = 0; i < lines.size(); ++i)
+    {
+        const juce::String& line = lines[i];
+        const juce::String trimmed = line.trim();
+        if (trimmed.startsWith("//") || trimmed.startsWith("*"))
+            continue;
+
+        if (line.contains("repaintLogical("))
+            ++routed;
+
+        for (int at = line.indexOf("repaint("); at >= 0; at = line.indexOf(at + 1, "repaint("))
+        {
+            // Qualified call on another component: its coords are its own.
+            if (at > 0)
+            {
+                const auto prev = line[at - 1];
+                if (prev == '.' || prev == '>')
+                    continue;
+            }
+            // Bare repaint(): nothing to mis-scale.
+            const int argAt = at + static_cast<int>(std::strlen("repaint("));
+            if (argAt < line.length() && line[argAt] == ')')
+                continue;
+
+            offenders.add(juce::String(i + 1) + "  " + trimmed);
+        }
+    }
+
+    // Self-check: if repaintLogical is ever renamed, this scan would find nothing to
+    // approve of and would then be a test that cannot fail. The routed sites are the
+    // meter/blink pair, the capture band, the two confirm pop-over edges and the two
+    // master-gain drag paths.
+    CHECK(routed >= 5,
+          juce::String("the scan still recognises repaintLogical() call sites (found ")
+              + juce::String(routed) + ")");
+
+    CHECK(offenders.isEmpty(),
+          juce::String("PluginEditor.cpp caches its regions in LOGICAL design-canvas "
+                       "coords, but repaint(rect) takes PHYSICAL pixels -- at the 1.2x "
+                       "default they do not overlap and the region never redraws (this "
+                       "is what froze the VU meters). Use repaintLogical():\n    ")
               + offenders.joinIntoString("\n    "));
 }
 }   // namespace lockstep

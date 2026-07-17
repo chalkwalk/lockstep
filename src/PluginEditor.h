@@ -25,6 +25,7 @@
 #include "io/PressTracker.h"
 #include "io/QwertyOverlay.h"
 #include "state/UiState.h"
+#include "ui/DesignCanvas.h"
 #include "ui/GridDisplayMode.h"
 #include "ui/InPluginTransport.h"
 #include "ui/ChromeLookAndFeel.h"
@@ -199,6 +200,25 @@ namespace lockstep
         // always redraw on the editor's own repaint()); never pair repaint() +
         // keyboardArea_.repaint() by hand (PRINCIPLES §20).
         void refreshSurface() { surfaceDispatcher_.invalidate(); }
+
+        // Invalidate a region that was authored on the LOGICAL design canvas.
+        //
+        // Every *Region_ member below is cached by resized() in design-canvas
+        // coordinates, and paint()/paintOverChildren() stamp the uiScale_ transform
+        // before drawing them (5.3 Item E). juce::Component::repaint(Rectangle) does
+        // NOT: it speaks physical pixels. So `repaint(someRegion_)` invalidates a
+        // rectangle the paint never touches, and at the 1.2x default the two do not
+        // even overlap — the region simply never redraws, with no warning and nothing
+        // in the paint code to look at. That is what froze the VU meters.
+        //
+        // Single owner (PRINCIPLES §20): every scoped invalidation of an
+        // editor-painted region goes through here, and SurfaceInvalidationGuardTest
+        // fails the build on a raw repaint(rect) in this file. A bare, argument-less
+        // repaint() is unaffected — it has no coordinates to get wrong.
+        void repaintLogical(juce::Rectangle<int> logical)
+        {
+            repaint(design::toPhysical(logical, uiScale_));
+        }
 
         // The one place a frame is produced (DESIGN §35.9.1): repaint chrome +
         // grid, then render every open controller from a single buildSurfaceModel().
