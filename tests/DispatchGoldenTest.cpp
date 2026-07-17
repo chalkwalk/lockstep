@@ -341,6 +341,7 @@ namespace
     juce::String renderCase(const KeyBinding& row, const Digest& base)
     {
         Rig rig;
+        freeze(rig);
 
         // Hold the row's required modifiers, tap its key, release everything.
         std::vector<CB> held;
@@ -416,6 +417,7 @@ namespace
                                 const std::function<void(LockstepProcessor&)>& setup = {})
     {
         Rig rig;
+        freeze(rig);
         // Some gestures act on state no button can reach in a headless rig (a queued
         // scene needs a playing transport to arm). The setup hook stages that state on
         // the processor directly, so the SCRIPT under test is the only behaviour the
@@ -424,15 +426,16 @@ namespace
         bool first = true;
         for (const auto& p : script)
         {
-            // GestureRecognizer reads the wall clock, and a script fires in
-            // microseconds -- so pressing the same modifier twice (copy, then paste)
-            // looks like a DOUBLE-TAP and silently LATCHES the scope. That is a
-            // harness artifact masquerading as behaviour: the first run of these
-            // scenarios recorded `latch.phrase: false -> true` and I nearly believed
-            // it. Space the steps past the 350 ms window so a script is a sequence of
-            // deliberate presses, which is what a human does.
+            // A script fires in microseconds -- so pressing the same modifier twice
+            // (copy, then paste) looks like a DOUBLE-TAP and silently LATCHES the
+            // scope. That is a harness artifact masquerading as behaviour: the first
+            // run of these scenarios recorded `latch.phrase: false -> true` and I
+            // nearly believed it. Space the steps past the 350 ms window so a script
+            // is a sequence of deliberate presses, which is what a human does.
+            // The rig's clock is frozen (freeze()), so this ADVANCES time rather than
+            // spending it: same semantics, without the wall-clock wait or the race.
             if (!first)
-                juce::Thread::sleep(static_cast<int>(GestureRecognizer::kDoubleTapMs) + 60);
+                DispatchProbe::advance(*rig.editor, GestureRecognizer::kDoubleTapMs + 60.0);
             first = false;
 
             for (CB m : p.mods)
@@ -479,6 +482,7 @@ void runChromeLayoutTests(int& failed)
     };
 
     Rig rig;
+    freeze(rig);
     auto& ed = *rig.editor;
 
     // Measure at the size the product SHIPS (the editor's own setSize), not at whatever
@@ -535,6 +539,7 @@ void runCueGestureTests(int& failed)
     auto evUp = [](CB b) { return CE{ CE::Type::ButtonUp, b, -1, 0 }; };
 
     Rig rig;
+    freeze(rig);
     auto& ed = *rig.editor;
     auto& proc = *rig.proc;
 
@@ -574,6 +579,7 @@ void runCueConsoleTests(int& failed)
     const int kAmp = LockstepProcessor::kAmpSecIdx;
 
     Rig rig;
+    freeze(rig);
     auto& ed = *rig.editor;
     auto& proc = *rig.proc;
 
@@ -584,7 +590,7 @@ void runCueConsoleTests(int& failed)
     check(DispatchProbe::ui(ed).cueHeld, "Func+3 enters the momentary Cue scope");
     DispatchProbe::down(ed, ev(CB::Section, kAmp));
     check(DispatchProbe::ui(ed).overlay != Overlay::Cue, "a short AMP press does not open yet");
-    juce::Thread::sleep(static_cast<int>(GestureRecognizer::kLongPressMs) + 60);
+    DispatchProbe::advance(ed, GestureRecognizer::kLongPressMs + 60.0);
     DispatchProbe::up(ed, ev(CB::Section, kAmp));
     check(DispatchProbe::ui(ed).overlay == Overlay::Cue, "Cue+hold(AMP) opens the console");
     check(DispatchProbe::ui(ed).cueParamPage, "console opens straight to the param (mixer) page");
@@ -617,7 +623,7 @@ void runCueConsoleTests(int& failed)
 
 void runDispatchGoldenTests(int& failed)
 {
-    const Digest base = [] { Rig r; return snap(r); }();
+    const Digest base = [] { Rig r; freeze(r); return snap(r); }();
 
     juce::String out;
     out << "# Dispatch golden -- ROADMAP 9.12. Generated; re-bless with "
@@ -660,7 +666,7 @@ void runDispatchGoldenTests(int& failed)
     // original observable diff (track 0 falls silent). The base digest is taken WITH
     // the same setup, so scene-2 creation nets out and only the deviation shows.
     auto occupyPhrase2 = [](LockstepProcessor& p) { p.createDefaultScene(2); };
-    const Digest baseP2 = [&] { Rig r; occupyPhrase2(*r.proc); return snap(r); }();
+    const Digest baseP2 = [&] { Rig r; freeze(r); occupyPhrase2(*r.proc); return snap(r); }();
     out << renderScenario("deviate track 0 to phrase 2 (persists)",
                           { { { CB::PhraseScope }, CB::Step, 2 } },
                           baseP2, occupyPhrase2)
