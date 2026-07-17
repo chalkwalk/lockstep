@@ -985,6 +985,24 @@ primary with a hold glyph; **Songs and Phrases create-on-select** (real slot mod
 `Mute+Song+step` blanks; phrase rows are diagonal-aware, `Phrase+step` inert on
 un-created rows); and the whole UI is a **uniform-scaled, aspect-locked resizable
 window** (default 1.2×, persisted). Items 6–7 (SoundPool full-bundle, docs) open.
+
+A **second playtest round** shipped (2026-07-17), all three from the uniform-scale
+window landing:
+- **VU meters froze** (track + master). Item E's logical→physical gap: `resized()`
+  caches every chrome region in design-canvas coords but `repaint(rect)` takes
+  physical pixels, so at the 1.2× default the invalidation missed the paint entirely.
+  Fixed with a single-owner `repaintLogical()` (`src/ui/DesignCanvas.h`) through which
+  all seven scoped invalidations route; `RepaintRegionTest` spies the invalidation
+  channel itself (a `CachedComponentImage`), and `SurfaceInvalidationGuardTest` now
+  fails the build on a raw `repaint(rect)` in `PluginEditor.cpp`.
+- **Sg:Sc transport pill** narrowed 402→356px, right-justified and width-matched to
+  the project-rail control row above; the capture indicator moved to the vacated
+  middle (gaining resting room, 150→204px). Alignment is measured in
+  `runChromeLayoutTests`, not asserted.
+- **Song selector** now shows names + identity colours (Scene already did): the screen
+  renderer consumed a hand-copied predicate that had dropped `songHeld`; it now reads
+  the model's own `activeLayer` SSOT, and occupied Song/Scene cells fill from their
+  identity colour (Browser pattern) with the scope on the border.
 - [ ] Song + Scene names (≤16 chars, inline editor).
 - [ ] Song + Scene colours + tags (palette tied to §24).
 - [ ] Non-modal browser overlay (Songs → Scenes), navigable while playing;
