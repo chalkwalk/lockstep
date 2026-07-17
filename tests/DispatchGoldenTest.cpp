@@ -797,6 +797,8 @@ namespace lockstep
     void runRegionOracleTests(int& failed);
     // Defined in MzDriveTest.cpp -- the rotaries, driven by real drags.
     void runMzDriveTests(int& failed);
+    // Defined in SceneGoldenTest.cpp -- whole blessed frames, fuzzily compared.
+    void runSceneGoldenTests(int& failed);
 }
 
 int main()
@@ -814,6 +816,7 @@ int main()
     lockstep::runSurfaceRenderTests(failed);
     lockstep::runRegionOracleTests(failed);
     lockstep::runMzDriveTests(failed);
+    lockstep::runSceneGoldenTests(failed);
     std::fprintf(stderr, failed == 0 ? "All dispatch golden tests passed.\n"
                                      : "%d dispatch golden test(s) FAILED.\n", failed);
     return failed == 0 ? 0 : 1;
