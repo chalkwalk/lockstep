@@ -14,9 +14,11 @@
 // two to agree. That is the actual contract -- "the keyboard is a controller" --
 // and a divergence is a real answer either way, not a harness detail.
 //
-// It found one immediately: with Track LATCHED, the keyboard ignored the latch
-// and 'D' placed a trig where clicking the same cell selected track 0 (see the
-// latch test at the bottom, and WI-6).
+// Its first job was to referee a suspected divergence: keyPressed does NOT OR the
+// modifier latch into what it asks QwertyOverlay, though every other path does.
+// The verdict was "no bug, for a reason worth pinning" -- see testLatchApplies-
+// ToKeyboard. Which is the point of a differential test: it answers, rather than
+// leaving a plausible code-reading to be argued about.
 
 #include "UiDriver.h"
 
@@ -184,6 +186,68 @@ namespace
         check(sig(d) == before, "edge keys dispatch nothing");
     }
 
+    // A LATCHED scope must mean the same thing to the keyboard as to everything else.
+    //
+    // Reading the code says it cannot: keyPressed passes uiState_.trackHeld/muteHeld
+    // to QwertyOverlay::resolve WITHOUT OR-ing the latch in, while layerContext()
+    // (PluginEditor.cpp:7703), KeyboardArea's mouse path and DispatchProbe all do.
+    // That reading predicts a latched Track + 'D' places a trig while clicking the
+    // same cell selects track 0.
+    //
+    // It does not, and this test is why: latch is implemented as "the held flag never
+    // clears". CommandCore::handleUp skips clearing xxxHeld while the scope is latched
+    // (see PluginEditor.cpp:6597 "cleared by handleUp -> not latched"), so trackHeld is
+    // STILL TRUE under a latch and keyPressed's read already accounts for it. The OR
+    // elsewhere is redundant, not compensatory.
+    //
+    // So the invariant the product actually rests on is LATCH IMPLIES HELD -- asserted
+    // directly below, because it is load-bearing and invisible: the day someone makes
+    // latch a pure marker that does not pin the held flag, every OR-ing path keeps
+    // working and the keyboard alone silently starts placing trigs under a latched
+    // scope. That is the regression this test exists to catch.
+    void testLatchAppliesToKeyboard(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [SynthKbd/latch] %s\n", what); ++failed; }
+        };
+
+        // Track latched by double-tap, then 'D' (step 0's key).
+        UiDriver d;
+        d.doubleTap(CB::TrackScope);
+        check(d.ui().latch.track, "double-tap latches Track");
+        check(d.ui().trackHeld,
+              "LATCH IMPLIES HELD: a latched scope keeps its held flag set, which is "
+              "the only reason keyPressed's non-OR-ing read is correct");
+
+        const bool trigBefore = d.proc().sequence().tracks[0].steps[0].trig;
+        d.keyTap('D');
+        check(d.activeTrack() == 0, "latched Track + 'D' selects track 0");
+        check(d.proc().sequence().tracks[0].steps[0].trig == trigBefore,
+              "latched Track + 'D' does NOT place a trig");
+
+        // The same gesture through the layer every other input path uses. This is
+        // the assertion that matters: not "the keyboard does X" but "the keyboard
+        // does what the rest of the instrument does".
+        UiDriver ctl;
+        ctl.doubleTap(CB::TrackScope);
+        const juce::String viaController = sig(ctl.tap(CB::SelectTrack, 0));
+
+        UiDriver kbd;
+        kbd.doubleTap(CB::TrackScope);
+        kbd.keyTap('D');
+        check(sig(kbd) == viaController, "latched keyboard agrees with the controller path");
+
+        // Mute latches the same way (the other latched layer resolve() consults).
+        UiDriver m;
+        m.doubleTap(CB::MuteScope);
+        check(m.ui().latch.mute, "double-tap latches Mute");
+        check(m.ui().muteHeld, "LATCH IMPLIES HELD holds for Mute too");
+        const bool mTrigBefore = m.proc().sequence().tracks[0].steps[0].trig;
+        m.keyTap('D');
+        check(m.proc().sequence().tracks[0].steps[0].trig == mTrigBefore,
+              "latched Mute + 'D' toggles the mute, not the trig");
+    }
+
     void testOracleRestored(int& failed)
     {
         auto check = [&failed](bool ok, const char* what) {
@@ -211,6 +275,7 @@ void runSyntheticKeyboardTests(int& failed)
     testRepeatSuppression(failed);
     testReleaseDiff(failed);
     testEdgeKeysDoNothing(failed);
+    testLatchAppliesToKeyboard(failed);
     testOracleRestored(failed);
 }
 }   // namespace lockstep
