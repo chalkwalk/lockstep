@@ -538,6 +538,12 @@ the left and `-`/`=`, `[`/`]`, `'` on the right — are shown as dimmed
 decorative anchors. They have no sequencer function, but pressing one
 briefly lights it so you can reorient if you overshoot a key.
 
+The grid-display toggle (`STG` / `ORL` / `CLN`) cycles the key layout and
+**defaults to Staggered**; the choice persists across sessions and is only
+written when you press the toggle. The whole window is **resizable** with a
+locked aspect ratio — drag any edge to scale the entire UI (fonts included)
+crisply; the scale defaults to 1.2× and persists.
+
 ### 5.2 Modifier (scope) keys
 
 The eight modifiers form the left two columns, ordered by
@@ -550,10 +556,10 @@ in the scope-section matrix); two are **performance specialists**
 |---|---|---|
 | `1` | **Func** | Universal qualifier — composes with any other scope to flip to its "secondary variant." Also the modifier layer for snapshots, verbs, and machine secondaries. |
 | `2` | **Track** | One or more tracks; or, with none selected, Control-All. `Track+section` opens the track-foundation row (post-machine FILTER/AMP, IEffect inserts). `Track + hold(SRC)` = the **machine picker**. **`Func+Track`** = the **Machine** scope (the sound: its params + copy/paste/init). |
-| `Q` | **Phrase** | A per-track musical phrase (pure note content). `Phrase+step` (or `Track+Phrase+step`) deviates the focused track to that phrase. `Scene+Phrase+step` deviates all tracks; landing on the diagonal row clears all deviations. To clear all deviations: `Scene+Phrase+step` on diagonal, re-launch active Scene, or `Func+Scene+step`. |
+| `Q` | **Phrase** | A per-track musical phrase (pure note content). `Phrase+step` (or `Track+Phrase+step`) deviates the focused track to that phrase. Only **existing** phrase rows launch — a row exists when its scene (diagonal owner) is created or the track has an authored phrase there; dim rows are inert (`Phrase+step` is launch, not create — new phrases come from scene-create and Browser copy/move/fork). `Scene+Phrase+step` deviates all tracks; landing on the diagonal row clears all deviations. To clear all deviations: `Scene+Phrase+step` on diagonal, re-launch active Scene, or `Func+Scene+step`. |
 | `W` | **Scene** | A launchable cross-track row (diagonal phrase row + active-mask + core time). Scene N always plays phrase row N. `Scene+step` occupied = carry overlay; on active = revert to floor; on **empty** = baked-copy create + launch. `Func+Scene+empty` = baseline-copy create; `Mute+Scene+empty` = blank create. `Func+Scene+occupied` = floor launch. `Scene+Record` = commit-and-bake. `Func+Scene+Record/Play` = copy/paste. |
 | `A` | **Morph** | The A/B crossfader scope. Hold/latch + encoder sculpts overlay at current fader split; `Morph+^`/`v` forces pure A/B writes; `Morph+Mute` = fluid mute a track. |
-| `S` | **Song** | Song select (`Song+step`). `Func+Song` = Global / master-bus focus. |
+| `S` | **Song** | Song select (`Song+step`). Songs create-on-select like scenes: an **empty** slot creates + switches (`Song+step` = copy the active song, `Mute+Song+step` = blank default). Only created songs light in the selector. `Func+Song` = Global / master-bus focus. |
 | `Z` | **Mute** | Global mute mask (hold and tap several tracks). `Scene+Mute+step` = per-scene mute. |
 | `X` | **Fill** | "While held, fills fire." `Fill+step` marks step as fill-only. |
 | step key (held) | **Trig** | The held step(s). Multi-step holds allowed. |
@@ -2240,7 +2246,9 @@ Links: [§5.14](#514-scenes-phrases-and-songs-the-launch-model) ·
 
 ```
 Song (S)
-├─ + step            → switch Songs (quantized; a full reset, live deviations clear) — §5.14
+├─ + step (occupied) → switch Songs (quantized; a full reset, live deviations clear) — §5.14
+├─ + step (empty)    → create-on-select: copy the active song into the slot + switch — §5.14
+├─ Mute + Song + step (empty) → create a blank default song + switch — §5.14
 ├─ + O (CLEAR)       → Panic — kill all voices immediately — §5.14
 ├─ + (held) → shows song-all swing in band (Swing, absolute root) — §5.8
 ├─ + FX (0)          → master FX params in MZ (FX cell, dim "PICK FX" hint); re-press = cycle loaded master units — §5.8

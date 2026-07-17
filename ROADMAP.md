@@ -918,9 +918,20 @@ sculpting (normalised split writes), pole-forcing, stepped snap + MIDI-out
 parity, **fluid mute** (`Morph+Mute` captures level->silence into the near
 pole), and fader MIDI-learn. RAM-only fader; inert until A != B.
 
-### 5.3 — Song/Scene management UI  *[planned]*  *(was MJ; re-scoped for Phase 7)*
+### 5.3 — Song/Scene management UI  *[active]*  *(was MJ; re-scoped for Phase 7)*
 DESIGN §23 (re-derived for the Phase 7 model). The old Pattern/Part management UI
 is re-scoped to manage Songs and Scenes.
+
+Items 1–5 shipped (identity model+serialize, generative naming overlay, entry
+gestures, browser, phrase copy/move/fork — see the plan doc). A **playtest
+follow-up** then shipped (2026-07-16): grid-mode defaults to STG and stops
+resurrecting CLN; Song/Scene names show in a widened transport indicator + the
+hold-selectors; the MOD naming affordance is promoted to a lit "NAME SONG/SCENE"
+primary with a hold glyph; **Songs and Phrases create-on-select** (real slot model
+— `Song::initialised`, serializer v36 + backfill; empty `Song+step` copies /
+`Mute+Song+step` blanks; phrase rows are diagonal-aware, `Phrase+step` inert on
+un-created rows); and the whole UI is a **uniform-scaled, aspect-locked resizable
+window** (default 1.2×, persisted). Items 6–7 (SoundPool full-bundle, docs) open.
 - [ ] Song + Scene names (≤16 chars, inline editor).
 - [ ] Song + Scene colours + tags (palette tied to §24).
 - [ ] Non-modal browser overlay (Songs → Scenes), navigable while playing;
