@@ -516,6 +516,35 @@ void runChromeLayoutTests(int& failed)
     // chrome it is not a pop-over, and the whole point (§42.3) is lost.
     const auto pop = DispatchProbe::popover(ed);
     check(pop.getBottom() > mz.getY(), "the confirm pop-over extends DOWN over the MZ");
+
+    // --- the transport band (play-test WI-2) --------------------------------------
+    // The Sg:Sc pill is right-justified and width-matched to the project rail's control
+    // row above. That alignment is the entire reason for the pill's width, so it is
+    // MEASURED here rather than asserted in a comment beside the constant (9.30 st.6:
+    // real pixels traced through resized(), never arithmetic done in prose). If the rail
+    // widths move, this is what says so.
+    {
+        const auto pill = DispatchProbe::songScene(ed);
+        const auto cap  = DispatchProbe::captureIndicator(ed);
+        const auto band = DispatchProbe::transportBand(ed);
+        const auto sync = DispatchProbe::railSyncBox(ed);   // leftmost rail control
+        const auto pool = DispatchProbe::railPoolBtn(ed);   // rightmost rail control
+
+        check(pill.getX() == sync.getX(),
+              "Sg:Sc pill's left edge lines up with the rail row's leftmost control");
+        check(pill.getRight() == pool.getRight(),
+              "Sg:Sc pill's right edge lines up with the rail row's rightmost control");
+
+        // The capture indicator moved off the hard-right flank into the middle. Its
+        // resting width is the thing that was worth having: it was 150 and the flank
+        // read as dead space beside the pill.
+        check(cap.getRight() <= pill.getX(),
+              "the capture indicator sits LEFT of the pill, not beside it on the flank");
+        check(cap.getWidth() > 150,
+              "...and gained resting room by moving there (was 150 on the flank)");
+        check(!cap.isEmpty() && band.contains(cap), "the capture indicator is inside the band");
+        check(band.contains(pill), "the pill is inside the band");
+    }
     check(pop.getHeight() >= 2 * InspectorBar::kStatusLaneH, "...at (at least) double height");
 
     // The meter is the output column: right of the crossfader, beside the MZ.

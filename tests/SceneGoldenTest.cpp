@@ -260,6 +260,19 @@ namespace
               [](UiDriver& d) { d.chord({ CB::SongScope }, CB::Section, 0); },
               [](UiDriver& d) { return d.ui().overlay == Overlay::Time; } },
 
+            // The capture indicator, ARMED (Func+Song+Record). It moved off the band's
+            // hard-right flank into the middle (play-test WI-2), and it is the one
+            // readout no other scene can show: at rest it paints nothing at all, so
+            // every frame above is a picture of its absence. Armed also renders the
+            // detail line ("starts on Play - N stems"), which is the text that overflows
+            // leftward across the band -- the behaviour most at risk from the move.
+            { "capture-armed", kShipW, kShipH,
+              [](UiDriver& d) { d.chord({ CB::Func, CB::SongScope }, CB::VerbRecord); },
+              [](UiDriver& d) {
+                  return DispatchProbe::capturePhase(d.editor())
+                         == CaptureController::Phase::Armed;
+              } },
+
             // A real machine's param page: eight live rotaries with labels and values,
             // which is the MZ's actual job and is otherwise never rendered by a test
             // (the rig's stub machine has no params to show).

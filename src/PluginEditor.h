@@ -533,6 +533,12 @@ namespace lockstep
         // was how the bands stopped meaning anything.
         static constexpr int kProjectRailH = 26;    // cold: file ops / library / session
         static constexpr int kTransportBandH = 36;  // hot: play/rec + time + Sg:Sc + capture
+        // The Sg:Sc pill's width, and it is not a taste call: it is the x-extent of the
+        // project rail's control row directly above (syncModeBox_ starts at 634, poolBtn_
+        // ends at 990 = the canvas edge). The pill is right-justified to match it, so the
+        // two right-hand blocks share an edge. Change the rail's widths and this must
+        // follow, or the alignment it exists for is silently gone.
+        static constexpr int kSongScenePillW = 356;
         juce::Rectangle<int> projectRailRegion_;
         juce::Rectangle<int> transportBandRegion_;
         juce::Rectangle<int> controllerIndicatorRegion_;

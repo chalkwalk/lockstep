@@ -1726,9 +1726,16 @@ namespace lockstep
         // The detail (filename / folder path) is longer than the indicator: let it
         // overflow LEFTWARD across the band. That is a deliberate, brief occlusion of a
         // readout — never of a control (§42.3's rule, applied here too).
+        //
+        // Anchored to the BAND, not to captureIndicatorRegion_. The resting indicator
+        // now sits in the band's middle rather than on the right flank, so growing from
+        // its own right edge would give the detail 196px instead of the 786 it has
+        // always had, and long filenames would ellipsize. This resolves to the same
+        // rect the hard-right layout produced.
         auto area = captureIndicatorRegion_;
         if (showDetail)
-            area = area.withLeft(transportBandRegion_.getX() + 200).withTrimmedRight(0);
+            area = transportBandRegion_.reduced(4, 6)
+                       .withLeft(transportBandRegion_.getX() + 200);
 
         g.setColour(juce::Colour(0xFF14181Fu));
         g.fillRoundedRectangle(area.toFloat(), 3.0f);
@@ -7470,18 +7477,34 @@ namespace lockstep
 
             transport_.setBounds(band.removeFromLeft(200).reduced(4));
 
-            // Capture / rec-arm indicator, hard right: the highest-stakes status in the
-            // core CUJ (live set -> stems). It used to be a banner on the master VU
-            // strip — peripheral vision, on the one element the eye treats as decoration.
-            captureIndicatorRegion_ = band.removeFromRight(150).reduced(4, 6);
-
-            // Time readout (BPM · time-sig · key-sig) takes a fixed left slice; the
-            // Sg:Sc identity then fills the ENTIRE remaining middle out to the capture
-            // indicator (the hard-right reserve), so user-assigned names actually fit.
-            // Both are painted (paintTransportBand), not components: they are readouts,
-            // and a Label per readout was how the old header grew a dashboard.
+            // Time readout (BPM · time-sig · key-sig) takes a fixed left slice. Both it
+            // and the Sg:Sc identity are painted (paintTransportBand), not components:
+            // they are readouts, and a Label per readout was how the old header grew a
+            // dashboard.
             tempoReadout_.setBounds(band.removeFromLeft(230).reduced(8, 4));
-            songSceneRegion_ = band.reduced(4, 6);
+
+            // The Sg:Sc identity, hard right and width-matched to the project rail's
+            // control row above (Locked/Omni/STG/SND/Pool spans 634..990), so the two
+            // right-hand blocks share one vertical edge instead of ending at unrelated
+            // x's. reduced(3, ·) is not a guess: ChromeLookAndFeel::cell insets each rail
+            // control by 3px, so this puts the pill's visible edges exactly on Locked's
+            // left and Pool's right. 356 wide still clears the worst case the readout can
+            // hold -- "Sg " + 16 chars + " : Sc " + 16 chars is ~250px at 11pt bold
+            // (kNameMaxChars = 16) -- so names do not truncate.
+            songSceneRegion_ = band.removeFromRight(kSongScenePillW).reduced(3, 6);
+
+            // Capture / rec-arm indicator: the remaining middle, between the tempo
+            // readout and the pill.
+            //
+            // It used to sit on the hard-right flank, which read as dead space beside an
+            // over-wide pill because it paints NOTHING at rest (Phase::Idle returns
+            // early) -- so the eye saw an unexplained gap rather than a reserve. 9.30
+            // st.3's rationale for moving it off the master VU strip was that it must not
+            // be peripheral; the band's middle, beside the Play button that starts the
+            // take, serves that better than the flank did. It also gains room: 204px vs
+            // 150. (When the detail overflows it still takes the whole band -- see
+            // paintCaptureStrip.)
+            captureIndicatorRegion_ = band.reduced(4, 6);
         }
 
         // S8 (§40.6): the timeline strip is PERMANENT (display-only chrome, fence #5) —

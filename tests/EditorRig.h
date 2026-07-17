@@ -96,6 +96,40 @@ namespace lockstep
             ed.resized();
         }
         static juce::Rectangle<int> inspector(const LockstepEditor& ed) { return ed.inspectorRow_; }
+
+        // The capture indicator's phase -- the transport band's third painted readout,
+        // and the only one that is invisible at rest (Phase::Idle paints nothing).
+        static CaptureController::Phase capturePhase(const LockstepEditor& ed) noexcept
+        {
+            return ed.captureController_.phase();
+        }
+
+        // -- the transport band's two painted readouts ---------------------------
+        // Neither is a component (they are readouts; a Label per readout is how the old
+        // header grew a dashboard), so their geometry is only observable here.
+        static juce::Rectangle<int> songScene(const LockstepEditor& ed)
+        {
+            return ed.songSceneRegion_;
+        }
+        static juce::Rectangle<int> captureIndicator(const LockstepEditor& ed)
+        {
+            return ed.captureIndicatorRegion_;
+        }
+        static juce::Rectangle<int> transportBand(const LockstepEditor& ed)
+        {
+            return ed.transportBandRegion_;
+        }
+        // The project rail's control row: the leftmost control's left edge and the
+        // rightmost's right edge. The Sg:Sc pill is width-matched to this, so the claim
+        // is checkable rather than a comment.
+        static juce::Rectangle<int> railSyncBox(const LockstepEditor& ed)
+        {
+            return ed.syncModeBox_.getBounds();
+        }
+        static juce::Rectangle<int> railPoolBtn(const LockstepEditor& ed)
+        {
+            return ed.poolBtn_.getBounds();
+        }
         static juce::Rectangle<int> popover(const LockstepEditor& ed) { return ed.confirmPopoverRegion_; }
         static juce::Rectangle<int> mz(const LockstepEditor& ed)
         {
