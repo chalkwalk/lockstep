@@ -322,6 +322,43 @@ namespace lockstep::test
             return *audio_;
         }
 
+        // -- MIDI note input (E2) ------------------------------------------------
+        // Inject a note into the MidiBuffer handed to the NEXT processBlock -- the
+        // io/MidiInput ingestion seam a controller or the host feeds. In the default
+        // Omni channel mode a note routes to the processor's focus track, so set that
+        // (setFocusTrack / a track-select gesture) before playing in. This is what
+        // realtime record, the step-hold chord-capture window, and MIDI-out journeys
+        // consume. Queued, not immediate: it arrives when the transport next rolls.
+        UiDriver& noteOn(int pitch, int vel = 100)
+        {
+            juce::MidiBuffer b;
+            b.addEvent(juce::MidiMessage::noteOn(1, pitch, static_cast<juce::uint8>(vel)), 0);
+            audioRig().injectInput(b);
+            return *this;
+        }
+        UiDriver& noteOff(int pitch)
+        {
+            juce::MidiBuffer b;
+            b.addEvent(juce::MidiMessage::noteOff(1, pitch), 0);
+            audioRig().injectInput(b);
+            return *this;
+        }
+        // Hold `pitch` for `beats` of rolling transport, then release: the note-on
+        // lands on the first block, the note-off after the roll. One extra block
+        // flushes the off so its gate/off-handling completes.
+        UiDriver& playNote(int pitch, int vel, double beats)
+        {
+            noteOn(pitch, vel);
+            play(beats);
+            noteOff(pitch);
+            return runBlocks(1);
+        }
+
+        // -- MIDI output (E3) ----------------------------------------------------
+        // What the processor emitted on the last block -- MIDI-out-track note-ons/CCs,
+        // for the journeys that assert on emitted MIDI rather than audio.
+        [[nodiscard]] const juce::MidiBuffer& midiOut() { return audioRig().midiOut(); }
+
         // -- observation ---------------------------------------------------------
         // What the live editor would paint right now -- so a test can assert on the
         // surface a gesture produces, not merely on the state behind it.
