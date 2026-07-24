@@ -197,16 +197,19 @@ confirms, entity reset; sticky-cancel behaviour. Golden the pop-over chrome.
 
 | ID | Journey | Status | Deps |
 |----|---------|--------|------|
-| F1 | Realtime record | ☐ (seed) | audio, midi-in, mz |
+| F1 | Realtime record | ☑ | audio, midi-in |
 | F2 | Tape record + overdub + punch | ☐ | audio |
 | F3 | Two-track audio loop | ☐ | audio |
 | F4 | Record machine → pool | ☐ | audio |
 | F5 | MIDI-out track | ☐ | midi-out |
 
-**F1 — Realtime record.** `U` arm → `isRecordArmed`; `play()` + `playNote` →
-quantised trig written; double-tap `U` → overdub (button amber, up to 4 notes/step
-accumulate); `hold step + playNote` → note onto that step; live P-Lock motion (turn
-knob while rolling, no step) → P-Locks on crossed steps.
+**F1 — Realtime record.** ☑ `CujRecordTest.cpp`. Select track 1 (0→1 syncs the
+processor focus track — the note-in routing target), `U` arm → `isRecordArmed`;
+`play()` + `playNote(60)` → a quantised trig lands carrying the played pitch (which
+only works if the transport is truly rolling, so it doubles as bridge-liveness
+proof); double-tap `U` → `isOverdubArmed`; a three-note chord in one block
+accumulates onto a single recorded step. *Deferred to a later wave:* `hold step +
+playNote` onto a specific step, and live P-Lock motion (knob turned while rolling).
 
 **F2 — Tape record + overdub + punch.** `Track+hold(SRC)` → TapeMachine; drive the
 deck verbs; feed audio-in; record a take, wind back, punch a region, `UNDO` pops a

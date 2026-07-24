@@ -146,6 +146,7 @@ add_executable(lockstep_dispatch_tests
     SceneGoldenTest.cpp
     CujTrigAuthoringTest.cpp
     CujGeneratorsTest.cpp
+    CujRecordTest.cpp
     ../src/PluginEditorFactory.cpp   # the real createEditor() (not the test stub)
     ../src/PluginEditor.cpp
     ../src/ui/ChromeLookAndFeel.cpp

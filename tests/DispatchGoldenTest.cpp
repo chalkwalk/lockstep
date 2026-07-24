@@ -834,6 +834,8 @@ namespace lockstep
     void runCujTrigAuthoringTests(int& failed);
     // Defined in CujGeneratorsTest.cpp -- Group B critical user journeys.
     void runCujGeneratorsTests(int& failed);
+    // Defined in CujRecordTest.cpp -- Group F realtime record journey.
+    void runCujRecordTests(int& failed);
 }
 
 int main()
@@ -855,6 +857,7 @@ int main()
     lockstep::runSceneGoldenTests(failed);
     lockstep::runCujTrigAuthoringTests(failed);
     lockstep::runCujGeneratorsTests(failed);
+    lockstep::runCujRecordTests(failed);
     std::fprintf(stderr, failed == 0 ? "All dispatch golden tests passed.\n"
                                      : "%d dispatch golden test(s) FAILED.\n", failed);
     return failed == 0 ? 0 : 1;
