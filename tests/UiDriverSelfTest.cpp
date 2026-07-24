@@ -17,6 +17,7 @@
 
 #include "../src/PluginProcessor.h"
 
+#include <algorithm>
 #include <cstdio>
 
 namespace lockstep
@@ -137,6 +138,51 @@ namespace
         d.keyUp('D');
         check(!d.surface().step[0].pressed, "releasing the key un-presses the cell");
     }
+    // The live-audio bridge (E1). The whole point is that a gesture's audible
+    // consequence is observable, so this has to prove SOUND -- not merely that the
+    // blocks ran. Two halves, because a bridge that is green whether or not audio
+    // flows is worse than none: it would bless silence.
+    //
+    // Peak RMS across the roll, not the last block's: the FM amp envelope may have
+    // decayed by whatever block the roll happens to end on, and "did it ever make a
+    // sound" is the honest question -- a last-block-only check would flake on
+    // envelope timing and teach everyone to distrust the bridge.
+    void testLiveAudioBridge(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [UiDriver/audioBridge] %s\n", what); ++failed; }
+        };
+
+        auto peakRmsOverRoll = [](UiDriver& d, int blocks) {
+            float peak = 0.0f;
+            for (int i = 0; i < blocks; ++i)
+            {
+                d.runBlocks(1);
+                peak = std::max(peak, d.lastRms());
+            }
+            return peak;
+        };
+
+        // Baseline: the default rig seeds trigs on tracks 0-3, but they run the
+        // StubMachine, which makes no sound. Rolling must stay SILENT -- otherwise
+        // the "it made a sound" half below would pass without proving anything.
+        {
+            UiDriver d;
+            const float peak = peakRmsOverRoll(d, 32);
+            check(peak == 0.0f, "stub-machine trigs produce silence under the bridge");
+            check(!d.hasNaN(), "silent output is still finite");
+        }
+
+        // Give track 0 a real synth (FMMachine, re-seeded with trigs) and roll: the
+        // seeded trigs become note-ons, the voice sounds, the buffer is non-silent.
+        {
+            UiDriver d;
+            installRealMachine(d.rig(), 0);
+            const float peak = peakRmsOverRoll(d, 48);
+            check(peak > 0.0f, "a synth machine's seeded trigs produce audible output");
+            check(!d.hasNaN(), "the live audio path stays finite");
+        }
+    }
 }   // namespace
 
 void runUiDriverSelfTests(int& failed)
@@ -145,5 +191,6 @@ void runUiDriverSelfTests(int& failed)
     testCueConsoleLongPress(failed);
     testCopyPasteReadsAsProse(failed);
     testSurfaceReflectsLiveState(failed);
+    testLiveAudioBridge(failed);
 }
 }   // namespace lockstep

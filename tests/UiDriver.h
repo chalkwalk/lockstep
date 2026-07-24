@@ -37,14 +37,17 @@
 // it replaces is), so two live drivers would answer each other's key questions.
 // The ctor installs it and the dtor restores the real one.
 
+#include "AudioRig.h"
 #include "EditorRig.h"
 
 #include "../src/io/ControllerEvent.h"
 #include "../src/ui/mode/GestureRecognizer.h"
 
+#include <cmath>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <initializer_list>
 #include <iterator>
+#include <memory>
 #include <set>
 
 namespace lockstep::test
@@ -265,6 +268,60 @@ namespace lockstep::test
             return clickPhysical(toPhysical(designPt));
         }
 
+        // -- live audio (the bridge) ---------------------------------------------
+        // Attach a real playhead to the EDITOR's processor and pump processBlock, so
+        // a gesture and its audible consequence share one timeline. This is what lets
+        // a journey assert on engine state that only changes on the audio thread
+        // (writeParam enqueues an EngineCmd; drainEngineCmds() applies it at the top
+        // of processBlock -- see the MzDriveTest note) AND on the sound itself.
+        //
+        // Lazy: most interaction tests never touch audio, and standing up AudioRig
+        // re-prepares the processor at 48k/256, overriding the editor rig's 44.1k/512.
+        // AudioRig is the single owner of that standup (shared with EngineHarness), so
+        // the two rigs cannot drift on what "running" means.
+
+        // Run N audio blocks, advancing the UI clock coherently with the playhead.
+        UiDriver& runBlocks(int n)
+        {
+            auto& a = audioRig();
+            const double blockMs =
+                static_cast<double>(a.blockSize()) / AudioRig::kSampleRate * 1000.0;
+            for (int i = 0; i < n; ++i)
+            {
+                a.renderBlocks(1);
+                advanceMs(blockMs);
+            }
+            return *this;
+        }
+
+        // Roll the transport for `beats` quarter-notes' worth of audio. Rounds up to
+        // a whole block; at least one block always runs (a zero-length play is a
+        // state a human cannot produce and a test never wants).
+        UiDriver& play(double beats)
+        {
+            auto& a = audioRig();
+            const int n = std::max(1, static_cast<int>(std::ceil(beats / a.playHead().ppqPerBlock())));
+            return runBlocks(n);
+        }
+
+        // RMS of the last block: whole buffer (ch < 0) or one channel. Non-zero means
+        // the gesture actually produced sound -- the liveness the bridge must prove.
+        [[nodiscard]] float lastRms(int channel = -1)
+        {
+            auto& a = audioRig();
+            return channel < 0 ? a.lastBufferRms() : a.lastChannelRms(channel);
+        }
+        [[nodiscard]] bool hasNaN() { return audioRig().lastBufferHasNaN(); }
+
+        // Direct access to the bridge (playhead, midiOut, input injection) for the
+        // journeys that need finer control than the verbs above.
+        [[nodiscard]] AudioRig& audioRig()
+        {
+            if (audio_ == nullptr)
+                audio_ = std::make_unique<AudioRig>(proc());
+            return *audio_;
+        }
+
         // -- observation ---------------------------------------------------------
         // What the live editor would paint right now -- so a test can assert on the
         // surface a gesture produces, not merely on the state behind it.
@@ -341,5 +398,8 @@ namespace lockstep::test
         }
 
         Rig rig_;
+        // Declared AFTER rig_ so it is destroyed BEFORE it: AudioRig holds a
+        // reference to rig_'s processor and releases resources in its dtor.
+        std::unique_ptr<AudioRig> audio_;
     };
 }   // namespace lockstep::test

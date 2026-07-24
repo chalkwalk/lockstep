@@ -6,175 +6,50 @@
 //   h.renderBlocks(10);            // drive 10 processBlocks with advancing playhead
 //   h.processor().someMethod();    // direct access to the processor
 //
-// The harness provides a stub AudioPlayHead that reports isPlaying=true and
-// advances ppqPosition by blockSize / (sampleRate * 60 / bpm) per block.
+// The processor standup (rate/buffer/channel/playhead) lives in AudioRig -- the
+// single owner shared with UiDriver's live-audio bridge, so the two rigs cannot
+// drift. EngineHarness owns the processor and delegates the driving to AudioRig;
+// StubPlayHead now lives in AudioRig.h too.
 
-#include "../src/PluginProcessor.h"
-#include <algorithm>
-#include <cmath>
+#include "AudioRig.h"
+
 #include <memory>
 
 namespace lockstep
 {
-    // Stub playhead: reports playing=true at a configurable BPM with position
-    // advancing by exactly one block's worth of PPQ per renderBlocks() call.
-    class StubPlayHead : public juce::AudioPlayHead
-    {
-    public:
-        explicit StubPlayHead(double bpm = 120.0,
-                              double sampleRate = 48000.0,
-                              int blockSize = 256)
-            : bpm_(bpm), sampleRate_(sampleRate), blockSize_(blockSize)
-        {}
-
-        juce::Optional<PositionInfo> getPosition() const override
-        {
-            PositionInfo info;
-            info.setIsPlaying(playing_);
-            info.setBpm(bpm_);
-            info.setPpqPosition(ppq_);
-            info.setTimeInSamples(static_cast<juce::int64>(sampleOffset_));
-            info.setTimeInSeconds(static_cast<double>(sampleOffset_) / sampleRate_);
-            return info;
-        }
-
-        void advance()
-        {
-            if (playing_)
-            {
-                ppq_ += ppqPerBlock();
-                sampleOffset_ += blockSize_;
-            }
-        }
-
-        void setPlaying(bool p) { playing_ = p; }
-        bool isPlaying() const { return playing_; }
-        double ppqPosition() const { return ppq_; }
-        void resetPosition()
-        {
-            ppq_ = 0.0;
-            sampleOffset_ = 0;
-        }
-        // Jump the transport to an absolute PPQ (host loop, locate, or a
-        // stop → relocate → restart). sampleOffset_ tracks the position so
-        // getPosition() stays self-consistent.
-        void setPpq(double p)
-        {
-            ppq_ = p;
-            sampleOffset_ = static_cast<int64_t>(p * sampleRate_ * 60.0 / bpm_);
-        }
-
-        double ppqPerBlock() const
-        {
-            return static_cast<double>(blockSize_) * bpm_ / (sampleRate_ * 60.0);
-        }
-
-    private:
-        double bpm_;
-        double sampleRate_;
-        int blockSize_;
-        bool playing_ = true;
-        double ppq_ = 0.0;
-        int64_t sampleOffset_ = 0;
-    };
-
     // Assembles everything needed for a headless processBlock run.
     class EngineHarness
     {
     public:
-        static constexpr double kSampleRate = 48000.0;
-        static constexpr int kBlockSize = 256;
-        static constexpr double kBpm = 120.0;
+        static constexpr double kSampleRate = AudioRig::kSampleRate;
+        static constexpr int kBlockSize = AudioRig::kBlockSize;
+        static constexpr double kBpm = AudioRig::kBpm;
 
         EngineHarness()
-            : playHead_(kBpm, kSampleRate, kBlockSize)
-        {
-            processor_ = std::make_unique<LockstepProcessor>();
-            processor_->setPlayHead(&playHead_);
-            // A real host always calls setRateAndBufferSizeDetails() before
-            // prepareToPlay(); without it getSampleRate() returns 0, which zeroes
-            // every getSampleRate()-based calc in the audio path (e.g. musical-gate
-            // length → instant note-off → silent envelope machines). Mirror the host.
-            processor_->setRateAndBufferSizeDetails(kSampleRate, kBlockSize);
-            processor_->prepareToPlay(kSampleRate, kBlockSize);
-            // Start the in-plugin transport so sequencerRunning=true regardless
-            // of which SyncMode the APVTS defaults to (Locked mode uses
-            // hostPlaying(), other modes use inPluginPlaying()).
-            processor_->clock().setInPluginPlaying(true);
-            // A host hands processBlock a buffer with max(totalIn, totalOut)
-            // channels — every bus, not just the main pair. Since 11.12 enabled
-            // the Cue/Aux/Send outputs and Ext2-4 inputs by default, that is 20
-            // channels, and a 2-channel buffer here would send getBusBuffer()
-            // walking off the end. Size it from the processor, so the harness
-            // tracks the bus layout instead of assuming one.
-            buffer_.setSize(numHostChannels(), kBlockSize, false, true, false);
-        }
+            : processor_(std::make_unique<LockstepProcessor>()),
+              audio_(*processor_, kBpm, kSampleRate, kBlockSize)
+        {}
 
         // The channel count a host would allocate for processBlock.
-        [[nodiscard]] int numHostChannels() const
-        {
-            return std::max(2, std::max(processor_->getTotalNumInputChannels(),
-                                        processor_->getTotalNumOutputChannels()));
-        }
-
-        ~EngineHarness()
-        {
-            processor_->releaseResources();
-        }
+        [[nodiscard]] int numHostChannels() const { return audio_.numHostChannels(); }
 
         LockstepProcessor& processor() { return *processor_; }
 
         // Run N blocks. Advances the playhead after each block.
-        void renderBlocks(int n)
-        {
-            for (int i = 0; i < n; ++i)
-            {
-                midi_.clear();
-                buffer_.clear();
-                processor_->processBlock(buffer_, midi_);
-                playHead_.advance();
-            }
-        }
+        void renderBlocks(int n) { audio_.renderBlocks(n); }
 
-        // Check for NaN/Inf in the last rendered buffer.
-        bool lastBufferHasNaN() const
-        {
-            for (int ch = 0; ch < buffer_.getNumChannels(); ++ch)
-            {
-                for (int i = 0; i < buffer_.getNumSamples(); ++i)
-                {
-                    if (!std::isfinite(buffer_.getSample(ch, i)))
-                        return true;
-                }
-            }
-            return false;
-        }
+        bool lastBufferHasNaN() const { return audio_.lastBufferHasNaN(); }
+        float lastBufferRms() const { return audio_.lastBufferRms(); }
 
-        float lastBufferRms() const
-        {
-            double sum = 0.0;
-            int n = 0;
-            for (int ch = 0; ch < buffer_.getNumChannels(); ++ch)
-            {
-                for (int i = 0; i < buffer_.getNumSamples(); ++i)
-                {
-                    const float v = buffer_.getSample(ch, i);
-                    sum += static_cast<double>(v) * static_cast<double>(v);
-                }
-                n += buffer_.getNumSamples();
-            }
-            return (n > 0) ? static_cast<float>(std::sqrt(sum / static_cast<double>(n))) : 0.0f;
-        }
-
-        const juce::AudioBuffer<float>& buffer() const { return buffer_; }
-        const juce::MidiBuffer& midiOut() const { return midi_; }
-        StubPlayHead& playHead() { return playHead_; }
+        const juce::AudioBuffer<float>& buffer() const { return audio_.buffer(); }
+        const juce::MidiBuffer& midiOut() const { return audio_.midiOut(); }
+        StubPlayHead& playHead() { return audio_.playHead(); }
 
     private:
-        StubPlayHead playHead_;
+        // processor_ before audio_: audio_ holds a reference to it and must be
+        // destroyed (releaseResources) while the processor is still alive.
         std::unique_ptr<LockstepProcessor> processor_;
-        juce::AudioBuffer<float> buffer_;
-        juce::MidiBuffer midi_;
+        AudioRig audio_;
     };
 
 } // namespace lockstep
