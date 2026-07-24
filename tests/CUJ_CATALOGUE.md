@@ -45,15 +45,19 @@ silently failed must fail loudly, not assert against a wrong start state.
 
 | ID | Journey | Status | Deps |
 |----|---------|--------|------|
-| A1 | Two-track drum beat | ☐ (seed) | audio, mz |
+| A1 | Two-track drum beat | ☑ | audio |
 | A2 | Trig conditions | ☐ | mz |
 | A3 | Step editing | ☐ | |
 | A4 | Copy/paste/clear across scopes | ☐ | |
 
-**A1 — Two-track drum beat.** Focus track 0; `step` on 0,4,8,12 → assert those
-`.trig` set, surface step cells lit. `chord({Track}, Step, 1)` → `activeTrack==1`;
-`step` 4,12 → track-1 trigs. `chord({Track}, Trig-section)` + `setParam` length→7 →
-`tracks[0].length==7` (polymeter). Then `play()` (bridge) → non-silent RMS.
+**A1 — Two-track drum beat.** ☑ `CujTrigAuthoringTest.cpp`. Focus track 0, clear it
+(`Track+CLEAR`, confirmed — clearing a track is a guarded destructive verb); `step`
+0,4,8,12 → those `.trig` set, surface cells read `StepTrigCertain`, off-beats
+`StepEmpty`. `Func+Phrase+step 6` → `tracks[0].length==7` (polymeter; this is the
+phrase-length authoring gesture, DESIGN §34.4 — *not* a TRIG field). Select track 1,
+clear, `step` 4,12 → track-1 backbeat, surface confirms. Then `play()` (bridge) →
+non-silent peak RMS across the roll, no NaN. Both tracks run FMMachine so the beat
+sounds. (No `mz` dep in the end: length uses the gesture, not the MZ.)
 
 **A2 — Trig conditions.** Held-step bare `TRIG` promotes to per-step COND (TRIG
 relabels); set probability/iteration via `setParam`; assert the step's condition

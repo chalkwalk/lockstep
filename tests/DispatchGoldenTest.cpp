@@ -830,6 +830,8 @@ namespace lockstep
     void runMzDriveTests(int& failed);
     // Defined in SceneGoldenTest.cpp -- whole blessed frames, fuzzily compared.
     void runSceneGoldenTests(int& failed);
+    // Defined in CujTrigAuthoringTest.cpp -- Group A critical user journeys.
+    void runCujTrigAuthoringTests(int& failed);
 }
 
 int main()
@@ -849,6 +851,7 @@ int main()
     lockstep::runRepaintRegionTests(failed);
     lockstep::runMzDriveTests(failed);
     lockstep::runSceneGoldenTests(failed);
+    lockstep::runCujTrigAuthoringTests(failed);
     std::fprintf(stderr, failed == 0 ? "All dispatch golden tests passed.\n"
                                      : "%d dispatch golden test(s) FAILED.\n", failed);
     return failed == 0 ? 0 : 1;
