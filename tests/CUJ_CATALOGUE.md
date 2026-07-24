@@ -77,15 +77,20 @@ scopes"). Paste `I`, clear `O`; assert target state + clipboard badges.
 
 | ID | Journey | Status | Deps |
 |----|---------|--------|------|
-| B1 | Euclid generate + commit/cancel | ☐ (seed) | mz |
+| B1 | Euclid generate + commit/cancel | ☑ | mz |
 | B2 | Density overlay | ☐ | mz |
 | B3 | Velocity overlay | ☐ | mz |
 | B4 | Melodic generator | ☐ | mz |
 | B5 | Harmonic voice-mover | ☐ | mz |
 
-**B1 — Euclid.** `longPress(3)` → hub; press EUCLID cell → `activeOverlay==Euclid`,
-surface banner "EUCLID", MZ slots PULSE/OFSET/ACCNT. `setParam` PULSE; bare `P` →
-trigs baked onto phrase (assert census); Func+P path → reverts to original.
+**B1 — Euclid.** ☑ `CujGeneratorsTest.cpp`. Hold the 3-key past the long-press +
+tick the timer → hub opens; `step 0` picks the EUCLID cell → `euclidHeld`,
+`activeOverlay==Euclid`, `resolveMetaBand==Euclidean` (PULSE/OFSET/ACCNT on the
+encoders). `setParam` retunes PULSE 4→6 through the armed MZ path → live preview
+spreads six onsets. Bare `P` bakes it (six-onset Euclid rhythm, ≠ the seed); a
+second run enters and cancels with `Func+P` → the original pattern is restored
+exactly. Started from a clustered non-Euclidean seed so the redistribution is
+observable.
 
 **B2 — Density overlay.** Hub → DENSITY; thin trigs; assert emitted census drops;
 per-track selection detents (Scrub/Re-roll/Exempt) reachable; MOD sub-page cycle.

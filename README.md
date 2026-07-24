@@ -2210,9 +2210,9 @@ Phrase (Q)
 ├─ + Y (SNAP)        → mark this phrase onto its checkpoint stack — §5.15
 ├─ + hold O          → deletion picker: step grid shows phrase slots on the focused track; tap to choose → named confirm — §5.4a
 ├─ + P (QUANT)       → Quantize: zero microOffset across every step on every track — §5.1
-├─ + Func + P        → cancel a queued Scene launch (Cancel = the pending-action verb) — §5.14
-└─ + Fill (X, held together) → Euclidean generator on the focused track:
-                       encoders = PULSE / OFSET / ACCNT; release prints the rhythm — §5.18
+└─ + Func + P        → cancel a queued Scene launch (Cancel = the pending-action verb) — §5.14
+
+(Euclidean generator entry moved to the generator hub — hold `3`, pick EUCLID — §5.18.)
 ```
 
 Links: [§5.14](#514-scenes-phrases-and-songs-the-launch-model) ·
