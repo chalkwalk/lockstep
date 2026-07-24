@@ -44,6 +44,7 @@
 #include "../src/ui/mode/GestureRecognizer.h"
 
 #include <cmath>
+#include <cstdio>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <initializer_list>
 #include <iterator>
@@ -359,6 +360,22 @@ namespace lockstep::test
         // for the journeys that assert on emitted MIDI rather than audio.
         [[nodiscard]] const juce::MidiBuffer& midiOut() { return audioRig().midiOut(); }
 
+        // -- semantic MZ param (E4) ----------------------------------------------
+        // Set an absolute machine-param slot to a target value through the MZ's real
+        // armed path. With a step held it lands as a P-Lock on that step (base
+        // untouched); with none, it writes the track base -- the scope fork that is
+        // the whole point of testing this rather than calling setValue(). The slot
+        // must be on the MZ's visible page (select its section first). Reads clearly
+        // where dragMZSlider can only speak in pixels, but routes identically.
+        //
+        // A base write is applied on the AUDIO thread (drainEngineCmds at the top of
+        // processBlock), so run a block (runBlocks/play) before asserting engine state.
+        UiDriver& setParam(int slot, float value)
+        {
+            DispatchProbe::setMzParam(editor(), slot, static_cast<double>(value));
+            return *this;
+        }
+
         // -- observation ---------------------------------------------------------
         // What the live editor would paint right now -- so a test can assert on the
         // surface a gesture produces, not merely on the state behind it.
@@ -439,4 +456,21 @@ namespace lockstep::test
         // reference to rig_'s processor and releases resources in its dtor.
         std::unique_ptr<AudioRig> audio_;
     };
+
+    // Journey precondition guard (E5), mirroring SceneGolden's `reached`: a journey
+    // whose setup silently failed must fail LOUDLY here, not assert against a wrong
+    // start state three lines later and blame the wrong thing. Returns the predicate
+    // result so a caller can bail. On failure it prints (no "FAIL" token, so it does
+    // not masquerade as an assertion failure) and bumps `failed`.
+    template <typename Pred>
+    inline bool expectReached(UiDriver& d, Pred&& reached, const char* name, int& failed)
+    {
+        const bool ok = reached(d);
+        if (!ok)
+        {
+            std::fprintf(stderr, "PRECONDITION NOT REACHED: %s\n", name);
+            ++failed;
+        }
+        return ok;
+    }
 }   // namespace lockstep::test

@@ -244,6 +244,89 @@ namespace
         }
         check(sawNoteOn, "a MidiOut track's trig emits a note-on on midiOut()");
     }
+    // Semantic MZ param (E4). Same fork MzDriveTest proves for the pixel drag, but
+    // driven by VALUE: setParam must land the track base with no step held, and a
+    // P-Lock on the held step (base untouched) with one down. If setParam skipped the
+    // armed onDragStart it would report a working edit while being blind to WHERE it
+    // landed -- exactly the bug setValue() is banned for.
+    void testSetParamRouting(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [UiDriver/setParam] %s\n", what); ++failed; }
+        };
+
+        // slot 4 of the FM schema = fm_fine_1 (-100..100, default 0): continuous and
+        // centred, so a target value is meaningful and unquantised (MzDriveTest's pick).
+        constexpr int kFineSlot = 4;
+        // A base write takes effect only when the engine drains its command queue at
+        // the top of processBlock; a bare non-playing block is enough (no transport,
+        // no notes -- the isolation MzDriveTest relies on).
+        auto drain = [](UiDriver& d) {
+            const int chans = juce::jmax(2, d.proc().getTotalNumOutputChannels());
+            juce::AudioBuffer<float> buf(chans, 512);
+            buf.clear();
+            juce::MidiBuffer midi;
+            d.proc().processBlock(buf, midi);
+        };
+        auto baseOf = [](UiDriver& d, int slot) {
+            return d.proc().sequence().tracks[0].baseParams[static_cast<std::size_t>(slot)];
+        };
+
+        // No step held -> base write.
+        {
+            UiDriver d;
+            installRealMachine(d.rig());
+            DispatchProbe::frame(d.editor());   // sliders' ranges follow the installed machine
+            const int slot = DispatchProbe::mzSlotOffset(d.editor()) + kFineSlot;
+
+            d.setParam(slot, 42.0f);
+            drain(d);
+            check(std::abs(baseOf(d, slot) - 42.0f) < 1.0f, "setParam writes the track base value");
+            check(!d.proc().sequence().tracks[0].steps[0].overrides.has(slot),
+                  "and does not touch the step override");
+        }
+
+        // Step held -> P-Lock on that step, base left alone.
+        {
+            UiDriver d;
+            installRealMachine(d.rig());
+            DispatchProbe::frame(d.editor());
+            const int slot = DispatchProbe::mzSlotOffset(d.editor()) + kFineSlot;
+            const float baseBefore = baseOf(d, slot);
+
+            d.keyDown('D');   // 'D' is step 0's key: EditContext goes active
+            d.setParam(slot, 42.0f);
+            drain(d);
+            const auto& step0 = d.proc().sequence().tracks[0].steps[0];
+            check(step0.overrides.has(slot), "setParam under a held step P-Locks that step");
+            check(std::abs(baseOf(d, slot) - baseBefore) < 1.0e-6f,
+                  "...and leaves the track base untouched");
+            d.keyUp('D');
+        }
+    }
+
+    // Precondition guard (E5). Passes a true precondition silently; fails a false one
+    // loudly (bumping the caller's counter) so a broken setup cannot masquerade as a
+    // wrong-answer assertion downstream.
+    void testExpectReached(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [UiDriver/expectReached] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        int localA = 0;
+        const bool ok = test::expectReached(
+            d, [](UiDriver& dd) { return !dd.ui().latch.track; },
+            "baseline: Track not latched", localA);
+        check(ok && localA == 0, "a true precondition passes silently, counter untouched");
+
+        int localB = 0;
+        const bool bad = test::expectReached(
+            d, [](UiDriver&) { return false; },
+            "intentional miss (self-test, expected)", localB);
+        check(!bad && localB == 1, "a false precondition fails loudly and bumps the counter");
+    }
 }   // namespace
 
 void runUiDriverSelfTests(int& failed)
@@ -255,5 +338,7 @@ void runUiDriverSelfTests(int& failed)
     testLiveAudioBridge(failed);
     testMidiNoteInput(failed);
     testMidiOutCapture(failed);
+    testSetParamRouting(failed);
+    testExpectReached(failed);
 }
 }   // namespace lockstep

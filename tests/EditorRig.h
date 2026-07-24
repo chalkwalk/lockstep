@@ -156,6 +156,29 @@ namespace lockstep
         {
             return ed.manipulationZone_.slotOffset();
         }
+
+        // Drive one MZ slot's value through the REAL armed path
+        // (onDragStart -> value -> onValueChange), so a param write lands in
+        // base-vs-override exactly as a hand drag would -- but by target VALUE,
+        // readable in a test, rather than the pixel arithmetic dragMZSlider needs.
+        // onDragStart is where the MZ arms its P-Lock capture (ManipulationZone.cpp:78),
+        // the step a bare setValue() skips -- which is the whole reason setValue() is
+        // banned in these tests. `absSlot` is an absolute param slot and must be on the
+        // MZ's visible page (select its section first).
+        static void setMzParam(LockstepEditor& ed, int absSlot, double value)
+        {
+            auto& mz = ed.manipulationZone_;
+            const int zone = absSlot - mz.slotOffset();
+            if (zone < 0 || zone >= static_cast<int>(mz.sliders_.size()))
+            {
+                jassertfalse;   // slot not on the visible MZ page: wrong section/band?
+                return;
+            }
+            auto& s = mz.sliders_[static_cast<std::size_t>(zone)];
+            if (s.onDragStart) s.onDragStart();
+            s.setValue(value, juce::sendNotificationSync);   // fires onValueChange -> writeParam
+            if (s.onDragEnd) s.onDragEnd();
+        }
         // The scope the shown page resolved from (Machine/Track/Scene/...): the other
         // half of "which page is up", and likewise invisible in UiState.
         static SecOrigin mzPageOrigin(const LockstepEditor& ed) noexcept
