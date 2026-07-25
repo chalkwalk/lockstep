@@ -270,6 +270,16 @@ namespace lockstep
 
         Clipboard clipboard_;
 
+        // The machine-schema adapter every verb reads through (commandContext()).
+        // OWNED BY THE EDITOR, deliberately: it holds a reference to processor_, and
+        // CommandContext holds a reference to IT, so it must outlive the context the
+        // caller is handed. It used to be a function-local `static`, which gave it the
+        // required lifetime and the wrong identity -- the FIRST editor's processor,
+        // forever. A second plugin instance then routed its section verbs through the
+        // first instance's schema, and closing that first instance left the reference
+        // dangling (a crash, found by the A4 journey). One editor, one catalogue.
+        std::unique_ptr<IMachineCatalog> catalog_;
+
         // Per-track fill latch: captured on the transition into Func+Fill held,
         // cleared when either modifier releases. While Fill alone is held, this
         // stays -1 and fill activates on every track.

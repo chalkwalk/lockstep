@@ -7743,8 +7743,12 @@ namespace lockstep
 
     CommandContext LockstepEditor::commandContext()
     {
-        // ProcessorCatalog is lightweight — safe to construct per-call.
-        static ProcessorCatalog catalog{ processor_ };
+        // Lazily built, then owned by this editor (see catalog_'s note in the header):
+        // the returned CommandContext holds a reference to it, so it must outlive the
+        // call, and it must belong to THIS editor's processor.
+        if (catalog_ == nullptr)
+            catalog_ = std::make_unique<ProcessorCatalog>(processor_);
+        auto& catalog = *catalog_;
         return {
             processor_.arrangement(),
             processor_.sequence(),
