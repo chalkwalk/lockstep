@@ -11,6 +11,8 @@
 
 #include "UiDriver.h"
 
+#include "../src/ParameterIDs.h"
+#include "../src/core/SyncMode.h"
 #include "../src/machine/MidiOutMachine.h"
 #include "../src/ui/MetaBand.h"
 
@@ -189,11 +191,59 @@ namespace
         const int ratcheted = noteOnsOverRoll(d, 400);
         check(ratcheted > plain, "the ratcheted step fires more often than the plain one");
     }
+    // H1b -- PreRoll: the count-in delays the take, not the transport.
+    //
+    // Record-armed with a non-zero pre-roll, hitting play gives you N bars of clicks
+    // before anything is captured -- the difference between a take that starts with
+    // your hand moving and one that starts with you waiting.
+    void testPreRoll(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/H1] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        installRealMachine(d.rig(), 0);
+
+        check(!d.proc().preRollActive(), "no count-in when none is configured");
+
+        // Stand the audio rig up FIRST and only then park the transport: attaching it
+        // starts the in-plugin transport, and a count-in that begins before that gets
+        // run over by it. (The count-in exists precisely because the transport has not
+        // started yet.)
+        d.runBlocks(1);
+
+        // The count-in is Lockstep's OWN transport behaviour, by design: hosted and
+        // locked, the DAW owns the downbeat and pressing Play must never delay it
+        // (PRINCIPLES §3). The rig supplies a playhead, so it reads as hosted -- Auto
+        // sync is what makes this the standalone-shaped case the count-in belongs to.
+        if (auto* sync = d.proc().apvts().getParameter(ParamIDs::syncMode))
+            sync->setValueNotifyingHost(sync->convertTo0to1(static_cast<float>(SyncMode::Auto)));
+
+        d.proc().project().preRollBars = 2;
+        d.tap(CB::SelectTrack, 0);
+        d.tap(CB::VerbRecord);              // record-arm
+        d.proc().clock().setInPluginPlaying(false);
+        d.proc().transportPlay();
+
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.proc().preRollActive(); },
+                                 "arming + play starts a count-in", failed))
+            return;
+
+        const auto progress = d.proc().preRollProgress();
+        check(progress.second == 2, "...of the configured length");
+        check(progress.first <= progress.second, "...counting toward it, not past it");
+
+        // It ends on its own: the count-in is a delay, not a mode to escape.
+        d.runBlocks(800);
+        check(!d.proc().preRollActive(), "the count-in ends and the take begins");
+    }
 }   // namespace
 
 void runCujTimeTests(int& failed)
 {
     testTimePage(failed);
+    testPreRoll(failed);
     testRetrig(failed);
 }
 }   // namespace lockstep

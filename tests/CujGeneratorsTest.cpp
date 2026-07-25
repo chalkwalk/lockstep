@@ -7,6 +7,7 @@
 
 #include "UiDriver.h"
 
+#include "../src/core/Density.h"
 #include "../src/ui/MetaBand.h"
 #include "../src/ui/mode/ModeReducer.h"
 
@@ -160,6 +161,20 @@ namespace
         d.proc().setMasterDensity(0.0f);
         d.runBlocks(4);
         check(onsets(d, 0) == before, "and restoring the offset leaves the pattern as it was");
+
+        // --- Per-track detents: how each track ANSWERS the thinning ---------------
+        // Density is one master gesture, but a track can opt out of it (Exempt) or ask
+        // for a different flavour of thinning. The selection lives on the kit, so it
+        // survives the overlay closing.
+        check(d.proc().kit(0).densitySelection == Density::DensitySelection::Scrub,
+              "a track thins by scrubbing until told otherwise");
+        d.proc().kit(0).densitySelection = Density::DensitySelection::Exempt;
+        d.proc().setMasterDensity(-0.9f);
+        d.runBlocks(8);
+        check(d.proc().kit(0).densitySelection == Density::DensitySelection::Exempt,
+              "an Exempt track keeps its own answer to the master gesture");
+        check(onsets(d, 0) == before, "...and the pattern is still untouched either way");
+        d.proc().setMasterDensity(0.0f);
 
         // --- The overlay is sticky, and escapes on a double-tap Func --------------
         check(d.ui().overlay == Overlay::Density, "the overlay is sticky -- it survives the hub");

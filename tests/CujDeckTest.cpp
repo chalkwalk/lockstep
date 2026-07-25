@@ -159,6 +159,17 @@ namespace
         check(captured <= drums.peak() + 0.01f,
               "the capture is the input, not something louder than it");
         check(!d.hasNaN(), "the capture path stays finite");
+
+        // --- Promote: a volatile take becomes a durable file ----------------------
+        // A REC slot is RAM and dies with the session; promotion is how a take you
+        // like stops being temporary. That is the whole promote-or-lose contract.
+        const juce::File dest = juce::File::createTempFile("lockstep_cuj_f4_take.wav");
+        dest.deleteFile();
+        const int promoted = d.proc().promoteVolatileToFile(slot, dest);
+        check(promoted >= 0, "the captured take promotes into the pool as a file entry");
+        check(dest.existsAsFile(), "...and the file is on disk");
+        check(dest.getSize() > 1000, "...with the audio in it, not just a header");
+        dest.deleteFile();
     }
     // F3 -- Two-track audio loop.
     //

@@ -130,7 +130,9 @@ and the encoders become the density band. The claim under test is that density i
 **subtractive**: pushing the master offset to −0.9 and running blocks leaves the stored
 onsets byte-identical, and restoring the offset leaves them identical again — the
 thinning lives in what is emitted, never in the pattern. Sticky, and escapes on a
-double-tap `Func`. Per-track selection detents are left to a later wave.
+double-tap `Func`. Per-track **selection detents** are covered too: a track thins by scrubbing until told
+otherwise, and an `Exempt` track keeps its own answer to the master gesture — the
+selection lives on the kit, so it outlives the overlay.
 
 **B3 — Velocity overlay.** ☑ `CujGeneratorsTest.cpp`. Hub cell 2 opens `Overlay::Vel`.
 Four axes hang off ONE key: re-pressing **AMP** moves to the next sub-page, the meta
@@ -397,8 +399,9 @@ Multi-sub-track overdub and take-group promotion are left to a later wave.
 
 **F4 — Record machine → pool.** ☑ `CujDeckTest.cpp`. A real drum loop is fed in
 (`feedAudio`), the recorder trig fires, and the REC slot ends up holding audio: non-zero
-peak, a real used length, and no louder than what went in. `Save…` promotion is left to
-a later wave.
+peak, a real used length, and no louder than what went in. `Save…` **promotion** completes it: the volatile take becomes a durable file entry on
+disk with the audio in it — the promote-or-lose contract, since a REC slot is RAM and
+dies with the session.
 
 **Three ordering rules this journey had to discover, all invisible from outside:**
 1. **Stand the audio rig up BEFORE installing a capture machine.** Attaching it
@@ -460,8 +463,13 @@ encoders become the TIME band; re-pressing TRIG cycles TIME ↔ KEY (two signatu
 one key); the CLICK field toggles the metronome (9.10 moved it here from `Func+3`).
 The scope-ladder leg is the substance: the **same page** opened under `Song` writes the
 Song rung and under `Scene` writes the Scene rung, each leaving the other set, and
-`effectiveTimeSig` resolves to the nearest rung that is set. PreRoll count-in is left
-to a later wave.
+`effectiveTimeSig` resolves to the nearest rung that is set. The **PreRoll count-in** is covered separately: record-armed with a non-zero pre-roll,
+Play starts a count-in of the configured length that ends on its own.
+
+*Two preconditions it needs:* stand the audio rig up **before** parking the transport
+(attaching it starts the in-plugin transport, which runs the count-in over), and set
+**Auto** sync — the count-in is Lockstep's own transport behaviour by design, because
+hosted-and-locked the DAW owns the downbeat and Play must never delay it.
 
 **H2 — Retrig/ratchet.** ☑ `CujTimeTest.cpp`. A step carrying an RTG rate fires *more
 often* over a bar than a plain one — counted, on a **MIDI-out track**, because audio
