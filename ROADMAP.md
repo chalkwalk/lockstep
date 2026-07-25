@@ -971,10 +971,42 @@ reveals a product bug **files** it, never fixes it inline.
       generate/commit/cancel, F1 realtime record. Proved the assertion pattern and
       corrected the catalogue where it was wrong (polymeter length is
       `Func+Phrase+step`, not a TRIG field).
-- [ ] **Wave 2** — A4 copy/paste/clear across scopes, C1 P-Lock (the OEB
-      invariant), C3 machine picker (guards the `numSections()` trap), D1 mute,
-      D5 checkpoints (guards `9.4`), E1 scene and E3 song (guard `5.3`'s identity
-      + create-on-select work).
+- [x] **Wave 2** (2026-07-24) — A4 copy/paste/clear across scopes, C1 P-Lock (the
+      OEB invariant), C3 machine picker (guards the `numSections()` trap), D1 mute,
+      D5 checkpoints, E1 scene, E3 song. D5 and E3 land **partial** (`~`): each has a
+      leg the product cannot currently reach, listed below. Seven journeys, five
+      defects — the ratio the arc exists for.
+
+**Defects wave 2 found.** Filed here rather than fixed inline (the arc is tests +
+docs; a journey that finds a bug files it). Four of the five are the same disease
+9.14 st.5 named: something *declares* a behaviour that dispatch never reaches.
+
+- [x] **The machine catalogue was a `static`** — `commandContext()`'s
+      `ProcessorCatalog` bound the FIRST editor's processor forever, so a second
+      plugin instance read the first's machine schema and outliving it dangled
+      (a segfault on a section copy). **Fixed on the spot**, being a crash rather
+      than a wart: the catalogue is owned by the editor that uses it.
+- [ ] **`Func+O` never reaches UNDO.** `KeyBindings` declares the row,
+      `CommandCore` handles the action, DESIGN §13.6 makes it the safety net under
+      every destructive op — but `clearVerbTap` routes to the table only when
+      `primaryScope()` is neither `None` nor `Func`, and with only Func held it *is*
+      `Func`. The press falls through to "clear the active P-Lock slot". Blocks D5's
+      undo leg and all of C6.
+- [ ] **A scoped mark cannot be popped.** §13.6 says `Func+Y` walks the held scope's
+      stack; dispatch reserves Snapshot *and* Restore whenever a section-suite scope
+      is held (`sectionSuiteScopeHeld`), so Track/Scene/Phrase marks push with no
+      gesture to pop them — the mirror of the phantom `9.4` fixed on the push side.
+      Decide which side wins: the reserve, or §13.6.
+- [ ] **`Mute+Song+step` (blank song) cannot fire.** The Mute layer rewrites every
+      step key to `ToggleMute` before the Step case can read `songHeld`, and
+      `(ToggleMute, Mute|Song)` matches no row, so the press is swallowed and
+      dispatch's own documented branch is dead code. (5.3's prose claimed it;
+      corrected there.)
+- [ ] **A held step used as a copy/paste operand still authors on release.**
+      `verbs::trig` marks the edit context param-written for Clear but not for
+      Record/Play, so copying a step turns its trig off and pasting onto one inverts
+      what just landed. Also noted: the copy-key glow is wired for section-*suite*
+      scopes only, so a held step or section copies without lighting the key.
 - [ ] **Later waves** — the remaining ☐ rows: A2/A3, B2–B5, C2/C4–C6, D2–D4,
       E2/E4, F2–F5, G1/G2, H1/H2. Machine-content journeys need the committed
       CC0 assets the catalogue names.
@@ -1015,7 +1047,9 @@ resurrecting CLN; Song/Scene names show in a widened transport indicator + the
 hold-selectors; the MOD naming affordance is promoted to a lit "NAME SONG/SCENE"
 primary with a hold glyph; **Songs and Phrases create-on-select** (real slot model
 — `Song::initialised`, serializer v36 + backfill; empty `Song+step` copies /
-`Mute+Song+step` blanks; phrase rows are diagonal-aware, `Phrase+step` inert on
+`Mute+Song+step` blanks — **but see 9.36: that variant cannot fire**, the Mute layer
+rewrites the step key to `ToggleMute` before dispatch can read `songHeld`; phrase rows
+are diagonal-aware, `Phrase+step` inert on
 un-created rows); and the whole UI is a **uniform-scaled, aspect-locked resizable
 window** (default 1.2×, persisted). Items 6–7 (SoundPool full-bundle, docs) open.
 

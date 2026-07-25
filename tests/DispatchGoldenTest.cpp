@@ -842,6 +842,8 @@ namespace lockstep
     void runCujSoundTests(int& failed);
     // Defined in CujPerformanceTest.cpp -- Group D performance overlays.
     void runCujPerformanceTests(int& failed);
+    // Defined in CujArrangementTest.cpp -- Group E launch journeys.
+    void runCujArrangementTests(int& failed);
 }
 
 int main()
@@ -867,6 +869,7 @@ int main()
     lockstep::runCujClipboardTests(failed);
     lockstep::runCujSoundTests(failed);
     lockstep::runCujPerformanceTests(failed);
+    lockstep::runCujArrangementTests(failed);
     std::fprintf(stderr, failed == 0 ? "All dispatch golden tests passed.\n"
                                      : "%d dispatch golden test(s) FAILED.\n", failed);
     return failed == 0 ? 0 : 1;

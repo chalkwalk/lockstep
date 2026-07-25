@@ -217,22 +217,35 @@ Flip to ☑ when either is resolved and the corresponding leg lands.
 
 | ID | Journey | Status | Deps |
 |----|---------|--------|------|
-| E1 | Scene | ☐ | |
+| E1 | Scene | ☑ | |
 | E2 | Phrase | ☐ | |
-| E3 | Song | ☐ | |
+| E3 | Song | ~ | |
 | E4 | Deletion picker | ☐ | |
 
-**E1 — Scene.** `Scene+step` empty → create+launch (`initialised`, queued); occupied
-→ carry/launch; active → revert to floor; `Scene+O` SYNC discards deviations;
-`Scene+Record` commit-and-bake. Assert selector shows **names + identity colours**
-(the WI-3 work — regression-guard it here).
+**E1 — Scene.** ☑ `CujArrangementTest.cpp`. `Scene+step` on an empty cell creates and
+launches (create-on-select); on an occupied one it launches; `Scene+CLEAR` syncs live
+deviations away. The identity leg is the WI-3 regression guard: with Scene held, the
+named+coloured cell carries its **name** in `primary` and a fill that differs from an
+unnamed neighbour's, the playing scene reads `SelectorCurrent` and the other reads
+`SelectorOccupied`. *Gotcha:* `Phrase+step` is launch, not create, and is inert on an
+un-created row — the deviation leg must target a row some scene brought into being.
+`Scene+Record` (commit-and-bake) is left to a later wave.
 
 **E2 — Phrase.** `Phrase+step` deviates focus track (`deviated[t]`);
 `Scene+Phrase+step` deviates all; diagonal row clears all deviations; `Phrase+U/I/O`
 copy/paste/clear.
 
-**E3 — Song.** `Song+step` occupied → switch (full reset, deviations clear); empty →
-create-on-select; `Mute+Song+step` → blank; `Song+O` → Panic (voices killed).
+**E3 — Song.** ~ `CujArrangementTest.cpp`. `Song+step` on an empty slot creates by
+copying the song you were on and switches to it (v36 slots); an occupied slot
+switches, each song keeping its own pattern; audio rolls **across** the switch (the
+frame-race guard) and stays finite.
+
+**Gap found, filed not fixed:** `Mute+Song+step` → blank song **cannot fire**. The
+Mute LAYER rewrites every step key to `ToggleMute` (`kLayerRemaps`) before the Step
+case can read `songHeld`, and `(ToggleMute, Mute|Song)` matches no binding row, so the
+press is swallowed and dispatch's own documented "empty + Mute: blank default song"
+branch is dead code. (ROADMAP 5.3 claims this gesture; corrected there.) `Song+O` →
+Panic is left to a later wave. Flip to ☑ when the blank variant is reachable.
 
 **E4 — Deletion picker.** `scope+hold(O)` (Track/Phrase/Scene) → picker re-skin +
 status; tap slot → named confirm pop-over ("Delete PHRASE 3? P=CONFIRM"); `P`
