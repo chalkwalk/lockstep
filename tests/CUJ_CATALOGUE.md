@@ -107,8 +107,8 @@ instance read the first's schema, and outliving it dangled.
 | B1 | Euclid generate + commit/cancel | ☑ | mz |
 | B2 | Density overlay | ☑ | mz |
 | B3 | Velocity overlay | ☑ | mz |
-| B4 | Melodic generator | ☐ | mz |
-| B5 | Harmonic voice-mover | ☐ | mz |
+| B4 | Melodic generator | ☑ | mz |
+| B5 | Harmonic voice-mover | ☑ | mz |
 
 **B1 — Euclid.** ☑ `CujGeneratorsTest.cpp`. Hold the 3-key past the long-press +
 tick the timer → hub opens; `step 0` picks the EUCLID cell → `euclidHeld`,
@@ -137,14 +137,18 @@ overlay cold and expects AMP to page is testing an overlay that has nothing to p
 to. Enable a track's `velMode` first. Applying the overlay velocity at emit is left to
 a later wave.
 
-**B4 — Melodic generator.** Hub → MELODY; `setParam` DENSE/CORE/SEED; assert live
-preview; `P` prints editable steps with pitches in the effective key; **seed
-determinism** — same SEED in same place reproduces the same line, different track
-differs (assert two tracks diverge).
+**B4 — Melodic generator.** ☑ `CujGeneratorsTest.cpp`. Hub cell 3 arms it and the
+encoders become the melody band. Two properties make it performable rather than a
+novelty, and both are asserted: it **previews live** (a knob turn changes the grid
+before anything is committed) and bare `P` prints exactly what was previewed. Then
+**determinism** — re-arming and driving the same field to the same value reproduces the
+same line, so a take can be repeated. `Func+P` cancels and restores what was there.
 
-**B5 — Harmonic voice-mover.** Hub → CHORD; four-voice view (assert surface layout);
-edit a voice in-scale; `LEN` grows (clones prev chord); `P` prints one chord per bar
-of the in-scope time-sig; no two voices share a pitch.
+**B5 — Harmonic voice-mover.** ☑ `CujGeneratorsTest.cpp`. Hub cell 4 arms it. The tool
+is voice-leading, not a chord palette: one voice moves when its knob turns and the rest
+stay put, and the invariant that keeps it sounding like harmony rather than a cluster —
+**no two voices on the same pitch** — holds before and after the move. `P` prints the
+progression. `LEN` growth (cloning the previous chord) is left to a later wave.
 
 ## Group C — Sound, sections, P-Locks
 

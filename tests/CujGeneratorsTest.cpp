@@ -228,6 +228,106 @@ namespace
         d.doubleTap(CB::Func);
         check(d.ui().overlay == Overlay::None, "double-tap Func escapes it");
     }
+    // B4 -- Melodic generator.
+    //
+    // The melodic generator writes a LINE, not a rhythm: onsets land strongest-beat
+    // first, and the pitches come from the effective key. Two properties make it usable
+    // on stage rather than a novelty, and both are asserted here: it previews live
+    // before you commit, and it is DETERMINISTIC -- the same seed in the same place
+    // gives the same line, so a take can be reproduced.
+    void testMelodicGenerator(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/B4] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        installRealMachine(d.rig(), 0);
+        setPattern(d, 0, {});                    // a blank track to write onto
+        const auto blank = onsets(d, 0);
+
+        openHubCell(d, 3);   // MELODY
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.ui().melodicHeld; },
+                                 "the hub's MELODY cell arms the melodic generator", failed))
+            return;
+        check(resolveMetaBand(d.ui()) == MetaBand::Melodic, "the encoders become the melody band");
+
+        // --- It previews live, before anything is committed -----------------------
+        DispatchProbe::frame(d.editor());
+        d.setParam(DispatchProbe::mzSlotOffset(d.editor()) + 0, 8.0f);   // density-ish first field
+        const auto preview = onsets(d, 0);
+        check(preview != blank, "turning a knob previews the line on the grid");
+
+        // --- Bare P prints it; the preview becomes the pattern ---------------------
+        d.tap(CB::VerbConfirm);
+        check(!d.ui().melodicHeld, "P commits and leaves the generator");
+        const auto printed = onsets(d, 0);
+        check(printed == preview, "what was previewed is what got printed");
+        check(!printed.empty(), "...and it is a real line, not an empty one");
+
+        // --- Determinism: the same seed in the same place gives the same line ------
+        // Re-arm, drive the same field to the same value, and the preview must match
+        // what printed. A generator you cannot reproduce is one you cannot perform.
+        openHubCell(d, 3);
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.ui().melodicHeld; },
+                                 "the generator re-arms", failed))
+            return;
+        DispatchProbe::frame(d.editor());
+        d.setParam(DispatchProbe::mzSlotOffset(d.editor()) + 0, 8.0f);
+        check(onsets(d, 0) == printed, "the same settings reproduce the same line");
+
+        // --- Func+P cancels: the pattern goes back untouched -----------------------
+        d.press(CB::Func);
+        d.tap(CB::VerbConfirm);
+        d.release(CB::Func);
+        check(!d.ui().melodicHeld, "Func+P leaves the generator too");
+        check(onsets(d, 0) == printed, "...restoring what was there before the preview");
+    }
+
+    // B5 -- Harmonic voice-mover.
+    //
+    // The chord generator is a voice-leading tool, not a chord palette: you move one
+    // voice at a time along the scale's ladder and the others stay put, which is how a
+    // progression gets written by ear. The invariant that makes it sound like harmony
+    // rather than a cluster is that no two voices land on the same pitch.
+    void testHarmonicVoiceMover(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/B5] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        installRealMachine(d.rig(), 0);
+        setPattern(d, 0, {});
+
+        openHubCell(d, 4);   // CHORD
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.ui().harmonyHeld; },
+                                 "the hub's CHORD cell arms the voice-mover", failed))
+            return;
+        check(resolveMetaBand(d.ui()) == MetaBand::Harmony, "the encoders become the chord band");
+
+        // --- The voices start distinct, and stay distinct as one moves ------------
+        auto voicesDistinct = [&] {
+            const auto& prog = d.ui().harmonyProg;
+            for (int i = 0; i < kHarmonyVoices; ++i)
+                for (int j = i + 1; j < kHarmonyVoices; ++j)
+                    if (prog.chords[0].voice[i] == prog.chords[0].voice[j])
+                        return false;
+            return true;
+        };
+        check(voicesDistinct(), "the opening chord has four distinct voices");
+
+        DispatchProbe::frame(d.editor());
+        const auto beforeVoice = d.ui().harmonyProg.chords[0].voice[1];
+        d.setParam(DispatchProbe::mzSlotOffset(d.editor()) + 1, static_cast<float>(beforeVoice + 2));
+        check(d.ui().harmonyProg.chords[0].voice[1] != beforeVoice, "a voice moves when its knob turns");
+        check(voicesDistinct(), "...and no two voices ever share a pitch");
+
+        // --- Bare P prints one chord per bar ---------------------------------------
+        d.tap(CB::VerbConfirm);
+        check(!d.ui().harmonyHeld, "P commits and leaves the voice-mover");
+        check(!onsets(d, 0).empty(), "the progression is printed onto the track");
+    }
 }   // namespace
 
 void runCujGeneratorsTests(int& failed)
@@ -235,5 +335,7 @@ void runCujGeneratorsTests(int& failed)
     testEuclidGenerateCommitCancel(failed);
     testDensityOverlay(failed);
     testVelocityOverlay(failed);
+    testMelodicGenerator(failed);
+    testHarmonicVoiceMover(failed);
 }
 }   // namespace lockstep
