@@ -387,15 +387,18 @@ tape edit is never destructive.
 *Load-bearing:* the two deck faces share a console and a state machine but **not a
 command door**. `sendLooperCommand` does a `dynamic_cast<LoopMachine*>` and simply
 misses a tape — drive a tape through it and it sits in Playing while every command
-falls on the floor. The tape's door is `tapeApplyVerb`. Wind/scrub and the marker
-family are left to a later wave.
+falls on the floor. The tape's door is `tapeApplyVerb`. The **marker family** is covered too: markers drop where the head is, and a cue is a
+**LOCATE** — it moves the head and fires nothing (§40.4), which is exactly why they can
+be dropped freely mid-take. Wind/scrub (standalone-only) is left to a later wave.
 
 **F3 — Two-track audio loop.** ☑ `CujDeckTest.cpp`. REC defines the loop on the first
 pass and the take closes into one with a length (`looperHasLoop`); with the input then
 cut, the loop plays back the audio it captured — which is the claim that separates a
 looper from a recorder. Drive it with `immediate=true`: a quantized edge sits *Armed*
 waiting for a bar line, and the journey would be timing the grid rather than the deck.
-Multi-sub-track overdub and take-group promotion are left to a later wave.
+Widening is covered: raising `subtrack_count` gives the deck **four sub-tracks in one
+slot** — still one track, which is the whole storage decision (§40.7) — with sub 0
+armed by default, and the take promotes as a **group**, one file per non-empty sub.
 
 **F4 — Record machine → pool.** ☑ `CujDeckTest.cpp`. A real drum loop is fed in
 (`feedAudio`), the recorder trig fires, and the REC slot ends up holding audio: non-zero

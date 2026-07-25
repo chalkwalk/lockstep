@@ -232,6 +232,27 @@ namespace
         }
         check(loopPeak > 0.0f, "the loop plays back the audio it captured");
         check(!d.hasNaN(), "the loop path stays finite");
+
+        // --- Widen it: four sub-tracks in one slot --------------------------------
+        // A four-sub loop is still ONE track and one slot -- that is the whole storage
+        // decision (§40.7). Raising the count is what arms the extra subs.
+        const int subSlot = d.proc().slotForId(0, "subtrack_count");
+        if (!test::expectReached(d, [&](UiDriver&) { return subSlot >= 0; },
+                                 "the looper exposes its sub-track count", failed))
+            return;
+        d.proc().writeParam(0, subSlot, 4.0f);
+        d.runBlocks(4);
+        check(d.proc().looperSubTrackCount(0) == 4, "the deck widens to four sub-tracks");
+        check(d.proc().looperSubArmed(0, 0), "sub-track 0 is armed by default");
+
+        // --- Promote: one WAV per non-empty sub, as a take GROUP ------------------
+        const juce::File stem = juce::File::createTempFile("lockstep_cuj_f3_take");
+        stem.deleteFile();
+        const int members = d.proc().promoteDeckTake(0, stem);
+        check(members > 0, "the take promotes as a group -- one file per non-empty sub");
+        for (const auto& f : stem.getParentDirectory().findChildFiles(
+                 juce::File::findFiles, false, stem.getFileNameWithoutExtension() + "*"))
+            f.deleteFile();
     }
     // F2 -- Tape record + punch.
     //
@@ -290,6 +311,24 @@ namespace
         // --- The punch is non-destructive: UNDO restores the original -------------
         check(d.proc().tapeCanUndo(0), "the punch is undoable -- a tape edit is never destructive");
         check(!d.hasNaN(), "the tape path stays finite");
+
+        // --- Markers are dumb navigation points -----------------------------------
+        // Dropped by hand, cued by a LOCATE and never a launch (§40.4): a marker moves
+        // the tape to a place, it does not fire anything. That distinction is the
+        // reason they can be dropped freely mid-take.
+        const int marksBefore = d.proc().tapeMarkerCount(0);
+        d.proc().dropTapeMarker(0);
+        d.runBlocks(60);
+        d.proc().dropTapeMarker(0);
+        check(d.proc().tapeMarkerCount(0) == marksBefore + 2, "markers drop where the head is");
+
+        const int trigsBefore = 0;   // a tape track sequences nothing to disturb
+        d.proc().tapeCue(0, -1);     // wind to the previous marker
+        d.runBlocks(4);
+        check(d.proc().tapeMarkerCount(0) == marksBefore + 2,
+              "a cue is a LOCATE -- it moves the head and fires nothing");
+        (void) trigsBefore;
+        check(!d.hasNaN(), "...and winding leaves the audio path finite");
     }
 }   // namespace
 
