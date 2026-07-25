@@ -18,6 +18,10 @@
 
 #include "UiDriver.h"
 
+#include "../src/ui/MetaBand.h"
+#include "../src/ui/SectionResolve.h"
+#include "../src/ui/UITheme.h"
+
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -190,11 +194,132 @@ namespace
             check(surf.slots[0].inRange, "the SRC page fills the MZ with real params");
         }
     }
+    // C4 -- Section paging and scope colour.
+    //
+    // Six section keys have to address more parameters than six pages can hold, on a
+    // surface where the same key means different things depending on which scope is
+    // held. Two rules carry that: a section key re-pressed CYCLES its pages, and the
+    // page you land on is COLOURED by the scope layer that won it -- neutral for the
+    // machine's own params, the scope's colour when a held scope re-skins the row.
+    void testSectionPagingAndScopeColour(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/C4] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        installRealMachine(d.rig(), 0);
+        settle(d);
+
+        // --- A machine page is the machine's own, and reads neutral ---------------
+        d.tap(CB::Section, IMachine::kSrcSecIdx);
+        settle(d);
+        check(DispatchProbe::mzPageOrigin(d.editor()) == SecOrigin::Machine,
+              "a bare section key opens the machine's own page");
+        const int firstPage = DispatchProbe::mzSlotOffset(d.editor());
+
+        // --- Re-pressing the same key cycles its pages ----------------------------
+        // FM's SRC section is deep enough to have more than one page; if it were not,
+        // the offset would legitimately stay put, so the precondition says so first.
+        const auto sec = d.proc().section(0, IMachine::kSrcSecIdx);
+        if (!test::expectReached(d, [&](UiDriver&) { return sec.pageCount > 1; },
+                                 "the section has more than one page to cycle", failed))
+            return;
+        d.gap();
+        d.tap(CB::Section, IMachine::kSrcSecIdx);
+        settle(d);
+        check(DispatchProbe::mzSlotOffset(d.editor()) != firstPage,
+              "re-pressing the section key pages it");
+
+        // --- Under a held Track the row re-skins, and the colour says so ----------
+        d.gap();
+        d.press(CB::TrackScope);
+        d.tap(CB::Section, IMachine::kTrigSecIdx);   // Track+TRIG = the track's own page
+        settle(d);
+        // The same key, under a scope, is not a deeper page of the machine -- it is a
+        // different LAYER: Track+TRIG is the track's own divider/length band, which is
+        // why the MZ answers with a meta band rather than a machine page.
+        check(resolveMetaBand(d.ui()) == MetaBand::Divider,
+              "a held Track re-points TRIG at the track's own layer");
+        {
+            const auto surf = d.surface();
+            const auto& cell = surf.section[static_cast<std::size_t>(IMachine::kTrigSecIdx)];
+            check(cell.scopeTint == theme::kScopeTrack,
+                  "...and the key wears the Track scope's colour while it is held");
+        }
+        d.release(CB::TrackScope);
+    }
+
+    // C5 -- Control-All.
+    //
+    // Hold Track without picking one and the instrument stops addressing a track at
+    // all: the next knob move goes to EVERY track that has the same control. It is how
+    // a filter sweep happens across a whole kit with one hand. The matching rule is by
+    // slot ID, not position, so a track running a different machine is left alone
+    // unless it genuinely has that parameter -- and selecting a track ends the mode.
+    void testControlAll(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/C5] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        installRealMachine(d.rig(), 0);
+        installRealMachine(d.rig(), 1);   // same machine: the ids match
+        settle(d);
+
+        // --- Arm Control-All, then turn the knob ----------------------------------
+        // Track must stay DOWN (releasing it ends the mode), and the section key in
+        // the middle is not optional: a bare Track hold puts the SWING band under the
+        // knobs, and any non-scope press dismisses it back to the machine params. So
+        // the real gesture is hold Track -> press a section -> sweep.
+        d.gap();
+        d.press(CB::TrackScope);
+        check(d.proc().controlAllActive(), "holding Track with no pick arms Control-All");
+        d.tap(CB::Section, IMachine::kSrcSecIdx);
+        settle(d);
+
+        // Read the target slot AFTER the page settles: the section press pages the MZ,
+        // and a slot that is no longer on the visible page is a write that silently
+        // does not happen.
+        const int slot = DispatchProbe::mzSlotOffset(d.editor()) + kFineSlot;
+        const float before0 = baseParamOf(d, 0, slot);
+        const float before1 = baseParamOf(d, 1, slot);
+        if (!test::expectReached(d, [&](UiDriver&) { return before0 == before1; },
+                                 "both tracks start this control from the same value", failed))
+        {
+            d.release(CB::TrackScope);
+            return;
+        }
+
+        d.setParam(slot, before0 + 20.0f);
+        runBlock(d);
+        d.release(CB::TrackScope);
+
+        check(baseParamOf(d, 0, slot) > before0, "the focused track moves");
+        check(baseParamOf(d, 1, slot) > before1, "...and so does every track sharing that control");
+
+        // --- Picking a track ends it ----------------------------------------------
+        d.gap();
+        d.press(CB::TrackScope);
+        d.tap(CB::SelectTrack, 0);
+        d.release(CB::TrackScope);
+        settle(d);
+        check(!d.proc().controlAllActive(), "choosing a track ends Control-All");
+
+        const float mid1 = baseParamOf(d, 1, slot);
+        d.setParam(slot, baseParamOf(d, 0, slot) + 15.0f);
+        runBlock(d);
+        check(std::abs(baseParamOf(d, 1, slot) - mid1) < 1.0e-6f,
+              "...and the next write lands on the chosen track alone");
+    }
 }   // namespace
 
 void runCujSoundTests(int& failed)
 {
     testPLockOneStep(failed);
     testMachinePicker(failed);
+    testSectionPagingAndScopeColour(failed);
+    testControlAll(failed);
 }
 }   // namespace lockstep

@@ -1015,7 +1015,8 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
       Record/Play, so copying a step turns its trig off and pasting onto one inverts
       what just landed. Also noted: the copy-key glow is wired for section-*suite*
       scopes only, so a held step or section copies without lighting the key.
-- [ ] **Wave 3** *(in progress)* — A2 ☑, A3 `~`, D2 ☑, E2 ☑, E4 ☑; C2/C4/C5/C6 left.
+- [ ] **Wave 3** *(in progress)* — A2 ☑, A3 `~`, C4 ☑, C5 ☑, D2 ☑, E2 ☑, E4 ☑;
+      C2/C6 left.
       Three more wrinkles found, all small and all the same shape (two paths that
       write one fact disagree): per-track `Phrase+<diagonal>` badges a track as
       deviated onto its own home phrase while `deviateAllToPhrase` clears it; the

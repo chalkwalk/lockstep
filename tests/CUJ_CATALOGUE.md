@@ -141,8 +141,8 @@ of the in-scope time-sig; no two voices share a pitch.
 | C1 | P-Lock one step | ☑ | mz |
 | C2 | Per-step sample swap (Sound Pool) | ☐ | |
 | C3 | Machine picker | ☑ | |
-| C4 | Section paging & scope colour | ☐ | |
-| C5 | Control-All | ☐ | mz |
+| C4 | Section paging & scope colour | ☑ | |
+| C5 | Control-All | ☑ | mz |
 | C6 | P-Lock clear gestures | ☐ | mz |
 
 **C1 — P-Lock one step.** ☑ `CujSoundTest.cpp`. SRC section; `hold step +
@@ -164,11 +164,24 @@ section reports real slots, its section key is live and the MZ page fills — th
 `numSections() == highestSectionIndex + 1` trap, which shipped once as a machine with
 an unreachable source panel.
 
-**C4 — Section paging & scope colour.** Machine pages read neutral, `Track`-held
-pages read cyan; page dots per section; re-press cycles.
+**C4 — Section paging & scope colour.** ☑ `CujSoundTest.cpp`. A bare section key opens
+the machine's own page (`mzPageOrigin == SecOrigin::Machine`) and re-pressing it pages
+(the MZ's slot offset moves — asserted only after a precondition confirms the section
+HAS more than one page). Under a held Track the same key addresses a different
+**layer**, not a deeper page: `Track+TRIG` is the track's divider/length band
+(`MetaBand::Divider`), and the section cell wears `theme::kScopeTrack` while held.
 
-**C5 — Control-All.** `Track` held, no track selected → next `setParam` broadcasts to
-every track with a matching control (assert all tracks' base moved).
+**C5 — Control-All.** ☑ `CujSoundTest.cpp`. Track held with no track picked arms it
+(`controlAllActive`); a `setParam` then lands on **every** track whose schema has the
+same slot id (matching is by id, not position); selecting a track ends the mode and
+the next write lands on that track alone.
+
+*Two things the gesture actually requires, both learned the hard way:* Track must stay
+**down** (releasing it clears the arm), and a **section press in the middle** is not
+optional — a bare Track hold puts the SWING band under the knobs, and any non-scope
+press dismisses it back to the machine params. Also: read the target slot **after**
+the section press settles, because that press pages the MZ, and a slot that is no
+longer on the visible page is a write that silently does not happen.
 
 **C6 — P-Lock clear gestures.** `Trig+Func+O` clears all P-Locks (trig intact);
 `Trig+slot+O` clears one slot; `Trig+SRC+O` clears note/vel/gate only. Assert the
