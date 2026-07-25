@@ -519,14 +519,15 @@ The verb keys are **context-sensitive** — they read three layers:
 - **No scope held** — transport / confirm: `Y`(SNAP) pushes a checkpoint,
   `U`(REC) toggles record-arm (double-tap = overdub), `I`(PLAY)
   starts/stops the transport (double-tap = stop-to-top), `O`(CLEAR) clears
-  the active P-Lock slot, `P`(CONFIRM) confirms a pending prompt.
+  the active operand, `P`(CONFIRM) confirms a pending prompt.
 - **A scope held** — the scope verbs: `U`=Copy, `I`=Paste, `O`=Clear.
   `Y` is the scope's snapshot (reserved/dim on most scopes); `P`=**QUANT**
   under Trig/Track/Phrase (zero microOffset), dim on Scene/Morph/Song/Mute/Fill.
-- **`Func` qualifier** — `Func+Y`=Restore (pop/floor), `Func+U`=omni copy,
-  `Func+I`=unqualified paste, `Func+P`=cancel a prompt. `Func+O` is **not** a
-  delete (9.29): `Func` *narrows* the clear (`Trig+Func+O` = clear P-Locks, keep
-  the trig). Delete is `scope + hold(O)` — §5.4a.
+- **`Func` qualifier** — `Func+Y`=Restore (pop/floor, on the held scope's stack),
+  `Func+U`=omni copy, `Func+I`=unqualified paste, `Func+P`=cancel a prompt.
+  `Func+O` is **not** a delete (9.29): it is **UNDO**, in every state (9.37).
+  The per-step *clear P-Locks, keep the trig* it briefly shared the chord with
+  now lives on `Trig` + hold(`O`). Delete is `scope + hold(O)` — §5.4a.
 
 There is no separate transport key — the verb row does double duty, which
 is why the surface needs no extra buttons. The full action set is indexed
@@ -1334,10 +1335,10 @@ Scenes and switch Songs live.
 
 ### 5.15 Marks and undo (live undo)
 
-> **Planned — specced, not yet built (ROADMAP 9.4; rationale in DESIGN §13.6).**
-> Today only the bare `Y` (Song) snapshot is wired: `Track+Y` and `Phrase+Y` are
-> no-ops, `Scene+Y` is SYNC, and a restore on an empty stack silently reverts to
-> the project baseline. The model below is what replaces all of that.
+> **Implemented** (ROADMAP 9.4, with the gestures settled by 9.37; rationale in
+> DESIGN §13.6). 9.4 built the model and 9.37 made every gesture in it reachable —
+> the CUJ suite found that a per-scope mark could be pushed but not popped, and that
+> `Func+O` was claimed by three features at once.
 
 There are two mechanisms, and the distinction is the whole point:
 
@@ -1352,9 +1353,10 @@ swallow work you did after it was armed.
 | Gesture | Action |
 |---|---|
 | `Y` (SNAP) | Push a **mark** for the currently-held scope. |
-| `Func + Y` (RESTORE — tap) | Pop one **mark** from that scope's stack. |
+| `Func + Y` (RESTORE — tap) | Pop one **mark** from the held scope's stack. |
 | `Func + Y` (RESTORE — hold+release) | Jump straight to the **floor** (the saved state at last load). |
-| `Func + O` (UNDO) | Revert the **last destructive operation**, wherever it happened. |
+| `Func + O` (UNDO) | Revert the **last destructive operation**, wherever it happened. Hold a scope to narrow it to that scope's newest. |
+| `Trig` + hold(`O`) | Clear **every P-Lock** on the held step(s), leaving the trig. |
 | `Scene + O` (SYNC) | Discard live deviations — snap the tracks back to the scene as stored. |
 
 **Scope-respecting:** the mark captures whichever modifier is held — none = Song,
@@ -1369,7 +1371,14 @@ and leaves your state alone. The floor is still reachable — but only by the
 deliberate hold, never by one tap too many.
 
 **Undo knows what it touched.** You never have to tell it a scope; the operation
-that armed it already knew — clear track 3 and `Func+O` reverts *that*.
+that armed it already knew — clear track 3 and `Func+O` reverts *that*. If you *want*
+to be specific, holding a scope narrows it: `Track+Func+O` reverts the newest thing
+that happened to that track, skipping newer edits elsewhere.
+
+**The checkpoint keys read scopes, not steps.** `Y`, `Func+Y` and `Func+O` take their
+scope from the held modifier (`Track` / `Phrase` / `Scene` / none = Song). A held step
+or section key is ignored by them — it is an operand for the *edit* verbs, and letting
+it retarget a mark would silently point the gesture somewhere you never named.
 
 **Each scope is independent.** Restoring one scope's mark never touches another's.
 Restore the whole Song, then restore a Track mark you took at a different moment, and

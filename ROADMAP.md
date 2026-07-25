@@ -1039,39 +1039,47 @@ Invariant for every CUJ commit: `-Werror` clean, both suites green, and
 `git diff --exit-code tests/goldens/dispatch.txt` — a journey must not move the
 dispatch digest.
 
-### 9.37 — Snapshot / restore / undo: the reachability review  *[design session needed]*
-**Do not fix `9.36`'s two checkpoint defects piecemeal — review the model first.**
-Wave 2 found that `Func+O` never reaches UNDO and that a scoped mark cannot be
-popped, and each has an obvious local patch. Both patches encode an answer to a
-question nobody has re-asked since the 9.4 session, and the shape of that session
-(`docs/snapshot-study-brief.md`, the rejected elaborate model, DESIGN §13.6's
-caveats about which scope a verb lands on) says the local answer is the one most
-likely to be wrong.
+### 9.37 — Snapshot / restore / undo: the reachability review  *[session run 2026-07-24; build open]*
+Wave 2 and 3 of the CUJ suite drove the checkpoint family the way a finger drives it
+and found that two of its three gestures could not be reached at all. The causes were
+not in the 9.4 model — they were in who else already owned the keys. The session ran
+2026-07-24; **the rulings are folded into DESIGN §13.6** ("The three rulings of 9.37")
+and README §5.15. What is left is the build.
 
-What the session has to settle, in one pass:
+The knot, for the record: `Func+O` was claimed by *three* features at once — UNDO
+(9.4), the "clear the active P-Lock slot" fallback in `clearVerbTap`, and
+`Trig+Func+O` = clear every P-Lock keep the trig, which **9.29 had revived from dead
+code by retiring the old `Func+O → VerbDelete` remap, six milestones before 9.4 took
+the seat**. Neither session saw the other, and the golden net could not see either:
+it covers binding-table *rows*, while these verbs dispatch imperatively.
 
-- **What does `Func` + `<held suite scope>` + verb mean?** DESIGN §13.6 says
-  `Func+Y` walks the held scope's stack. Dispatch *reserves* that chord as "this
-  scope's secondary variant" (`sectionSuiteScopeHeld`, PluginEditor.cpp) and
-  swallows Snapshot and Restore there. The reservation is currently **empty** — no
-  row and no handler claims `Func+scope+Y` — so it is being held for a secondary
-  that was never defined. Either define it or spend it.
-- **Automatic vs manual.** §13.6 separates marks (explicit, per-scope, `Y` / `Func+Y`)
-  from undo (armed automatically before destructive ops, `Func+O`). The separation is
-  the one idea that survived the 9.4 cut, and it is worth re-checking against how the
-  two now behave: a restore arms an undo, so the "manual" stack feeds the "automatic"
-  one, and `Func+O`'s scope comes from `ckScope()` — the scope your fingers happen to
-  be holding, not the scope the armed op touched.
-- **Which scope does a bare verb land on?** `ckScope()` reads `primaryScope()`, so a
-  held step or section (which outrank Track in `kScopePriority`) silently retargets
-  a checkpoint verb. Is that intended, or is the checkpoint family suite-scope-only?
-- **Reachability as an acceptance test.** Every gesture §13.6 names should have a
-  journey in `9.36` that drives it end to end. The two defects exist because the
-  golden covers binding-table *rows* while these verbs are dispatched imperatively —
-  so nothing tested the path a finger takes.
-
-Output: a settled §13.6 (amended where the code was right), the two defects closed
-against it, and D5 flipped from `~` to ☑ in `tests/CUJ_CATALOGUE.md`.
+- [ ] **A — Restore reads the held scope.** Remove the `sectionSuiteScopeHeld` reserve
+      from `CB::Restore` (and from the keyboard-dead `CB::Snapshot` case, for
+      consistency): `Func+Y` under a held Track/Phrase/Scene walks *that* scope's
+      stack. Keep 9.4 item A's guard — an empty stack says `NOTHING TO RESTORE` and
+      never falls through to the floor.
+- [ ] **B — `Func+O` reaches UNDO in every state.** `clearVerbTap` routes to the table
+      only when `primaryScope()` is neither `None` nor `Func`; with only Func held it
+      *is* Func, so the press falls through to the active-slot clear and undo never
+      fires. Delete that fallback (`Trig`+slot+`O` already clears one slot) and let the
+      table's `VerbUndo` row through.
+- [ ] **C — The per-step lock-clear moves to `Trig` + hold(`O`).** Same tap/hold split
+      9.29 gave the Clear key for delete; the hold is the wider blast radius. Arm the
+      hold when a step is held (today `deleteHoldCapable()` gates it on a deletable
+      scope), and keep the delete rail untouched.
+- [ ] **D — The checkpoint family reads SUITE scopes only.** `ckScope()` reads
+      `primaryScope()`, where `Trig` and `Section` outrank `Track` — so holding a step
+      while marking a track silently marks the **Song**. Read the held section-suite
+      scope instead (`firstHeldSectionSuiteScope`), else Song.
+- [ ] **E — Undo's scope: fingers optional.** A bare `Func+O` reverts the newest
+      destructive op across *all* scopes (entries carry the scope the op armed); a held
+      suite scope narrows to that scope's newest. Needs a global ordering the per-scope
+      stacks do not have today — a small push-order log in `Arrangement`, kept in sync
+      with `evictToBudget`.
+- [ ] **F — Cash it out in the journeys.** D5's undo leg and C6's third radius land;
+      both flip from `~` to ☑ in `tests/CUJ_CATALOGUE.md`. Every gesture §13.6 names
+      gets a journey that drives it end to end — the acceptance test for this milestone
+      is reachability, since that is precisely what nothing checked.
 
 ## Phase 5 — Performance Depth  *[partial: 5.1/5.2/5.7/5.7c/5.10 shipped; 5.3 next (active arc); 5.4/5.8/5.9 open]*
 

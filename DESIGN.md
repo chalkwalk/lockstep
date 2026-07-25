@@ -2765,9 +2765,10 @@ neither key wears a label the other verb owns.
 | Gesture | Meaning |
 |---|---|
 | `Y` (+ scope) | **SNAP** — push a mark onto that scope's stack |
-| `Func+Y` tap | **RESTORE** — pop one *mark* (never an undo entry) |
+| `Func+Y` tap (+ scope) | **RESTORE** — pop one *mark* from that scope (never an undo entry) |
 | `Func+Y` hold | **RESTORE → FLOOR** — all the way down (§13.0 "hold = all the way") |
-| `Func+O` | **UNDO** — revert the last destructive op, wherever it happened |
+| `Func+O` | **UNDO** — revert the last destructive op; a held scope narrows it |
+| `Trig` + hold(`O`) | **CLEAR LOCKS** — every P-Lock on the held step(s), trig intact |
 | `Scene+O` | **SYNC** — discard live deviations (was `Scene+Y`) |
 | `Phrase+O` | **CLEAR PHRASE** — clear the phrase on every track, confirm-gated (was shadowed) |
 | `Func+P` (+ `Scene`/`Phrase`) | **CANCEL** a queued Scene launch (was `Scene+O` / `Phrase+O`) |
@@ -2784,6 +2785,46 @@ neither key wears a label the other verb owns.
 floor: that made one keypress too many silently revert the scope to the project
 baseline, discarding everything since. The floor stays reachable — but only by the
 deliberate **hold**, never by a tap that ran out of stack.
+
+#### The three rulings of 9.37 (2026-07-24)
+
+The gestures above were specced at the 9.4 session and built; the CUJ suite then drove
+them as a finger drives them and found that two of the three could not be reached at
+all. The causes were not in the model — they were in who else already owned the keys.
+Settled here, so the spec and the dispatch agree:
+
+**1. `Func+Y` under a held scope restores that scope.** Dispatch reserved the chord
+while any section-suite scope was held, on the grounds that `Func+scope+verb` is that
+scope's *secondary variant*. The reservation was empty — nothing claimed it — and it
+made every per-scope stack write-only: `Track+Y` pushed marks that no gesture could
+pop. The table above is the rule; the reserve is gone. Should a per-scope secondary
+ever be wanted on `Y`, it needs a different seat.
+
+**2. `Func+O` is UNDO in every state; the per-step lock-clear moves to the hold rail.**
+`Func+O` was claimed by three features at once: UNDO (this section, 9.4), the
+"clear the active P-Lock slot" fallback in `clearVerbTap`, and `Trig+Func+O` = *clear
+every P-Lock, keep the trig* — which 9.29 had revived from dead code by retiring the
+old `Func+O → VerbDelete` remap, six milestones before 9.4 took the seat. Neither
+session saw the other. Undo keeps the chord (the Func layer is the counter-verb layer
+and undo counters Clear), the "active slot" fallback is deleted (`Trig`+slot+`O`
+already clears one slot), and the per-step lock-clear moves to **`Trig` + hold(`O`)** —
+the same tap/hold split 9.29 gave the Clear key for delete, and the same reading:
+the hold is the wider blast radius.
+
+**3. The checkpoint family reads SUITE scopes only.** `Y` / `Func+Y` / `Func+O` take
+their scope from the held section-suite modifier (`Track` / `Phrase` / `Scene` /
+`Song`), and a held **step or section is ignored** for checkpoint purposes. Previously
+the scope came from `primaryScope()`, where `Trig` and `Section` outrank `Track` — so
+holding a step while marking a track silently marked the **Song** instead, a scope the
+player never named, chosen by a key held for an unrelated reason.
+
+**Undo's scope: the fingers are optional.** An undo entry carries the scope of the op
+that armed it — the op already knew what it touched — so a bare `Func+O` reverts the
+newest destructive op *whatever* scope it belongs to, and you never have to name one.
+Holding a suite scope **narrows** it: `Track+Func+O` reverts the newest op on that
+track, skipping newer ops elsewhere. The common case needs no thought; the precise
+case is available without a second gesture. (This refines the original wording, which
+said only that your fingers never name the scope.)
 
 **Depth is shown at the key you would press.** Each scope key carries a small pip
 with its *mark* count when its stack is non-empty (the global `CK:N` chip only ever
