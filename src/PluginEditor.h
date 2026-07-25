@@ -767,6 +767,13 @@ namespace lockstep
         // Hold*Scope actions; the same code the imperative branches used to run.
         void enterScopeHold(ControllerButton cb);
 
+        // 9.38: one owner for a press on a song slot under a held Song scope.
+        // Reached from TWO buttons, because a held Mute rewrites the step key to
+        // ToggleMute before dispatch (DESIGN §37.1) -- so the Mute-qualified
+        // create arrives at a different case than the bare one. Both call here
+        // rather than each carrying a copy of the rule. Always consumes.
+        bool handleSongSlotPress(int slot);
+
         // 9.12 Stage 7b: route a scoped verb press through the binding table.
         // Always returns true (the press is consumed).
         bool routeVerb(const ControllerEvent& ev);

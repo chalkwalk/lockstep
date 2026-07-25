@@ -4338,6 +4338,59 @@ namespace lockstep
         return true;
     }
 
+    // A press on a song slot with Song held (Phase 7 / DESIGN §16).
+    // 9.17: quantized to the launch authority; double-tap = instant.
+    // 5.3 Item C: songs create-on-select like scenes — an empty slot creates then
+    // switches instead of launching a non-existent song.
+    //   occupied:        switch (quantized; double-tap = instant)
+    //   empty + bare:    copy the active song (template a new one)
+    //   empty + Mute:    blank default song — Mute is the "without the contents"
+    //                    qualifier it already is in Mute+Func+Scene+Play (§13.2)
+    //   empty + Func:    no-op (Func+Song is the Global-scope qualifier)
+    //
+    // 9.38 made this a function. Both qualifiers are read HERE, but they do not
+    // arrive on the same button: a held Mute rewrites the step key to ToggleMute
+    // at the input source (kLayerRemaps, DESIGN §37.1), so the Mute-qualified
+    // create lands in the ToggleMute case while the bare one lands in the Step
+    // case. That is why the blank-song branch was dead for two milestones — the
+    // branch existed, but nothing could reach it. Two callers, one rule; copying
+    // the rule into the second case would have been the same bug wearing a
+    // different shape.
+    //
+    // Mute qualifies the CREATE only. On an occupied slot it is ignored and the
+    // press switches, exactly as Func is already ignored there — a qualifier with
+    // nothing to qualify must not turn a working gesture into a silent no-op.
+    bool LockstepEditor::handleSongSlotPress(int slot)
+    {
+        if (slot >= 0 && slot < kNumSongs)
+        {
+            const bool isActive = (slot == processor_.activePieceIdx());
+            const bool occupied = isActive || processor_.songSlotOccupied(slot);
+            if (occupied)
+            {
+                const double now = nowMs();
+                const bool dbl = gesture_.doubleTap(kSongStepTokenBase + slot, now);
+                processor_.queueSongSwitch(slot, dbl);
+            }
+            else if (!uiState_.funcHeld)
+            {
+                if (uiState_.muteHeld)
+                {
+                    processor_.createDefaultSong(slot);
+                    setStatus(status::songBlank(slot + 1));
+                }
+                else
+                {
+                    processor_.createCopySong(slot);
+                    setStatus(status::songCreated(slot + 1));
+                }
+                processor_.queueSongSwitch(slot, true);  // instant to the new song
+            }
+        }
+        refreshSurface();
+        return true;
+    }
+
     // 9.12 Stage 7b: route a verb press through the grammar. The table names the
     // action (Copy / Paste / ScopedClear / BakeScene / ...) from the verb button plus
     // the held modifiers, and handleAction delegates to the one verb implementation.
@@ -5180,19 +5233,9 @@ namespace lockstep
             }
 
             case ControllerButton::Step: {
-                // 9.17: Mute + Play + step = relaunch (unmute + phase-reset) on a
-                // muted track, or retrigger (phase-reset only) on a playing one.
-                // Quantized to the track grid; step double-tap = instant. Handled
-                // ahead of the normal mute dispatch.
-                if (uiState_.muteHeld && uiState_.relaunchHeld
-                    && ev.index >= 0 && ev.index < static_cast<int>(kNumTracks))
-                {
-                    const double now = nowMs();
-                    const bool dbl = gesture_.doubleTap(kRelaunchStepTokenBase + ev.index, now);
-                    processor_.queueRelaunch(ev.index, dbl);
-                    refreshSurface();
-                    return true;
-                }
+                // (Mute+Play+step = relaunch used to be tested here and could never
+                // fire — a held Mute rewrites the step key before this case is
+                // reached. Moved to the ToggleMute case, 9.38.)
 
                 // 9.10: kRetrigRates used only by slicer preview (live stutter removed).
                 // Kept as default-rate lookup; index 4 = /16 default.
@@ -5661,43 +5704,10 @@ namespace lockstep
                 }
 
                 // Master + step: Song (song) select (Phase 7 / DESIGN §16).
-                // 9.17: quantized to the launch authority; double-tap = instant.
-                // 5.3 Item C: songs create-on-select like scenes — an empty slot
-                // creates then switches instead of launching a non-existent song.
-                //   occupied:        switch (quantized; double-tap = instant)
-                //   empty + bare:    copy the active song (template a new one)
-                //   empty + Mute:    blank default song
-                //   empty + Func:    no-op (Func+Song is the Global-scope qualifier)
+                // The rule itself lives in handleSongSlotPress -- see there for why
+                // it is a function and not this branch.
                 if (uiState_.songHeld && !uiState_.morphHeld)
-                {
-                    if (ev.index >= 0 && ev.index < kNumSongs)
-                    {
-                        const bool isActive = (ev.index == processor_.activePieceIdx());
-                        const bool occupied = isActive || processor_.songSlotOccupied(ev.index);
-                        if (occupied)
-                        {
-                            const double now = nowMs();
-                            const bool dbl = gesture_.doubleTap(kSongStepTokenBase + ev.index, now);
-                            processor_.queueSongSwitch(ev.index, dbl);
-                        }
-                        else if (!uiState_.funcHeld)
-                        {
-                            if (uiState_.muteHeld)
-                            {
-                                processor_.createDefaultSong(ev.index);
-                                setStatus(status::songBlank(ev.index + 1));
-                            }
-                            else
-                            {
-                                processor_.createCopySong(ev.index);
-                                setStatus(status::songCreated(ev.index + 1));
-                            }
-                            processor_.queueSongSwitch(ev.index, true);  // instant to the new song
-                        }
-                    }
-                    refreshSurface();
-                    return true;
-                }
+                    return handleSongSlotPress(ev.index);
 
                 // Phrase-length authoring (DESIGN §34.4). The hold re-skins the
                 // grid (LengthInRun/Boundary/OutRun in SurfaceModel); the step
@@ -5757,22 +5767,32 @@ namespace lockstep
                 }
 
                 // Scene + step: scene launch or create-on-empty (DESIGN §16/§23.3).
-                //   occupied + no-func + no-mute:  overlay launch (PRINCIPLES §17 — no double-tap floor)
-                //   occupied + func:               floor launch unconditionally (Func+Scene+step)
-                //   occupied + mute:               reserved for scene-mute (§23.3, no-op)
-                //   empty    + no-func + no-mute:  baked-copy create → launch
-                //   empty    + func:               baseline-copy create → launch
-                //   empty    + mute:               blank scene create → launch
+                //   occupied + no-func:  overlay launch (PRINCIPLES §17 — no double-tap floor)
+                //   occupied + func:     floor launch unconditionally (Func+Scene+step)
+                //   empty    + no-func:  baked-copy create → launch
+                //   empty    + func:     baseline-copy create → launch
+                // (Scene+Mute+step is scene-mute and never arrives here — see below.)
                 // The active scene is always treated as occupied (it is live).
                 if (uiState_.sceneHeld && !uiState_.machinePickerOpen)
                 {
                     if (ev.index >= 0 && ev.index < kScenesPerSong)
                     {
+                        // No muteHeld here, deliberately (9.38). A held Mute rewrites
+                        // the step key to ToggleMute at the input source, so a Mute
+                        // qualifier can never arrive on this button — the three
+                        // branches that tested for it were unreachable from any real
+                        // input. For Scene that is the CORRECT outcome rather than a
+                        // bug to fix: Scene+Mute+step IS scene-mute (§23.3), and the
+                        // remap is what delivers it, to {ToggleMute, kModScene|kModMute}
+                        // → SceneMuteToggle. The reservation is honoured by the remap,
+                        // not by a no-op branch here. (The blank-scene create that used
+                        // to hide behind Mute goes with them; it had no reachable
+                        // gesture, and Scene's Mute seat is spoken for. Contrast Song,
+                        // whose Mute seat was free — see handleSongSlotPress.)
                         const bool funcHeld = uiState_.funcHeld;
-                        const bool muteHeld = uiState_.muteHeld;
                         const bool isActive = (ev.index == processor_.activeSectionIdx());
                         const bool occupied = isActive || processor_.sceneSlotOccupied(ev.index);
-                        if (occupied && !funcHeld && !muteHeld)
+                        if (occupied && !funcHeld)
                         {
                             // Always overlay launch — floor is reached only via Func+Scene+step.
                             if (processor_.clock().inPluginPlaying())
@@ -5788,11 +5808,7 @@ namespace lockstep
                             else
                                 processor_.setActiveSceneToFloor(ev.index);
                         }
-                        else if (occupied && muteHeld)
-                        {
-                            // Mute + occupied: reserved for scene-mute (§23.3).
-                        }
-                        else if (!occupied && !funcHeld && !muteHeld)
+                        else if (!occupied && !funcHeld)
                         {
                             // Empty + bare: baked copy (effective, follows deviations).
                             if (phraseConflictAndConfirm(ev.index, ConfirmKind::CreateScene))
@@ -5817,17 +5833,6 @@ namespace lockstep
                             else
                                 processor_.setActiveScene(ev.index);
                             setStatus(status::sceneBaseline(ev.index + 1));
-                        }
-                        else if (!occupied && muteHeld)
-                        {
-                            // Empty + Mute: blank scene.
-                            processor_.armUndo(CheckpointScope::Song, 0);
-                            processor_.createDefaultScene(ev.index);
-                            if (processor_.clock().inPluginPlaying())
-                                processor_.queueScene(ev.index, false);
-                            else
-                                processor_.setActiveScene(ev.index);
-                            setStatus(status::sceneBlank(ev.index + 1));
                         }
                     }
                     refreshSurface();
@@ -6490,8 +6495,33 @@ namespace lockstep
             // 8.11 A4.1: mute/solo cluster migrated to KeyBindings dispatch.
             case ControllerButton::ToggleMute: {
                 const int trackIdx = ev.index;
+                // Song+Mute+step is a SONG gesture that only looks like a mute one:
+                // the Mute layer rewrote this key before dispatch could see Song
+                // held (DESIGN §37.1). Read the compound before the mute rows do,
+                // the way the SelectTrack case reads Track+Phrase+step. Without
+                // this, resolveBinding matches a subset of the held mods, no
+                // ToggleMute row requires Song, and the bare {ToggleMute, kModMute}
+                // row wins — so the press silently muted a track instead (9.38).
+                if (uiState_.songHeld && !uiState_.morphHeld)
+                    return handleSongSlotPress(trackIdx);
                 if (trackIdx < 0 || trackIdx >= static_cast<int>(kNumTracks))
                     return true;
+                // 9.17: Mute+Play+step = relaunch (unmute + phase-reset) on a muted
+                // track, retrigger (phase-reset only) on a playing one. Quantized to
+                // the track grid; step double-tap = instant. This lived in the Step
+                // case until 9.38, where it could never run for the same reason as
+                // Song above — and no binding row can express it, because Play-held
+                // is not one of the eight modifier bits. So it is read here, ahead of
+                // the mute rows, which is what "handle the compound in the remapped
+                // case" means for a qualifier the table cannot name.
+                if (uiState_.relaunchHeld)
+                {
+                    const double now = nowMs();
+                    const bool dbl = gesture_.doubleTap(kRelaunchStepTokenBase + trackIdx, now);
+                    processor_.queueRelaunch(trackIdx, dbl);
+                    refreshSurface();
+                    return true;
+                }
                 const int at = keyboardArea_.getActiveTrack();
                 const auto inputMode = (at >= 0)
                                            ? uiState_.trackInputMode[static_cast<std::size_t>(at)]

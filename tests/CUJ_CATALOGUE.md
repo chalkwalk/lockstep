@@ -306,7 +306,7 @@ silently mark the Song because Trig outranks Track in `primaryScope()`.
 |----|---------|--------|------|
 | E1 | Scene | ☑ | |
 | E2 | Phrase | ☑ | |
-| E3 | Song | ~ | |
+| E3 | Song | ☑ | |
 | E4 | Deletion picker | ☑ | |
 
 **E1 — Scene.** ☑ `CujArrangementTest.cpp`. `Scene+step` on an empty cell creates and
@@ -335,19 +335,21 @@ content. `deviateAllToPhrase` gets it right (clears on `N == sceneIdx`).
 (clipboard type `Pattern`), `Phrase+PLAY` pastes it onto another track trig for trig,
 and `Phrase+CLEAR` arms a confirm before wiping every track's phrase.
 
-**E3 — Song.** ~ `CujArrangementTest.cpp`. `Song+step` on an empty slot creates by
+**E3 — Song.** ☑ `CujArrangementTest.cpp`. `Song+step` on an empty slot creates by
 copying the song you were on and switches to it (v36 slots); an occupied slot
 switches, each song keeping its own pattern; audio rolls **across** the switch (the
-frame-race guard) and stays finite.
+frame-race guard) and stays finite. `Mute+Song+step` on an empty slot creates a
+**blank** one instead — asserted on all three claims (created, blank, and *nothing
+muted*), because of how it used to fail. `Song+CLEAR` is **PANIC**, asserted the way a
+player would notice it: a ringing voice stops and not one trig moves.
 
-**Gap found, filed not fixed:** `Mute+Song+step` → blank song **cannot fire, and hits
-something else instead**. The Mute LAYER rewrites every step key to `ToggleMute`
-(`kLayerRemaps`) before the Step case can read `songHeld`; `resolveBinding` matches on
-a *subset* of held mods and no `ToggleMute` row requires Song, so the plain
-`{ToggleMute, kModMute}` row wins and the press **mutes the track with that index**
-(measured: it arms a pending mute on track 3). Dispatch's own documented "empty +
-Mute: blank default song" branch is dead code. (ROADMAP 5.3 claims this gesture; corrected there.) `Song+CLEAR` is **PANIC**, and is asserted the way a
-player would notice it: a ringing voice stops and not one trig moves. Flip to ☑ when the blank variant is reachable.
+*Found here, fixed by 9.38:* `Mute+Song+step` could not fire, and hit something else
+instead. The Mute LAYER rewrites every step key to `ToggleMute` (`kLayerRemaps`) before
+the Step case can read `songHeld`; `resolveBinding` matches a *subset* of held mods and
+no `ToggleMute` row requires Song, so the plain `{ToggleMute, kModMute}` row won and the
+press **muted the track with that index** (measured: it armed a pending mute on track
+3). The rule now lives in `handleSongSlotPress`, reached from both buttons, and
+`LayerRemapReachabilityTest` fails the build if any remap swallows a compound again.
 
 **E4 — Deletion picker.** ☑ `CujArrangementTest.cpp`. `Track + hold(CLEAR)` re-skins
 the grid to `SurfaceLayer::DeletePicker`; tapping a slot only ARMS a confirm

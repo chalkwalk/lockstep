@@ -13,15 +13,16 @@
 // switch on purpose -- the song-switch frame race (a short frame handed to a machine
 // that has not been reinstalled yet) is invisible without a block running through it.
 //
-// FOUND WHILE WRITING THIS (filed, not fixed -- see ROADMAP 9.36): `Mute+Song+step`,
-// documented in dispatch itself as "empty + Mute: blank default song" and claimed by
-// ROADMAP 5.3, cannot fire -- and does something else instead. The Mute LAYER rewrites
-// every step key to ToggleMute (kLayerRemaps) before the Step case can look at
-// songHeld. resolveBinding then matches on a SUBSET of held mods, and no ToggleMute
-// row requires Song, so the winner is the plain `{ToggleMute, kModMute}` row: the
-// press MUTES the track with that index (measured -- it arms a pending mute on track
-// 3). The blank-song branch is dead code, and the gesture silently hits a different
-// track's mute. The bare create-on-select path this journey covers is fine.
+// FOUND WHILE WRITING THIS, fixed in 9.38: `Mute+Song+step`, documented in dispatch
+// itself as "empty + Mute: blank default song" and claimed by ROADMAP 5.3, could not
+// fire -- and did something else instead. The Mute LAYER rewrites every step key to
+// ToggleMute (kLayerRemaps) before the Step case can look at songHeld; resolveBinding
+// then matches on a SUBSET of held mods, and no ToggleMute row requires Song, so the
+// winner was the plain `{ToggleMute, kModMute}` row and the press MUTED the track with
+// that index (measured -- it armed a pending mute on track 3). The rule now lives in
+// one function reached from both buttons, and the leg below asserts all three claims
+// -- created, blank, and nothing muted -- because the way this gesture failed was by
+// doing something else quietly rather than by doing nothing.
 //
 // See tests/CUJ_CATALOGUE.md.
 
@@ -210,9 +211,30 @@ namespace
         check(d.lastRms() < ringing, "Song+CLEAR panics -- the voices stop");
         check(trigCount(d, 0) == trigsBefore, "...without touching a single trig");
 
-        // (`Mute+Song+step` -- the blank-song variant -- is not asserted: the gesture
-        // cannot reach its handler at all. See the header note; the leg lands when the
-        // Mute-layer shadow is resolved.)
+        // --- Mute+Song+step on an empty slot creates a BLANK song ----------------
+        // The other create keeps you where you were (it copies); this one starts you
+        // from nothing. `Mute` is the "without the contents" qualifier it already is
+        // in Mute+Func+Scene+Play. Asserted on all three of its claims, because the
+        // way this gesture failed for two milestones was by doing something ELSE
+        // quietly: the Mute layer rewrote the step key before Song could be read, and
+        // the press armed a mute on the track with that index (9.38).
+        check(!d.proc().songSlotOccupied(2), "song 2 starts empty");
+        check(!d.proc().getGlobalMute(2), "...and track 2 starts unmuted");
+        d.gap();
+        d.press(CB::MuteScope);
+        d.press(CB::SongScope);
+        d.tap(CB::Step, 2);
+        d.release(CB::SongScope);
+        d.release(CB::MuteScope);
+        d.runBlocks(4);
+
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.proc().activePieceIdx() == 2; },
+                                 "Mute+Song+step reaches the song handler at all", failed))
+            return;
+        check(d.proc().songSlotOccupied(2), "...creating song 2");
+        check(trigCount(d, 0) == 0, "...BLANK -- it did not copy the song you were on");
+        check(!d.proc().getGlobalMute(2), "...and muted nothing on the way (the old failure)");
+        check(!d.proc().hasPendingMute(2), "...not even a pending one");
     }
     // E2 -- Phrase.
     //
