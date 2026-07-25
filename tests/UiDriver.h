@@ -37,6 +37,7 @@
 // it replaces is), so two live drivers would answer each other's key questions.
 // The ctor installs it and the dtor restores the real one.
 
+#include "AssetAudio.h"
 #include "AudioRig.h"
 #include "EditorRig.h"
 
@@ -321,6 +322,23 @@ namespace lockstep::test
             if (audio_ == nullptr)
                 audio_ = std::make_unique<AudioRig>(proc());
             return *audio_;
+        }
+
+        // -- audio input (wave 5) ------------------------------------------------
+        // Feed a real recording in as if it were arriving on a cable, for every block
+        // from here on. This is what lets a deck journey record something and then ask
+        // what it recorded; without it the deck captures silence and the test can only
+        // watch a state machine move. `loop` keeps the stream going past the end of the
+        // file, because a take usually outlasts the fixture.
+        UiDriver& feedAudio(const WavAsset& asset, bool loop = true)
+        {
+            audioRig().setInputFill(streamOf(asset, loop));
+            return *this;
+        }
+        UiDriver& feedSilence()
+        {
+            audioRig().setInputFill(nullptr);
+            return *this;
         }
 
         // -- MIDI note input (E2) ------------------------------------------------

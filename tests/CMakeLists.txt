@@ -152,6 +152,7 @@ add_executable(lockstep_dispatch_tests
     CujPerformanceTest.cpp
     CujArrangementTest.cpp
     CujTimeTest.cpp
+    CujDeckTest.cpp
     ../src/PluginEditorFactory.cpp   # the real createEditor() (not the test stub)
     ../src/PluginEditor.cpp
     ../src/ui/ChromeLookAndFeel.cpp

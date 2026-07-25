@@ -342,8 +342,8 @@ the scope first and the tap cancels the picker instead (measured).
 | F1 | Realtime record | ☑ | audio, midi-in |
 | F2 | Tape record + overdub + punch | ☐ | audio |
 | F3 | Two-track audio loop | ☐ | audio |
-| F4 | Record machine → pool | ☐ | audio |
-| F5 | MIDI-out track | ☐ | midi-out |
+| F4 | Record machine → pool | ☑ | audio |
+| F5 | MIDI-out track | ☑ | midi-out |
 
 **F1 — Realtime record.** ☑ `CujRecordTest.cpp`. Select track 1 (0→1 syncs the
 processor focus track — the note-in routing target), `U` arm → `isRecordArmed`;
@@ -360,11 +360,25 @@ layer. Assert deck state + take length + non-silent capture.
 **F3 — Two-track audio loop.** LoopMachine; build a loop across ≥2 sub-tracks via
 overdub; assert sub-track count + loop content non-silent + take-group on promote.
 
-**F4 — Record machine → pool.** RecordMachine grabs a volatile REC buffer; `Save…`
-promotes it to a durable File pool entry; assert pool group counts.
+**F4 — Record machine → pool.** ☑ `CujDeckTest.cpp`. A real drum loop is fed in
+(`feedAudio`), the recorder trig fires, and the REC slot ends up holding audio: non-zero
+peak, a real used length, and no louder than what went in. `Save…` promotion is left to
+a later wave.
 
-**F5 — MIDI-out track.** MidiOutMachine; a trig emits a note-on on `midiOut()` (E3);
-CC activity flashes the top-right dot; velocity meter is magenta.
+**Three ordering rules this journey had to discover, all invisible from outside:**
+1. **Stand the audio rig up BEFORE installing a capture machine.** Attaching it
+   re-prepares the processor at 48k/256, which re-allocates the pool's volatile
+   buffers — and a capture machine binds its medium to those buffers when *it* is
+   prepared. Install first and `startCapture` bails to Idle on an unbound medium.
+2. **The pool slot fills only when a capture CLOSES.** Until then the audio is in the
+   machine's own reel, so `volatileUsedLength` reads 0 mid-take.
+3. **A recorder trig RESTARTS the capture every time it comes round**, so a take as
+   long as the bar can be re-armed forever and never land. Set a short `rec_length`
+   (0.5 s) and it closes well inside one pass.
+
+**F5 — MIDI-out track.** ☑ `CujDeckTest.cpp`. Its trigs leave as note-ons carrying real
+velocities, and — the half that makes it a *destination* rather than a machine — it
+puts nothing on the audio bus at all. Needs no asset.
 
 ## Group G — Capture: the anchor "live-set → stems" flow (audio bridge)
 

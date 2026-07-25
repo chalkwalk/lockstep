@@ -24,6 +24,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
+#include <utility>
 
 namespace lockstep
 {
@@ -143,6 +145,7 @@ namespace lockstep
         // first renderBlocks() block, then cleared -- one block's worth, like a host.
         void injectInput(const juce::MidiBuffer& in) { pendingInput_.addEvents(in, 0, -1, 0); }
 
+
         // Run N blocks. Feeds any queued input on the first block, captures the
         // block's MIDI output, and advances the playhead after each block.
         void renderBlocks(int n)
@@ -156,9 +159,22 @@ namespace lockstep
                     pendingInput_.clear();
                 }
                 buffer_.clear();
+                // AUDIO input, if a journey supplied one. The buffer a host hands
+                // processBlock IS the input, so filling it here is exactly what a live
+                // cable does -- and without it every capture/deck journey records
+                // silence and can only assert that a state machine moved.
+                if (inputFill_)
+                    inputFill_(buffer_);
                 proc_.processBlock(buffer_, midi_);   // midi_ carries in, returns out
                 playHead_.advance();
             }
+        }
+
+        // Supply audio input for every subsequent block (see tests/AssetAudio.h).
+        // Pass nullptr to go back to silence.
+        void setInputFill(std::function<void(juce::AudioBuffer<float>&)> fill)
+        {
+            inputFill_ = std::move(fill);
         }
 
         [[nodiscard]] bool lastBufferHasNaN() const
@@ -215,5 +231,7 @@ namespace lockstep
         juce::AudioBuffer<float> buffer_;
         juce::MidiBuffer midi_;
         juce::MidiBuffer pendingInput_;
+        // Audio input for each block, if a journey supplied one (AssetAudio.h).
+        std::function<void(juce::AudioBuffer<float>&)> inputFill_;
     };
 } // namespace lockstep
