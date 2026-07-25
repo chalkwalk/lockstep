@@ -240,9 +240,9 @@ Flip to ☑ when either is resolved and the corresponding leg lands.
 | ID | Journey | Status | Deps |
 |----|---------|--------|------|
 | E1 | Scene | ☑ | |
-| E2 | Phrase | ☐ | |
+| E2 | Phrase | ☑ | |
 | E3 | Song | ~ | |
-| E4 | Deletion picker | ☐ | |
+| E4 | Deletion picker | ☑ | |
 
 **E1 — Scene.** ☑ `CujArrangementTest.cpp`. `Scene+step` on an empty cell creates and
 launches (create-on-select); on an occupied one it launches; `Scene+CLEAR` syncs live
@@ -253,9 +253,17 @@ unnamed neighbour's, the playing scene reads `SelectorCurrent` and the other rea
 un-created row — the deviation leg must target a row some scene brought into being.
 `Scene+Record` (commit-and-bake) is left to a later wave.
 
-**E2 — Phrase.** `Phrase+step` deviates focus track (`deviated[t]`);
-`Scene+Phrase+step` deviates all; diagonal row clears all deviations; `Phrase+U/I/O`
-copy/paste/clear.
+**E2 — Phrase.** ☑ `CujArrangementTest.cpp`. `Phrase+step` deviates the **focused**
+track onto the pressed row and badges it on `surface().trackDeviated`, leaving every
+other track alone; `Scene+Phrase+step` takes the whole band along; `Scene+Phrase` on
+the scene's own diagonal brings everyone home and the badges out. Phrase rows must
+EXIST first (a scene create fills the diagonal) — `Phrase+step` is launch, not create.
+
+*Asymmetry found, filed not asserted:* the per-track `Phrase+<diagonal>` marks the
+track deviated onto its own home phrase (`swapPhraseForTrack` sets `deviated = true`
+unconditionally), so the badge stays lit while the track plays exactly the scene's
+content. `deviateAllToPhrase` gets it right (clears on `N == sceneIdx`).
+`Phrase+U/I/O` is left to a later wave.
 
 **E3 — Song.** ~ `CujArrangementTest.cpp`. `Song+step` on an empty slot creates by
 copying the song you were on and switches to it (v36 slots); an occupied slot
@@ -271,9 +279,17 @@ a *subset* of held mods and no `ToggleMute` row requires Song, so the plain
 Mute: blank default song" branch is dead code. (ROADMAP 5.3 claims this gesture; corrected there.) `Song+O` →
 Panic is left to a later wave. Flip to ☑ when the blank variant is reachable.
 
-**E4 — Deletion picker.** `scope+hold(O)` (Track/Phrase/Scene) → picker re-skin +
-status; tap slot → named confirm pop-over ("Delete PHRASE 3? P=CONFIRM"); `P`
-confirms, entity reset; sticky-cancel behaviour. Golden the pop-over chrome.
+**E4 — Deletion picker.** ☑ `CujArrangementTest.cpp`. `Track + hold(CLEAR)` re-skins
+the grid to `SurfaceLayer::DeletePicker`; tapping a slot only ARMS a confirm
+(`ConfirmKind::DeleteTrack` at that target, nothing deleted yet) and the status lane
+shows a `Confirm` **naming** the target — asserted through `buildInspectorModel`,
+since a confirm derived from state cannot fade while armed (9.30). `P` then deletes
+that track and only that one, and the prompt clears with it.
+
+*Wrinkle found, not asserted:* the picker calls itself sticky ("releasing the arming
+chord doesn't exit"), and for Phrase/Scene it is — but the **Track** picker only
+accepts `SelectTrack`, which is what a step key becomes *while Track is held*. Release
+the scope first and the tap cancels the picker instead (measured).
 
 ## Group F — Machines & deck (consume the audio bridge)
 

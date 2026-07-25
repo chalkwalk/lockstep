@@ -27,6 +27,8 @@
 
 #include "UiDriver.h"
 
+#include "../src/ui/InspectorModel.h"
+
 #include <cstdio>
 #include <string>
 
@@ -174,11 +176,158 @@ namespace
         // cannot reach its handler at all. See the header note; the leg lands when the
         // Mute-layer shadow is resolved.)
     }
+    // E2 -- Phrase.
+    //
+    // A phrase deviation is how one musician steps off the scene's arrangement without
+    // taking anyone with them: hold Phrase, press a row, and just the focused track
+    // plays that phrase. Add Scene and everyone moves. The diagonal row is home.
+    void testPhrase(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/E2] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        installRealMachine(d.rig(), 0);
+        installRealMachine(d.rig(), 1);
+
+        // Bring phrase rows into being: a scene create is what fills the diagonal.
+        // (Phrase+step is LAUNCH, not create -- an un-created row is inert, 5.3 Item C.)
+        sceneSelect(d, 1);
+        sceneSelect(d, 0);
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.proc().phraseSlotOccupied(0, 1); },
+                                 "phrase row 1 exists to deviate onto", failed))
+            return;
+
+        d.tap(CB::SelectTrack, 0);
+        check(!d.proc().isTrackDeviated(0), "nobody starts deviated");
+
+        // --- Phrase+step moves the FOCUSED track only -----------------------------
+        d.gap();
+        d.press(CB::PhraseScope);
+        d.tap(CB::Step, 1);
+        d.release(CB::PhraseScope);
+
+        check(d.proc().isTrackDeviated(0), "Phrase+step deviates the focused track");
+        check(d.proc().deviationPhraseIdxForTrack(0) == 1, "...onto the row that was pressed");
+        check(!d.proc().isTrackDeviated(1), "...and nobody else moves");
+
+        // The surface carries it as a persistent badge, so a deviation is visible
+        // without holding anything.
+        {
+            const auto surf = d.surface();
+            check(surf.trackDeviated[0] && !surf.trackDeviated[1],
+                  "the deviated track is badged on the surface");
+        }
+
+        // --- Scene+Phrase+step moves everyone -------------------------------------
+        d.gap();
+        d.press(CB::SceneScope);
+        d.press(CB::PhraseScope);
+        d.tap(CB::Step, 1);
+        d.release(CB::PhraseScope);
+        d.release(CB::SceneScope);
+
+        check(d.proc().isTrackDeviated(1), "Scene+Phrase+step takes every track along");
+
+        // --- The diagonal row is home: Scene+Phrase there un-deviates everyone ----
+        // The scene's own row (phraseIdx == sceneIdx) is the arrangement, so landing
+        // the ALL-tracks gesture on it is how the band comes back together.
+        d.gap();
+        d.press(CB::SceneScope);
+        d.press(CB::PhraseScope);
+        d.tap(CB::Step, 0);        // scene 0's diagonal
+        d.release(CB::PhraseScope);
+        d.release(CB::SceneScope);
+
+        check(!d.proc().isTrackDeviated(0) && !d.proc().isTrackDeviated(1),
+              "Scene+Phrase on the diagonal brings every track home");
+        {
+            const auto surf = d.surface();
+            check(!surf.trackDeviated[0] && !surf.trackDeviated[1],
+                  "...and the badges go out with it");
+        }
+
+        // NOT asserted, because the two paths disagree (filed -- see ROADMAP 9.36):
+        // the per-track `Phrase+<diagonal>` marks the track deviated ONTO its own home
+        // phrase (`swapPhraseForTrack` sets `deviated = true` unconditionally), so the
+        // badge stays lit while the track plays exactly the scene's content.
+        // `deviateAllToPhrase` gets this right -- it clears on `N == sceneIdx`.
+    }
+
+    // E4 -- Deletion picker.
+    //
+    // Deleting is the one thing on the surface that cannot be walked back by pressing
+    // the key again, so it is the one gesture with a two-stage lock: a HOLD of Clear
+    // under a deletable scope opens a picker (the grid becomes the list of things that
+    // could go), and the slot you tap only ARMS a named confirm. The name in the
+    // prompt is the safety feature -- it is what tells you the picker was pointed at
+    // track 2 and not track 3.
+    void testDeletionPicker(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/E4] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        installRealMachine(d.rig(), 0);
+        installRealMachine(d.rig(), 2);
+
+        d.tap(CB::SelectTrack, 2);
+        if (!test::expectReached(d, [](UiDriver& dd) { return !dd.proc().isTrackEmpty(2); },
+                                 "track 2 carries a machine to delete", failed))
+            return;
+
+        // --- Hold Clear under the Track scope: the grid becomes the picker --------
+        d.gap();
+        d.press(CB::TrackScope);
+        d.longPress(CB::VerbClear);
+        if (!test::expectReached(d, [](UiDriver& dd) {
+                                     return dd.ui().deletePicker.scope == DeleteScope::Track;
+                                 },
+                                 "Track + hold(CLEAR) opens the delete picker", failed))
+        {
+            d.release(CB::TrackScope);
+            return;
+        }
+        {
+            const auto surf = d.surface();
+            check(surf.activeLayer == SurfaceLayer::DeletePicker,
+                  "the step grid re-skins to the picker");
+        }
+        // --- Tapping a slot ARMS a named confirm; it does not delete --------------
+        // Track stays HELD for the tap. The picker calls itself sticky ("releasing the
+        // arming chord doesn't exit"), and for Phrase/Scene it is -- but the Track
+        // picker only accepts `SelectTrack`, which is what a step key becomes *while
+        // Track is held*. Release first and the tap cancels the picker instead
+        // (measured). Filed as a wrinkle, not asserted here.
+        d.tap(CB::Step, 2);
+        d.release(CB::TrackScope);
+        check(d.ui().confirm.kind == ConfirmKind::DeleteTrack, "the slot arms a delete confirm");
+        check(d.ui().confirm.target == 2, "...pointed at the slot that was tapped");
+        check(!d.proc().isTrackEmpty(2), "...and nothing is deleted yet");
+        {
+            const auto m = buildInspectorModel(d.ui(), d.proc().editContext(), d.proc(),
+                                               CB::None, -1);
+            check(m.statusKind == StatusKind::Confirm,
+                  "the status lane shows a confirm, derived from state so it cannot fade");
+            check(m.confirmPrompt.containsIgnoreCase("3"),
+                  "the prompt NAMES the target (track 2 is TRACK 3 to a player)");
+        }
+
+        // --- Confirm deletes -------------------------------------------------------
+        d.tap(CB::VerbConfirm);
+        check(d.proc().isTrackEmpty(2), "P confirms, and the track is gone");
+        check(!d.proc().isTrackEmpty(0), "...only that one");
+        check(d.ui().confirm.kind == ConfirmKind::None, "the prompt clears with it");
+    }
 }   // namespace
 
 void runCujArrangementTests(int& failed)
 {
     testScene(failed);
     testSong(failed);
+    testPhrase(failed);
+    testDeletionPicker(failed);
 }
 }   // namespace lockstep
