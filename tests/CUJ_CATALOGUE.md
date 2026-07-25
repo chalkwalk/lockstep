@@ -155,7 +155,7 @@ progression. `LEN` growth (cloning the previous chord) is left to a later wave.
 | ID | Journey | Status | Deps |
 |----|---------|--------|------|
 | C1 | P-Lock one step | ☑ | mz |
-| C2 | Per-step sample swap (Sound Pool) | ☐ | |
+| C2 | Per-step sample swap (Sound Pool) | ☑ | |
 | C3 | Machine picker | ☑ | |
 | C4 | Section paging & scope colour | ☑ | |
 | C5 | Control-All | ☑ | mz |
@@ -169,9 +169,17 @@ hold. *Correction:* the clear here is bare `O`, not `Func+O` — `Func+O` under 
 step is the staged slot-picker clear mode, and pressing `Func` mid-hold also LATCHES
 the step, so that gesture belongs to C6.
 
-**C2 — Per-step sample swap (Sound Pool).** `Fill+SRC` → grid re-skins to Sound
-Pool, SRC glows Fill colour. Press cell (no step) → live-swap focus track. `hold
-step` + cell → `sound_id` P-Lock baked on that step; release Fill → restore.
+**C2 — Per-step sample swap (Sound Pool).** ☑ `CujSoundTest.cpp`. `Fill+SRC` re-skins
+the grid to the pool (`trigGridMode == SoundPool`; cells read `SoundPoolOccupied` /
+`SoundPoolEmpty`); a cell press with a step held bakes that sound onto the step
+(`trigOverride.hasSoundId` / `soundId`); releasing Fill restores the step grid, so the
+re-skin is momentary and cannot be got stuck in.
+
+*Order matters:* hold the step **before** entering the re-skin. Once the grid is the
+pool, every step key is a pool cell — there is no way to grab a step from inside it.
+(The catalogue said "hold step + cell", which reads as if either order works.)
+The pool must also be seeded: it is a Project-scope library, and a journey that starts
+with an empty one asserts nothing.
 
 **C3 — Machine picker.** ☑ `CujSoundTest.cpp`. `Track + hold(SRC)` → `activeLayer ==
 MachinePicker`; a cell press loads that machine on the focused track and closes the

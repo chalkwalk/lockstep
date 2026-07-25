@@ -18,6 +18,9 @@
 
 #include "UiDriver.h"
 
+#include "../src/core/SoundPool.h"
+#include "../src/io/TrigGridMode.h"
+#include "../src/machine/FMMachine.h"
 #include "../src/ui/MetaBand.h"
 #include "../src/ui/SectionResolve.h"
 #include "../src/ui/UITheme.h"
@@ -399,6 +402,85 @@ namespace
         check(!step0.overrides.has(slot), "Trig + hold(CLEAR) clears every lock on the step");
         check(step0.trig, "...and the trig is still there -- that is the whole point");
     }
+    // C2 -- Per-step sound swap (the Sound Pool).
+    //
+    // The Sound Pool is how one track plays several sounds: hold Fill and press SRC and
+    // the step grid stops being steps and becomes the pool. Press a cell and the track
+    // swaps live (audition); press it with a STEP held and the sound is baked onto that
+    // step as a P-Lock, so one track can hit three different drums in a bar. Releasing
+    // Fill puts the grid back -- the whole thing is a momentary re-skin, not a mode you
+    // can get stuck in.
+    void testSoundPoolSwap(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/C2] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        installRealMachine(d.rig(), 0);
+        settle(d);
+
+        // Two sounds in the pool to choose between. (The pool is a Project-scope
+        // library; a journey that starts with an empty one is asserting nothing.)
+        {
+            SoundEntry a;
+            a.name = "KICK";
+            a.machineId = FMMachine::kMachineId;
+            SoundEntry b = a;
+            b.name = "SNARE";
+            d.proc().pushSoundEntry(std::move(a));
+            d.proc().pushSoundEntry(std::move(b));
+        }
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.proc().soundPoolSize() >= 2; },
+                                 "two sounds in the pool to choose between", failed))
+            return;
+
+        // --- Fill + SRC re-skins the grid to the pool -----------------------------
+        // The step to edit is held FIRST, deliberately: once the grid is the pool,
+        // every step key is a pool cell, so there is no way to grab a step from inside
+        // the re-skin. Hold what you are editing, then reach for Fill+SRC.
+        const auto& step4 = d.proc().sequence().tracks[0].steps[4];
+        check(!step4.trigOverride.hasSoundId, "the step carries no sound of its own yet");
+        d.press(CB::Step, 4);
+
+        d.gap();
+        d.press(CB::FillScope);
+        d.tap(CB::Section, IMachine::kSrcSecIdx);
+        if (!test::expectReached(d, [](UiDriver& dd) {
+                                     return dd.ui().trigGridMode == TrigGridMode::SoundPool;
+                                 },
+                                 "Fill+SRC turns the step grid into the sound pool", failed))
+        {
+            d.release(CB::FillScope);
+            d.release(CB::Step, 4);
+            return;
+        }
+        {
+            const auto surf = d.surface();
+            check(surf.step[0].base == CellState::SoundPoolOccupied
+                      || surf.step[0].base == CellState::SoundPoolCurrent,
+                  "the first cell reads as an occupied pool slot");
+            check(surf.step[8].base == CellState::SoundPoolEmpty,
+                  "...and a slot past the end reads empty");
+        }
+
+        // --- A cell press with that step held bakes the sound onto it -------------
+        d.tap(CB::Step, 1);          // pool cell 1 = the second sound
+
+        check(step4.trigOverride.hasSoundId, "holding a step and picking a sound locks it there");
+        check(step4.trigOverride.soundId == 1, "...the sound that was actually pressed");
+
+        // --- Releasing Fill puts the grid back ------------------------------------
+        d.release(CB::FillScope);
+        d.release(CB::Step, 4);
+        check(d.ui().trigGridMode == TrigGridMode::Default,
+              "releasing Fill restores the step grid -- the re-skin is momentary");
+        {
+            const auto surf = d.surface();
+            check(surf.step[0].base != CellState::SoundPoolOccupied,
+                  "...and the cells are steps again");
+        }
+    }
 }   // namespace
 
 void runCujSoundTests(int& failed)
@@ -408,5 +490,6 @@ void runCujSoundTests(int& failed)
     testSectionPagingAndScopeColour(failed);
     testControlAll(failed);
     testPLockClearGestures(failed);
+    testSoundPoolSwap(failed);
 }
 }   // namespace lockstep

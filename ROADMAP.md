@@ -1032,8 +1032,15 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
       "sticky" delete picker only accepts a slot tap for Track while Track is still
       held (the step→SelectTrack remap is what it matches on); and the audio-census
       rolls were short enough to miss the trigs they were measuring.
-- [ ] **Later waves** — B2–B5, D3/D4, F2–F5, G1/G2, H1/H2. Machine-content journeys
-      need the committed CC0 assets the catalogue names.
+- [x] **Wave 4** (2026-07-24) — B2 density, B3 velocity, B4 melodic, B5 harmonic,
+      C2 sound pool, D3 morph, D4 cue, H1 TIME page, H2 ratchet. **24 of 26 journeys
+      now land**; only F2–F5 and G1/G2 remain, and those wait on the committed CC0
+      audio the catalogue names (real transients, a musical loop, a >30 s bed) —
+      procedural fixtures cannot honestly exercise transient detection or key/tempo
+      analysis.
+- [ ] **Wave 5 (blocked on assets)** — F2–F5 (tape / loop / record-to-pool /
+      MIDI-out) and G1/G2 (the capture flow). Unblock by committing the CC0 clips
+      to `tests/assets/` with `LICENSES.md`.
 
 Invariant for every CUJ commit: `-Werror` clean, both suites green, and
 `git diff --exit-code tests/goldens/dispatch.txt` — a journey must not move the
