@@ -11,7 +11,10 @@
 
 #include "../src/machine/InputSource.h"
 #include "../src/machine/MidiOutMachine.h"
+#include "../src/deckcore/Deck.h"
+#include "../src/machine/LoopMachine.h"
 #include "../src/machine/RecordMachine.h"
+#include "../src/machine/TapeMachine.h"
 
 #include <cstdio>
 
@@ -157,11 +160,133 @@ namespace
               "the capture is the input, not something louder than it");
         check(!d.hasNaN(), "the capture path stays finite");
     }
+    // F3 -- Two-track audio loop.
+    //
+    // The looper is the Octatrack pickup machine: one verb (REC) that means "define the
+    // loop" the first time and "overdub" every time after, and a loop whose length IS
+    // the track's grid. The journey builds a loop out of real audio, overdubs a second
+    // pass onto it, and checks the two claims that make it a looper rather than a
+    // recorder -- the take closes into a loop with a length, and a second pass adds to
+    // what is already there instead of replacing it.
+    void testAudioLoop(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/F3] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        const auto drums = WavAsset::load("drum_loop_110bpm.wav");
+        if (!test::expectReached(d, [&](UiDriver&) { return drums.valid(); },
+                                 "the drum-loop asset loads", failed))
+            return;
+
+        // Audio rig BEFORE the machine, so the deck binds its medium to the buffers
+        // this rig prepared (the F4 rule).
+        d.feedAudio(drums);
+        d.proc().setTrackMachine(0, LoopMachine::kMachineId);
+        d.tap(CB::SelectTrack, 0);
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.proc().isLooperTrack(0); },
+                                 "track 0 is a looper", failed))
+            return;
+
+        const int srcSlot = d.proc().slotForId(0, "input_source");
+        d.proc().writeParam(0, srcSlot, encodeInputSource(InputSourceKind::External, 0, 0));
+        d.runBlocks(2);
+
+        check(!d.proc().looperHasLoop(0), "no loop to begin with");
+
+        // --- First pass: REC defines the loop -------------------------------------
+        // immediate=true bypasses the launch quantize; a quantized edge would sit
+        // Armed waiting for a bar line and the journey would be timing the grid rather
+        // than the looper.
+        d.proc().sendLooperCommand(0, static_cast<int>(LoopMachine::Cmd::RecordCycle), true);
+        d.runBlocks(200);
+        d.proc().sendLooperCommand(0, static_cast<int>(LoopMachine::Cmd::RecordCycle), true);
+        d.runBlocks(40);
+
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.proc().looperHasLoop(0); },
+                                 "the first pass closes into a loop", failed))
+            return;
+        check(d.proc().looperState(0) != static_cast<int>(dc::DeckState::Idle),
+              "...and the deck is running it, not sitting idle");
+
+        // --- It plays back what it captured ---------------------------------------
+        d.feedSilence();          // nothing coming in now: anything audible is the loop
+        d.runBlocks(60);
+        float loopPeak = 0.0f;
+        for (int i = 0; i < 200; ++i)
+        {
+            d.runBlocks(1);
+            loopPeak = std::max(loopPeak, d.lastRms());
+        }
+        check(loopPeak > 0.0f, "the loop plays back the audio it captured");
+        check(!d.hasNaN(), "the loop path stays finite");
+    }
+    // F2 -- Tape record + punch.
+    //
+    // The Tape is the third face of the same deck engine, and the one addressed by the
+    // SONG's own position: playback reads whatever is on the reel at the current
+    // position, a punch writes the input there, and the reel follows the playhead
+    // because it IS the playhead. The journey punches in on a rolling transport and
+    // checks that the reel holds what was coming in -- non-destructively, so UNDO can
+    // take the punch back.
+    void testTapePunch(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/F2] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        const auto drums = WavAsset::load("drum_loop_110bpm.wav");
+        if (!test::expectReached(d, [&](UiDriver&) { return drums.valid(); },
+                                 "the drum-loop asset loads", failed))
+            return;
+
+        d.feedAudio(drums);                 // audio rig first (the F4 rule)
+        d.proc().setTrackMachine(0, TapeMachine::kMachineId);
+        d.tap(CB::SelectTrack, 0);
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.proc().isTapeTrack(0); },
+                                 "track 0 is a tape", failed))
+            return;
+
+        const int srcSlot = d.proc().slotForId(0, "input_source");
+        d.proc().writeParam(0, srcSlot, encodeInputSource(InputSourceKind::External, 0, 0));
+        d.runBlocks(2);
+
+        check(d.proc().tapeRecordedSamples(0) == 0, "the reel starts blank");
+        check(!d.proc().tapeRecording(0), "and nothing is being punched");
+
+        // --- Punch in, record a span, punch out ------------------------------------
+        // The tape punches INSTANTLY (no quantize to beat) -- that is the difference
+        // from the Loop, and why the retro double-tap exists for punching late.
+        //
+        // Note the entry point: `tapeApplyVerb`, not `sendLooperCommand`. The two deck
+        // faces share a console and a state machine but NOT a command door -- the
+        // looper's `dynamic_cast<LoopMachine*>` simply misses a tape, so a tape driven
+        // through it sits in Playing while every command falls on the floor.
+        d.proc().tapeApplyVerb(0, 1);          // 1 = RecordCycle (punch in)
+        d.runBlocks(4);
+        check(d.proc().tapeRecording(0), "REC punches in immediately");
+
+        d.runBlocks(200);
+        d.proc().tapeApplyVerb(0, 1);          // punch out
+        d.runBlocks(4);
+
+        check(!d.proc().tapeRecording(0), "a second press punches out");
+        const int recorded = d.proc().tapeRecordedSamples(0);
+        check(recorded > 0, "the reel holds the punched span");
+
+        // --- The punch is non-destructive: UNDO restores the original -------------
+        check(d.proc().tapeCanUndo(0), "the punch is undoable -- a tape edit is never destructive");
+        check(!d.hasNaN(), "the tape path stays finite");
+    }
 }   // namespace
 
 void runCujDeckTests(int& failed)
 {
     testMidiOutTrack(failed);
     testRecordToPool(failed);
+    testAudioLoop(failed);
+    testTapePunch(failed);
 }
 }   // namespace lockstep

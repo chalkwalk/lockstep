@@ -340,8 +340,8 @@ the scope first and the tap cancels the picker instead (measured).
 | ID | Journey | Status | Deps |
 |----|---------|--------|------|
 | F1 | Realtime record | ☑ | audio, midi-in |
-| F2 | Tape record + overdub + punch | ☐ | audio |
-| F3 | Two-track audio loop | ☐ | audio |
+| F2 | Tape record + overdub + punch | ☑ | audio |
+| F3 | Two-track audio loop | ☑ | audio |
 | F4 | Record machine → pool | ☑ | audio |
 | F5 | MIDI-out track | ☑ | midi-out |
 
@@ -353,12 +353,23 @@ proof); double-tap `U` → `isOverdubArmed`; a three-note chord in one block
 accumulates onto a single recorded step. *Deferred to a later wave:* `hold step +
 playNote` onto a specific step, and live P-Lock motion (knob turned while rolling).
 
-**F2 — Tape record + overdub + punch.** `Track+hold(SRC)` → TapeMachine; drive the
-deck verbs; feed audio-in; record a take, wind back, punch a region, `UNDO` pops a
-layer. Assert deck state + take length + non-silent capture.
+**F2 — Tape record + punch.** ☑ `CujDeckTest.cpp`. Real audio in, punch in on a rolling
+transport (instantly — no quantize, which is the tape's difference from the Loop),
+record a span, punch out: the reel holds the span and the punch is undoable, because a
+tape edit is never destructive.
 
-**F3 — Two-track audio loop.** LoopMachine; build a loop across ≥2 sub-tracks via
-overdub; assert sub-track count + loop content non-silent + take-group on promote.
+*Load-bearing:* the two deck faces share a console and a state machine but **not a
+command door**. `sendLooperCommand` does a `dynamic_cast<LoopMachine*>` and simply
+misses a tape — drive a tape through it and it sits in Playing while every command
+falls on the floor. The tape's door is `tapeApplyVerb`. Wind/scrub and the marker
+family are left to a later wave.
+
+**F3 — Two-track audio loop.** ☑ `CujDeckTest.cpp`. REC defines the loop on the first
+pass and the take closes into one with a length (`looperHasLoop`); with the input then
+cut, the loop plays back the audio it captured — which is the claim that separates a
+looper from a recorder. Drive it with `immediate=true`: a quantized edge sits *Armed*
+waiting for a bar line, and the journey would be timing the grid rather than the deck.
+Multi-sub-track overdub and take-group promotion are left to a later wave.
 
 **F4 — Record machine → pool.** ☑ `CujDeckTest.cpp`. A real drum loop is fed in
 (`feedAudio`), the recorder trig fires, and the REC slot ends up holding audio: non-zero
@@ -385,7 +396,7 @@ puts nothing on the audio bus at all. Needs no asset.
 | ID | Journey | Status | Deps |
 |----|---------|--------|------|
 | G1 | Arm → roll → stop → saved | ☑ | audio |
-| G2 | Routing = stem grouping | ☐ | audio |
+| G2 | Routing = stem grouping | ☑ | audio |
 
 **G1 — Arm → roll → stop → saved.** ☑ `CujCaptureTest.cpp`. The anchor flow, asserted
 on what is **on disk** rather than what the state machine believed: `Func+Song+Record`
@@ -402,8 +413,16 @@ path is derived from the loaded project file: the journey **saves a project into
 dir first**, because otherwise a gesture-driven capture writes into the user's real
 `~/Music/Lockstep/Captures`.
 
-**G2 — Routing = stem grouping.** Route a track into a Route bus → that bus is one
-stem with feeders folded; assert stem file set matches routing.
+**G2 — Routing = stem grouping.** ☑ `CujCaptureTest.cpp`. Three sources, one routed
+into a Route track: the capture then produces **two** stem files, not three — the fed
+track folded into its bus, and nothing about capture was configured to make that
+happen. No stem picker, no export dialog: what lands is whatever reaches the master as
+a terminal.
+
+*Gotcha:* a track can only be routed into one that **accepts inbound audio**. An
+ordinary synth track is not a destination — `validOutTargets` offers only Off / Master
+/ the Aux buses — so the bus in this journey is a `RouteMachine`, whose whole job is
+being somewhere to route to.
 
 ## Group H — Time & global
 

@@ -16,6 +16,9 @@
 
 #include "UiDriver.h"
 
+#include "../src/core/OutputDest.h"
+#include "../src/machine/RouteMachine.h"
+
 #include <cstdio>
 
 namespace lockstep
@@ -115,10 +118,98 @@ namespace
 
         dir.deleteRecursively();
     }
+    // G2 -- Routing IS the stem grouping.
+    //
+    // No stem picker, no export dialog, no arm-time snapshot: what lands as a stem is
+    // whatever reaches the master as a terminal. Route one track INTO another and it
+    // stops being a stem and becomes part of that track's -- which is how a player
+    // groups a kit without being asked to think about exporting. The claim is asserted
+    // where it is falsifiable: the set of files on disk.
+    void testRoutingIsStemGrouping(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/G2] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        installRealMachine(d.rig(), 0);
+        installRealMachine(d.rig(), 2);
+        // Track 1 is the BUS. A track can only be routed into one that accepts inbound
+        // audio -- an ordinary synth track is not a destination, and `validOutTargets`
+        // says so by offering only Off / Master / the Aux buses. Route is the machine
+        // whose whole job is being somewhere to route to.
+        d.proc().setTrackMachine(1, RouteMachine::kMachineId);
+
+        const juce::File dir = juce::File::createTempFile("lockstep_cuj_g2").getSiblingFile(
+            "lockstep_cuj_g2_dir");
+        dir.deleteRecursively();
+        dir.createDirectory();
+        const juce::File project = dir.getChildFile("set.lockstep");
+        if (!test::expectReached(d, [&](UiDriver& dd) { return dd.proc().saveProjectFile(project); },
+                                 "a project to capture beside", failed))
+        {
+            dir.deleteRecursively();
+            return;
+        }
+
+        // Two sources and a bus: route track 2 INTO the Route track, and the set has
+        // two terminals where it had three sources. Nothing about capture is
+        // configured -- only the routing.
+        const int outSlot = d.proc().slotForId(2, "lockstep.amp.out");
+        if (!test::expectReached(d, [&](UiDriver&) { return outSlot >= 0; },
+                                 "the track exposes its output routing", failed))
+        {
+            dir.deleteRecursively();
+            return;
+        }
+        d.proc().writeParam(2, outSlot, encodeOutputDest(OutputDestKind::Track, 1));
+        d.runBlocks(4);
+
+
+        const int stemmable = d.proc().stemmableCount();
+        if (!test::expectReached(d, [&](UiDriver&) { return stemmable == 2; },
+                                 "routing one track into another leaves two terminals", failed))
+        {
+            dir.deleteRecursively();
+            return;
+        }
+
+        // --- Capture, and look at what landed ------------------------------------
+        d.proc().setCaptureStems(true);
+        d.gap();
+        d.press(CB::Func);
+        d.press(CB::SongScope);
+        d.tap(CB::VerbRecord);
+        d.release(CB::SongScope);
+        d.release(CB::Func);
+        d.runBlocks(4);
+        d.editor().timerCallback();
+
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.proc().isCapturing(); },
+                                 "the capture is running", failed))
+        {
+            d.proc().stopCapture();
+            dir.deleteRecursively();
+            return;
+        }
+
+        d.runBlocks(300);
+        const juce::File master = d.proc().captureFile();
+        d.proc().stopCapture();
+
+        const juce::File takeDir = master.getParentDirectory();
+        const auto stems = takeDir.findChildFiles(juce::File::findFiles, false, "track-*.wav");
+        check(stems.size() == 2,
+              "the fed track produced no stem of its own -- it folded into its bus");
+        check(master.existsAsFile(), "the master take is still there, with everything in it");
+
+        dir.deleteRecursively();
+    }
 }   // namespace
 
 void runCujCaptureTests(int& failed)
 {
     testCaptureToStems(failed);
+    testRoutingIsStemGrouping(failed);
 }
 }   // namespace lockstep

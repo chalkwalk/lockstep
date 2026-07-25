@@ -944,7 +944,7 @@ went 19/22 → 22/22 — and the plan's explanation was wrong: measured, the sig
 asserted in this arc turned out wrong when measured; the scene budget likewise
 cleared an obvious canary by only 1.2× until tightened 10×.
 
-### 9.36 — Critical User Journeys, grown in waves  *[in progress]*
+### 9.36 — Critical User Journeys, grown in waves  *[catalogue complete 2026-07-25; waves continue]*
 The automated equivalent of the manual test sheet a team runs before every
 release. 9.34/9.35 gave the harness the *ability* to drive and see the product;
 nothing yet walked a whole user **task** end to end. A journey is described the
@@ -1038,9 +1038,13 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
       audio the catalogue names (real transients, a musical loop, a >30 s bed) —
       procedural fixtures cannot honestly exercise transient detection or key/tempo
       analysis.
-- [ ] **Wave 5 (blocked on assets)** — F2–F5 (tape / loop / record-to-pool /
-      MIDI-out) and G1/G2 (the capture flow). Unblock by committing the CC0 clips
-      to `tests/assets/` with `LICENSES.md`.
+- [x] **Wave 5** (2026-07-25) — assets committed (`tests/assets/`, CC0, own licence
+      statement), plus the audio-input enabler the rig never had: `AudioRig` takes a
+      per-block input fill, `AssetAudio.h` decodes a fixture, `UiDriver::feedAudio`
+      streams it in like a cable. F2 tape punch, F3 loop, F4 record-to-pool, F5
+      MIDI-out, G1 the anchor capture flow, G2 routing-as-stem-grouping.
+      **Every row in `tests/CUJ_CATALOGUE.md` is now implemented** — A3 and E3 remain
+      `~` only for the legs their product gaps block (`9.36`'s defect list).
 
 Invariant for every CUJ commit: `-Werror` clean, both suites green, and
 `git diff --exit-code tests/goldens/dispatch.txt` — a journey must not move the
