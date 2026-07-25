@@ -164,14 +164,25 @@ hint band surfaces these when a locked step is held.
 
 | ID | Journey | Status | Deps |
 |----|---------|--------|------|
-| D1 | Mute | ☐ | audio |
+| D1 | Mute | ☑ | audio |
 | D2 | Fill | ☐ | |
 | D3 | Morph | ☐ | mz |
 | D4 | Cue | ☐ | |
-| D5 | Checkpoints | ☐ | |
+| D5 | Checkpoints | ~ | |
 
-**D1 — Mute.** `Mute+step` global mute (survives scene change); `Scene+Mute+step`
-per-scene mute; assert mask + that a muted track's `play()` RMS drops (bridge).
+**D1 — Mute.** ☑ `CujPerformanceTest.cpp`. Both behaviours (9.17): **stopped**,
+`Mute+step` mutes at once (`getGlobalMute`, mute-view cells read `MuteMuted` /
+`MuteAudible`, and the gesture is its own inverse); **rolling**, the same press ARMS
+to the launch grid (`hasPendingMute`, global mute still clear — a mute never cuts
+mid-bar) and lands at the boundary, after which the peak RMS across a roll drops.
+`Scene+Mute+step` is asserted as a separate lane that leaves the global bit alone.
+*Harness note:* while rolling, the landed global mute reaches the APVTS through a
+`callAsync`, so a headless test sees it in the SOUND, not in `getGlobalMute`.
+"survives a scene change" is left to E1, which owns scene switching.
+
+**Every Mute/Track chord in a journey needs a `gap()` first** — two presses of the
+same modifier inside the double-tap window LATCH the scope (3.10), and a latched
+Track silently turns every step press into a track select.
 
 **D2 — Fill.** `Fill+step` marks fill-only (dim until held); assert those steps fire
 only while `Fill` held (census under hold vs release).
@@ -184,9 +195,23 @@ crossfader value.
 focus-track cue balance; `Cue+hold(AMP)` → cue console sticky (8 balance slots, AMP
 pages bank). Reuse existing `cue-console` scene golden for the chrome.
 
-**D5 — Checkpoints.** Bare `Y` (SNAP) scope-respecting push → `checkpointDepth`
-increments for the held scope; `Func+Y` restore tap=pop/hold=floor; `Func+O` undo.
-Assert state reverts.
+**D5 — Checkpoints.** ~ `CujPerformanceTest.cpp`. `Track+Y` pushes on the Track stack
+and *not* the Song's (the stacks are independent); bare `Y` marks the Song; `Func+Y`
+tapped pops it and the exact marked pattern comes back; the restore arms an undo.
+
+**Two gaps found, filed not fixed — the journey stops where the product does:**
+1. **Undo is unreachable from the keyboard.** `KeyBindings` declares
+   `{VerbClear, kModFunc} → VerbUndo "UNDO"` and `CommandCore` handles it, but
+   `clearVerbTap` only routes to the table when `primaryScope()` is neither `None`
+   nor `Func` — with only Func held it *is* `Func`, so `Func+O` falls through to
+   "clear the active P-Lock slot". A row advertising a verb dispatch never reaches
+   is the 9.14 st.5 disease. Blocks the `Func+O` leg *and* C6.
+2. **A scoped mark cannot be popped.** DESIGN §13.6: `Func+Y` walks the held scope's
+   stack. Dispatch reserves Snapshot *and* Restore while any section-suite scope is
+   held (`sectionSuiteScopeHeld` → return), so Track/Scene/Phrase marks push with no
+   gesture to pop them — the mirror of the phantom 9.4 fixed on the push side.
+
+Flip to ☑ when either is resolved and the corresponding leg lands.
 
 ## Group E — Launch / arrangement
 
