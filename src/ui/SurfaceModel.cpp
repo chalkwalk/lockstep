@@ -1059,16 +1059,16 @@ namespace lockstep
                 for (int i = 0; i < 16; ++i)
                 {
                     SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
-                    c.button = (dpScope == DeleteScope::Track)
-                                   ? ControllerButton::SelectTrack
-                                   : ControllerButton::Step;
+                    // Plain Step for every delete scope (9.38). The Track scope used
+                    // to publish SelectTrack here so the mouse path would match the
+                    // picker's Track branch -- which only accepted SelectTrack, and so
+                    // only worked while Track was still held. The picker now takes
+                    // either encoding, so the model no longer has to guess which name
+                    // the key is wearing.
+                    c.button = ControllerButton::Step;
                     c.index = i;
                     c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
-                    c.pressed = physPressed(kStepKeyCodes[i],
-                                            c.button == ControllerButton::Step
-                                                ? ControllerButton::Step
-                                                : ControllerButton::SelectTrack,
-                                            i);
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
 
                     const bool avail = i < maxAvail;
                     const bool isCurrent = avail && (i == activeIdx);

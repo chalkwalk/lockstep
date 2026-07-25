@@ -358,10 +358,15 @@ shows a `Confirm` **naming** the target — asserted through `buildInspectorMode
 since a confirm derived from state cannot fade while armed (9.30). `P` then deletes
 that track and only that one, and the prompt clears with it.
 
-*Wrinkle found, not asserted:* the picker calls itself sticky ("releasing the arming
-chord doesn't exit"), and for Phrase/Scene it is — but the **Track** picker only
-accepts `SelectTrack`, which is what a step key becomes *while Track is held*. Release
-the scope first and the tap cancels the picker instead (measured).
+The arming chord is **released before** the slot is tapped, which is how a player does
+it and what PRINCIPLES §16 requires ("confirming must not require re-holding the arming
+chord"); the leg asserts the picker survives that release.
+
+*Found here, fixed by 9.38:* it did not, for Track. The picker matched a Track slot tap
+on `SelectTrack` — the name a step key wears *while Track is held* — so releasing first
+made the tap arrive as `Step`, match nothing, and cancel the picker. Phrase and Scene
+were sticky; Track only looked it. Both encodings are now accepted for every scope: the
+scope decides *what* is deleted, the key only says *which* slot.
 
 ## Group F — Machines & deck (consume the audio bridge)
 

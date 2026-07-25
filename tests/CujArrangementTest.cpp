@@ -377,13 +377,16 @@ namespace
                   "the step grid re-skins to the picker");
         }
         // --- Tapping a slot ARMS a named confirm; it does not delete --------------
-        // Track stays HELD for the tap. The picker calls itself sticky ("releasing the
-        // arming chord doesn't exit"), and for Phrase/Scene it is -- but the Track
-        // picker only accepts `SelectTrack`, which is what a step key becomes *while
-        // Track is held*. Release first and the tap cancels the picker instead
-        // (measured). Filed as a wrinkle, not asserted here.
-        d.tap(CB::Step, 2);
+        // The arming chord is RELEASED FIRST, which is how a player performs this:
+        // the picker is sticky by design (PRINCIPLES §16 -- "confirming must not
+        // require re-holding the arming chord"), the grid stays lit, and you then
+        // choose at leisure. This leg used to tap with Track still down, because the
+        // Track branch matched only `SelectTrack` -- the name a step key wears while
+        // Track is held -- so releasing first cancelled the picker instead (9.38).
         d.release(CB::TrackScope);
+        check(d.ui().deletePicker.scope == DeleteScope::Track,
+              "the picker survives the release of the chord that armed it");
+        d.tap(CB::Step, 2);
         check(d.ui().confirm.kind == ConfirmKind::DeleteTrack, "the slot arms a delete confirm");
         check(d.ui().confirm.target == 2, "...pointed at the slot that was tapped");
         check(!d.proc().isTrackEmpty(2), "...and nothing is deleted yet");

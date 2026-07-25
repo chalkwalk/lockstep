@@ -50,6 +50,18 @@ namespace lockstep
                 return false;
 
             const DeleteScope scope = ctx.uiState.deletePicker.scope;
+            // Either encoding of a slot key counts. `Step` and `SelectTrack` are the
+            // same physical key wearing two names -- kLayerRemaps rewrites Step to
+            // SelectTrack while Track is held -- so which one arrives depends on
+            // whether the user is still holding the chord that armed the picker.
+            // Matching the Track branch on SelectTrack alone made the picker sticky
+            // for Phrase and Scene but not for Track: release Track, tap a slot, and
+            // the tap arrived as Step, matched nothing, and fell into the cancel tail
+            // below. PRINCIPLES §16 requires the opposite -- "confirming must not
+            // require re-holding the arming chord" -- and the grid stays lit and
+            // tappable after the release, so the cancel read as a bug rather than a
+            // rule. The scope decides WHAT is being deleted; the key only says WHICH
+            // slot (9.38, DESIGN §37.1).
             if (ev.button == CB::Step || ev.button == CB::SelectTrack)
             {
                 const int idx = ev.index;
@@ -57,20 +69,16 @@ namespace lockstep
                 {
                     ConfirmKind kind = ConfirmKind::None;
                     juce::String entityName;
-                    if (scope == DeleteScope::Track && ev.button == CB::SelectTrack)
+                    switch (scope)
                     {
-                        kind = ConfirmKind::DeleteTrack;
-                        entityName = "TRACK";
-                    }
-                    else if (scope == DeleteScope::Phrase && ev.button == CB::Step)
-                    {
-                        kind = ConfirmKind::DeletePhrase;
-                        entityName = "PHRASE";
-                    }
-                    else if (scope == DeleteScope::Scene && ev.button == CB::Step)
-                    {
-                        kind = ConfirmKind::DeleteScene;
-                        entityName = "SCENE";
+                        case DeleteScope::Track:
+                            kind = ConfirmKind::DeleteTrack;  entityName = "TRACK";  break;
+                        case DeleteScope::Phrase:
+                            kind = ConfirmKind::DeletePhrase; entityName = "PHRASE"; break;
+                        case DeleteScope::Scene:
+                            kind = ConfirmKind::DeleteScene;  entityName = "SCENE";  break;
+                        case DeleteScope::None:
+                            break;   // unreachable: active() is what got us here
                     }
 
                     if (kind != ConfirmKind::None)

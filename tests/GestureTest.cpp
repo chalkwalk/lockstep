@@ -406,6 +406,39 @@ namespace lockstep
         CHECK(!f.effects.statuses.empty(), "named confirm status emitted");
     }
 
+    // Arm a TRACK picker → release Track → tap a slot, which now arrives as a plain
+    // Step because kLayerRemaps only rewrote it to SelectTrack while Track was held.
+    // This is the leg that was broken: the Track branch matched SelectTrack alone, so
+    // the tap fell through to the cancel tail and the "sticky" picker was sticky for
+    // Phrase and Scene only (9.38). PRINCIPLES §16 requires the release not to matter.
+    static void scenario_pickerTrackStickyAfterRelease()
+    {
+        GestureFixture f;
+        f.uiState.deletePicker.scope = DeleteScope::Track;
+        f.uiState.trackHeld = false;   // the arming chord is already up
+
+        const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::Step, 3 });
+        CHECK(handled, "slot tap swallowed by the track picker");
+        CHECK(!f.uiState.deletePicker.active(), "picker cleared after the pick");
+        CHECK(f.uiState.confirm.pending(), "confirm armed rather than cancelled");
+        CHECK(f.uiState.confirm.kind == ConfirmKind::DeleteTrack, "correct kind");
+        CHECK(f.uiState.confirm.target == 3, "correct target slot");
+    }
+
+    // The same pick with Track STILL held, where the key arrives as SelectTrack.
+    // Both encodings must land the same confirm — that is the whole point.
+    static void scenario_pickerTrackStickyWhileHeld()
+    {
+        GestureFixture f;
+        f.uiState.deletePicker.scope = DeleteScope::Track;
+
+        const bool handled = f.down({ ControllerEvent::Type::ButtonDown, CB::SelectTrack, 3 });
+        CHECK(handled, "slot tap swallowed while Track is still held");
+        CHECK(f.uiState.confirm.pending(), "confirm armed");
+        CHECK(f.uiState.confirm.kind == ConfirmKind::DeleteTrack, "correct kind");
+        CHECK(f.uiState.confirm.target == 3, "correct target slot");
+    }
+
     // Arm picker → foreign key → cancelled.
     static void scenario_pickerCancelledByForeignKey()
     {
@@ -812,6 +845,8 @@ namespace lockstep
         scenario_muteMorph();
         scenario_muteBindingResolution();
         scenario_pickerStickyOnRelease();
+        scenario_pickerTrackStickyAfterRelease();
+        scenario_pickerTrackStickyWhileHeld();
         scenario_pickerStepToConfirm();
         scenario_pickerCancelledByForeignKey();
         scenario_pickerFuncExempt();
