@@ -986,13 +986,13 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
       plugin instance read the first's machine schema and outliving it dangled
       (a segfault on a section copy). **Fixed on the spot**, being a crash rather
       than a wart: the catalogue is owned by the editor that uses it.
-- [ ] **`Func+O` never reaches UNDO.** `KeyBindings` declares the row,
+- [ ] **`Func+O` never reaches UNDO.** *(→ `9.37`: review before patching.)* `KeyBindings` declares the row,
       `CommandCore` handles the action, DESIGN §13.6 makes it the safety net under
       every destructive op — but `clearVerbTap` routes to the table only when
       `primaryScope()` is neither `None` nor `Func`, and with only Func held it *is*
       `Func`. The press falls through to "clear the active P-Lock slot". Blocks D5's
       undo leg and all of C6.
-- [ ] **A scoped mark cannot be popped.** §13.6 says `Func+Y` walks the held scope's
+- [ ] **A scoped mark cannot be popped.** *(→ `9.37`: review before patching.)* §13.6 says `Func+Y` walks the held scope's
       stack; dispatch reserves Snapshot *and* Restore whenever a section-suite scope
       is held (`sectionSuiteScopeHeld`), so Track/Scene/Phrase marks push with no
       gesture to pop them — the mirror of the phantom `9.4` fixed on the push side.
@@ -1017,6 +1017,40 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
 Invariant for every CUJ commit: `-Werror` clean, both suites green, and
 `git diff --exit-code tests/goldens/dispatch.txt` — a journey must not move the
 dispatch digest.
+
+### 9.37 — Snapshot / restore / undo: the reachability review  *[design session needed]*
+**Do not fix `9.36`'s two checkpoint defects piecemeal — review the model first.**
+Wave 2 found that `Func+O` never reaches UNDO and that a scoped mark cannot be
+popped, and each has an obvious local patch. Both patches encode an answer to a
+question nobody has re-asked since the 9.4 session, and the shape of that session
+(`docs/snapshot-study-brief.md`, the rejected elaborate model, DESIGN §13.6's
+caveats about which scope a verb lands on) says the local answer is the one most
+likely to be wrong.
+
+What the session has to settle, in one pass:
+
+- **What does `Func` + `<held suite scope>` + verb mean?** DESIGN §13.6 says
+  `Func+Y` walks the held scope's stack. Dispatch *reserves* that chord as "this
+  scope's secondary variant" (`sectionSuiteScopeHeld`, PluginEditor.cpp) and
+  swallows Snapshot and Restore there. The reservation is currently **empty** — no
+  row and no handler claims `Func+scope+Y` — so it is being held for a secondary
+  that was never defined. Either define it or spend it.
+- **Automatic vs manual.** §13.6 separates marks (explicit, per-scope, `Y` / `Func+Y`)
+  from undo (armed automatically before destructive ops, `Func+O`). The separation is
+  the one idea that survived the 9.4 cut, and it is worth re-checking against how the
+  two now behave: a restore arms an undo, so the "manual" stack feeds the "automatic"
+  one, and `Func+O`'s scope comes from `ckScope()` — the scope your fingers happen to
+  be holding, not the scope the armed op touched.
+- **Which scope does a bare verb land on?** `ckScope()` reads `primaryScope()`, so a
+  held step or section (which outrank Track in `kScopePriority`) silently retargets
+  a checkpoint verb. Is that intended, or is the checkpoint family suite-scope-only?
+- **Reachability as an acceptance test.** Every gesture §13.6 names should have a
+  journey in `9.36` that drives it end to end. The two defects exist because the
+  golden covers binding-table *rows* while these verbs are dispatched imperatively —
+  so nothing tested the path a finger takes.
+
+Output: a settled §13.6 (amended where the code was right), the two defects closed
+against it, and D5 flipped from `~` to ☑ in `tests/CUJ_CATALOGUE.md`.
 
 ## Phase 5 — Performance Depth  *[partial: 5.1/5.2/5.7/5.7c/5.10 shipped; 5.3 next (active arc); 5.4/5.8/5.9 open]*
 
