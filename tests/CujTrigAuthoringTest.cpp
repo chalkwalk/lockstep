@@ -116,7 +116,7 @@ namespace
         }
 
         // --- Liveness: the two-track beat actually sounds --------------------------
-        const float peak = peakRmsOverRoll(d, 48);
+        const float peak = peakRmsOverRoll(d, 400);   // a full bar -- see CujPerformanceTest
         check(peak > 0.0f, "playing the beat produces audible output");
         check(!d.hasNaN(), "the audio path stays finite");
     }

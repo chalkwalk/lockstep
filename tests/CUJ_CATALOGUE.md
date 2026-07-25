@@ -179,7 +179,7 @@ hint band surfaces these when a locked step is held.
 | ID | Journey | Status | Deps |
 |----|---------|--------|------|
 | D1 | Mute | ☑ | audio |
-| D2 | Fill | ☐ | |
+| D2 | Fill | ☑ | audio |
 | D3 | Morph | ☐ | mz |
 | D4 | Cue | ☐ | |
 | D5 | Checkpoints | ~ | |
@@ -198,8 +198,16 @@ mid-bar) and lands at the boundary, after which the peak RMS across a roll drops
 same modifier inside the double-tap window LATCH the scope (3.10), and a latched
 Track silently turns every step press into a track select.
 
-**D2 — Fill.** `Fill+step` marks fill-only (dim until held); assert those steps fire
-only while `Fill` held (census under hold vs release).
+**D2 — Fill.** ☑ `CujPerformanceTest.cpp`. `Fill+step` marks a step fill-on (cell reads
+`StepFillAdd` while Fill is held) **without** authoring an ordinary trig, and pressing
+again cycles it to fill-off. The census is the whole point and is done in sound: with
+the track carrying nothing but fill steps, a full-bar roll is *silent* at rest and
+audible while Fill is held.
+
+**Roll a full bar (`kBarBlocks`, ~400 blocks at 48k/256), not a handful.** A 48-block
+roll is ~250 ms and can pass BETWEEN two trigs, reporting silence from a loud pattern —
+which quietly guts any "did the mute/fill work" comparison. D2 failed this way first;
+A1 and D1 were passing on luck and now roll a bar too.
 
 **D3 — Morph.** `Morph + setParam` sculpts at fader split; `Morph+↑/↓` pure A/B;
 `Morph+Mute` fluid mute; `Morph+O` BAKE, `Func+Morph+O` ERASE. Assert map state +

@@ -59,6 +59,12 @@ namespace
         return n;
     }
 
+    // A full 16-step bar's worth of blocks at 48k/256, 120 bpm (~5 ms a block, ~2 s a
+    // bar). Any shorter roll can pass BETWEEN two trigs and report silence from a
+    // perfectly loud pattern -- which makes a "did the mute work" comparison
+    // meaningless in the direction that matters. Measured, after D2 failed this way.
+    constexpr int kBarBlocks = 400;
+
     // Peak RMS across a roll: "did this ever make a sound", robust to whichever block
     // the roll ends on (the amp envelope may have decayed by then).
     float peakRmsOverRoll(UiDriver& d, int blocks)
@@ -146,7 +152,7 @@ namespace
         // the thing the mute has to remove.
         d.tap(CB::SelectTrack, 1);
         d.chord({ CB::TrackScope }, CB::VerbClear).tap(CB::VerbConfirm);
-        const float loud = peakRmsOverRoll(d, 48);
+        const float loud = peakRmsOverRoll(d, kBarBlocks);
         if (!test::expectReached(d, [&](UiDriver&) { return loud > 0.0f; },
                                  "the pattern is audible while rolling", failed))
             return;
@@ -157,9 +163,72 @@ namespace
 
         d.play(8.0);   // cross the boundary
         check(!d.proc().hasPendingMute(0), "the armed mute is consumed at the boundary");
-        const float quiet = peakRmsOverRoll(d, 48);
+        const float quiet = peakRmsOverRoll(d, kBarBlocks);
         check(quiet < loud, "and from there the muted track stops making sound");
         check(!d.hasNaN(), "the audio path stays finite through a mute");
+    }
+
+    // D2 -- Fill.
+    //
+    // Fill is the "and now the drums do the thing" hand: steps marked fill-only sit
+    // dim and silent until the Fill key is down, then join the pattern. The state is
+    // per-step (Inherit -> On -> Off, cycled by Fill+step) and the behaviour is
+    // momentary, so the honest assertion is a census of SOUND with the key down
+    // versus up -- the pattern here is nothing BUT fill steps, so silence and
+    // not-silence are the two answers.
+    void testFill(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/D2] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        installRealMachine(d.rig(), 0);
+
+        d.tap(CB::SelectTrack, 0);
+        d.chord({ CB::TrackScope }, CB::VerbClear).tap(CB::VerbConfirm);
+        if (!test::expectReached(d, [](UiDriver& dd) { return trigCount(dd, 0) == 0; },
+                                 "an empty track, so only fill steps can sound", failed))
+            return;
+
+        // --- Fill+step marks the step fill-only -----------------------------------
+        const auto& t0 = d.proc().sequence().tracks[0];
+        d.gap();
+        d.press(CB::FillScope);
+        d.tap(CB::Step, 0);
+        d.tap(CB::Step, 8);
+        {
+            const auto surf = d.surface();
+            check(surf.step[0].base == CellState::StepFillAdd,
+                  "a fill-only step reads as a fill add while Fill is held");
+        }
+        d.release(CB::FillScope);
+
+        check(t0.steps[0].fillTrigState == FillTrigState::On, "Fill+step marks the step fill-on");
+        check(t0.steps[8].fillTrigState == FillTrigState::On, "...and the second one too");
+        check(!t0.steps[0].trig, "...without authoring an ordinary trig");
+
+        // --- Silent at rest, audible under the key --------------------------------
+        // A full bar of blocks, not a handful: at 48k/256 a block is ~5 ms and a
+        // 16-step bar at 120 bpm is ~2 s, so a 48-block roll can pass between two fill
+        // steps and call the instrument silent. Long enough to be sure it came round.
+        const float quiet = peakRmsOverRoll(d, kBarBlocks);
+        check(quiet == 0.0f, "with Fill up, the fill-only steps stay silent");
+
+        d.gap();
+        d.press(CB::FillScope);
+        const float loud = peakRmsOverRoll(d, kBarBlocks);
+        d.release(CB::FillScope);
+        check(loud > quiet, "holding Fill brings them in");
+        check(!d.hasNaN(), "the audio path stays finite under fill");
+
+        // --- The cycle continues to Off -------------------------------------------
+        d.gap();
+        d.press(CB::FillScope);
+        d.tap(CB::Step, 0);
+        d.release(CB::FillScope);
+        check(t0.steps[0].fillTrigState == FillTrigState::Off,
+              "pressing again cycles the step to fill-off");
     }
 
     // D5 -- Checkpoints.
@@ -229,6 +298,7 @@ namespace
 void runCujPerformanceTests(int& failed)
 {
     testMute(failed);
+    testFill(failed);
     testCheckpoints(failed);
 }
 }   // namespace lockstep
