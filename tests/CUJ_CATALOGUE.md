@@ -48,7 +48,7 @@ silently failed must fail loudly, not assert against a wrong start state.
 | A1 | Two-track drum beat | ☑ | audio |
 | A2 | Trig conditions | ☐ | mz |
 | A3 | Step editing | ☐ | |
-| A4 | Copy/paste/clear across scopes | ☐ | |
+| A4 | Copy/paste/clear across scopes | ☑ | |
 
 **A1 — Two-track drum beat.** ☑ `CujTrigAuthoringTest.cpp`. Focus track 0, clear it
 (`Track+CLEAR`, confirmed — clearing a track is a guarded destructive verb); `step`
@@ -69,9 +69,22 @@ P-Locks). `hold step + SRC` → note-edit overlay (NOTE relabel, chromatic cells
 `hold step + ←/→` → bubble-swap (trig moves to neighbour). `hold step + Func+←/→` →
 microOffset changes. `hold step + P` (QUANT) → microOffset zeroed.
 
-**A4 — Copy/paste/clear across scopes.** `step+U` → clipboard type==step; `Track+U`
-→ type==track; `section+U` → type==section (the canonical "same verb, three
-scopes"). Paste `I`, clear `O`; assert target state + clipboard badges.
+**A4 — Copy/paste/clear across scopes.** ☑ `CujClipboardTest.cpp`. The canonical
+"same verb, three scopes": held `step`+`U` → clipboard type==step; `Track`+`U` →
+type==track; held `section`+`U` → type==section. Typing is asserted behaviourally —
+a step clip pasted under `Track` leaves the track alone — then the step paste lands
+and the track paste mirrors the source onto another track. `Track`+`O` proves the
+confirm gate (nothing clears until `P`). Surface leg: under a held Song the copy key
+**dims** (Song has no clipboard — the 9.14 st.5 lie), under a held Track it glows.
+
+*Found by this journey, filed not fixed:* (a) a held step used as a copy/paste
+**operand** still authors on release — `verbs::trig` marks the edit context
+param-written for Clear but not Record/Play — so the paste is asserted while the
+step is held; (b) the copy-key glow is wired for section-**suite** scopes only, so a
+held step or section copies without lighting the key (an omission, not a lie).
+*Fixed on the spot* (a crash, not a wart): `commandContext()`'s `static`
+ProcessorCatalog bound the first editor's processor forever — a second plugin
+instance read the first's schema, and outliving it dangled.
 
 ## Group B — Generators (all via the generator hub, `3` held ≥350 ms)
 
