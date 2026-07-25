@@ -373,15 +373,26 @@ stem with feeders folded; assert stem file set matches routing.
 
 | ID | Journey | Status | Deps |
 |----|---------|--------|------|
-| H1 | TIME page | ☐ | audio |
-| H2 | Retrig/ratchet | ☐ | audio |
+| H1 | TIME page | ☑ | |
+| H2 | Retrig/ratchet | ☑ | midi-out |
 
-**H1 — TIME page.** `Song+TRIG`/`Scene+TRIG` opens TIME band (TRIG→TIME); tempo/sig
-scope ladder (Set/Song/Scene); CLICK toggle; PreRoll count-in delays record start by
-N bars (assert with the bridge). Golden the scope-coloured readout.
+**H1 — TIME page.** ☑ `CujTimeTest.cpp`. `Song+TRIG` opens `Overlay::Time` and the
+encoders become the TIME band; re-pressing TRIG cycles TIME ↔ KEY (two signature pages,
+one key); the CLICK field toggles the metronome (9.10 moved it here from `Func+3`).
+The scope-ladder leg is the substance: the **same page** opened under `Song` writes the
+Song rung and under `Scene` writes the Scene rung, each leaving the other set, and
+`effectiveTimeSig` resolves to the nearest rung that is set. PreRoll count-in is left
+to a later wave.
 
-**H2 — Retrig/ratchet.** TRIG field 5 "RTG" P-lockable; a step with a rate
-re-triggers at that musical rate (assert emitted note count under `play()`).
+**H2 — Retrig/ratchet.** ☑ `CujTimeTest.cpp`. A step carrying an RTG rate fires *more
+often* over a bar than a plain one — counted, on a **MIDI-out track**, because audio
+tells you something sounded and not how many times.
+
+*Order matters here, and no doc says so:* the TRIG band is a **meta page** (`Func` +
+the SRC key), so it must be opened BEFORE the step goes down — pressing `Func` while a
+step is held is the W7 latch and is consumed, so the band would never open. Open the
+page, hold the step, then turn: the field lands on the held step as a P-Lock and the
+trig it decorates is untouched.
 
 ---
 
