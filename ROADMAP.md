@@ -997,7 +997,7 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
       is held (`sectionSuiteScopeHeld`), so Track/Scene/Phrase marks push with no
       gesture to pop them — the mirror of the phantom `9.4` fixed on the push side.
       Decide which side wins: the reserve, or §13.6.
-- [ ] **`Mute+Song+step` (blank song) cannot fire — and mutes a track instead.** The
+- [ ] *(moved to `9.38`)* **`Mute+Song+step` (blank song) cannot fire — and mutes a track instead.** The
       Mute layer rewrites every step key to `ToggleMute` before the Step case can read
       `songHeld`. `resolveBinding` matches on a *subset* of held mods and no
       `ToggleMute` row requires Song, so the plain `{ToggleMute, kModMute}` row wins:
@@ -1010,12 +1010,12 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
       never reaches `verbs::trig` — `routeVerb` matches the table on the full held-mod
       set and `{VerbClear, kModFunc} → VerbUndo` outscores the bare row. 9.29 freed
       this chord *for* this gesture; 9.4 then took it for undo.
-- [ ] **The microtiming nudge needs two Func presses.** The first `Func` over a held
+- [ ] *(moved to `9.38`)* **The microtiming nudge needs two Func presses.** The first `Func` over a held
       step is the W7 latch and is consumed ("no funcHeld", says the branch), so
       `hold step + Func + →` performs the step MOVE — a different documented gesture —
       until Func is pressed again. Found by A3; a gesture collision rather than dead
       code, but it silently does the wrong thing.
-- [ ] **A held step used as a copy/paste operand still authors on release.**
+- [ ] *(moved to `9.38`)* **A held step used as a copy/paste operand still authors on release.**
       `verbs::trig` marks the edit context param-written for Clear but not for
       Record/Play, so copying a step turns its trig off and pasting onto one inverts
       what just landed. Also noted: the copy-key glow is wired for section-*suite*
@@ -1049,6 +1049,52 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
 Invariant for every CUJ commit: `-Werror` clean, both suites green, and
 `git diff --exit-code tests/goldens/dispatch.txt` — a journey must not move the
 dispatch digest.
+
+### 9.38 — The CUJ defect backlog  *[open]*
+Everything the journey suite found and did not fix, in one place, because the arc's own
+rule is that a journey **files** a bug rather than fixing it inline. Each entry says
+what the mechanism is, what it blocks, and what flips when it closes — so none of them
+needs re-deriving from a test comment.
+
+Two patterns account for all of them. Either **two things claim one gesture** and the
+loser is silently unreachable, or **one fact is written in two places** and the copies
+disagree. Neither is visible to the golden net, which covers binding-table rows while
+these paths dispatch imperatively.
+
+- [ ] **`Mute+Song+step` mutes a track instead of blanking a song.** *(worst of the
+      set: the others do nothing, this does the wrong thing silently.)* The Mute layer
+      rewrites every step key to `ToggleMute` before the Step case can read `songHeld`;
+      `resolveBinding` matches a *subset* of held mods and no `ToggleMute` row requires
+      Song, so `{ToggleMute, kModMute}` wins and the press arms a mute on that index's
+      track (measured). Dispatch's own "empty + Mute: blank default song" branch is
+      dead code. → **flips `E3` to ☑**.
+- [ ] *(moved to `9.38`)* **A held step used as a copy/paste operand still authors on release.**
+      `verbs::trig` marks the edit context param-written for `Clear` but not for
+      `Record`/`Play`, so copying a step turns its trig off and pasting onto one
+      inverts what just landed. → lets `A4` assert the post-release state instead of
+      working around it.
+- [ ] **The microtiming nudge needs two `Func` presses.** The first `Func` over a held
+      step is the W7 latch and is *consumed* ("no funcHeld", says the branch), so
+      `hold step + Func + →` performs the step MOVE — a different documented gesture —
+      until `Func` is pressed again. Decide whether the latch should pass the press
+      through, or whether the docs should describe the two-press reality.
+- [ ] **`Phrase+<diagonal>` badges a track as deviated onto its own home phrase.**
+      `swapPhraseForTrack` sets `deviated = true` unconditionally, while
+      `deviateAllToPhrase` clears it on `N == sceneIdx`. One fact, two writers,
+      disagreeing — so the badge stays lit while the track plays exactly the scene's
+      content.
+- [ ] **The "sticky" delete picker is not sticky for Track.** It matches on
+      `SelectTrack` — what a step key becomes *while Track is held* — so releasing the
+      arming chord and then tapping a slot cancels the picker instead of arming the
+      confirm. Phrase and Scene are genuinely sticky; Track only looks it.
+- [ ] **The copy-key glow is wired for section-*suite* scopes only.** A held step or
+      section copies without lighting the key. An omission rather than a lie (the key
+      says nothing, rather than the wrong thing), so it is last — but it is the same
+      affordance-matrix question `9.14` st.5 settled for the scopes it covered.
+
+**Acceptance:** each fix lands with the journey leg it unblocks, and the corresponding
+row in `tests/CUJ_CATALOGUE.md` goes from `~` to ☑ or gains the assertion its comment
+currently says is deferred.
 
 ### 9.37 — Snapshot / restore / undo: the reachability review  *[SHIPPED 2026-07-24]*
 Wave 2 and 3 of the CUJ suite drove the checkpoint family the way a finger drives it
