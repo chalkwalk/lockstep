@@ -10,46 +10,40 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus (set at the 2026-07-14 alignment review):** the 2026-07-12 arcs are
-**both closed** — structural debt (`9.12` dispatch migration, `9.15` invalidation
-enforcement) cleared on 2026-07-13, and the grammar/usability arc shipped `9.29`
-(Machine scope) and `9.30` (chrome regroup) with it. This review cross-referenced
-every remaining claim against the code; the corrections are folded into the
-milestones below. Next orders of business, in order:
+**Active focus (refreshed 2026-07-24):**
 
-0. *(done since the review, same day)* — the housekeeping sweep (`9.14` closed
-   with the stage-6 audit; pool content-hash comments corrected), the `9.23`
-   Stream→pool wiring gap (shipped as `9.23` S9), and **`9.4` snapshot/undo shipped
-   in full** (A–H: phantom cluster fixed, simple per-scope model built, undo on
-   `Func+O`; spec in DESIGN §13.6, elaborate model rejected-but-preserved).
-1. *(done since the review, 2026-07-15)* — **`6.4` cue balance shipped (core +
-   discoverability/access pass).** Re-specced from an additive send to a per-track
-   cue *balance* crossfade (DESIGN §31): `cueBalance` APVTS overlay, per-sample
-   declick, `(1−b)`/`b` fan-out split, direct `Cue`+`Mute` toggle, the two-page cue
-   console, quantized flip (`queueCueFlip`), and the surface indicator — all tested.
-   The **2026-07-15 access pass** then fixed three play-test gaps: the `Cue` scope
-   is now *discoverable* (a `Func+3` binding row → **CUE** hint on key 3, cue-cyan
-   scope colour, status banner); the console opens on **`Cue + hold(AMP)`** (the
-   `Track+hold(AMP)`=MIXER twin — "AMP is the mixer key"; the anomalous
-   `Cue+NavRight` promotion is gone); the MIXER band and cue console **page their
-   track bank by re-pressing AMP** (1-8 ↔ 9-16) with pagination pips; and the
-   **AMP/CHANNEL page now carries a writable, APVTS-backed CUE cell** (DESIGN §31.3
-   — synthetic slot routed to `get/setCueBalance`, excluded from `channelState`, so
-   no double-store). Follow-ons: **`6.4a` cue overlay tiers** (per-step P-Lock +
-   per-scene morph over the global base) **shipped 2026-07-15** (DESIGN §31.5);
-   `Cue + Scene` and `Cue + MIDI-out` remain deferred.
-2. **`5.3` — Song/Scene management UI.** The big arc: names, colours, browser,
-   sound recall. Needs its own brainstorm/design session first — "Kit" is retired
-   as a term (`9.29`), so the recall-unit story is re-derived, likely atop
+1. **`9.36` — the Critical User Journey suite, grown in waves.** The automated
+   equivalent of the manual test sheet a team runs before every release. The
+   harness is complete and the catalogue documents every journey; each wave flips
+   a batch of rows in `tests/CUJ_CATALOGUE.md`, which is the authoritative
+   tracker. **Wave 2 is the live batch.**
+2. **`5.3` — Song/Scene management UI.** Names, colours, browser and phrase
+   copy/fork all ship (two play-test rounds landed 2026-07-16/17). What remains is
+   the **recall unit**, which needs its own brainstorm/design session first —
+   "Kit" is retired as a term (`9.29`), so the story is re-derived, likely atop
    `SoundPool`. Must fit the picker paradigm (step grid is the selection surface;
-   no popups) and the scope+verb grammar.
+   no popups) and the scope+verb grammar. Smaller open holes are itemised in the
+   milestone.
 
-**Recently shipped:** the capture arc closed 2026-07-12 (`11.10`–`11.12` —
-see their compressed entries below the seam) and Phase 11 (the deck engine)
-is complete, core, tail and all play-test rounds. Phase 10 is shipped through
-10.10 except `10.5` (partial), `10.6` and `10.11`. The 2026-07-14 review also
-flipped five milestones whose `[active]` flag had gone stale (`9.5`, `9.6`,
-`9.8a`, `9.13`, `9.27` — all complete in code).
+**Shipped since the 2026-07-14 review** (all cross-referenced against the code):
+the housekeeping sweep (`9.14` stage-6 audit; pool content-hash comments), the
+`9.23` Stream→pool wiring gap (`9.23` S9), **`9.4` snapshot/undo in full** (A–H:
+phantom cluster fixed, simple per-scope model, undo on `Func+O`; DESIGN §13.6,
+elaborate model rejected-but-preserved), **`6.4` cue balance + the access pass +
+`6.4a` overlay tiers** (2026-07-15 — per-track cue *balance* crossfade rather than
+an additive send, DESIGN §31/§31.3/§31.5; `Cue + Scene` and `Cue + MIDI-out` remain
+deferred), the **`5.3` play-test follow-up and round 2** (2026-07-16/17 — grid-mode
+default, name visibility, create-on-select Songs/Phrases, the uniform-scaled
+resizable window, and the VU-freeze fix that gave `repaintLogical()` a single
+owner), and the **CUJ suite's Phase-0 harness + catalogue + seed trio** (2026-07-24,
+`9.36`).
+
+**Earlier:** the capture arc closed 2026-07-12 (`11.10`–`11.12` — see their
+compressed entries below the seam) and Phase 11 (the deck engine) is complete,
+core, tail and all play-test rounds. Phase 10 is shipped through 10.10 except
+`10.5` (partial), `10.6` and `10.11`. The 2026-07-14 review also flipped five
+milestones whose `[active]` flag had gone stale (`9.5`, `9.6`, `9.8a`, `9.13`,
+`9.27` — all complete in code).
 
 **Gated on the user (schedule a dogfooding session or mark waived):** ear
 tests (`9.23` S1 Bungee, `9.24` A/B matrix, `9.25` R4 varispeed texture);
@@ -950,6 +944,45 @@ went 19/22 → 22/22 — and the plan's explanation was wrong: measured, the sig
 asserted in this arc turned out wrong when measured; the scene budget likewise
 cleared an obvious canary by only 1.2× until tightened 10×.
 
+### 9.36 — Critical User Journeys, grown in waves  *[in progress]*
+The automated equivalent of the manual test sheet a team runs before every
+release. 9.34/9.35 gave the harness the *ability* to drive and see the product;
+nothing yet walked a whole user **task** end to end. A journey is described the
+way a person performs it — an ordered gesture script — and asserts both the
+durable processor state and the visible affordance on `surface()`, with
+`expectReached` guarding that the setup truly landed (a precondition that silently
+failed must fail loudly, not assert against a wrong start state).
+
+**`tests/CUJ_CATALOGUE.md` is the authoritative tracker** and the durable artifact
+that outlives any one wave: 26 journeys in groups A–H, each with its gesture
+script, assertions, harness deps and a ☐/~/☑ status. Per-journey status lives
+*there* — this milestone tracks waves only, so there is no second source of truth.
+
+Arc shape (set 2026-07-24): document every journey, build the harness for all of
+them, implement a few, add the rest in waves. Tests and docs only — a journey that
+reveals a product bug **files** it, never fixes it inline.
+
+- [x] **Phase 0 — the harness** (2026-07-24). `AudioRig.h` as the single owner of
+      how a live processor is stood up (`EngineHarness` now delegates to it), the
+      `UiDriver` live-audio bridge (`runBlocks`/`play`/`lastRms`/`hasNaN` — what
+      lets a UI test assert on state the audio thread owns), MIDI note-in/out verbs,
+      the semantic `setParam` through the real armed MZ path, and `expectReached`.
+- [x] **Wave 1 — the seed trio** (2026-07-24). A1 two-track drum beat, B1 Euclid
+      generate/commit/cancel, F1 realtime record. Proved the assertion pattern and
+      corrected the catalogue where it was wrong (polymeter length is
+      `Func+Phrase+step`, not a TRIG field).
+- [ ] **Wave 2** — A4 copy/paste/clear across scopes, C1 P-Lock (the OEB
+      invariant), C3 machine picker (guards the `numSections()` trap), D1 mute,
+      D5 checkpoints (guards `9.4`), E1 scene and E3 song (guard `5.3`'s identity
+      + create-on-select work).
+- [ ] **Later waves** — the remaining ☐ rows: A2/A3, B2–B5, C2/C4–C6, D2–D4,
+      E2/E4, F2–F5, G1/G2, H1/H2. Machine-content journeys need the committed
+      CC0 assets the catalogue names.
+
+Invariant for every CUJ commit: `-Werror` clean, both suites green, and
+`git diff --exit-code tests/goldens/dispatch.txt` — a journey must not move the
+dispatch digest.
+
 ## Phase 5 — Performance Depth  *[partial: 5.1/5.2/5.7/5.7c/5.10 shipped; 5.3 next (active arc); 5.4/5.8/5.9 open]*
 
 The depth pass on top of the frozen surface: timing feel, scenes, pattern/part
@@ -1003,16 +1036,43 @@ window landing:
   renderer consumed a hand-copied predicate that had dropped `songHeld`; it now reads
   the model's own `activeLayer` SSOT, and occupied Song/Scene cells fill from their
   identity colour (Browser pattern) with the scope on the border.
-- [ ] Song + Scene names (≤16 chars, inline editor).
-- [ ] Song + Scene colours + tags (palette tied to §24).
-- [ ] Non-modal browser overlay (Songs → Scenes), navigable while playing;
-      selection reuses the launch gesture.
-- [ ] Copy / move / duplicate Phrases across tracks or Songs.
-- [ ] In-browser Scene queue cue (`Yes` cues, `No` cancels).
-- [ ] Kit as a recall unit (DESIGN §4.7.2): Kit name (inline); save/load
-      against a Set-level Kit library; machine-vs-library paging in the
-      `Func+Track` picker. (Kit reload = `Track`-scope Checkpoint floor,
-      §13.6 — no separate gesture.)
+Checkbox state below corrected against the code on 2026-07-24 (the prose above had
+run ahead of the boxes; each open box now names what is actually missing).
+
+- [x] Song + Scene names (≤16 chars) — `Song::colour`/`name`, `Scene::colour`/`name`,
+      persisted; authored through the generative identity overlay (`src/ui/NameGen.h`,
+      `openIdentityOverlay`).
+- [ ] **Decide the typed name path.** `identityRawActive`/`identityRawText`
+      (`src/state/UiState.h`) are *read* by the commit path but never set true
+      anywhere in `src/` — the only writer is a unit test. Either build host-keyboard
+      text capture behind them or delete the fields; dead state that looks live is
+      the worse of the two.
+- [x] Song + Scene colours (palette tied to §24) — palette-index picker page in the
+      identity overlay; occupied cells fill from their identity colour.
+- [ ] Song + Scene **tags** — no `tags` field exists on `Song` or `Scene`. Deferred:
+      it needs a filter/browse story to be worth anything.
+- [x] Non-modal browser overlay, navigable while playing (`Func+Song+MOD` →
+      `consumeBrowserKey`, `BrowserCell*` tokens). *Pages are Scenes and Phrases,
+      not Songs → Scenes* — there is no Song-level browser page, which is a
+      correction to this item's original wording, not an omission to chase.
+- [x] Copy / paste / duplicate Phrases within a track's slot pool (snapshot on
+      `Record`, paste on `Play`, fork-pick placement; `phraseSlotSnapshot` /
+      `writePhraseSlot` / `forkPhraseIntoSlot`).
+- [ ] Phrase **move** (and an explicit cross-track / cross-Song affordance). No
+      source-clearing op exists, and the browser is scoped to `activePieceIdx()`,
+      so cross-Song is unproven. Cross-track works today only incidentally, because
+      the clipboard survives a `Nav` track switch.
+- [ ] In-browser Scene queue cue. Cueing works but is bound to the **step press**
+      (`queueScene`, double-tap = floor); `Yes` is bound to *rename*, and `No` never
+      calls the existing `cancelQueuedScene()`. Settle the binding, then wire it.
+- [ ] The **recall unit** (was "Kit as a recall unit", DESIGN §4.7.2). Nothing of
+      this exists: `TrackKit` has no name or library identity, `Project` holds only
+      a `SoundPool`, and the `Func+Track` picker is machine-only with no
+      machine-vs-library paging. Blocked on a design session — "Kit" was retired as
+      a term by `9.29`, so the unit must be re-derived (likely a named `TrackKit`
+      bundle atop `SoundPool`, which today captures machine + `baseParams` + sample
+      ref but *not* `fltrState`/`channelState`/`envState`/inserts). Recall stays a
+      `Track`-scope Checkpoint floor (§13.6) — no separate gesture.
 
 ### 5.4 — Sampling + resampling  *[planned]*  *(was MN)*
 DESIGN §22.
