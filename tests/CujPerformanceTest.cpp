@@ -325,6 +325,31 @@ namespace
         d.chord({ CB::MorphScope }, CB::VerbClear);       // Func+Morph+CLEAR = ERASE
         d.release(CB::Func);
         check(!d.proc().morphWidgetInfo(0, slot).exists, "Func+Morph+CLEAR erases the map");
+
+        // --- Morph+Mute is FLUID mute: silence becomes a pole -------------------
+        // Not a mute bit -- a level-to-silence morph captured into the near pole, so
+        // the fader fades the track out instead of cutting it. Same key, different
+        // physics, and pressing it again takes the map away.
+        // BOTH modifiers stay down: the row requires Morph AND Mute, and the layer
+        // that carries it (MorphMuteView) is defined by the pair. Morph alone would
+        // make the step key an ordinary mute.
+        check(!d.proc().hasFluidMute(0), "no fluid mute to begin with");
+        d.gap();
+        d.press(CB::MorphScope);
+        d.press(CB::MuteScope);
+        d.tap(CB::ToggleMute, 0);
+        d.release(CB::MuteScope);
+        d.release(CB::MorphScope);
+        check(d.proc().hasFluidMute(0), "Morph+Mute captures level-to-silence as a morph");
+        check(d.proc().fluidMuteLevelSlot(0) >= 0, "...on the track's own level control");
+
+        d.gap();
+        d.press(CB::MorphScope);
+        d.press(CB::MuteScope);
+        d.tap(CB::ToggleMute, 0);
+        d.release(CB::MuteScope);
+        d.release(CB::MorphScope);
+        check(!d.proc().hasFluidMute(0), "pressing it again clears the fluid mute");
     }
 
     // D4 -- Cue.
@@ -371,6 +396,21 @@ namespace
         if (!test::expectReached(d, [](UiDriver& dd) { return !dd.ui().cueHeld; },
                                  "releasing the 3-key leaves the Cue scope", failed))
             return;
+
+        // --- Cue + hold(AMP) opens the cue console -------------------------------
+        // The MIXER twin: AMP is the mixer key, so holding it under Cue gives the cue
+        // bus its own console rather than inventing a ninth modifier for it.
+        d.gap();
+        d.press(CB::Func);
+        d.press(CB::TapTempo);
+        d.longPress(CB::Section, LockstepProcessor::kAmpSecIdx);
+        d.release(CB::TapTempo);
+        d.release(CB::Func);
+
+        check(d.ui().overlay == Overlay::Cue, "Cue + hold(AMP) opens the cue console");
+        check(!d.ui().cueHeld, "...and it is sticky -- the scope keys are free again");
+        d.doubleTap(CB::Func);
+        check(d.ui().overlay == Overlay::None, "double-tap Func closes it");
 
         // --- The scope is DISCOVERABLE: key 3 says CUE under Func ------------------
         // 6.4's access pass exists because the scope was reachable but invisible.

@@ -323,6 +323,22 @@ namespace
         check(d.ui().harmonyProg.chords[0].voice[1] != beforeVoice, "a voice moves when its knob turns");
         check(voicesDistinct(), "...and no two voices ever share a pitch");
 
+        // --- LEN grows the progression by CLONING, not by inventing ---------------
+        // A second chord that started from silence would be a new decision to make;
+        // starting from a copy of the one before it means growing a progression is an
+        // edit, not a blank page.
+        {
+            const auto& prog = d.ui().harmonyProg;
+            const int lenBefore = prog.length;
+            const auto firstChord = prog.chords[0];
+            DispatchProbe::frame(d.editor());
+            d.setParam(DispatchProbe::mzSlotOffset(d.editor()) + 4,   // field 4 = LEN
+                       static_cast<float>(lenBefore + 1));
+            check(prog.length == lenBefore + 1, "LEN grows the progression");
+            check(prog.chords[lenBefore].voice == firstChord.voice,
+                  "...and the new chord is a clone of the one before it");
+        }
+
         // --- Bare P prints one chord per bar ---------------------------------------
         d.tap(CB::VerbConfirm);
         check(!d.ui().harmonyHeld, "P commits and leaves the voice-mover");

@@ -154,7 +154,8 @@ same line, so a take can be repeated. `Func+P` cancels and restores what was the
 is voice-leading, not a chord palette: one voice moves when its knob turns and the rest
 stay put, and the invariant that keeps it sounding like harmony rather than a cluster —
 **no two voices on the same pitch** — holds before and after the move. `P` prints the
-progression. `LEN` growth (cloning the previous chord) is left to a later wave.
+progression. `LEN` grows the progression by **cloning** the chord before it, not by inventing one
+— growing a progression is an edit, never a blank page.
 
 ## Group C — Sound, sections, P-Locks
 
@@ -180,6 +181,13 @@ the grid to the pool (`trigGridMode == SoundPool`; cells read `SoundPoolOccupied
 `SoundPoolEmpty`); a cell press with a step held bakes that sound onto the step
 (`trigOverride.hasSoundId` / `soundId`); releasing Fill restores the step grid, so the
 re-skin is momentary and cannot be got stuck in.
+
+A cell press with **no** step held is a live **audition** — the track's working
+baseParams swap under your hands and nothing is written to any step. (The two fixture
+sounds must genuinely differ, or the swap is a no-op and the leg asserts nothing; and
+the bake leg auditions on its way through, so the audition leg has to press the *other*
+cell.) Read the **working sequence** for it: a live swap writes there directly and
+never touches the kit, which is what makes walking away undo it.
 
 *Order matters:* hold the step **before** entering the re-skin. Once the grid is the
 pool, every step key is a pool cell — there is no way to grab a step from inside it.
@@ -263,14 +271,19 @@ the write becomes a *sculpt* at the current fader position, which at fader 0 lan
 and looks like the B write silently going to the wrong pole. And read
 `morphEffectiveValue`, not `baseParams`: a morph map is resolved on the way out
 (P-Lock > morph-lerp > kit base), which is exactly why the fader edits nothing.
-`Morph+Mute` fluid mute is left to a later wave.
+`Morph+Mute` is **fluid mute** — not a mute bit but level-to-silence captured as a
+morph, so the fader fades the track out instead of cutting it; pressing it again clears
+the map. **Both** modifiers stay down: the row requires Morph AND Mute, and the layer
+that carries it is defined by the pair, so Morph alone just makes the step an ordinary
+mute.
 
 **D4 — Cue.** ☑ `CujPerformanceTest.cpp`. `Func+3` enters the scope (`cueHeld`), and
 releasing the 3-key leaves it; `Cue+Mute` flips the **focused** track's balance into
 the cue bus and back, touching no other track. The discoverability leg is the point of
 6.4's access pass and is asserted on the surface: under `Func`, key 3 advertises
-**CUE**. The console (`Cue + hold(AMP)`) has its own unit coverage
-(`runCueConsoleTests`) and is left to a later wave here.
+**CUE**. `Cue + hold(AMP)` opens the **cue console** — the MIXER twin, since AMP is the mixer
+key — and it is sticky: the scope keys are free again once it is up, and a double-tap
+`Func` closes it.
 
 **D5 — Checkpoints.** ~ `CujPerformanceTest.cpp`. `Track+Y` pushes on the Track stack
 and *not* the Song's (the stacks are independent); bare `Y` marks the Song; `Func+Y`

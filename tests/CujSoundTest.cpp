@@ -422,12 +422,24 @@ namespace
 
         // Two sounds in the pool to choose between. (The pool is a Project-scope
         // library; a journey that starts with an empty one is asserting nothing.)
+        // The two entries must actually DIFFER, or a live swap is a no-op and the
+        // audition leg below asserts nothing. Same machine, one distinct param.
+        const int auditionSlot = 4;   // fm_fine_1
         {
+            const int n = d.proc().numParams(0);
+            ParamFrame base(static_cast<std::size_t>(n), 0.0f);
+            for (int i = 0; i < n; ++i)
+                base[static_cast<std::size_t>(i)] = d.proc().baseParamValue(0, i);
+
             SoundEntry a;
             a.name = "KICK";
             a.machineId = FMMachine::kMachineId;
+            a.baseParams = base;
+
             SoundEntry b = a;
             b.name = "SNARE";
+            b.baseParams[static_cast<std::size_t>(auditionSlot)] = 55.0f;
+
             d.proc().pushSoundEntry(std::move(a));
             d.proc().pushSoundEntry(std::move(b));
         }
@@ -470,9 +482,28 @@ namespace
         check(step4.trigOverride.hasSoundId, "holding a step and picking a sound locks it there");
         check(step4.trigOverride.soundId == 1, "...the sound that was actually pressed");
 
+        // --- A cell press with NO step held swaps the track live (audition) -------
+        // Same cell, no operand: the sound changes under your hands so you can hear it
+        // before deciding where it belongs. Nothing is written.
+        d.release(CB::Step, 4);
+        {
+            // Read the WORKING sequence: a live swap writes the track's baseParams
+            // directly (that is what makes it live and undoable by walking away), and
+            // never touches the kit -- so a kit-side read would report no change.
+            auto& live = d.proc().sequence().tracks[0].baseParams;
+            const float before = live[static_cast<std::size_t>(auditionSlot)];
+            // Cell 0, not 1: baking onto the step already swapped the track to sound 1
+            // (the bake path auditions first), so pressing it again would change
+            // nothing and the assertion would be vacuous.
+            d.tap(CB::Step, 0);          // pool cell 0, no step held
+            check(live[static_cast<std::size_t>(auditionSlot)] != before,
+                  "a bare cell press swaps the track's sound live -- an audition");
+            check(!d.proc().sequence().tracks[0].steps[8].trigOverride.hasSoundId,
+                  "...and writes nothing onto any step");
+        }
+
         // --- Releasing Fill puts the grid back ------------------------------------
         d.release(CB::FillScope);
-        d.release(CB::Step, 4);
         check(d.ui().trigGridMode == TrigGridMode::Default,
               "releasing Fill restores the step grid -- the re-skin is momentary");
         {
