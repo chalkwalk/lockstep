@@ -127,6 +127,28 @@ namespace
         d.gap();
         d.chord({ CB::SceneScope }, CB::VerbClear);
         check(!d.proc().isTrackDeviated(0), "Scene+CLEAR syncs the deviations away");
+
+        // --- Scene+RECORD is the other half: BAKE, not discard --------------------
+        // Record commits deviations into the scene as stored; Clear throws them away.
+        // Commit and discard, on the two verbs that already mean commit and discard --
+        // and the destructive one is confirm-gated.
+        d.gap();
+        d.press(CB::PhraseScope);
+        d.tap(CB::Step, 2);
+        d.release(CB::PhraseScope);
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.proc().isTrackDeviated(0); },
+                                 "a deviation to bake", failed))
+            return;
+
+        d.gap();
+        d.chord({ CB::SceneScope }, CB::VerbRecord);
+        check(d.ui().confirm.kind == ConfirmKind::BakeScene, "Scene+RECORD arms a bake confirm");
+        check(d.proc().isTrackDeviated(0), "...and bakes nothing until it is confirmed");
+
+        d.tap(CB::VerbConfirm);
+        check(d.ui().confirm.kind == ConfirmKind::None, "the confirm clears");
+        check(!d.proc().isTrackDeviated(0),
+              "the deviation is baked into the scene -- the track is home BECAUSE home moved");
     }
 
     // E3 -- Song.
@@ -171,6 +193,22 @@ namespace
         check(d.proc().activePieceIdx() == 0, "switching back lands on song 0");
         check(trigCount(d, 0) == 3, "song 0 still holds its own pattern");
         check(!d.hasNaN(), "audio stays finite across a song switch");
+
+        // --- Song+CLEAR is PANIC: every voice stops, the pattern is untouched -----
+        d.tap(CB::SelectTrack, 0);
+        d.proc().triggerNote(0, 60, 2000, 110);
+        float ringing = 0.0f;
+        for (int i = 0; i < 40; ++i) { d.runBlocks(1); ringing = std::max(ringing, d.lastRms()); }
+        if (!test::expectReached(d, [&](UiDriver&) { return ringing > 0.0f; },
+                                 "a voice is ringing to panic", failed))
+            return;
+
+        const int trigsBefore = trigCount(d, 0);
+        d.gap();
+        d.chord({ CB::SongScope }, CB::VerbClear);
+        d.runBlocks(20);
+        check(d.lastRms() < ringing, "Song+CLEAR panics -- the voices stop");
+        check(trigCount(d, 0) == trigsBefore, "...without touching a single trig");
 
         // (`Mute+Song+step` -- the blank-song variant -- is not asserted: the gesture
         // cannot reach its handler at all. See the header note; the leg lands when the
@@ -247,6 +285,27 @@ namespace
             check(!surf.trackDeviated[0] && !surf.trackDeviated[1],
                   "...and the badges go out with it");
         }
+
+        // --- Phrase carries a clipboard of its own: copy, paste, clear ------------
+        d.gap();
+        d.tap(CB::SelectTrack, 0);
+        d.chord({ CB::PhraseScope }, CB::VerbRecord);
+        check(DispatchProbe::clip(d.editor()).type == ClipboardType::Pattern,
+              "Phrase+RECORD copies the focused track's phrase");
+
+        d.gap();
+        d.tap(CB::SelectTrack, 1);
+        const int sourceTrigs = trigCount(d, 0);
+        d.chord({ CB::PhraseScope }, CB::VerbPlay);
+        check(trigCount(d, 1) == sourceTrigs,
+              "Phrase+PLAY pastes it onto another track, trig for trig");
+
+        d.gap();
+        d.chord({ CB::PhraseScope }, CB::VerbClear);
+        check(d.ui().confirm.kind == ConfirmKind::ClearPhrase,
+              "Phrase+CLEAR arms a confirm -- clearing every track's phrase is destructive");
+        d.tap(CB::VerbConfirm);
+        check(trigCount(d, 1) == 0, "the confirm clears the phrase");
 
         // NOT asserted, because the two paths disagree (filed -- see ROADMAP 9.36):
         // the per-track `Phrase+<diagonal>` marks the track deviated ONTO its own home

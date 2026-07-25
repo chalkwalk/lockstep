@@ -47,7 +47,7 @@ silently failed must fail loudly, not assert against a wrong start state.
 |----|---------|--------|------|
 | A1 | Two-track drum beat | ☑ | audio |
 | A2 | Trig conditions | ☑ | mz |
-| A3 | Step editing | ~ | |
+| A3 | Step editing | ☑ | |
 | A4 | Copy/paste/clear across scopes | ☑ | |
 
 **A1 — Two-track drum beat.** ☑ `CujTrigAuthoringTest.cpp`. Focus track 0, clear it
@@ -80,8 +80,14 @@ it back on the grid.
 **two** Func presses. The FIRST Func over a held step is the W7 latch, which is
 *consumed* — the branch says "no funcHeld" in as many words — so a player who presses
 Func once and then `→` gets the **step move**, silently, instead of a nudge. The
-journey drives the two-press path and asserts the move separately; the `hold step +
-SRC` note-edit leg is left to a later wave (flip to ☑ with it).
+journey drives the two-press path and asserts the move separately; `hold step + SRC` opens the **note editor** on that step
+(`activeLayer == NoteEdit`, pointed at the held step) and a grid cell writes the note
+onto it; double-tap `Func` leaves.
+
+*Sequencing trap inside this journey:* the nudge leg's first `Func` latched the step
+(W7) and a latch **survives the key-up by design**, so the note-edit leg must drop it
+(double-tap `Func`) or its "press step 4" lands on a step that is already held and the
+editor never sees a fresh hold.
 
 **A4 — Copy/paste/clear across scopes.** ☑ `CujClipboardTest.cpp`. The canonical
 "same verb, three scopes": held `step`+`U` → clipboard type==step; `Track`+`U` →
@@ -295,7 +301,10 @@ named+coloured cell carries its **name** in `primary` and a fill that differs fr
 unnamed neighbour's, the playing scene reads `SelectorCurrent` and the other reads
 `SelectorOccupied`. *Gotcha:* `Phrase+step` is launch, not create, and is inert on an
 un-created row — the deviation leg must target a row some scene brought into being.
-`Scene+Record` (commit-and-bake) is left to a later wave.
+`Scene+RECORD` is the other half of the pair: it arms a **bake** confirm, bakes nothing
+until confirmed, and then the deviation is folded into the scene — the track reads home
+because home moved. Commit and discard, on the two verbs that already mean commit and
+discard.
 
 **E2 — Phrase.** ☑ `CujArrangementTest.cpp`. `Phrase+step` deviates the **focused**
 track onto the pressed row and badges it on `surface().trackDeviated`, leaving every
@@ -307,7 +316,9 @@ EXIST first (a scene create fills the diagonal) — `Phrase+step` is launch, not
 track deviated onto its own home phrase (`swapPhraseForTrack` sets `deviated = true`
 unconditionally), so the badge stays lit while the track plays exactly the scene's
 content. `deviateAllToPhrase` gets it right (clears on `N == sceneIdx`).
-`Phrase+U/I/O` is left to a later wave.
+`Phrase+U/I/O` is covered too: `Phrase+RECORD` copies the focused track's phrase
+(clipboard type `Pattern`), `Phrase+PLAY` pastes it onto another track trig for trig,
+and `Phrase+CLEAR` arms a confirm before wiping every track's phrase.
 
 **E3 — Song.** ~ `CujArrangementTest.cpp`. `Song+step` on an empty slot creates by
 copying the song you were on and switches to it (v36 slots); an occupied slot
@@ -320,8 +331,8 @@ something else instead**. The Mute LAYER rewrites every step key to `ToggleMute`
 a *subset* of held mods and no `ToggleMute` row requires Song, so the plain
 `{ToggleMute, kModMute}` row wins and the press **mutes the track with that index**
 (measured: it arms a pending mute on track 3). Dispatch's own documented "empty +
-Mute: blank default song" branch is dead code. (ROADMAP 5.3 claims this gesture; corrected there.) `Song+O` →
-Panic is left to a later wave. Flip to ☑ when the blank variant is reachable.
+Mute: blank default song" branch is dead code. (ROADMAP 5.3 claims this gesture; corrected there.) `Song+CLEAR` is **PANIC**, and is asserted the way a
+player would notice it: a ringing voice stops and not one trig moves. Flip to ☑ when the blank variant is reachable.
 
 **E4 — Deletion picker.** ☑ `CujArrangementTest.cpp`. `Track + hold(CLEAR)` re-skins
 the grid to `SurfaceLayer::DeletePicker`; tapping a slot only ARMS a confirm

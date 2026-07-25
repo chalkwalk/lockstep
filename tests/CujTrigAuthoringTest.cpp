@@ -7,6 +7,7 @@
 
 #include "UiDriver.h"
 
+#include "../src/command/SurfaceLayer.h"
 #include "../src/ui/MetaBand.h"
 
 #include <algorithm>
@@ -257,6 +258,45 @@ namespace
         d.tap(CB::VerbConfirm);   // P under a held step = QUANT
         check(t0.steps[4].microOffset == 0.0f, "P quantizes the held step back onto the grid");
         d.release(CB::Step, 4);
+
+        // Drop the latch the nudge leg left behind. The FIRST Func over a held step
+        // latches it (W7), and a latch survives the key-up by design -- so without
+        // this the next "press step 4" lands on a step that is already held, and the
+        // note editor never sees a fresh hold.
+        d.doubleTap(CB::Func);
+        if (!test::expectReached(d, [](UiDriver& dd) {
+                                     return !dd.proc().editContext().hasAnyLatchedStep();
+                                 },
+                                 "the step latch is released", failed))
+            return;
+
+        // --- hold step + SRC opens the note editor on that step -------------------
+        // The grid stops being steps and becomes a keyboard; what it writes is the
+        // step's own note payload, not the track's.
+        d.gap();
+        d.press(CB::Step, 4);
+        d.tap(CB::Section, IMachine::kSrcSecIdx);
+        if (!test::expectReached(d, [](UiDriver& dd) {
+                                     return dd.ui().noteEditMode
+                                         && dd.surface().activeLayer == SurfaceLayer::NoteEdit;
+                                 },
+                                 "held step + SRC opens the note editor", failed))
+        {
+            d.release(CB::Step, 4);
+            return;
+        }
+        check(d.ui().noteEditSteps.count(4) == 1, "...pointed at the step that was held");
+
+        const int noteBefore = t0.steps[4].trigOverride.noteCount > 0
+                                   ? t0.steps[4].trigOverride.notes[0] : -1;
+        d.step(7);                       // a key on the chromatic grid
+        check(t0.steps[4].trigOverride.noteCount > 0, "pressing a cell writes a note onto the step");
+        check(t0.steps[4].trigOverride.notes[0] != noteBefore,
+              "...and it is the note that was pressed, not what was there");
+        d.release(CB::Step, 4);
+
+        d.doubleTap(CB::Func);
+        check(!d.ui().noteEditMode, "double-tap Func leaves the note editor");
     }
 }   // namespace
 
