@@ -782,6 +782,9 @@ namespace lockstep
         // hold = delete the entity it owns (deleteHoldCapable gates which scopes have
         // one). clearVerbTap is the old dispatchDown body, moved intact.
         [[nodiscard]] bool deleteHoldCapable() const;
+        // 9.37 item C: does Clear have any HOLD meaning right now (delete, or the
+        // per-step CLEAR LOCKS)? Decides only whether to arm the long-press timer.
+        [[nodiscard]] bool clearHoldCapable() const;
         void fireDeleteHold();
         bool clearVerbTap(const ControllerEvent& ev);
 

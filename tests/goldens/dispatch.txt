@@ -301,6 +301,9 @@ L24 | Song+VerbClear idx=-1 | action=42
 L24 | Func+VerbClear idx=-1 | action=79
     down funcHeld: false -> true
 
+L12 | VerbClear idx=-1 | action=84
+    (no observable state change)
+
 L24 | VerbClear idx=-1 | action=36
     (no observable state change)
 

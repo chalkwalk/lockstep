@@ -221,6 +221,12 @@ namespace lockstep
         // scope's Func rows (INIT at Track+Func, ERASE at Morph+Func) win on popcount,
         // and Trig+Func+Clear (clear P-Locks) is handled inside verbs::trig, not here.
         { CB::VerbClear, -1, kModFunc, SL::Base, AId::VerbUndo, u8"UNDO", CS::FuncHeld },
+        // 9.37 item C: the per-step lock clear, on the HOLD rail of the same key whose
+        // tap wipes the step whole -- the hold is the wider blast radius, exactly as
+        // 9.29 made scope + hold(O) the delete. It used to be Trig+Func+O, which 9.4
+        // took for UNDO; a tap/hold split needs no chord and no second qualifier.
+        { CB::VerbClear, -1, kModNone, SL::StepInspector, AId::ClearStepLocks,
+          u8"CLR LOCK", CS::Resting, Gesture::Hold, false },
         { CB::VerbClear, -1, kModNone, SL::Base, AId::VerbClear, u8"CLEAR", CS::Resting },
 
         // The delete family, on the hold rail (9.29). One row per deletable scope --

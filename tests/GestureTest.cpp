@@ -68,6 +68,10 @@ namespace lockstep
 
     // Scenario 4: PS::Trig / VerbClear with Func held → clear P-Locks only
 
+    // 9.37 item C: this was Trig+Func+Clear until 9.4 gave Func+O to UNDO. The
+    // behaviour did not go away -- it moved to the Clear key's HOLD rail, where it
+    // needs no chord at all -- so the scenario follows it and keeps guarding the same
+    // promise: the locks go, the trig stays.
     static void scenario_trigClearPLocks()
     {
         GestureFixture f;
@@ -75,11 +79,10 @@ namespace lockstep
         s7.trig = true;
         s7.overrides.set(0, 0.5f);
 
-        f.editMode.onScopeEvent({ T::ButtonDown, CB::Func, -1, 0 });
         f.holdStep(0, 7);
 
-        const bool handled = f.verb(PS::Trig, CB::VerbClear);
-        CHECK(handled, "Trig+Func+Clear should be handled");
+        CHECK(f.action(ActionId::ClearStepLocks, CB::VerbClear),
+              "Trig + hold(Clear) should be handled");
         CHECK(f.track(0).steps[7].trig, "trig intact after P-Lock clear");
         CHECK(!f.track(0).steps[7].overrides.has(0), "P-Lock cleared");
     }
@@ -620,14 +623,14 @@ namespace lockstep
         s4.overrides.set(2, 0.9f);
         f.holdStep(0, 4);
 
-        // The Func layer must NOT rewrite the button any more.
+        // The Func layer must NOT rewrite the button (9.29 retired the VerbDelete
+        // remap). It still must not -- but Func+O is UNDO now (9.4/9.37), so the
+        // lock-clear reads its own action off the hold rail rather than a Func chord.
         const ControllerEvent raw{ T::ButtonDown, CB::VerbClear, -1, 0 };
         const auto routed = resolveLayer(raw, LayerContext{ /*func*/ true, false, false });
         CHECK(routed.button == CB::VerbClear, "Func+Clear stays Clear (no VerbDelete remap)");
 
-        f.uiState.funcHeld = true;
-        f.editMode.onScopeEvent({ T::ButtonDown, CB::Func, 0, 0 });
-        CHECK(f.verb(PS::Trig, CB::VerbClear), "Trig+Func+Clear handled");
+        CHECK(f.action(ActionId::ClearStepLocks, CB::VerbClear), "Trig + hold(Clear) handled");
         CHECK(f.track(0).steps[4].trig, "the trig SURVIVES (this is the whole point)");
         CHECK(!f.track(0).steps[4].overrides.has(2), "the P-Lock is cleared");
     }

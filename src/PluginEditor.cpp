@@ -263,11 +263,27 @@ namespace lockstep
         // (clear / paste / delete / bake / generator print / transpose / restore).
         // Bare Func with no scope resolves to the Song scope via ckScope, which is the
         // grammar default and where most destructive ops arm.
+        // 9.37 item E — the fingers are optional. With no scope held this reverts the
+        // newest destructive op whatever scope armed it (the op already knew what it
+        // touched); a held suite scope NARROWS it to that scope's newest. DESIGN §13.6.
         void undo() override
         {
             int ckTrk = 0;
-            const CheckpointScope scp = ed.ckScope(ckTrk);
-            if (!ed.processor_.undo(scp, ckTrk))
+            const bool scoped = (firstHeldSectionSuiteScope(ed.uiState_)
+                                 != EditMode::PrimaryScope::None);
+            CheckpointScope scp = ed.ckScope(ckTrk);
+            // Read WHICH entry is about to go before popping it: afterwards the log's
+            // back is the next one down, and the status would name the wrong scope.
+            if (!scoped)
+            {
+                CheckpointScope newest{};
+                int newestTrk = 0;
+                if (ed.processor_.newestUndoScope(newest, newestTrk))
+                    scp = newest;
+            }
+            const bool ok = scoped ? ed.processor_.undo(scp, ckTrk)
+                                   : ed.processor_.undoNewest();
+            if (!ok)
             {
                 ed.setStatus(status::nothingToUndo());
             }
@@ -4347,18 +4363,38 @@ namespace lockstep
         return scope == PS::Track || scope == PS::Phrase || scope == PS::Scene;
     }
 
+    // 9.37 item C — does the Clear key have a HOLD meaning right now? Delete under a
+    // deletable scope (9.29), or CLEAR LOCKS with a step held. Both resolve through
+    // the table on the Hold gesture, so this only decides whether to arm the timer.
+    bool LockstepEditor::clearHoldCapable() const
+    {
+        return deleteHoldCapable() || processor_.editContext().isActiveForEditing();
+    }
+
     // Fire the delete (the hold rail of the Clear key). Resolved through the table on
     // the Hold gesture, so WHICH entity dies is the binding's call, not this code's.
     void LockstepEditor::fireDeleteHold()
     {
-        const auto& row = resolveBinding(ControllerButton::VerbClear, -1,
-                                         heldModsFromUiState(uiState_),
-                                         SurfaceLayer::Base, Gesture::Hold);
-        if (row.action == ActionId::None) return;
+        // Resolved on the ACTIVE layer, not Base: 9.37 put CLEAR LOCKS on the Clear
+        // key's hold under a held step, and that row lives on the StepInspector layer.
+        // Asking Base for it would find nothing and silently do nothing -- the exact
+        // failure mode this milestone exists to stop.
+        const auto layer = activeLayer();
+        const auto* row = &resolveBinding(ControllerButton::VerbClear, -1,
+                                          heldModsFromUiState(uiState_),
+                                          layer, Gesture::Hold);
+        // Same fallback the label path uses (SurfaceModel's labelLayer): a layer row
+        // wins if there is one, otherwise the Base row still applies. Without it the
+        // delete rail -- declared on Base -- vanished the moment any layer was up.
+        if (row->action == ActionId::None && layer != SurfaceLayer::Base)
+            row = &resolveBinding(ControllerButton::VerbClear, -1,
+                                  heldModsFromUiState(uiState_),
+                                  SurfaceLayer::Base, Gesture::Hold);
+        if (row->action == ActionId::None) return;
         const ControllerEvent ev{ ControllerEvent::Type::ButtonDown,
                                   ControllerButton::VerbClear, -1, 0 };
         auto ctx = commandContext();
-        (void)commandCore_.handleAction(row.action, ev, ctx, *editorEffects_);
+        (void)commandCore_.handleAction(row->action, ev, ctx, *editorEffects_);
         refreshSurface();
     }
 
@@ -4397,10 +4433,16 @@ namespace lockstep
         // Removing them lets both keys reach the table: Scene+O is SYNC (verbs::scene) and
         // Phrase+O is CLEAR PHRASE (verbs::phrase's confirm arm, which this intercept had
         // been shadowing into dead code since it was written).
-        // Non-trivial scope → grammar verb (Clear scope contents).
-        if (editMode_.primaryScope() != PS::None && editMode_.primaryScope() != PS::Func)
+        // 9.37 item B — Func alone must reach the table too.
+        //
+        // This read `!= PS::None && != PS::Func`, so with only Func held (which IS
+        // PS::Func) the press fell past the table into the active-slot clear below and
+        // UNDO never fired — the safety net under every destructive op, unreachable in
+        // the one state it is meant for. The Func case now routes; PS::None still does
+        // not, because the bare-O row is handled below.
+        if (editMode_.primaryScope() != PS::None)
             return routeVerb(ev);   // 9.12 st.7b: the table names the action
-        // No scope: clear the active P-Lock slot if one is active.
+        // No scope, no Func: clear the active P-Lock slot if one is active.
         {
             auto& ctx = processor_.editContext();
             if (ctx.isActiveForEditing() && ctx.activeSlot() >= 0)
@@ -4750,13 +4792,11 @@ namespace lockstep
     // -------------------------------------------------------------------------
     // Key handling (9x4 layout)
 
-    // A section-suite scope (Track/Pattern/Part/Scene/Master) qualifies the next
-    // verb. While one is held, bare-Func global ops (Snapshot/Restore) are reserved:
-    // Func+scope+verb is that scope's secondary variant — not a global checkpoint.
-    static bool sectionSuiteScopeHeld(const UiState& ui) noexcept
-    {
-        return ui.trackHeld || ui.phraseScopeHeld || ui.sceneHeld || ui.morphHeld || ui.songHeld;
-    }
+    // (9.37 item A: `sectionSuiteScopeHeld` lived here and gated Snapshot/Restore on
+    //  "Func+scope+verb is that scope's secondary variant". Nothing ever claimed that
+    //  secondary, and the gate made every per-scope mark stack write-only — pushable
+    //  by Track+Y, poppable by nothing. Deleted rather than left inert. Scope
+    //  questions now go through firstHeldSectionSuiteScope; see ckScope.)
 
     // ── 5.5 Audition (Cue scope, DESIGN §21) ─────────────────────────────────
     // Cue is a monitor: it fires resolved notes via liveNoteOn/Off and never
@@ -6196,7 +6236,7 @@ namespace lockstep
                 // appears while the key is still down), which is the same shape the FX
                 // and machine section pickers use. The Machine scope is excluded: under
                 // Func+Track, Clear is INIT and stays a tap.
-                if (deleteHoldCapable())
+                if (clearHoldCapable())
                 {
                     gesture_.armLongPress(kDeleteHoldToken,
                                           nowMs());
@@ -6402,9 +6442,9 @@ namespace lockstep
             }
 
             case ControllerButton::Snapshot:
-                // Reserved while a section-suite scope is held (see helper above):
-                // Func+scope+Yes is that scope's secondary, not a global snapshot.
-                if (sectionSuiteScopeHeld(uiState_)) return true;
+                // 9.37 item A: no longer reserved under a held scope. The reservation
+                // ("Func+scope+verb is that scope's secondary") was never claimed by
+                // anything, and it made every per-scope stack write-only.
                 {
                     int ckTrk = 0;
                     processor_.snapshot(ckScope(ckTrk), ckTrk);
@@ -6412,8 +6452,8 @@ namespace lockstep
                 refreshSurface();
                 return true;
             case ControllerButton::Restore:
-                // Func+Y = Restore. Resolve on key-up (tap = pop one, hold = jump to floor).
-                if (sectionSuiteScopeHeld(uiState_)) return true;
+                // Func+Y = Restore, on the HELD scope's stack (9.37 item A; §13.6).
+                // Resolve on key-up (tap = pop one, hold = jump to floor).
                 gesture_.armLongPress(kRestoreLongPressToken,
                                       nowMs());
                 return true;
@@ -7716,11 +7756,17 @@ namespace lockstep
     // -------------------------------------------------------------------------
     // Checkpoint scope helper
 
+    // 9.37 item D — the checkpoint family reads SUITE scopes only.
+    //
+    // This used to read primaryScope(), where Trig and Section outrank Track: holding
+    // a step while marking a track silently marked the SONG, a scope the player never
+    // named, chosen by a key held for an unrelated reason. A held step is an operand
+    // for the edit verbs; it is not a checkpoint scope. (DESIGN §13.6.)
     CheckpointScope LockstepEditor::ckScope(int& outTrack) const
     {
         using PS = EditMode::PrimaryScope;
         outTrack = keyboardArea_.getActiveTrack();
-        switch (editMode_.primaryScope())
+        switch (firstHeldSectionSuiteScope(uiState_))
         {
             case PS::Track:  return CheckpointScope::Track;
             case PS::Scene:  return CheckpointScope::Scene;

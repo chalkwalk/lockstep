@@ -68,6 +68,27 @@ namespace lockstep::verbs
         return clipAffordance(scope, func, clip).canPaste;
     }
 
+    bool clearStepLocks(CommandContext& ctx)
+    {
+        auto& ec = ctx.editContext;
+        if (!ec.isActiveForEditing()) return false;
+        const int track = ec.heldTrackIndex();
+        if (track < 0) return false;
+        auto& trk = ctx.sequence.tracks[static_cast<std::size_t>(track)];
+
+        for (int idx : ec.heldSteps())
+        {
+            if (idx < 0 || idx >= kMaxStepsPerTrack) continue;
+            auto& s = trk.steps[static_cast<std::size_t>(idx)];
+            s.overrides = PLock{};
+            s.trigOverride = TrigOverride{};
+            s.fillOverrides = PLock{};
+            s.fillTrigOverride = TrigOverride{};
+        }
+        ec.markParamWritten();   // the hold was the edit; the release must not toggle
+        return true;
+    }
+
     bool trig(ControllerButton verb, CommandContext& ctx, [[maybe_unused]] CommandEffects& fx)
     {
         using CB = ControllerButton;
@@ -113,7 +134,6 @@ namespace lockstep::verbs
 
         if (verb == CB::VerbClear)
         {
-            const bool funcHeld = ctx.editMode.scopeState().func;
             const int activeSlot = ec.activeSlot();
             if (ctx.editMode.sectionHeld())
             {
@@ -136,20 +156,11 @@ namespace lockstep::verbs
                         s.trigOverride = TrigOverride{};
                 }
             }
-            else if (funcHeld)
-            {
-                // Trig + Func + Clear — clear all P-Locks on held step(s),
-                // leaving trig and condition intact.
-                for (int idx : ec.heldSteps())
-                {
-                    if (idx < 0 || idx >= kMaxStepsPerTrack) continue;
-                    auto& s = trk.steps[static_cast<std::size_t>(idx)];
-                    s.overrides = PLock{};
-                    s.trigOverride = TrigOverride{};
-                    s.fillOverrides = PLock{};
-                    s.fillTrigOverride = TrigOverride{};
-                }
-            }
+            // (9.37 item C: the `funcHeld` branch that used to live here — clear every
+            //  P-Lock, keep the trig — has moved to `clearStepLocks`, reached by
+            //  Trig + HOLD(Clear). It was unreachable from here the moment 9.4 gave
+            //  Func+O to UNDO: routeVerb resolves the table on the full held-mod set,
+            //  and the Func row outscores the bare one.)
             else if (activeSlot >= 0)
             {
                 // Trig + (active MZ slot) + Clear — clear only that slot's

@@ -519,6 +519,13 @@ namespace lockstep
         // Func+O. Separate from the marks above.
         void armUndo(CheckpointScope scope, int track) { arrangement_.armUndo(scope, track); }
         bool undo(CheckpointScope scope, int track);   // impl in .cpp — reinstalls machines
+        // Bare Func+O: revert the newest destructive op across ALL scopes (§13.6).
+        bool undoNewest();
+        // Which scope that would be, for the status line. False when nothing is armed.
+        [[nodiscard]] bool newestUndoScope(CheckpointScope& outScope, int& outTrack) const
+        {
+            return arrangement_.newestUndo(outScope, outTrack);
+        }
         [[nodiscard]] int undoDepth(CheckpointScope scope, int track) const
         {
             return arrangement_.undoDepth(scope, track);

@@ -627,6 +627,7 @@ namespace lockstep
             trackUndo_.clear();
             sceneUndo_.clear();
             phraseUndo_.clear();
+            undoOrder_.clear();
         }
 
         void snapshot(CheckpointScope scope, int track)
@@ -824,24 +825,25 @@ namespace lockstep
         void armUndo(CheckpointScope scope, int track)
         {
             writeBackWorkingToActive();
+            bool pushed = false;
             switch (scope)
             {
                 case CheckpointScope::Song: {
                     songUndo_.push_back(song());
-                    evictToBudget(songUndo_);
+                    pushed = trimOrder(evictToBudget(songUndo_), scope, track);
                     break;
                 }
                 case CheckpointScope::Track: {
                     if (track < 0 || track >= static_cast<int>(kNumTracks)) break;
                     auto& stk = trackUndo_[track];
                     stk.push_back(song().tracks[idx(track)]);
-                    evictToBudget(stk);
+                    pushed = trimOrder(evictToBudget(stk), scope, track);
                     break;
                 }
                 case CheckpointScope::Scene: {
                     auto& stk = sceneUndo_[sceneIdx];
                     stk.push_back(scene());
-                    evictToBudget(stk);
+                    pushed = trimOrder(evictToBudget(stk), scope, track);
                     break;
                 }
                 case CheckpointScope::Phrase: {
@@ -849,16 +851,53 @@ namespace lockstep
                     const int pIdx = activePhraseIdx(track);
                     auto& stk = phraseUndo_[{ track, pIdx }];
                     stk.push_back(activePhrase(track));
-                    evictToBudget(stk);
+                    pushed = trimOrder(evictToBudget(stk), scope, track);
                     break;
                 }
             }
+            if (pushed)
+                undoOrder_.push_back({ scope, track });
+        }
+
+        // 9.37 item E — which undo entry is the NEWEST, across scopes.
+        //
+        // The per-scope stacks answer "the newest entry for THIS scope"; a bare Func+O
+        // has to answer "the newest entry, whatever scope armed it", because the whole
+        // point of undo is that your fingers never name a scope (DESIGN §13.6). The
+        // payloads live in four differently-keyed containers, so the ordering is kept
+        // beside them as a push log rather than by stamping every payload — additive,
+        // and it cannot desync as long as every push and pop goes through here.
+        [[nodiscard]] bool newestUndo(CheckpointScope& outScope, int& outTrack) const
+        {
+            if (undoOrder_.empty()) return false;
+            outScope = undoOrder_.back().scope;
+            outTrack = undoOrder_.back().track;
+            return true;
+        }
+
+        // Pop the newest entry across all scopes (bare Func+O). Returns false when
+        // nothing is armed anywhere.
+        bool popNewestUndo()
+        {
+            CheckpointScope scope{};
+            int track = 0;
+            if (!newestUndo(scope, track)) return false;
+            if (!popUndo(scope, track)) { undoOrder_.pop_back(); return false; }
+            return true;
         }
 
         // Apply (and pop) the newest undo entry for the scope. Returns false if the undo
         // stack is empty — an empty undo NEVER falls through to the floor (that path is
         // restoreToFloor's alone). Mirrors restoreOne but reads the *Undo_ containers.
         bool popUndo(CheckpointScope scope, int track)
+        {
+            const bool ok = popUndoPayload(scope, track);
+            if (ok) dropNewestOrder(scope, track);
+            return ok;
+        }
+
+    private:
+        bool popUndoPayload(CheckpointScope scope, int track)
         {
             switch (scope)
             {
@@ -901,6 +940,7 @@ namespace lockstep
             return false;
         }
 
+    public:
         [[nodiscard]] int undoDepth(CheckpointScope scope, int track) const
         {
             switch (scope)
@@ -934,16 +974,52 @@ namespace lockstep
 
         // Evict oldest entries (front) until the stack fits kCkBudgetBytes, keeping at
         // least one. Called after every push in snapshot()/armUndo().
+        // Returns how many entries were evicted, so a caller keeping a parallel
+        // push log (undoOrder_) can drop the same number of OLDEST refs and stay in
+        // step. Marks call it and ignore the count; only undo keeps a log.
         template <class Vec>
-        static void evictToBudget(Vec& stack)
+        static int evictToBudget(Vec& stack)
         {
             std::size_t total = 0;
             for (const auto& e : stack) total += sizeof(e);
+            int evicted = 0;
             while (stack.size() > 1 && total > kCkBudgetBytes)
             {
                 total -= sizeof(stack.front());
                 stack.erase(stack.begin());   // oldest non-floor
+                ++evicted;
             }
+            return evicted;
+        }
+
+        // One armUndo push landed; `evicted` of the OLDEST entries for that same
+        // scope+target went to make room. Drop that many oldest refs so the log and
+        // the stacks describe the same set. Returns whether the push survived at all.
+        bool trimOrder(int evicted, CheckpointScope scope, int track)
+        {
+            for (int i = 0; i < evicted; ++i)
+                dropOldestOrder(scope, track);
+            return true;
+        }
+
+        void dropOldestOrder(CheckpointScope scope, int track)
+        {
+            for (auto it = undoOrder_.begin(); it != undoOrder_.end(); ++it)
+                if (it->scope == scope && it->track == track)
+                {
+                    undoOrder_.erase(it);
+                    return;
+                }
+        }
+
+        void dropNewestOrder(CheckpointScope scope, int track)
+        {
+            for (auto it = undoOrder_.rbegin(); it != undoOrder_.rend(); ++it)
+                if (it->scope == scope && it->track == track)
+                {
+                    undoOrder_.erase(std::next(it).base());
+                    return;
+                }
         }
 
         // Checkpoint floor + scratch stacks (current song only; cleared on song switch).
@@ -960,5 +1036,12 @@ namespace lockstep
         std::map<int, std::vector<Song::SongTrack>> trackUndo_;
         std::map<int, std::vector<Scene>> sceneUndo_;
         std::map<std::pair<int, int>, std::vector<Phrase>> phraseUndo_;
+
+        // 9.37 item E: the push ORDER of the four stacks above, so a bare Func+O can
+        // revert the newest destructive op whatever scope armed it. One ref per live
+        // undo entry, oldest first; kept in step by armUndo/popUndo and by
+        // trimOrder() when the byte budget evicts.
+        struct UndoRef { CheckpointScope scope; int track; };
+        std::vector<UndoRef> undoOrder_;
     };
 }

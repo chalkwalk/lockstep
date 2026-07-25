@@ -15,25 +15,13 @@
 // said SNAP for months and pushed nothing, so a depth counter is not enough -- the
 // journey asserts the STATE that comes back.
 //
-// FOUND WHILE WRITING THIS, two dispatch gaps (filed, not fixed -- see ROADMAP 9.36).
-//
-// (1) UNDO IS UNREACHABLE FROM THE KEYBOARD. KeyBindings declares
-// `{VerbClear, kModFunc} -> VerbUndo, "UNDO"`, DESIGN §13.6 makes Func+O the safety
-// net under every destructive op, and CommandCore handles the action -- but the O key
-// never gets there: `clearVerbTap` routes to the table only when primaryScope() is
-// neither None nor Func, and with only Func held it IS Func, so the press falls
-// through to "clear the active P-Lock slot" and returns. A row advertising a verb
-// dispatch never reaches is the exact disease 9.14 st.5 named. This journey therefore
-// asserts that a restore ARMS the undo (it does) and stops there.
-//
-// (2) DESIGN §13.6 says
-// `Func+Y` walks the stack of "whatever scope is currently held", but dispatch
-// RESERVES both Snapshot and Restore while any section-suite scope is held
-// (`sectionSuiteScopeHeld` -> return, PluginEditor.cpp) on the grounds that
-// Func+scope+Y is that scope's secondary. So a Track/Scene/Phrase mark can be pushed
-// (`Track+Y`) and has no gesture that pops it -- the mirror image of the phantom 9.4
-// fixed on the push side. This journey therefore drives the Song stack, which is
-// reachable, and asserts the Track PUSH separately.
+// This journey found the two gaps that became ROADMAP 9.37, and now proves the
+// rulings that closed them: a per-scope mark could be pushed but never popped (the
+// restore was reserved under any held scope), and UNDO could not be reached at all
+// (`clearVerbTap` routed to the table only when primaryScope() was neither None nor
+// Func -- and with only Func held it IS Func). Both gestures are driven here end to
+// end, which is the acceptance test 9.37 set for itself: reachability, because
+// reachability is precisely what nothing checked.
 //
 // See tests/CUJ_CATALOGUE.md.
 
@@ -286,12 +274,53 @@ namespace
         check(d.proc().checkpointDepth(CheckpointScope::Song, 0) == 0,
               "the popped mark is gone from the stack");
 
-        // --- A restore is itself a destructive op, so it arms the undo stack ------
-        // Which is as far as this can be driven: Func+O, the gesture that spends that
-        // entry, does not reach the undo action (gap (1) in the header note). When it
-        // does, the next line here is `Func+O` -> trigCount back to 5.
+        // --- A restore is itself a destructive op, so Func+O takes it back -------
         check(d.proc().undoDepth(CheckpointScope::Song, 0) > 0,
               "restoring arms an undo -- overwriting live state is what destructive means");
+        d.gap();
+        d.press(CB::Func);
+        d.tap(CB::VerbClear);      // Func+O = UNDO (9.37 item B)
+        d.release(CB::Func);
+        check(trigCount(d, 0) == 5, "undo puts back what the restore overwrote");
+
+        // --- A mark on a SCOPE is walked back under that scope (9.37 item A) ------
+        // This is the half that was write-only: Track+Y pushed and nothing could pop.
+        d.gap();
+        d.chord({ CB::TrackScope }, CB::VerbSnapshot);
+        const int trackDepth = d.proc().checkpointDepth(CheckpointScope::Track, 0);
+        d.gap();
+        d.step(1);
+        if (!test::expectReached(d, [](UiDriver& dd) { return trigCount(dd, 0) == 6; },
+                                 "the track moved on from its own mark", failed))
+            return;
+
+        d.gap();
+        d.press(CB::TrackScope);
+        d.press(CB::Func);
+        d.tap(CB::VerbSnapshot);   // Func+Y under a held Track
+        d.release(CB::Func);
+        d.release(CB::TrackScope);
+
+        check(trigCount(d, 0) == 5, "Track+Func+Y walks the TRACK's stack back");
+        check(d.proc().checkpointDepth(CheckpointScope::Track, 0) == trackDepth - 1,
+              "...popping that stack, not the Song's");
+
+        // --- A held step does not retarget a checkpoint verb (9.37 item D) --------
+        // A step outranked Track in primaryScope(), so marking a track with a step
+        // down silently marked the SONG -- a scope the player never named.
+        const int songBefore = d.proc().checkpointDepth(CheckpointScope::Song, 0);
+        const int trkBefore = d.proc().checkpointDepth(CheckpointScope::Track, 0);
+        d.gap();
+        d.press(CB::Step, 12);
+        d.press(CB::TrackScope);
+        d.tap(CB::VerbSnapshot);
+        d.release(CB::TrackScope);
+        d.release(CB::Step, 12);
+
+        check(d.proc().checkpointDepth(CheckpointScope::Track, 0) == trkBefore + 1,
+              "a held step leaves Track+Y marking the TRACK");
+        check(d.proc().checkpointDepth(CheckpointScope::Song, 0) == songBefore,
+              "...and not the Song, which is where it used to land");
     }
 }   // namespace
 

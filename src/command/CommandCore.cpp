@@ -1,4 +1,5 @@
 #include "CommandCore.h"
+#include "ScopePriority.h"
 #include "VerbCommands.h"
 #include "StatusText.h"
 
@@ -216,7 +217,14 @@ namespace lockstep
             // to the one existing implementation, verbs::* via handleVerb -- routing
             // moves to the grammar, behaviour does NOT move, and there is no second
             // copy of a verb to drift from the first.
+            // 9.37 item D: the checkpoint family reads SUITE scopes only. Every other
+            // verb takes primaryScope(), where a held step (Trig) outranks Track -- and
+            // a snapshot routed that way reached verbs::trig, which has no snapshot, so
+            // Track+Y with a step down did nothing at all. A step is an operand for the
+            // edit verbs; it is not a checkpoint scope. (DESIGN §13.6.)
             case AId::VerbSnapshot:
+                return handleVerb(firstHeldSectionSuiteScope(ctx.uiState), ev.button, ctx, fx);
+
             case AId::VerbRecord:
             case AId::VerbPlay:
             case AId::VerbClear:
@@ -351,6 +359,7 @@ namespace lockstep
             case AId::VerbRestore:      fx.restorePop(); return true;
             case AId::RestoreFloor:     fx.restoreFloor(); return true;
             case AId::VerbUndo:         fx.undo(); return true;
+            case AId::ClearStepLocks:   return verbs::clearStepLocks(ctx);
 
             case AId::RecordArmToggle:  fx.transport(TA::RecArm); return true;
             case AId::RecordArmOverdub: fx.recordArmOverdub(); return true;

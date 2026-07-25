@@ -163,6 +163,12 @@ namespace lockstep
         OpenSceneIdentity,
         OpenBrowser,       // 5.3 Func+Song+MOD → Song->Scene / per-track Phrase browser
 
+        // 9.37 item C: Trig + hold(O) — every P-Lock on the held step(s), trig intact.
+        // Appended per the ordinal-stability rule above (inserting it beside VerbUndo
+        // renumbered 40-odd actions and buried the real change in the golden diff --
+        // which is exactly what the rule is there to prevent, and it caught it).
+        ClearStepLocks,
+
         // Sentinel — keep last. Lets the Stage 6 guard test enumerate every action
         // and assert each one is either handled by CommandCore::handleAction or
         // explicitly listed as not-yet-migrated, so a new ActionId cannot be added

@@ -7518,6 +7518,17 @@ namespace lockstep
         return ok;
     }
 
+    // 9.37 item E: a bare Func+O names no scope, so it reverts the newest destructive
+    // op whatever armed it (DESIGN §13.6). Same reinstall as the scoped path — an undo
+    // can restore a kit, and the machines have to follow it.
+    bool LockstepProcessor::undoNewest()
+    {
+        const bool ok = arrangement_.popNewestUndo();
+        if (ok)
+            reinstallMachinesFromActiveKit();
+        return ok;
+    }
+
     void LockstepProcessor::swapPhraseForTrack(int t, int phraseIdx)
     {
         arrangement_.swapPhraseForTrack(t, phraseIdx);

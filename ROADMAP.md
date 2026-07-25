@@ -986,13 +986,13 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
       plugin instance read the first's machine schema and outliving it dangled
       (a segfault on a section copy). **Fixed on the spot**, being a crash rather
       than a wart: the catalogue is owned by the editor that uses it.
-- [ ] **`Func+O` never reaches UNDO.** *(→ `9.37`: review before patching.)* `KeyBindings` declares the row,
+- [x] **`Func+O` never reaches UNDO.** *(closed by `9.37` item B.)* `KeyBindings` declares the row,
       `CommandCore` handles the action, DESIGN §13.6 makes it the safety net under
       every destructive op — but `clearVerbTap` routes to the table only when
       `primaryScope()` is neither `None` nor `Func`, and with only Func held it *is*
       `Func`. The press falls through to "clear the active P-Lock slot". Blocks D5's
       undo leg and all of C6.
-- [ ] **A scoped mark cannot be popped.** *(→ `9.37`: review before patching.)* §13.6 says `Func+Y` walks the held scope's
+- [x] **A scoped mark cannot be popped.** *(closed by `9.37` item A.)* §13.6 says `Func+Y` walks the held scope's
       stack; dispatch reserves Snapshot *and* Restore whenever a section-suite scope
       is held (`sectionSuiteScopeHeld`), so Track/Scene/Phrase marks push with no
       gesture to pop them — the mirror of the phantom `9.4` fixed on the push side.
@@ -1005,8 +1005,8 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
       documented branch is dead code. The worst of the four — the others do nothing,
       this one does the wrong thing silently. (5.3's prose claimed it; corrected
       there.)
-- [ ] **`Trig+Func+CLEAR` is shadowed by UNDO.** *(→ `9.37`: the third feature on
-      `Func+O`.)* The documented "clear every P-Lock, keep the trig" (DESIGN §13.2)
+- [x] **`Trig+Func+CLEAR` is shadowed by UNDO.** *(closed by `9.37` item C — it
+      moved to `Trig` + hold(`O`).)* The documented "clear every P-Lock, keep the trig" (DESIGN §13.2)
       never reaches `verbs::trig` — `routeVerb` matches the table on the full held-mod
       set and `{VerbClear, kModFunc} → VerbUndo` outscores the bare row. 9.29 freed
       this chord *for* this gesture; 9.4 then took it for undo.
@@ -1039,7 +1039,7 @@ Invariant for every CUJ commit: `-Werror` clean, both suites green, and
 `git diff --exit-code tests/goldens/dispatch.txt` — a journey must not move the
 dispatch digest.
 
-### 9.37 — Snapshot / restore / undo: the reachability review  *[session run 2026-07-24; build open]*
+### 9.37 — Snapshot / restore / undo: the reachability review  *[SHIPPED 2026-07-24]*
 Wave 2 and 3 of the CUJ suite drove the checkpoint family the way a finger drives it
 and found that two of its three gestures could not be reached at all. The causes were
 not in the 9.4 model — they were in who else already owned the keys. The session ran
@@ -1053,30 +1053,30 @@ code by retiring the old `Func+O → VerbDelete` remap, six milestones before 9.
 the seat**. Neither session saw the other, and the golden net could not see either:
 it covers binding-table *rows*, while these verbs dispatch imperatively.
 
-- [ ] **A — Restore reads the held scope.** Remove the `sectionSuiteScopeHeld` reserve
+- [x] **A — Restore reads the held scope.** Remove the `sectionSuiteScopeHeld` reserve
       from `CB::Restore` (and from the keyboard-dead `CB::Snapshot` case, for
       consistency): `Func+Y` under a held Track/Phrase/Scene walks *that* scope's
       stack. Keep 9.4 item A's guard — an empty stack says `NOTHING TO RESTORE` and
       never falls through to the floor.
-- [ ] **B — `Func+O` reaches UNDO in every state.** `clearVerbTap` routes to the table
+- [x] **B — `Func+O` reaches UNDO in every state.** `clearVerbTap` routes to the table
       only when `primaryScope()` is neither `None` nor `Func`; with only Func held it
       *is* Func, so the press falls through to the active-slot clear and undo never
       fires. Delete that fallback (`Trig`+slot+`O` already clears one slot) and let the
       table's `VerbUndo` row through.
-- [ ] **C — The per-step lock-clear moves to `Trig` + hold(`O`).** Same tap/hold split
+- [x] **C — The per-step lock-clear moves to `Trig` + hold(`O`).** Same tap/hold split
       9.29 gave the Clear key for delete; the hold is the wider blast radius. Arm the
       hold when a step is held (today `deleteHoldCapable()` gates it on a deletable
       scope), and keep the delete rail untouched.
-- [ ] **D — The checkpoint family reads SUITE scopes only.** `ckScope()` reads
+- [x] **D — The checkpoint family reads SUITE scopes only.** `ckScope()` reads
       `primaryScope()`, where `Trig` and `Section` outrank `Track` — so holding a step
       while marking a track silently marks the **Song**. Read the held section-suite
       scope instead (`firstHeldSectionSuiteScope`), else Song.
-- [ ] **E — Undo's scope: fingers optional.** A bare `Func+O` reverts the newest
+- [x] **E — Undo's scope: fingers optional.** A bare `Func+O` reverts the newest
       destructive op across *all* scopes (entries carry the scope the op armed); a held
       suite scope narrows to that scope's newest. Needs a global ordering the per-scope
       stacks do not have today — a small push-order log in `Arrangement`, kept in sync
       with `evictToBudget`.
-- [ ] **F — Cash it out in the journeys.** D5's undo leg and C6's third radius land;
+- [x] **F — Cash it out in the journeys.** D5's undo leg and C6's third radius land;
       both flip from `~` to ☑ in `tests/CUJ_CATALOGUE.md`. Every gesture §13.6 names
       gets a journey that drives it end to end — the acceptance test for this milestone
       is reachability, since that is precisely what nothing checked.

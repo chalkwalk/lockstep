@@ -143,7 +143,7 @@ of the in-scope time-sig; no two voices share a pitch.
 | C3 | Machine picker | ☑ | |
 | C4 | Section paging & scope colour | ☑ | |
 | C5 | Control-All | ☑ | mz |
-| C6 | P-Lock clear gestures | ~ | mz |
+| C6 | P-Lock clear gestures | ☑ | mz |
 
 **C1 — P-Lock one step.** ☑ `CujSoundTest.cpp`. SRC section; `hold step +
 setParam(slot, v)` → override set on that step, **base unchanged** (the OEB
@@ -195,7 +195,7 @@ hint band surfaces these when a locked step is held.
 | D2 | Fill | ☑ | audio |
 | D3 | Morph | ☐ | mz |
 | D4 | Cue | ☐ | |
-| D5 | Checkpoints | ~ | |
+| D5 | Checkpoints | ☑ | |
 
 **D1 — Mute.** ☑ `CujPerformanceTest.cpp`. Both behaviours (9.17): **stopped**,
 `Mute+step` mutes at once (`getGlobalMute`, mute-view cells read `MuteMuted` /
@@ -234,19 +234,14 @@ pages bank). Reuse existing `cue-console` scene golden for the chrome.
 and *not* the Song's (the stacks are independent); bare `Y` marks the Song; `Func+Y`
 tapped pops it and the exact marked pattern comes back; the restore arms an undo.
 
-**Two gaps found, filed not fixed — the journey stops where the product does:**
-1. **Undo is unreachable from the keyboard.** `KeyBindings` declares
-   `{VerbClear, kModFunc} → VerbUndo "UNDO"` and `CommandCore` handles it, but
-   `clearVerbTap` only routes to the table when `primaryScope()` is neither `None`
-   nor `Func` — with only Func held it *is* `Func`, so `Func+O` falls through to
-   "clear the active P-Lock slot". A row advertising a verb dispatch never reaches
-   is the 9.14 st.5 disease. Blocks the `Func+O` leg *and* C6.
-2. **A scoped mark cannot be popped.** DESIGN §13.6: `Func+Y` walks the held scope's
-   stack. Dispatch reserves Snapshot *and* Restore while any section-suite scope is
-   held (`sectionSuiteScopeHeld` → return), so Track/Scene/Phrase marks push with no
-   gesture to pop them — the mirror of the phantom 9.4 fixed on the push side.
-
-Flip to ☑ when either is resolved and the corresponding leg lands.
+**This journey found the two gaps that became ROADMAP 9.37, and now proves the
+rulings that closed them:** `Func+O` reverts the restore (undo was unreachable —
+`clearVerbTap` only routed to the table when `primaryScope()` was neither `None` nor
+`Func`, and with only Func held it *is* Func); `Track+Func+Y` walks the **Track's**
+stack and pops it, not the Song's (the restore was reserved under any held scope,
+which made every per-scope stack write-only); and a **held step no longer retargets**
+a checkpoint verb — `Track+Y` with a step down marks the Track, where it used to
+silently mark the Song because Trig outranks Track in `primaryScope()`.
 
 ## Group E — Launch / arrangement
 

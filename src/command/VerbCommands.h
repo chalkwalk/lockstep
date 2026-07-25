@@ -44,6 +44,11 @@ namespace lockstep::verbs
   // Add a function here and call it from CommandCore::handleVerb as each
   // scope migrates from PluginEditor::dispatchVerb.
 
+  // 9.37 item C — Trig + hold(Clear): drop every P-Lock on the held step(s) and
+  // leave the trig, condition and fill state alone. Was Trig+Func+Clear until 9.4
+  // put UNDO on that chord (DESIGN §13.6, "The three rulings of 9.37").
+    [[nodiscard]] bool clearStepLocks(CommandContext& ctx);
+
     [[nodiscard]] bool trig(ControllerButton verb,
                             CommandContext& ctx,
                             CommandEffects& fx);
