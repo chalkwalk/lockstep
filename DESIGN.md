@@ -1235,7 +1235,7 @@ real estate.
 - `Y U I O P` = verbs `Snapshot / Record / Play / Clear / Confirm` (colour-rethink).
   `Func+Y` = Restore (pop checkpoint); `Func+U` = Omni copy; `Func+I` = Unqualified paste;
   `Func+P` = Cancel. Delete is **`scope + hold(O)`** (9.29 — `Func+O` is no longer
-  a delete; `Func` over `O` qualifies the clear, e.g. `Trig+Func+O` = P-Locks only). `Record-Arm` / `Play-Stop` chords on `9 / 0` are deferred —
+  a delete; since 9.37 it is UNDO in every state, and clear-locks is `Trig + hold(O)`). `Record-Arm` / `Play-Stop` chords on `9 / 0` are deferred —
   see §33.1.
 
 **Step keys.** Row 3 `D F G H J K L ;` = steps 0–7; row 4
@@ -2192,7 +2192,7 @@ The verb set is small and uniform:
 | `Y` | **Snapshot** — push a mark (Song scope) | scope-specific **snapshot** (§13.6) | **Restore** — pop one mark (tap) / **floor** (hold) |
 | `U` | **Record** — arm / toggle overdub | **Copy** — clipboard capture | *(fork Part, placeholder)* |
 | `I` | **Play/Pause** — double-tap = Stop-to-top | **Paste** — clipboard write | **Panic** — kill voices + hard stop |
-| `O` | **Clear** — clear active P-Lock; inert if nothing to clear | tap = **Clear** scope contents · **hold = Delete** the entity (+ confirm) · `Scene+O` = **SYNC** | **Undo** — revert the last destructive op (§13.6); `Trig+Func+O` = clear P-Locks only |
+| `O` | **Clear** — clear active P-Lock; inert if nothing to clear | tap = **Clear** scope contents · **hold = Delete** the entity (+ confirm) · `Scene+O` = **SYNC** | **Undo** — revert the last destructive op (§13.6); a held scope narrows it |
 | `P` | **No** — cancel a pending action | *(reserved / dim)* | **Cancel** — a pending confirm |
 
 - Under any section-suite scope (Track / Phrase / Scene / Song / Morph), `Y U I O` glow
@@ -2226,9 +2226,11 @@ The verb set is small and uniform:
      a new application of an old one.
   2. **`Func` goes back to being a pure qualifier.** With `Func+O` no longer
      rewritten to Delete, `Func` over `O` narrows the clear rather than replacing
-     it — which is what restores `Trig + Func + O` = *clear the P-Locks, keep the
-     trig* (§13.2). That gesture was documented but unreachable: the layer remap
-     rewrote the button before the trig verb could ever see it.
+     it. At the time that restored `Trig + Func + O` = *clear the P-Locks, keep the
+     trig* — a gesture that had been documented but unreachable, because the layer
+     remap rewrote the button before the trig verb could ever see it. **9.37 then
+     re-housed it:** `Func+O` became UNDO in every state, so clear-locks moved to
+     `Trig + hold(O)`, the same tap/hold split delete uses (§13.2, §13.6).
 - Solo is `Func + Mute + step` (rung 4 — solo reads as "the
   secondary/advanced layer of mute"; PRINCIPLES §15). No verb acts as a
   held modifier: `Y` is only ever a verb (snapshot / dialog-confirm).
@@ -2343,9 +2345,9 @@ planned).
 scope's verbs (copy / paste / init the sound, §13.9 — the machine *picker* is
 `Track + hold(SRC)`, rung 3); `Func+Scene+step` baseline launch (floor, discard
 overlay); `Func+Scene+Rec`/`Func+Scene+Play` Scene copy / paste;
-`Func+Section+step` note-edit entry; `Trig+Func+Clear` clear
-all P-Locks on the held step(s); **`Func+Mute+step` solo** (the
-secondary layer of mute).
+`Func+Section+step` note-edit entry; **`Func+Mute+step` solo** (the
+secondary layer of mute). (`Trig` + hold(`Clear`) = clear all P-Locks on
+the held step(s) is rung 3 — it needs no qualifier, only the hold.)
 
 **Rung 5 — `mod + mod + key`, cross-column (3 keys).** `Scene+Mute+step`
 per-scene mute (active-mask); `Track+Phrase+step` per-track phrase
@@ -2361,6 +2363,15 @@ only via the §13 Exceptions table.
 
 **Forbidden — 5+ keys.** No gesture may require a fifth simultaneous
 scope key (e.g. `Func + mod + mod + section + step`).
+
+**One cost the table does not show: the gap between two chords.** Two presses
+of the *same* modifier inside the double-tap window latch it (§13.7), so
+playing `Scene+step` twice in quick succession leaves Scene latched and changes
+what every later step press means. That is the latch working as designed, and
+it is the price of having a hands-free hold at all — but it is a real cost paid
+by anyone who plays the same scope twice in a bar, and the CUJ journeys tripped
+on it often enough to be evidence rather than anecdote. Recorded here so a
+future gesture is not designed as though re-pressing a modifier were free.
 
 ### 13.1 Control-All
 
@@ -2419,7 +2430,7 @@ Func + Clear`) routes through the deletion picker (§16); it removes the slot
 | `Trig` (hold 1+ steps) + Record | Copy those steps (trigs + condition + P-Locks). |
 | `Trig` + Play | Paste clipboard onto the held steps. |
 | `Trig` + Clear | Clear those steps' overrides (trig + P-Locks). |
-| `Trig` + `Func + Clear` | Clear **all** P-Locks on the held step(s), leaving the trig itself intact. The `Func` qualifier narrows `Clear`'s scope from "clear the step" to "clear locks only". |
+| `Trig` + hold(`Clear`) | Clear **all** P-Locks on the held step(s), leaving the trig itself intact. The *hold* widens `Clear`'s reach from "this one slot" to "every lock on the step", the same tap/hold split delete uses. (Was `Trig+Func+Clear` until 9.37 gave `Func+O` to Undo in every state; §13.6.) |
 | `Trig` + `(MZ slot)` + Clear | Clear **only that slot's** P-Lock on the held step. Targeted by the held slot (the same slot the MZ would write). |
 | `Trig` + `(section key)` + Clear | **Domain-scoped clear** on the held step(s): wipe every override owned by the held section, leaving other sections, the trig, and the condition intact. **SRC** owns the note payload, so `Trig + SRC + Clear` clears the **note / velocity / gate** overrides (and keeps P-Locks). Same "hold the thing, press Clear" idiom as the MZ-slot row, one level coarser. (This is the home of "clear notes" — it replaced the old `Func + P` overload, which is now purely Cancel everywhere.) |
 | long-press one held step (held-step inspector) | Long-pressing a single held step reveals its **inspector** (§13.8): its P-Locks show as bright (locked) / dim (empty) cells — tap a locked cell to clear that slot's P-Lock; the MZ shows the section's params with lock badges (twist still writes a lock). This is the discoverable home of single-lock surgery; it absorbs the former `Func + step` P-Lock-clear mode. (A bare hold — one or many steps — is the multi-step edit context, §19.1; it does not open the inspector.) |
@@ -2450,8 +2461,8 @@ Func + Clear`) routes through the deletion picker (§16); it removes the slot
 > deviations, snap back to the stored Scene — the mirror of the Record bake;
 > §13.6). `Func` therefore *lifts* the clipboard triad up one level
 > (`Func + Scene + Record/Play/Clear` = copy/paste/clear of a Scene as
-> data), exactly as `Func` narrows `Trig + Clear` (clear step) to
-> `Trig + Func + Clear` (clear locks only). The clipboard is typed: a
+> data), exactly as the *hold* narrows `Trig + Clear` (clear step) to
+> `Trig + hold(Clear)` (clear locks only). The clipboard is typed: a
 > Scene clipboard pastes only into a Scene slot.
 
 Multi-step holds copy a contiguous *or* discontinuous group: the
@@ -2933,12 +2944,31 @@ difference. Latch is persistence, not a new clause.
   (velocity, density) are entered by a `Func + section` chord: `Func + AMP` =
   velocity sticky (§39.10); `Func + MOD` = density sticky (§39.5). This is
   consistent with PRINCIPLES §17 — `Func`'s double-tap is escape only.
-- **Steps are operands, never the exit.** Double-tapping a step virtual-holds
-  it into the edit context (P-Lock / trig override), so encoder edits land on
-  it hands-free. A **single tap still toggles that step's trig**, even while
-  an edit is latched — a tap is a momentary action, unchanged. Double-tapping
-  an already-latched step removes just that operand. The *session* is exited
-  with `Func` (a step is transient content and makes a poor exit affordance).
+- **Steps are operands, never the exit.** A held step latches into the edit
+  context (P-Lock / trig override) so encoder edits land on it hands-free, and
+  the *session* is exited with `Func` (a step is transient content and makes a
+  poor exit affordance). A **single tap still toggles that step's trig**, even
+  while an edit is latched — a tap is a momentary action, unchanged.
+
+  **How a step latches: hold it, then tap `Func`.** Double-tap was the original
+  spelling and was retired — it transiently flipped the trig on the first tap's
+  key-up and reverted it on the second key-down, so a stray or dropped trig was
+  one badly-timed playhead away. The step latch is therefore the one place
+  `Func` is not purely a qualifier, and the two meanings are separated **on the
+  press-duration axis, resolved at key-up** (9.38): while a step is held, `Func`
+  behaves as the ordinary qualifier, and only a `Func` *released without having
+  qualified anything* latches the held steps. So `hold step + Func + ←` nudges
+  micro-time on the first press, as §13.8 has always claimed, while `hold step +
+  tap Func` still frees the finger. This is the same tap-vs-hold split `O`
+  (clear/delete) and `Func+Y` (pop/floor) already use, and `Func` already had
+  key-up commit semantics for the deferred pattern-mute multi-select.
+
+  Resolving *at key-up* rather than swallowing the press is load-bearing: a
+  consumed `Func` leaves `uiState_.funcHeld` false, and both `heldModsFromUiState`
+  and the Func layer of `kLayerRemaps` derive from that one flag — so consuming
+  it took down every `kModFunc` binding row and every Func remap at once, not
+  just the nudge. See §37.1's remap rule; this is the same failure wearing a
+  different key.
 
 **Entering a new modality exits the current one.** Latch persists a *mode*,
 so committing to a different mode ends it. In particular, switching a track's
@@ -2958,9 +2988,8 @@ principle, not a silent exception here.
 |---|---|
 | Double-tap a modifier | Latch (virtual-hold) that scope |
 | Double-tap the same modifier | Release that latch |
-| Double-tap a step | Virtual-hold it into the edit context (add operand) |
+| Hold step(s), then tap `Func` | Virtual-hold them into the edit context (add operands) — latched on `Func`'s key-up, and only if `Func` qualified nothing |
 | Single-tap a step (latched edit active) | Toggle its trig (unchanged) |
-| Double-tap a latched step | Remove that operand |
 | Double-tap `Func` | Universal escape — clear all latches |
 | Double-press a verb | Amplified action (e.g. Play = stop + reset) |
 | `Mute + step` | Quantized per-track mute/unmute (double-tap step = instant); unmute resumes **in phase** |
@@ -3928,7 +3957,7 @@ latent in the data model from 3.5 but only becomes visible in
 - Three clear gestures cover the three axes:
   `Trig + step` toggles `step.trig`;
   `Trig + SRC + Clear` clears notes + velocity + gateValue;
-  `Trig + Func + Clear` clears P-Locks.
+  `Trig + hold(Clear)` clears P-Locks.
 
 This supports the "sketch a chord progression, mute trigs to find
 the part" workflow without losing authored chords.
@@ -4347,7 +4376,7 @@ value duplicating information. 3.4 collapses each slot to **rotary
 - The parameter's name moves to a slim header (or piggybacks on the
   section-key label since context already names the page).
 - The standalone `x` clear button is removed; clearing a P-Lock is a
-  grammar gesture under `Trig + (slot) + Clear` / `Trig + Func + Clear`
+  grammar gesture under `Trig + (slot) + Clear` / `Trig + hold(Clear)`
   / step-driven edit mode (§13.2), keyboard-first.
 - The reclaimed space grows the rotary itself, so it's actually
   legible at performing distance.
@@ -6676,6 +6705,32 @@ and pinned by the golden test in `tests/LayerResolveTest.cpp`.
 (physical OR latched) modifier flags from `UiState`. Every input path
 calls `resolveLayer` *before* forwarding to the command core; no
 unresolved raw event reaches `handleDown/handleUp`.
+
+**The remap rule (9.38).** A remap is lossy by construction: `LayerContext`
+carries three bools, so the rewritten button records *that* Track or Mute was
+held and nothing about which other modifiers were. Hence:
+
+> A layer remap rewrites what a key **is**, never what the held modifiers
+> **were**. Any code that matches on a remapped button must accept the raw
+> button too, or match on `(raw button, mod set)` instead. A remap must never
+> make a documented compound unreachable.
+
+This class has bitten three times. `Func + VerbClear → VerbDelete` rewrote the
+button before `verbs::trig` could read the Func flag, so the documented
+`Trig+Func+Clear` was dead code until 9.29 retired the remap. `Step →
+ToggleMute` did the same to `Mute+Song+step`, whose blank-song branch could
+never run — and because `resolveBinding` matches a *subset* of held mods, the
+bare `{ToggleMute, kModMute}` row won and the press silently muted a track
+instead (9.38). The delete picker matched a Track slot tap on `SelectTrack`,
+the *remapped* identity, so it cancelled the moment the arming chord was
+released even though PRINCIPLES §16 requires the prompt to be sticky (9.38).
+
+Two remedies, both already in the codebase — **retire the remap** (9.29), or
+**handle the compound inside the remapped case**, as the `SelectTrack` case does
+for `Track+Phrase+step`. `tests/LayerRemapReachabilityTest.cpp` enforces the
+rule: for every entry in `kLayerRemaps` it asserts each documented compound on
+that raw button still resolves to a distinct action, so a remap can no longer
+swallow a gesture in silence.
 
 ### 37.2 Command context and effects seam
 
