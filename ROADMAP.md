@@ -1005,6 +1005,11 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
       documented branch is dead code. The worst of the four — the others do nothing,
       this one does the wrong thing silently. (5.3's prose claimed it; corrected
       there.)
+- [ ] **`Trig+Func+CLEAR` is shadowed by UNDO.** *(→ `9.37`: the third feature on
+      `Func+O`.)* The documented "clear every P-Lock, keep the trig" (DESIGN §13.2)
+      never reaches `verbs::trig` — `routeVerb` matches the table on the full held-mod
+      set and `{VerbClear, kModFunc} → VerbUndo` outscores the bare row. 9.29 freed
+      this chord *for* this gesture; 9.4 then took it for undo.
 - [ ] **The microtiming nudge needs two Func presses.** The first `Func` over a held
       step is the W7 latch and is consumed ("no funcHeld", says the branch), so
       `hold step + Func + →` performs the step MOVE — a different documented gesture —
@@ -1015,8 +1020,12 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
       Record/Play, so copying a step turns its trig off and pasting onto one inverts
       what just landed. Also noted: the copy-key glow is wired for section-*suite*
       scopes only, so a held step or section copies without lighting the key.
-- [ ] **Wave 3** *(in progress)* — A2 ☑, A3 `~`, C4 ☑, C5 ☑, D2 ☑, E2 ☑, E4 ☑;
-      C2/C6 left.
+- [x] **Wave 3** (2026-07-24) — A2 ☑, C4 ☑, C5 ☑, D2 ☑, E2 ☑, E4 ☑; A3 and C6 `~`.
+      Found: the microtiming nudge needs two Func presses (below), `Trig+Func+CLEAR`
+      is shadowed by the UNDO row (→ `9.37`), the per-track `Phrase+<diagonal>` badges
+      a track as deviated onto its own home phrase, the "sticky" delete picker needs
+      Track still held for a Track slot tap, and the audio-census rolls were short
+      enough to miss the trigs they measured. C2 (Sound Pool) deferred to wave 4.
       Three more wrinkles found, all small and all the same shape (two paths that
       write one fact disagree): per-track `Phrase+<diagonal>` badges a track as
       deviated onto its own home phrase while `deviateAllToPhrase` clears it; the

@@ -313,6 +313,76 @@ namespace
         check(std::abs(baseParamOf(d, 1, slot) - mid1) < 1.0e-6f,
               "...and the next write lands on the chosen track alone");
     }
+    // C6 -- P-Lock clear gestures.
+    //
+    // One key (CLEAR), one operand (the held step), and different blast radii chosen
+    // by what ELSE is held. That is the grammar's claim about itself -- a qualifier
+    // narrows a verb instead of needing its own key -- so it deserves a journey that
+    // lands two of them differently on the same step.
+    //
+    // FOUND HERE (filed, not fixed -- see ROADMAP 9.37): the THIRD radius,
+    // `Trig+Func+CLEAR` ("clear every P-Lock, keep the trig", DESIGN §13.2), is
+    // shadowed. `routeVerb` resolves the table on the full held-modifier set, and
+    // `{VerbClear, kModFunc} -> VerbUndo` outscores the bare row, so with Func down the
+    // press becomes UNDO and `verbs::trig`'s Func branch is never consulted. 9.29's
+    // comment says retiring the Func+O->VerbDelete remap is "what makes Trig+Func+Clear
+    // reachable"; 9.4 then put UNDO on the same chord and re-shadowed it. Two features
+    // own Func+O -- which is exactly the knot 9.37 exists to untie.
+    void testPLockClearGestures(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/C6] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        installRealMachine(d.rig(), 0);
+        settle(d);
+        d.tap(CB::Section, IMachine::kSrcSecIdx);
+        settle(d);
+
+        const int slot = DispatchProbe::mzSlotOffset(d.editor()) + kFineSlot;
+        auto& step0 = d.proc().sequence().tracks[0].steps[0];
+
+        auto lockStep0 = [&] {
+            d.press(CB::Step, 0);
+            d.setParam(slot, 20.0f);
+            runBlock(d);
+            d.release(CB::Step, 0);
+        };
+
+        // (The rig seeds a trig every fourth step, so step 0 already carries one --
+        // pressing it here would turn it OFF, which is what a toggle does.)
+        d.gap();
+        lockStep0();
+        if (!test::expectReached(d, [&](UiDriver&) { return step0.overrides.has(slot) && step0.trig; },
+                                 "a locked step with its trig on", failed))
+            return;
+
+        // --- Trig + (the active MZ slot) + CLEAR: one lock, nothing else ----------
+        // The slot last touched on the MZ is the operand, so this is "clear THIS
+        // knob's lock on this step" with no extra key at all.
+        d.press(CB::Step, 0);
+        d.tap(CB::VerbClear);
+        d.release(CB::Step, 0);
+
+        check(!step0.overrides.has(slot), "Trig + active-slot + CLEAR clears that slot's lock");
+        check(step0.trig, "...and the trig survives -- this is not a step wipe");
+
+        // --- Trig + SRC + CLEAR: everything that section owns ---------------------
+        // The section key names a DOMAIN. On SRC that includes the note/velocity/gate
+        // payload, so the trig override goes with it.
+        d.gap();
+        lockStep0();
+        d.press(CB::Step, 0);
+        d.press(CB::Section, IMachine::kSrcSecIdx);
+        d.tap(CB::VerbClear);
+        d.release(CB::Section, IMachine::kSrcSecIdx);
+        d.release(CB::Step, 0);
+
+        check(!step0.overrides.has(slot), "Trig + SRC + CLEAR clears the section's locks");
+        check(step0.trigOverride.noteCount == 0,
+              "...including the note/velocity/gate payload SRC owns");
+    }
 }   // namespace
 
 void runCujSoundTests(int& failed)
@@ -321,5 +391,6 @@ void runCujSoundTests(int& failed)
     testMachinePicker(failed);
     testSectionPagingAndScopeColour(failed);
     testControlAll(failed);
+    testPLockClearGestures(failed);
 }
 }   // namespace lockstep

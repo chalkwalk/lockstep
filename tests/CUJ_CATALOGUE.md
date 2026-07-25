@@ -143,7 +143,7 @@ of the in-scope time-sig; no two voices share a pitch.
 | C3 | Machine picker | ☑ | |
 | C4 | Section paging & scope colour | ☑ | |
 | C5 | Control-All | ☑ | mz |
-| C6 | P-Lock clear gestures | ☐ | mz |
+| C6 | P-Lock clear gestures | ~ | mz |
 
 **C1 — P-Lock one step.** ☑ `CujSoundTest.cpp`. SRC section; `hold step +
 setParam(slot, v)` → override set on that step, **base unchanged** (the OEB
