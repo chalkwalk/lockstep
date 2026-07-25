@@ -124,24 +124,31 @@ of the in-scope time-sig; no two voices share a pitch.
 
 | ID | Journey | Status | Deps |
 |----|---------|--------|------|
-| C1 | P-Lock one step | ☐ | mz |
+| C1 | P-Lock one step | ☑ | mz |
 | C2 | Per-step sample swap (Sound Pool) | ☐ | |
-| C3 | Machine picker | ☐ | |
+| C3 | Machine picker | ☑ | |
 | C4 | Section paging & scope colour | ☐ | |
 | C5 | Control-All | ☐ | mz |
 | C6 | P-Lock clear gestures | ☐ | mz |
 
-**C1 — P-Lock one step.** SRC section; `hold step + setParam(slot, v)` → override set
-on that step, **base unchanged** (the OEB invariant), MZ slot shows `hasOverride`.
-Clear via `hold step + Func+O`.
+**C1 — P-Lock one step.** ☑ `CujSoundTest.cpp`. SRC section; `hold step +
+setParam(slot, v)` → override set on that step, **base unchanged** (the OEB
+invariant), MZ slot shows `hasOverride`; `hold step + CLEAR` wipes it; releasing the
+step returns the same knob to editing the base, so the scope cannot leak past the
+hold. *Correction:* the clear here is bare `O`, not `Func+O` — `Func+O` under a held
+step is the staged slot-picker clear mode, and pressing `Func` mid-hold also LATCHES
+the step, so that gesture belongs to C6.
 
 **C2 — Per-step sample swap (Sound Pool).** `Fill+SRC` → grid re-skins to Sound
 Pool, SRC glows Fill colour. Press cell (no step) → live-swap focus track. `hold
 step` + cell → `sound_id` P-Lock baked on that step; release Fill → restore.
 
-**C3 — Machine picker.** `Track + hold(SRC)` → grid re-skins to machine names; press
-cell → `getMachineId(focus)` changes; **SRC panel reachable** (guard the
-`numSections()` regression — the picked machine's SRC page paints).
+**C3 — Machine picker.** ☑ `CujSoundTest.cpp`. `Track + hold(SRC)` → `activeLayer ==
+MachinePicker`; a cell press loads that machine on the focused track and closes the
+picker (choosing IS the verb). Then the guard that matters: the picked machine's SRC
+section reports real slots, its section key is live and the MZ page fills — the
+`numSections() == highestSectionIndex + 1` trap, which shipped once as a machine with
+an unreachable source panel.
 
 **C4 — Section paging & scope colour.** Machine pages read neutral, `Track`-held
 pages read cyan; page dots per section; re-press cycles.
