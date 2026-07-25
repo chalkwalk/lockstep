@@ -848,6 +848,8 @@ namespace lockstep
     void runCujTimeTests(int& failed);
     // Defined in CujDeckTest.cpp -- Group F capture/emit journeys.
     void runCujDeckTests(int& failed);
+    // Defined in CujCaptureTest.cpp -- Group G, the anchor capture flow.
+    void runCujCaptureTests(int& failed);
 }
 
 int main()
@@ -876,6 +878,7 @@ int main()
     lockstep::runCujArrangementTests(failed);
     lockstep::runCujTimeTests(failed);
     lockstep::runCujDeckTests(failed);
+    lockstep::runCujCaptureTests(failed);
     std::fprintf(stderr, failed == 0 ? "All dispatch golden tests passed.\n"
                                      : "%d dispatch golden test(s) FAILED.\n", failed);
     return failed == 0 ? 0 : 1;

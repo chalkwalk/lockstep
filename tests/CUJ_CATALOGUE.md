@@ -384,13 +384,23 @@ puts nothing on the audio bus at all. Needs no asset.
 
 | ID | Journey | Status | Deps |
 |----|---------|--------|------|
-| G1 | Arm → roll → stop → saved | ☐ | audio |
+| G1 | Arm → roll → stop → saved | ☑ | audio |
 | G2 | Routing = stem grouping | ☐ | audio |
 
-**G1 — Arm → roll → stop → saved.** `Func+Song+U` tap → `capturePhase==Armed`, banner
-"ARMED ▸ master + N stems"; `play()` → REC; stop → STOPPING→SAVED; assert a
-`Captures/…/` dir with `master.wav` + per-non-empty-track `track-NN.wav` +
-`take-sheet.txt` (write to the scratchpad/tmp dir, assert files exist + non-empty).
+**G1 — Arm → roll → stop → saved.** ☑ `CujCaptureTest.cpp`. The anchor flow, asserted
+on what is **on disk** rather than what the state machine believed: `Func+Song+Record`
+arms, rolling starts the take, stems are written alongside the master, and after the
+stop there is a `master.wav` with audio in it, one `track-NN.wav` per audible track
+(each non-empty), and a `take-sheet.txt`. The **alignment invariant** (11.11) is
+asserted too — every stem is the same length as the master, which is what lets the set
+drop onto a DAW timeline without nudging.
+
+*Two things to respect:* **arming is not recording** — the tap says "capture the next
+thing I play" and the take begins when the transport does, so a journey that asserts
+`isCapturing()` straight after the gesture fails against working code. And the capture
+path is derived from the loaded project file: the journey **saves a project into a temp
+dir first**, because otherwise a gesture-driven capture writes into the user's real
+`~/Music/Lockstep/Captures`.
 
 **G2 — Routing = stem grouping.** Route a track into a Route bus → that bus is one
 stem with feeders folded; assert stem file set matches routing.
