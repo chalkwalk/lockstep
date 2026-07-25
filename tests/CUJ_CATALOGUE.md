@@ -105,8 +105,8 @@ instance read the first's schema, and outliving it dangled.
 | ID | Journey | Status | Deps |
 |----|---------|--------|------|
 | B1 | Euclid generate + commit/cancel | ☑ | mz |
-| B2 | Density overlay | ☐ | mz |
-| B3 | Velocity overlay | ☐ | mz |
+| B2 | Density overlay | ☑ | mz |
+| B3 | Velocity overlay | ☑ | mz |
 | B4 | Melodic generator | ☐ | mz |
 | B5 | Harmonic voice-mover | ☐ | mz |
 
@@ -119,11 +119,23 @@ second run enters and cancels with `Func+P` → the original pattern is restored
 exactly. Started from a clustered non-Euclidean seed so the redistribution is
 observable.
 
-**B2 — Density overlay.** Hub → DENSITY; thin trigs; assert emitted census drops;
-per-track selection detents (Scrub/Re-roll/Exempt) reachable; MOD sub-page cycle.
+**B2 — Density overlay.** ☑ `CujGeneratorsTest.cpp`. Hub cell 1 opens `Overlay::Density`
+and the encoders become the density band. The claim under test is that density is
+**subtractive**: pushing the master offset to −0.9 and running blocks leaves the stored
+onsets byte-identical, and restoring the offset leaves them identical again — the
+thinning lives in what is emitted, never in the pattern. Sticky, and escapes on a
+double-tap `Func`. Per-track selection detents are left to a later wave.
 
-**B3 — Velocity overlay.** Hub → VEL; AMP re-press cycles Depth/Center/Mode/Blend
-sub-pages (assert page dots); assert overlay velocity applied at emit.
+**B3 — Velocity overlay.** ☑ `CujGeneratorsTest.cpp`. Hub cell 2 opens `Overlay::Vel`.
+Four axes hang off ONE key: re-pressing **AMP** moves to the next sub-page, the meta
+band follows, and the pages cycle back round within one lap. Sticky; double-tap `Func`
+escapes.
+
+*The gotcha worth knowing:* with velocity **off** everywhere the cycle has exactly one
+page — MODE, the switch — because it skips disabled axes. A journey that opens the
+overlay cold and expects AMP to page is testing an overlay that has nothing to page
+to. Enable a track's `velMode` first. Applying the overlay velocity at emit is left to
+a later wave.
 
 **B4 — Melodic generator.** Hub → MELODY; `setParam` DENSE/CORE/SEED; assert live
 preview; `P` prints editable steps with pitches in the effective key; **seed

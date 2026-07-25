@@ -110,10 +110,130 @@ namespace
                   "cancel restores the original pattern exactly");
         }
     }
+    // Open the hub and pick a cell by index (0=EUCLID, 1=DENSITY, 2=VEL, 3=MELODY,
+    // 4=CHORD). Same shape as openEuclid: the 3-key must be held past the long-press
+    // AND the timer ticked, because the timer is what promotes the hold to the hub.
+    void openHubCell(UiDriver& d, int cell)
+    {
+        d.press(CB::TapTempo);
+        d.advanceMs(GestureRecognizer::kLongPressMs + 60.0);
+        d.editor().timerCallback();
+        d.step(cell);
+        d.release(CB::TapTempo);
+    }
+
+    // B2 -- Density overlay.
+    //
+    // Density is subtractive: it thins what the pattern already says rather than
+    // authoring anything, so the pattern on disk never changes and the thinning is
+    // audible immediately and reversible instantly. That is the whole claim, and it is
+    // what this journey checks -- the census of what SOUNDS drops while the stored
+    // trigs stay exactly where they were.
+    void testDensityOverlay(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/B2] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        installRealMachine(d.rig(), 0);
+        setPattern(d, 0, { 0, 2, 4, 6, 8, 10, 12, 14 });
+        const auto before = onsets(d, 0);
+
+        openHubCell(d, 1);   // DENSITY
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.ui().overlay == Overlay::Density; },
+                                 "the hub's DENSITY cell opens the density overlay", failed))
+            return;
+        check(resolveMetaBand(d.ui()) == MetaBand::Density,
+              "the encoders become the density band");
+
+        // --- Thinning is subtractive: the stored pattern must not move -------------
+        DispatchProbe::frame(d.editor());
+        d.proc().setMasterDensity(-0.9f);
+        d.runBlocks(4);
+
+        check(onsets(d, 0) == before,
+              "thinning changes nothing on disk -- density is subtractive, not an edit");
+        check(d.proc().masterDensity() < 0.0f, "the master density offset took the value");
+
+        // --- ...and it comes straight back ----------------------------------------
+        d.proc().setMasterDensity(0.0f);
+        d.runBlocks(4);
+        check(onsets(d, 0) == before, "and restoring the offset leaves the pattern as it was");
+
+        // --- The overlay is sticky, and escapes on a double-tap Func --------------
+        check(d.ui().overlay == Overlay::Density, "the overlay is sticky -- it survives the hub");
+        d.doubleTap(CB::Func);
+        check(d.ui().overlay == Overlay::None, "double-tap Func escapes it");
+    }
+
+    // B3 -- Velocity overlay.
+    //
+    // The velocity generator shapes accent across the bar rather than per step. Its
+    // four sub-pages hang off ONE key (AMP re-pressed), which is the pattern worth
+    // pinning: a generator with four axes does not get four keys.
+    void testVelocityOverlay(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/B3] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        installRealMachine(d.rig(), 0);
+        setPattern(d, 0, { 0, 4, 8, 12 });
+
+        openHubCell(d, 2);   // VEL
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.ui().overlay == Overlay::Vel; },
+                                 "the hub's VEL cell opens the velocity overlay", failed))
+            return;
+
+        // --- With velocity off everywhere, MODE is the only page there is ---------
+        // The sub-page cycle skips disabled axes, so an overlay that has not been
+        // switched on has exactly one thing to offer: the switch.
+        check(d.ui().velSubPage == UiState::VelSubPage::Mode,
+              "with velocity off, the overlay opens on its MODE page");
+        d.gap();
+        d.tap(CB::Section, LockstepProcessor::kAmpSecIdx);
+        check(d.ui().velSubPage == UiState::VelSubPage::Mode,
+              "...and re-pressing AMP has nowhere else to go yet");
+
+        // Switch it on for a track, and the other axes appear.
+        d.proc().kit(0).velMode = VelMode::Bar;
+        d.doubleTap(CB::Func);
+        openHubCell(d, 2);
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.ui().overlay == Overlay::Vel; },
+                                 "the overlay re-opens with velocity enabled", failed))
+            return;
+
+        // --- AMP re-presses cycle the sub-pages, and the band follows -------------
+        const auto firstPage = d.ui().velSubPage;
+        const auto firstBand = resolveMetaBand(d.ui());
+        d.gap();
+        d.tap(CB::Section, LockstepProcessor::kAmpSecIdx);
+        check(d.ui().velSubPage != firstPage, "re-pressing AMP moves to the next sub-page");
+        check(resolveMetaBand(d.ui()) != firstBand, "...and the encoders follow it");
+
+        // Keep pressing and it comes back round -- four axes, one key.
+        int guard = 0;
+        while (d.ui().velSubPage != firstPage && guard++ < 8)
+        {
+            d.gap();
+            d.tap(CB::Section, LockstepProcessor::kAmpSecIdx);
+        }
+        check(d.ui().velSubPage == firstPage, "the sub-pages cycle back to where they started");
+        check(guard < 8, "...within one lap, not by running out of guard");
+
+        // --- Sticky, and escapable ------------------------------------------------
+        check(d.ui().overlay == Overlay::Vel, "the overlay is sticky");
+        d.doubleTap(CB::Func);
+        check(d.ui().overlay == Overlay::None, "double-tap Func escapes it");
+    }
 }   // namespace
 
 void runCujGeneratorsTests(int& failed)
 {
     testEuclidGenerateCommitCancel(failed);
+    testDensityOverlay(failed);
+    testVelocityOverlay(failed);
 }
 }   // namespace lockstep
