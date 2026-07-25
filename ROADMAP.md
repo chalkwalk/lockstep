@@ -1043,8 +1043,13 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
       per-block input fill, `AssetAudio.h` decodes a fixture, `UiDriver::feedAudio`
       streams it in like a cable. F2 tape punch, F3 loop, F4 record-to-pool, F5
       MIDI-out, G1 the anchor capture flow, G2 routing-as-stem-grouping.
-      **Every row in `tests/CUJ_CATALOGUE.md` is now implemented** — A3 and E3 remain
-      `~` only for the legs their product gaps block (`9.36`'s defect list).
+      **Every row in `tests/CUJ_CATALOGUE.md` is now implemented.**
+- [x] **Deferred-leg sweep** (2026-07-25) — the legs each journey had parked: A3's
+      note editor (flipping A3 to ☑), E1's scene bake, E2's phrase clipboard, E3's
+      panic, C2's live audition, D3's fluid mute, D4's cue console, B5's LEN growth,
+      B2's per-track detents, F4's `Save…` promotion, F2's markers, F3's four-sub
+      widening + take-group promote, and H1's count-in. The only thing still parked is
+      standalone wind/scrub. `E3` stays `~` on the one leg `9.38` blocks.
 
 Invariant for every CUJ commit: `-Werror` clean, both suites green, and
 `git diff --exit-code tests/goldens/dispatch.txt` — a journey must not move the
