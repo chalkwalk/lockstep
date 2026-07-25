@@ -240,11 +240,13 @@ copying the song you were on and switches to it (v36 slots); an occupied slot
 switches, each song keeping its own pattern; audio rolls **across** the switch (the
 frame-race guard) and stays finite.
 
-**Gap found, filed not fixed:** `Mute+Song+step` → blank song **cannot fire**. The
-Mute LAYER rewrites every step key to `ToggleMute` (`kLayerRemaps`) before the Step
-case can read `songHeld`, and `(ToggleMute, Mute|Song)` matches no binding row, so the
-press is swallowed and dispatch's own documented "empty + Mute: blank default song"
-branch is dead code. (ROADMAP 5.3 claims this gesture; corrected there.) `Song+O` →
+**Gap found, filed not fixed:** `Mute+Song+step` → blank song **cannot fire, and hits
+something else instead**. The Mute LAYER rewrites every step key to `ToggleMute`
+(`kLayerRemaps`) before the Step case can read `songHeld`; `resolveBinding` matches on
+a *subset* of held mods and no `ToggleMute` row requires Song, so the plain
+`{ToggleMute, kModMute}` row wins and the press **mutes the track with that index**
+(measured: it arms a pending mute on track 3). Dispatch's own documented "empty +
+Mute: blank default song" branch is dead code. (ROADMAP 5.3 claims this gesture; corrected there.) `Song+O` →
 Panic is left to a later wave. Flip to ☑ when the blank variant is reachable.
 
 **E4 — Deletion picker.** `scope+hold(O)` (Track/Phrase/Scene) → picker re-skin +

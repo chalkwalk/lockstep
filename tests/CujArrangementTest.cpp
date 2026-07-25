@@ -15,11 +15,13 @@
 //
 // FOUND WHILE WRITING THIS (filed, not fixed -- see ROADMAP 9.36): `Mute+Song+step`,
 // documented in dispatch itself as "empty + Mute: blank default song" and claimed by
-// ROADMAP 5.3, cannot fire. The Mute LAYER rewrites every step key to ToggleMute
-// (kLayerRemaps) before the Step case can look at songHeld, and (ToggleMute, Mute|Song)
-// matches no binding row -- so the press is swallowed and the blank-song branch is
-// dead code. The bare create-on-select path (which this journey does cover) is fine;
-// only the Mute variant is unreachable.
+// ROADMAP 5.3, cannot fire -- and does something else instead. The Mute LAYER rewrites
+// every step key to ToggleMute (kLayerRemaps) before the Step case can look at
+// songHeld. resolveBinding then matches on a SUBSET of held mods, and no ToggleMute
+// row requires Song, so the winner is the plain `{ToggleMute, kModMute}` row: the
+// press MUTES the track with that index (measured -- it arms a pending mute on track
+// 3). The blank-song branch is dead code, and the gesture silently hits a different
+// track's mute. The bare create-on-select path this journey covers is fine.
 //
 // See tests/CUJ_CATALOGUE.md.
 

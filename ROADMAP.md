@@ -997,11 +997,14 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
       is held (`sectionSuiteScopeHeld`), so Track/Scene/Phrase marks push with no
       gesture to pop them — the mirror of the phantom `9.4` fixed on the push side.
       Decide which side wins: the reserve, or §13.6.
-- [ ] **`Mute+Song+step` (blank song) cannot fire.** The Mute layer rewrites every
-      step key to `ToggleMute` before the Step case can read `songHeld`, and
-      `(ToggleMute, Mute|Song)` matches no row, so the press is swallowed and
-      dispatch's own documented branch is dead code. (5.3's prose claimed it;
-      corrected there.)
+- [ ] **`Mute+Song+step` (blank song) cannot fire — and mutes a track instead.** The
+      Mute layer rewrites every step key to `ToggleMute` before the Step case can read
+      `songHeld`. `resolveBinding` matches on a *subset* of held mods and no
+      `ToggleMute` row requires Song, so the plain `{ToggleMute, kModMute}` row wins:
+      the press arms a mute on the track with that index (measured). Dispatch's own
+      documented branch is dead code. The worst of the four — the others do nothing,
+      this one does the wrong thing silently. (5.3's prose claimed it; corrected
+      there.)
 - [ ] **A held step used as a copy/paste operand still authors on release.**
       `verbs::trig` marks the edit context param-written for Clear but not for
       Record/Play, so copying a step turns its trig off and pasting onto one inverts
@@ -1047,8 +1050,9 @@ resurrecting CLN; Song/Scene names show in a widened transport indicator + the
 hold-selectors; the MOD naming affordance is promoted to a lit "NAME SONG/SCENE"
 primary with a hold glyph; **Songs and Phrases create-on-select** (real slot model
 — `Song::initialised`, serializer v36 + backfill; empty `Song+step` copies /
-`Mute+Song+step` blanks — **but see 9.36: that variant cannot fire**, the Mute layer
-rewrites the step key to `ToggleMute` before dispatch can read `songHeld`; phrase rows
+`Mute+Song+step` blanks — **but see 9.36: that variant cannot fire and mutes a track
+instead**, the Mute layer rewrites the step key to `ToggleMute` before dispatch can
+read `songHeld`; phrase rows
 are diagonal-aware, `Phrase+step` inert on
 un-created rows); and the whole UI is a **uniform-scaled, aspect-locked resizable
 window** (default 1.2×, persisted). Items 6–7 (SoundPool full-bundle, docs) open.
