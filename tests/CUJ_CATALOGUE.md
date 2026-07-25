@@ -46,8 +46,8 @@ silently failed must fail loudly, not assert against a wrong start state.
 | ID | Journey | Status | Deps |
 |----|---------|--------|------|
 | A1 | Two-track drum beat | ☑ | audio |
-| A2 | Trig conditions | ☐ | mz |
-| A3 | Step editing | ☐ | |
+| A2 | Trig conditions | ☑ | mz |
+| A3 | Step editing | ~ | |
 | A4 | Copy/paste/clear across scopes | ☑ | |
 
 **A1 — Two-track drum beat.** ☑ `CujTrigAuthoringTest.cpp`. Focus track 0, clear it
@@ -59,15 +59,29 @@ clear, `step` 4,12 → track-1 backbeat, surface confirms. Then `play()` (bridge
 non-silent peak RMS across the roll, no NaN. Both tracks run FMMachine so the beat
 sounds. (No `mz` dep in the end: length uses the gesture, not the MZ.)
 
-**A2 — Trig conditions.** Held-step bare `TRIG` promotes to per-step COND (TRIG
-relabels); set probability/iteration via `setParam`; assert the step's condition
-override. `Func+TRIG` with no step → track base condition. Assert grid brightness
-ladder on `surface()` (certain=bright, prob=mid, skip=dim).
+**A2 — Trig conditions.** ☑ `CujTrigAuthoringTest.cpp`. Held step + `TRIG` opens the
+COND band; `setParam` on field 0 lands the probability **on the held step** with the
+track's base untouched, and the grid reads `StepTrigProbable` beside a neighbour's
+`StepTrigCertain`. The same band with **no** step held writes `baseCond` instead (the
+step keeps its own, stronger condition) and every unconditioned step then reads
+probable. Field 2 sets the iteration denominator on a held step.
 
-**A3 — Step editing.** Hold step → inspector re-skin (`activeLayer`/surface shows
-P-Locks). `hold step + SRC` → note-edit overlay (NOTE relabel, chromatic cells).
-`hold step + ←/→` → bubble-swap (trig moves to neighbour). `hold step + Func+←/→` →
-microOffset changes. `hold step + P` (QUANT) → microOffset zeroed.
+*Gotcha, cost a debug cycle:* **`DispatchProbe::frame()` after the band changes.**
+Slider ranges come from the page the MZ is SHOWING, so writing 50 into a slider still
+carrying the previous page's range clamps it to that range's top (measured: 10) — the
+write looks like it landed in the wrong place when it landed in the wrong *range*.
+
+**A3 — Step editing.** ~ `CujTrigAuthoringTest.cpp`. Holding a step re-skins the grid
+to `SurfaceLayer::StepInspector`; bare `←/→` carries the trig to its neighbour and
+back; `Func+←/→` nudges `microOffset` late without moving the trig; `P` (QUANT) puts
+it back on the grid.
+
+**Gesture collision, filed not fixed (see ROADMAP 9.36):** the microtiming nudge needs
+**two** Func presses. The FIRST Func over a held step is the W7 latch, which is
+*consumed* — the branch says "no funcHeld" in as many words — so a player who presses
+Func once and then `→` gets the **step move**, silently, instead of a nudge. The
+journey drives the two-press path and asserts the move separately; the `hold step +
+SRC` note-edit leg is left to a later wave (flip to ☑ with it).
 
 **A4 — Copy/paste/clear across scopes.** ☑ `CujClipboardTest.cpp`. The canonical
 "same verb, three scopes": held `step`+`U` → clipboard type==step; `Track`+`U` →

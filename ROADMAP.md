@@ -1005,14 +1005,20 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
       documented branch is dead code. The worst of the four — the others do nothing,
       this one does the wrong thing silently. (5.3's prose claimed it; corrected
       there.)
+- [ ] **The microtiming nudge needs two Func presses.** The first `Func` over a held
+      step is the W7 latch and is consumed ("no funcHeld", says the branch), so
+      `hold step + Func + →` performs the step MOVE — a different documented gesture —
+      until Func is pressed again. Found by A3; a gesture collision rather than dead
+      code, but it silently does the wrong thing.
 - [ ] **A held step used as a copy/paste operand still authors on release.**
       `verbs::trig` marks the edit context param-written for Clear but not for
       Record/Play, so copying a step turns its trig off and pasting onto one inverts
       what just landed. Also noted: the copy-key glow is wired for section-*suite*
       scopes only, so a held step or section copies without lighting the key.
-- [ ] **Later waves** — the remaining ☐ rows: A2/A3, B2–B5, C2/C4–C6, D2–D4,
-      E2/E4, F2–F5, G1/G2, H1/H2. Machine-content journeys need the committed
-      CC0 assets the catalogue names.
+- [ ] **Wave 3** *(in progress)* — A2 trig conditions ☑, A3 step editing `~`, then
+      C2/C4/C5/C6, D2, E2, E4.
+- [ ] **Later waves** — B2–B5, D3/D4, F2–F5, G1/G2, H1/H2. Machine-content journeys
+      need the committed CC0 assets the catalogue names.
 
 Invariant for every CUJ commit: `-Werror` clean, both suites green, and
 `git diff --exit-code tests/goldens/dispatch.txt` — a journey must not move the
