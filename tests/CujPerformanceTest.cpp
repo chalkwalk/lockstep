@@ -28,6 +28,7 @@
 #include "UiDriver.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 
 namespace lockstep
@@ -64,6 +65,17 @@ namespace
             peak = std::max(peak, d.lastRms());
         }
         return peak;
+    }
+
+    // A param write is applied on the AUDIO thread (drainEngineCmds at the top of
+    // processBlock), so engine state must be read after a block has run.
+    void runBlock(UiDriver& d)
+    {
+        const int chans = juce::jmax(2, d.proc().getTotalNumOutputChannels());
+        juce::AudioBuffer<float> buf(chans, 512);
+        buf.clear();
+        juce::MidiBuffer midi;
+        d.proc().processBlock(buf, midi);
     }
 
     // Mute + the track's cell. ToggleMute is the synthetic button a step key becomes
@@ -219,6 +231,159 @@ namespace
               "pressing again cycles the step to fill-off");
     }
 
+    // D3 -- Morph.
+    //
+    // The crossfader is the one control that is not a value but a *blend*: every
+    // parameter can hold two poles, and the fader decides how much of each you hear.
+    // The journey is the authoring loop a player uses -- capture a pole, capture the
+    // other, sweep between them -- plus the two verbs that end it: BAKE (freeze what
+    // you hear into the kit) and ERASE (throw the map away).
+    void testMorph(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/D3] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        installRealMachine(d.rig(), 0);
+        DispatchProbe::frame(d.editor());
+        d.tap(CB::Section, IMachine::kSrcSecIdx);
+        DispatchProbe::frame(d.editor());
+
+        const int slot = DispatchProbe::mzSlotOffset(d.editor()) + 4;   // fm_fine_1
+        auto baseOf = [&] {
+            return d.proc().sequence().tracks[0].baseParams[static_cast<std::size_t>(slot)];
+        };
+
+        check(!d.proc().morphWidgetInfo(0, slot).exists, "no morph map to begin with");
+
+        // --- Capture pole A, then pole B ------------------------------------------
+        // Morph+Nav picks which pole the next write lands in (Morph+up = A, down = B),
+        // which is what makes the fader inert until the two poles differ.
+        // The pole qualifier is MOMENTARY -- the nav key-up clears it -- so the nav key
+        // is HELD across the write, not tapped before it. And a frame after every
+        // qualifier change, because the MZ mirrors morphHeld/morphQualifier into its own
+        // members when the frame is built: drive a slider before that and the write
+        // lands somewhere else entirely, looking exactly like morph not working.
+        auto writePole = [&](CB navKey, float value) {
+            d.press(navKey);
+            DispatchProbe::frame(d.editor());
+            d.setParam(slot, value);
+            runBlock(d);
+            d.release(navKey);
+            DispatchProbe::frame(d.editor());
+        };
+
+        d.gap();
+        d.press(CB::MorphScope);
+        DispatchProbe::frame(d.editor());
+        writePole(CB::NavUp, 10.0f);     // pole A
+        writePole(CB::NavDown, 40.0f);   // pole B
+        d.release(CB::MorphScope);
+        DispatchProbe::frame(d.editor());
+
+        const auto info = d.proc().morphWidgetInfo(0, slot);
+        if (!test::expectReached(d, [&](UiDriver&) { return info.exists && info.inA && info.inB; },
+                                 "the slot now holds both poles", failed))
+            return;
+        check(info.aValue < info.bValue, "the two poles hold different values");
+
+        // --- The fader blends between them ----------------------------------------
+        // Read the RESOLVED value, not baseParams: a morph map is not written into the
+        // base, it is resolved on the way out (P-Lock > morph-lerp > kit base), which
+        // is exactly why the fader can be moved live without editing anything.
+        d.proc().setMorphFader(0.0f);
+        runBlock(d);
+        const float atA = d.proc().morphEffectiveValue(0, slot);
+        d.proc().setMorphFader(1.0f);
+        runBlock(d);
+        const float atB = d.proc().morphEffectiveValue(0, slot);
+        check(atA < atB, "sweeping the fader moves the value from pole A toward pole B");
+        check(std::abs(atA - info.aValue) < 1.0e-3f, "...arriving exactly at A at one end");
+        check(std::abs(atB - info.bValue) < 1.0e-3f, "...and exactly at B at the other");
+
+        // --- BAKE freezes the blend, ERASE throws the map away ---------------------
+        d.gap();
+        d.chord({ CB::MorphScope }, CB::VerbClear);       // BAKE
+        check(!d.proc().morphWidgetInfo(0, slot).exists,
+              "Morph+CLEAR bakes the blend into the kit and retires the map");
+
+        // Author a map again, then erase it instead.
+        d.gap();
+        d.press(CB::MorphScope);
+        DispatchProbe::frame(d.editor());
+        writePole(CB::NavUp, 5.0f);
+        writePole(CB::NavDown, 25.0f);
+        d.release(CB::MorphScope);
+        DispatchProbe::frame(d.editor());
+        if (!test::expectReached(d, [&](UiDriver& dd) { return dd.proc().morphWidgetInfo(0, slot).exists; },
+                                 "a second map to erase", failed))
+            return;
+
+        d.gap();
+        d.press(CB::Func);
+        d.chord({ CB::MorphScope }, CB::VerbClear);       // Func+Morph+CLEAR = ERASE
+        d.release(CB::Func);
+        check(!d.proc().morphWidgetInfo(0, slot).exists, "Func+Morph+CLEAR erases the map");
+    }
+
+    // D4 -- Cue.
+    //
+    // Cue is the headphone bus: a per-track crossfade between the main output and the
+    // cue output, so you can audition a track the room cannot hear. It is the one
+    // scope with no key of its own -- Func+3 enters it (hardware parity, DESIGN §21) --
+    // which makes "is it discoverable?" a real question the surface has to answer.
+    void testCue(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/D4] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        installRealMachine(d.rig(), 0);
+        installRealMachine(d.rig(), 1);
+        d.tap(CB::SelectTrack, 1);
+
+        check(d.proc().getCueBalance(1) == 0.0f, "the track starts fully in the room");
+
+        // --- Func+3 enters the Cue scope ------------------------------------------
+        d.gap();
+        d.press(CB::Func);
+        d.press(CB::TapTempo);
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.ui().cueHeld; },
+                                 "Func+3 enters the Cue scope", failed))
+        {
+            d.release(CB::TapTempo);
+            d.release(CB::Func);
+            return;
+        }
+
+        // --- Cue+Mute flips the focused track into the cue bus ---------------------
+        d.tap(CB::MuteScope);
+        check(d.proc().getCueBalance(1) > 0.5f, "Cue+Mute sends the focused track to the cue bus");
+        check(d.proc().getCueBalance(0) == 0.0f, "...and only that track");
+
+        d.tap(CB::MuteScope);
+        check(d.proc().getCueBalance(1) < 0.5f, "pressing again brings it back to the room");
+
+        d.release(CB::TapTempo);
+        d.release(CB::Func);
+        if (!test::expectReached(d, [](UiDriver& dd) { return !dd.ui().cueHeld; },
+                                 "releasing the 3-key leaves the Cue scope", failed))
+            return;
+
+        // --- The scope is DISCOVERABLE: key 3 says CUE under Func ------------------
+        // 6.4's access pass exists because the scope was reachable but invisible.
+        d.gap();
+        d.press(CB::Func);
+        {
+            const auto surf = d.surface();
+            check(surf.tap.primary.containsIgnoreCase("CUE"),
+                  "under Func, the 3-key advertises CUE");
+        }
+        d.release(CB::Func);
+    }
+
     // D5 -- Checkpoints.
     void testCheckpoints(int& failed)
     {
@@ -328,6 +493,8 @@ void runCujPerformanceTests(int& failed)
 {
     testMute(failed);
     testFill(failed);
+    testMorph(failed);
+    testCue(failed);
     testCheckpoints(failed);
 }
 }   // namespace lockstep

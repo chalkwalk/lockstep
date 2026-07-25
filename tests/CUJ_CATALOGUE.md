@@ -193,8 +193,8 @@ hint band surfaces these when a locked step is held.
 |----|---------|--------|------|
 | D1 | Mute | ☑ | audio |
 | D2 | Fill | ☑ | audio |
-| D3 | Morph | ☐ | mz |
-| D4 | Cue | ☐ | |
+| D3 | Morph | ☑ | mz |
+| D4 | Cue | ☑ | |
 | D5 | Checkpoints | ☑ | |
 
 **D1 — Mute.** ☑ `CujPerformanceTest.cpp`. Both behaviours (9.17): **stopped**,
@@ -222,13 +222,25 @@ roll is ~250 ms and can pass BETWEEN two trigs, reporting silence from a loud pa
 which quietly guts any "did the mute/fill work" comparison. D2 failed this way first;
 A1 and D1 were passing on luck and now roll a bar too.
 
-**D3 — Morph.** `Morph + setParam` sculpts at fader split; `Morph+↑/↓` pure A/B;
-`Morph+Mute` fluid mute; `Morph+O` BAKE, `Func+Morph+O` ERASE. Assert map state +
-crossfader value.
+**D3 — Morph.** ☑ `CujPerformanceTest.cpp`. The authoring loop: hold `Morph`, hold
+`↑`/`↓` to name a pole, write it — both poles land, and sweeping the fader moves the
+**resolved** value from exactly A to exactly B. `Morph+CLEAR` bakes the blend into the
+kit and retires the map; `Func+Morph+CLEAR` erases it.
 
-**D4 — Cue.** `Func+3` → Cue scope (`3` shows CUE cyan hint); `Cue+Mute` toggles
-focus-track cue balance; `Cue+hold(AMP)` → cue console sticky (8 balance slots, AMP
-pages bank). Reuse existing `cue-console` scene golden for the chrome.
+*Two things the gesture requires:* the pole qualifier is **momentary** (the nav key-up
+clears it), so the nav key is HELD across the write, not tapped before it — tap it and
+the write becomes a *sculpt* at the current fader position, which at fader 0 lands in A
+and looks like the B write silently going to the wrong pole. And read
+`morphEffectiveValue`, not `baseParams`: a morph map is resolved on the way out
+(P-Lock > morph-lerp > kit base), which is exactly why the fader edits nothing.
+`Morph+Mute` fluid mute is left to a later wave.
+
+**D4 — Cue.** ☑ `CujPerformanceTest.cpp`. `Func+3` enters the scope (`cueHeld`), and
+releasing the 3-key leaves it; `Cue+Mute` flips the **focused** track's balance into
+the cue bus and back, touching no other track. The discoverability leg is the point of
+6.4's access pass and is asserted on the surface: under `Func`, key 3 advertises
+**CUE**. The console (`Cue + hold(AMP)`) has its own unit coverage
+(`runCueConsoleTests`) and is left to a later wave here.
 
 **D5 — Checkpoints.** ~ `CujPerformanceTest.cpp`. `Track+Y` pushes on the Track stack
 and *not* the Song's (the stacks are independent); bare `Y` marks the Song; `Func+Y`
