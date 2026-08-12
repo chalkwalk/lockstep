@@ -135,8 +135,6 @@ namespace lockstep
             bool keepForRelease = false;
         };
 
-        static float polyBlep(double t, double dt) noexcept;
-
         float oscillatorSample(SubVoice& sv, int osc1Wave, float osc1PW,
                                int osc2Wave, float osc2PW,
                                float subLevel,

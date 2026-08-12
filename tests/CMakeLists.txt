@@ -39,6 +39,7 @@ add_executable(lockstep_tests
     CheckpointTest.cpp
     SerializerTest.cpp
     AmpDspTest.cpp
+    PolyBlepTest.cpp
     EuclideanTest.cpp
     NameGenTest.cpp
     PhraseShareTest.cpp

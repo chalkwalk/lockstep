@@ -1,5 +1,6 @@
 #include "AnalogMachine.h"
 #include "MachineParamTable.h"
+#include "../dsp/PolyBlep.h"
 #include "../dsp/TempoRate.h"
 #include <algorithm>
 #include <cmath>
@@ -205,21 +206,6 @@ namespace lockstep
     // =========================================================================
     // DSP helpers
 
-    float AnalogMachine::polyBlep(double t, double dt) noexcept
-    {
-        if (t < dt)
-        {
-            const auto x = static_cast<float>(t / dt);
-            return x + x - x * x - 1.0f;
-        }
-        if (t > 1.0 - dt)
-        {
-            const auto x = static_cast<float>((t - 1.0) / dt);
-            return x * x + x + x + 1.0f;
-        }
-        return 0.0f;
-    }
-
     float AnalogMachine::oscillatorSample(SubVoice& sv, int osc1Wave, float osc1PW,
                                       int osc2Wave, float osc2PW,
                                       float subLevel,
@@ -249,7 +235,7 @@ namespace lockstep
                 switch (osc1Wave)
                 {
                     case 0: // SAW
-                        s = static_cast<float>(2.0 * ph - 1.0) + polyBlep(ph, inc);
+                        s = dsp::polyBlepSaw(ph, inc);
                         break;
                     case 1: // TRI
                         s = static_cast<float>(4.0 * std::abs(ph - 0.5) - 1.0);
@@ -257,9 +243,7 @@ namespace lockstep
                     case 2: // SQR (pulse with PW control)
                     {
                         const auto pw = static_cast<double>(std::clamp(osc1PW, 0.05f, 0.95f));
-                        s = ph < pw ? 1.0f : -1.0f;
-                        s -= polyBlep(ph, inc);
-                        s += polyBlep(std::fmod(ph - pw + 1.0, 1.0), inc);
+                        s = dsp::polyBlepPulse(ph, inc, pw);
                         break;
                     }
                     case 3: // SIN
@@ -288,7 +272,7 @@ namespace lockstep
             switch (wave)
             {
                 case 0: // SAW
-                    s = static_cast<float>(2.0 * ph - 1.0) + polyBlep(ph, inc);
+                    s = dsp::polyBlepSaw(ph, inc);
                     break;
                 case 1: // TRI
                     s = static_cast<float>(4.0 * std::abs(ph - 0.5) - 1.0);
@@ -296,9 +280,7 @@ namespace lockstep
                 case 2: // SQR (pulse with PW control)
                 {
                     const auto pw = static_cast<double>(std::clamp(osc2PW, 0.05f, 0.95f));
-                    s = ph < pw ? 1.0f : -1.0f;
-                    s -= polyBlep(ph, inc);
-                    s += polyBlep(std::fmod(ph - pw + 1.0, 1.0), inc);
+                    s = dsp::polyBlepPulse(ph, inc, pw);
                     break;
                 }
                 case 3: // SIN
@@ -324,7 +306,7 @@ namespace lockstep
         if (subLevel > 0.0f && renderSub)
         {
             const double ph = sv.subPhase;
-            const float subSample = static_cast<float>(2.0 * ph - 1.0) + polyBlep(ph, subInc);
+            const float subSample = dsp::polyBlepSaw(ph, subInc);
             out += subSample * subLevel;
             sv.subPhase += subInc;
             if (sv.subPhase >= 1.0) sv.subPhase -= 1.0;

@@ -3252,9 +3252,24 @@ namespace lockstep
               + " (expected within first block; >256 means a delayed onset)");
     }
 
-    // Phase D: paraphonic loudness compensation. A 4-note chord must be thicker
-    // than a single note but nowhere near 4x as loud (the old abrasive linear
-    // stacking). Drives a standalone AnalogMachine and compares peak magnitudes.
+    // Phase D: paraphonic loudness compensation. A 4-note chord must sit in the
+    // same loudness bracket as a single note -- neither collapsing nor slamming
+    // the drive stage with the old abrasive linear stacking. Drives a standalone
+    // AnalogMachine and compares peak magnitudes.
+    //
+    // The lower bound used to be 1.1x, and it passed only because the
+    // oscillators were aliasing: the inverted polyBLEP overshot past +/-1 at
+    // every discontinuity, and a chord has four times as many discontinuities
+    // as one note, so the chord's peak was inflated far more than the single
+    // note's. Correcting the sign took the chord from 0.4316 to 0.3060 and the
+    // single note from 0.3558 to 0.3166 -- the artefact, not the music, was
+    // supplying the margin.
+    //
+    // What 1/sqrt(N) actually buys is constant POWER, and four different
+    // pitches sum incoherently, so equal peak is the correct outcome rather
+    // than a regression. The bracket below still catches both real failures:
+    // remove the compensation and four voices run to 3-4x, over-compensate by
+    // dividing by N and they collapse to a quarter.
     static void testVAParaLoudnessCompensation()
     {
         const int voiceModeSlot = vaSlotById("va_voice_mode");
@@ -3289,8 +3304,8 @@ namespace lockstep
         const float one = peakForChord({ 60 });
         const float four = peakForChord({ 60, 64, 67, 72 });
         CHECK(one > 1e-3f, "VA para comp: single note produced audio (precondition)");
-        CHECK(four > one * 1.1f,
-              "VA para comp: 4-note chord is thicker than one note (got chord=" +
+        CHECK(four > one * 0.9f,
+              "VA para comp: 4-note chord did not collapse against one note (got chord=" +
               juce::String(four, 4) + " single=" + juce::String(one, 4) + ")");
         CHECK(four < one * 3.0f,
               "VA para comp: 4-note chord is not ~4x louder (compensation working; got ratio=" +

@@ -62,6 +62,7 @@ namespace lockstep
     void runCheckpointTests();
     void runSerializerTests();
     void runAmpDspTests();
+    void runPolyBlepTests();   // band-limited oscillators alias less than naive ones
     void runEuclideanTests();
     void runNameGenTests();       // 5.3 generative naming core (NameGen)
     void runPhraseShareTests();   // 5.3 Browser SHR:N share-count core (PhraseShare)

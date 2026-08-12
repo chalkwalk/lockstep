@@ -42,6 +42,7 @@ int main()
     lockstep::runCheckpointTests();
     lockstep::runSerializerTests();
     lockstep::runAmpDspTests();
+    lockstep::runPolyBlepTests();
     lockstep::runEuclideanTests();
     lockstep::runNameGenTests();
     lockstep::runPhraseShareTests();
