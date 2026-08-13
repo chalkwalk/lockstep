@@ -1691,11 +1691,29 @@ This is a *first-party statically-linked* machine — no 6.7 ABI involvement.
   but not an OSI/DFSG-free licence*, and the author states he cannot fully
   vouch for every sample's origin. It is bundled **data**, not linked code,
   so it does not entangle the GPLv3 binary.
-- **Size: the <10 MB target is comfortable.** SF3 = SF2 with Ogg-Vorbis
-  sample data; the standard conversion (`sf2convert -zo`, or `sf3convert`)
-  lands at roughly **15% of the SF2** at quality 0.6 (the quality worth
-  paying for — 0.4 artifacts). ~30 MB → **~4.5 MB**, leaving headroom to
-  raise quality rather than shrink further.
+- **Size: measured, and the earlier estimate was wrong.** SF3 = SF2 with
+  Ogg-Vorbis sample data. This entry used to predict "~15% of the SF2 at
+  quality 0.6 → ~4.5 MB". The whole ladder was actually converted and
+  listened to (2026-07-25); the real ratio is roughly **twice** that, so the
+  `<10 MB` target is a constraint rather than the comfortable margin claimed:
+
+  | q | size | % of SF2 |
+  |---|---|---|
+  | 0.4 | 7.26 MB | 23.5% |
+  | 0.5 | 8.00 MB | 26.0% |
+  | 0.6 | 8.70 MB | 28.2% |
+  | 0.7 | 9.23 MB | 29.9% |
+  | **0.8** | **10.07 MB** | **32.7%** |
+  | 0.9 | 11.34 MB | 36.8% |
+  | 1.0 | 13.38 MB | 43.4% |
+
+  (SF2 = 30.82 MB. Files kept outside the repo at `~/Programming/GeneralUser-GS`.)
+
+  **Decision: ship q0.8**, chosen by ear, not by the size column. It costs
+  0.84 MB over q0.7 and lands *just* over the old `<10 MB` line — so the
+  target is restated as **~10 MB**, deliberately, rather than the bank being
+  quietly degraded to defend a number nobody had tested. q0.4, which the
+  previous note floated as the artifact threshold, is 23.5% and audibly worse.
 - **RAM is *not* reduced.** FluidLite decodes every Vorbis sample to 16-bit
   PCM at load (`FLUID_SAMPLETYPE_OGG_VORBIS_UNPACKED`), so the resident cost
   stays ~30 MB. SF3 buys **distribution size**, not footprint. Acceptable —
