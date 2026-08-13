@@ -3621,6 +3621,9 @@ namespace lockstep
         using CB = ControllerButton;
         using T = ControllerEvent::Type;
 
+        // An escape must not leave a latch armed to fire on the next key-up (9.38).
+        funcStepLatchPending_ = false;
+
         const auto prevLatch = uiState_.latch;
         uiState_.latch = {};  // clear all latches before calling dispatchUp so guards pass
         escapeDensitySticky();
@@ -4632,15 +4635,30 @@ namespace lockstep
         switch (cb)
         {
                 case CB::Func:
-                    // W7: hold-step + Func latches the held step(s) so the finger is free
-                    // (release no longer ends the edit). No trig mutation — a purely
-                    // virtual hold. Fires whenever step(s) are PHYSICALLY held and nothing
-                    // is latched yet, so a later double-tap-Func still escapes. Decoupled
-                    // from the inspector (Part 2): a bare multi-hold latches too, keeping
-                    // every held step editable hands-free; the long-press inspector adds
-                    // the tap-to-clear slot flow on top.
-                    if (latchHeldSteps())
-                        return;   // consume: no funcHeld, no Chance band
+                    // W7: hold-step + TAP Func latches the held step(s) so the finger is
+                    // free (release no longer ends the edit). No trig mutation — a purely
+                    // virtual hold. A bare multi-hold latches too, keeping every held step
+                    // editable hands-free; the long-press inspector adds the tap-to-clear
+                    // slot flow on top.
+                    //
+                    // 9.38: this used to latch HERE and `return`, consuming the press —
+                    // and that consumed press was catastrophic out of all proportion to
+                    // the gesture. It returned before `uiState_.funcHeld = true`, and
+                    // BOTH heldModsFromUiState and the Func layer of kLayerRemaps derive
+                    // from that one flag, so while a step was held the entire Func layer
+                    // went dark: every kModFunc binding row (Func+Y Restore, Func+O Undo,
+                    // Func+Section meta pages, Func+Nav rotate/×2/÷2, Func+P Cancel) and
+                    // a dozen imperative funcHeld reads besides. The documented
+                    // Func+←/→ micro-time nudge performed a step MOVE instead. All of it
+                    // needed a SECOND Func press, which no doc mentioned because no doc
+                    // knew.
+                    //
+                    // The two meanings now separate on the press-duration axis, resolved
+                    // at key-up (DESIGN §13.7): Func qualifies normally, and only a Func
+                    // released without having qualified anything latches. Same shape as
+                    // O (tap=clear / hold=delete) and Func+Y (tap=pop / hold=floor).
+                    funcStepLatchPending_ = !heldStepKeys_.empty()
+                                            && !processor_.editContext().hasAnyLatchedStep();
                     physHeld_.func = true;
                     uiState_.funcHeld = true;
                     // 9.29 / §13.9: Func+Track = the Machine scope. Either press order
@@ -4942,6 +4960,13 @@ namespace lockstep
     bool LockstepEditor::dispatchDown(ControllerEvent ev, int rawCode)
     {
         using CB = ControllerButton;
+
+        // 9.38: any key other than Func, pressed while Func is down, is Func being
+        // used as the qualifier it normally is -- so the pending step latch is off
+        // and the key-up will not fire it. This is the whole of "did Func qualify
+        // anything": Func qualifies by being held while something else is pressed.
+        if (ev.button != CB::Func)
+            funcQualifiedSomething();
 
         // 5.5: Func+3 enters the Cue (audition/monitor) scope — a freed compound,
         // not a 9th key (hardware parity; DESIGN §21/§31). Held = cueHeld;
@@ -6610,6 +6635,16 @@ namespace lockstep
         {
             case CB::Func:
                 physHeld_.func = false;
+                // 9.38: the W7 step latch fires HERE, not on the press. It survives
+                // only if nothing else was touched while Func was down -- so
+                // `hold step + tap Func` frees the finger, while `hold step + Func + ←`
+                // is a micro-time nudge and latches nothing. Fired before the teardown
+                // below so the latch is in place by the time the surface refreshes.
+                if (funcStepLatchPending_)
+                {
+                    funcStepLatchPending_ = false;
+                    (void)latchHeldSteps();   // no-op if the steps were let go first
+                }
                 // MD.7/MD.8: apply deferred pattern mute toggles atomically on Func release.
                 for (const int t : deferredPatternMutes_)
                     processor_.togglePatternMute(t);
@@ -7890,6 +7925,7 @@ namespace lockstep
         };
 
         sink.applyParamDelta = [this](int mzSlot, int rawDelta) {
+            funcQualifiedSomething();   // an encoder turn under Func is a qualified edit
             const int track = keyboardArea_.getActiveTrack();
 
             // Meta band takes priority: encoder edits the shown band, not machine params.

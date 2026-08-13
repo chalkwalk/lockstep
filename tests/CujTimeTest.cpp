@@ -164,21 +164,24 @@ namespace
             return;
 
         // --- Author a ratchet on that step, through the TRIG band -----------------
-        // Order matters, and not for a reason any doc states. The TRIG band is a META
-        // page (Func + the SRC key), so it must be opened BEFORE the step goes down:
-        // pressing Func while a step is held is the W7 latch and is consumed, so the
-        // band would never open. Open the page, then hold the step, then turn -- and
-        // the field lands on the held step as a P-Lock.
+        // Hold the step FIRST, then reach for the band -- which is the order a player
+        // would use, and which did not work until 9.38: the TRIG band is a META page
+        // (Func + the SRC key), and pressing Func while a step was held was the W7
+        // latch and was consumed, so the band never opened. This leg is therefore
+        // also the proof that the whole Func LAYER is reachable over a held step
+        // again, not just the one nudge that got filed.
         d.gap();
+        d.press(CB::Step, 0);
         d.press(CB::Func);
         d.tap(CB::Section, IMachine::kSrcSecIdx);
         d.release(CB::Func);
         settle(d);
         if (!test::expectReached(d, [](UiDriver& dd) { return resolveMetaBand(dd.ui()) == MetaBand::Trig; },
-                                 "Func+SRC opens the TRIG band", failed))
+                                 "Func+SRC opens the TRIG band with a step already held", failed))
+        {
+            d.release(CB::Step, 0);
             return;
-
-        d.press(CB::Step, 0);
+        }
         settle(d);
         d.setParam(DispatchProbe::mzSlotOffset(d.editor()) + 5, 6.0f);   // field 5 = RTG
         d.release(CB::Step, 0);

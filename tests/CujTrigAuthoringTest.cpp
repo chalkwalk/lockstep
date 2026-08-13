@@ -242,27 +242,39 @@ namespace
         check(t0.steps[4].trig && !t0.steps[5].trig, "and left carries it back");
 
         // --- Func + nav nudges it off the grid instead (microtiming) --------------
-        // TWO Func presses, deliberately. The FIRST Func over a held step is the latch
-        // (W7): it frees the finger and is CONSUMED -- "no funcHeld", says the branch
-        // itself -- so a player who presses Func once and then right gets the MOVE
-        // above, not a nudge. The second press is the one that qualifies the nav.
+        // ONE Func press, as the manual has always said. Until 9.38 this needed TWO:
+        // the first Func over a held step was the W7 latch and was CONSUMED, so a
+        // player who pressed Func once and then right got the MOVE above -- silently,
+        // and a documented gesture at that. Func now qualifies on the first press and
+        // latches only when RELEASED having qualified nothing, so the nudge below and
+        // the latch below that are both reachable with one finger each.
         check(t0.steps[4].microOffset == 0.0f, "the step starts dead on the grid");
-        d.tap(CB::Func);            // latch (consumed)
-        d.press(CB::Func);          // now it registers as Func held
+        d.press(CB::Func);
         d.tap(CB::NavRight);
         d.release(CB::Func);
         check(t0.steps[4].microOffset > 0.0f, "held step + Func+right pushes it late");
         check(t0.steps[4].trig, "...and the trig stays on its own step -- a nudge is not a move");
+        check(!d.proc().editContext().hasAnyLatchedStep(),
+              "...and a Func that qualified the nav did NOT also latch the step");
+
+        // --- A Func that qualifies nothing DOES latch -----------------------------
+        // The other half of the split, asserted right beside it: same key, same held
+        // step, and the only difference is whether anything happened in between.
+        d.tap(CB::Func);
+        if (!test::expectReached(d, [](UiDriver& dd) {
+                                     return dd.proc().editContext().hasAnyLatchedStep();
+                                 },
+                                 "a bare Func tap over a held step latches it", failed))
+            return;
 
         // --- QUANT puts it back ---------------------------------------------------
         d.tap(CB::VerbConfirm);   // P under a held step = QUANT
         check(t0.steps[4].microOffset == 0.0f, "P quantizes the held step back onto the grid");
         d.release(CB::Step, 4);
 
-        // Drop the latch the nudge leg left behind. The FIRST Func over a held step
-        // latches it (W7), and a latch survives the key-up by design -- so without
-        // this the next "press step 4" lands on a step that is already held, and the
-        // note editor never sees a fresh hold.
+        // Drop the latch the leg above left behind -- a latch survives the key-up by
+        // design, so without this the next "press step 4" lands on a step that is
+        // already held and the note editor never sees a fresh hold.
         d.doubleTap(CB::Func);
         if (!test::expectReached(d, [](UiDriver& dd) {
                                      return !dd.proc().editContext().hasAnyLatchedStep();

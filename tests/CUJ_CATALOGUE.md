@@ -71,23 +71,28 @@ Slider ranges come from the page the MZ is SHOWING, so writing 50 into a slider 
 carrying the previous page's range clamps it to that range's top (measured: 10) — the
 write looks like it landed in the wrong place when it landed in the wrong *range*.
 
-**A3 — Step editing.** ~ `CujTrigAuthoringTest.cpp`. Holding a step re-skins the grid
+**A3 — Step editing.** ☑ `CujTrigAuthoringTest.cpp`. Holding a step re-skins the grid
 to `SurfaceLayer::StepInspector`; bare `←/→` carries the trig to its neighbour and
-back; `Func+←/→` nudges `microOffset` late without moving the trig; `P` (QUANT) puts
-it back on the grid.
+back; `Func+←/→` nudges `microOffset` late without moving the trig, on **one** Func
+press; `P` (QUANT) puts it back on the grid. `hold step + SRC` opens the **note
+editor** on that step (`activeLayer == NoteEdit`, pointed at the held step) and a grid
+cell writes the note onto it; double-tap `Func` leaves.
 
-**Gesture collision, filed not fixed (see ROADMAP 9.36):** the microtiming nudge needs
-**two** Func presses. The FIRST Func over a held step is the W7 latch, which is
-*consumed* — the branch says "no funcHeld" in as many words — so a player who presses
-Func once and then `→` gets the **step move**, silently, instead of a nudge. The
-journey drives the two-press path and asserts the move separately; `hold step + SRC` opens the **note editor** on that step
-(`activeLayer == NoteEdit`, pointed at the held step) and a grid cell writes the note
-onto it; double-tap `Func` leaves.
+The journey asserts **both halves of the Func split** side by side, because they are
+one key and only the context tells them apart: a Func that qualified the nav does *not*
+latch, and a bare Func tap over the same held step does.
 
-*Sequencing trap inside this journey:* the nudge leg's first `Func` latched the step
-(W7) and a latch **survives the key-up by design**, so the note-edit leg must drop it
-(double-tap `Func`) or its "press step 4" lands on a step that is already held and the
-editor never sees a fresh hold.
+*Found here, fixed by 9.38:* the nudge used to need **two** Func presses. The first
+Func over a held step was the W7 latch and was *consumed* — the branch said "no
+funcHeld" in as many words — so pressing Func once and then `→` performed the **step
+move**, silently, instead of the documented nudge. It cost far more than the nudge:
+`heldModsFromUiState` and the Func layer of `kLayerRemaps` both derive from that flag,
+so the entire Func layer was dark while a step was held. The latch now fires on Func's
+key-**up**, and only if Func qualified nothing.
+
+*Sequencing note that survives the fix:* a latch **survives the key-up by design**, so
+the note-edit leg still drops it (double-tap `Func`) or its "press step 4" lands on a
+step that is already held and the editor never sees a fresh hold.
 
 **A4 — Copy/paste/clear across scopes.** ☑ `CujClipboardTest.cpp`. The canonical
 "same verb, three scopes": held `step`+`U` → clipboard type==step; `Track`+`U` →
@@ -485,11 +490,13 @@ hosted-and-locked the DAW owns the downbeat and Play must never delay it.
 often* over a bar than a plain one — counted, on a **MIDI-out track**, because audio
 tells you something sounded and not how many times.
 
-*Order matters here, and no doc says so:* the TRIG band is a **meta page** (`Func` +
-the SRC key), so it must be opened BEFORE the step goes down — pressing `Func` while a
-step is held is the W7 latch and is consumed, so the band would never open. Open the
-page, hold the step, then turn: the field lands on the held step as a P-Lock and the
-trig it decorates is untouched.
+*This leg doubles as the Func-layer proof (9.38).* The TRIG band is a **meta page**
+(`Func` + the SRC key), and the journey now reaches it in the order a player would —
+hold the step, *then* `Func+SRC`. That did not work before: the Func press was consumed
+by the W7 latch, so the band never opened and the band had to be opened first. It is
+the sharpest evidence that the whole Func layer is reachable over a held step again,
+not just the one nudge that got filed. The field then lands on the held step as a
+P-Lock and the trig it decorates is untouched.
 
 ---
 

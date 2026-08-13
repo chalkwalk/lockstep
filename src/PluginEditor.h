@@ -759,9 +759,19 @@ namespace lockstep
         // Single tap on an already-latched modifier unlatches it; double-tap toggles latch.
         void handleModifierTap(ControllerButton cb, bool currentlyLatched);
 
-        // W7 step latch (9.12 Stage 6): one implementation shared by the Func-down
-        // branch and the StepLatch action. True if it latched (caller consumes).
+        // W7 step latch (9.12 Stage 6): one implementation shared by the Func key-up
+        // branch and the StepLatch action. True if it latched.
         bool latchHeldSteps();
+
+        // 9.38: armed on a Func press over physically-held step(s), fired on Func's
+        // key-UP -- but only if Func qualified nothing in between. See the Func case
+        // in enterScopeHold for why the press itself can no longer be consumed.
+        bool funcStepLatchPending_ = false;
+
+        // Any input other than Func itself, arriving while Func is down, means Func
+        // was used as the qualifier it normally is -- so the pending step latch is
+        // off. Called from the button funnel and the encoder funnel.
+        void funcQualifiedSomething() { funcStepLatchPending_ = false; }
 
         // 9.12 Stage 7a: enter a scope on a modifier press. The effect behind the
         // Hold*Scope actions; the same code the imperative branches used to run.
