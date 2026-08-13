@@ -51,6 +51,7 @@ add_executable(lockstep_tests
     MotionRecorderTest.cpp
     EditModeTest.cpp
     LayerResolveTest.cpp
+    LayerRemapReachabilityTest.cpp
     SurfaceLayerTest.cpp
     KeyBindingTest.cpp
     SerializerRoundTripTest.cpp

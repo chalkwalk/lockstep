@@ -79,6 +79,7 @@ namespace lockstep
     // Phase 8 characterisation tests
     void runEditModeTests();
     void runLayerResolveTests();
+    void runLayerRemapReachabilityTests();
     void runSurfaceLayerTests();
     void runKeyBindingTests();
     void runSerializerRoundTripTests();

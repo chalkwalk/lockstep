@@ -55,6 +55,7 @@ int main()
     // Phase 8 characterisation tests
     lockstep::runEditModeTests();
     lockstep::runLayerResolveTests();
+    lockstep::runLayerRemapReachabilityTests();
     lockstep::runSurfaceLayerTests();
     lockstep::runKeyBindingTests();
     lockstep::runSerializerRoundTripTests();
