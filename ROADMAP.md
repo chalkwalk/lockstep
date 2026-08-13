@@ -1656,6 +1656,102 @@ hint display ("128 bpm  Amin" / "one-shot"). Excluded by design: Stream
 files (no PCM in RAM) and volatile captures. Documented follow-up:
 key-synced Stretch playback.
 
+### 4.10 — GMMachine (FluidLite + a bundled SF3 GM bank)  *[planned — captured 2026-08-13, research done, not designed]*
+
+**The thought.** A General MIDI machine with its *own* bundled sound bank —
+not because GM sounds good, but because 128 named instruments in the box
+opens genres the current catalogue can't reach (orchestral, jazz combo,
+pop-band sketching) without leaving the Lockstep paradigm. Every GM voice
+inherits step conditions, P-Locks, morph, cue, track FX and capture for free.
+This is a *first-party statically-linked* machine — no 6.7 ABI involvement.
+
+**Research findings (2026-08-13) — the idea holds up.**
+
+- **Engine: FluidLite** (`divideconcept/FluidLite`), a stripped FluidSynth:
+  settings + synth only, no MIDI file reader, no MIDI input, no audio output.
+  Standard C, zero external deps. Exactly the seam Lockstep wants — we
+  already own transport, MIDI and audio. API is the familiar
+  `new_fluid_settings` / `new_fluid_synth` / `fluid_synth_sfload` /
+  `noteon` / `noteoff` / `cc` / `pitch_bend` / `program_select` /
+  `nwrite_float`.
+- **Why not TinySoundFont** (single-header, MIT, also reads SF3): TSF does
+  not implement SF2.01 **modulators**, and its author has said he won't.
+  GeneralUser GS leans hard on modulators — under TSF it plays, but wrong.
+  Modulator support is the whole reason FluidLite is the pick.
+- **Licence: clean under GPLv3.** FluidLite's headers carry LGPL v2
+  *"or (at your option) any later version"*, so LGPL-2.1+ → GPLv3
+  compatible; static linking into a GPLv3 Lockstep is fine. The SF3 path can
+  be built with vendored `stb_vorbis` (`-DENABLE_SF3=YES -DSTB_VORBIS=YES`),
+  keeping the "no external dependency" property and avoiding libogg/libvorbis
+  licence + build surface entirely.
+- **Bank: GeneralUser GS** (v2.x, `mrbumpy409/GeneralUser-GS`). ~30 MB SF2,
+  259 presets, 11 drum kits. Its licence permits use and modification in
+  software projects and bundling; it asks that we host our own copy rather
+  than hotlink. Caveat to note in the shipped licence file: it is *permissive
+  but not an OSI/DFSG-free licence*, and the author states he cannot fully
+  vouch for every sample's origin. It is bundled **data**, not linked code,
+  so it does not entangle the GPLv3 binary.
+- **Size: the <10 MB target is comfortable.** SF3 = SF2 with Ogg-Vorbis
+  sample data; the standard conversion (`sf2convert -zo`, or `sf3convert`)
+  lands at roughly **15% of the SF2** at quality 0.6 (the quality worth
+  paying for — 0.4 artifacts). ~30 MB → **~4.5 MB**, leaving headroom to
+  raise quality rather than shrink further.
+- **RAM is *not* reduced.** FluidLite decodes every Vorbis sample to 16-bit
+  PCM at load (`FLUID_SAMPLETYPE_OGG_VORBIS_UNPACKED`), so the resident cost
+  stays ~30 MB. SF3 buys **distribution size**, not footprint. Acceptable —
+  but it is a fixed ~30 MB whenever any track holds a GMMachine.
+
+**The one real architectural question (spike this first).** Lockstep is
+one-machine-per-track with separated per-track audio; FluidLite is a
+16-channel multi-timbral module. Two candidate shapes:
+
+- **(a) N synths, one shared bank.** `fluid_synth_add_sfont` /
+  `remove_sfont` / `get_sfont` are exposed, so one loaded `fluid_sfont_t*`
+  can in principle be attached to several synths and the sample data shared.
+  Must verify ownership: whether `delete_fluid_synth` frees the sfont it was
+  handed (a double-free / use-after-free across tracks if so). If this works
+  it is the shape that fits the existing model with no inversion.
+- **(b) One shared synth, `synth.audio-groups = 16`.** `nwrite_float` writes
+  per-group buffers, so a single instance can render 16 separately-addressable
+  stereo track outs in one call, with one bank in RAM by construction. Costs
+  an inversion: GMMachine becomes a thin per-track façade over a shared
+  engine (channel in, group buffer out) rather than an owner. Reverb/chorus
+  are global to the instance, which cuts against per-track FX identity.
+
+Prefer (a) if the sfont can be shared safely; fall back to (b).
+
+**Other findings worth carrying into the design session.**
+
+- FluidLite adds a setting to lift FluidSynth's hard-coded *channel 9 = drums*
+  constraint — needed so any track can select a drum kit (bank 128).
+- `synth.sample-rate` is registered with range **22050–96000**. A 192 kHz
+  session needs a decision (clamp + resample, or refuse the machine).
+- The Xiph-Vorbis SF3 path uses a **file-static** `vorbisData` struct — not
+  reentrant. Another reason for the stb path, and `sfload` stays
+  message-thread-only regardless (it does file I/O).
+- Note-on/off/cc are direct calls with no internal queue, so driving the
+  synth from the audio thread is fine once loading is done off it.
+
+**Sketch of the surface (not designed — for the session to accept or reject).**
+
+- [ ] Spike: sfont sharing across synths (a) vs audio-groups (b); measure
+      load time and steady-state CPU for 16 GM tracks.
+- [ ] Vendor FluidLite as a submodule; SF3 + stb build; a `deck_core`-style
+      JUCE-free wrapper.
+- [ ] Convert + commit the SF3 bank as a build asset; licence file alongside.
+- [ ] `GMMachine : IMachine` — SRC = bank/program, FILTER/AMP/MOD/FX mapped
+      onto the GM CC set (74/71/72/73, 91/93) so the canonical sections mean
+      what they always mean. Poly declared per trig as usual.
+- [ ] Program picker on the step grid (picker paradigm — no popups): GM's
+      **16 families × 8 programs = exactly 2 pages of 64 cells**, family per
+      row. Drum kits as a third page.
+- [ ] Round-trip test: program + bank survive save/load; the standard
+      new-modality test triple (resolution / scope routing / round-trip).
+
+**Docs ordering when this is taken up:** PRINCIPLES check → a DESIGN section
+(§29 catalogue + how a multi-timbral engine is presented as per-track
+machines) → then build. Nothing here is settled yet.
+
 ## Phase 10 — Melodic & Harmonic Authoring  *[mostly shipped: 10.1–10.4, 10.7–10.10 done; 10.5 partial; 10.6, 10.11 open]*
 
 The tonal layer: a key-signature system built on the **circle-of-fifths
