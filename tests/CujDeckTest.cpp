@@ -9,6 +9,8 @@
 
 #include "UiDriver.h"
 
+#include "../src/ParameterIDs.h"
+#include "../src/core/SyncMode.h"
 #include "../src/machine/InputSource.h"
 #include "../src/machine/MidiOutMachine.h"
 #include "../src/deckcore/Deck.h"
@@ -330,6 +332,181 @@ namespace
         (void) trigsBefore;
         check(!d.hasNaN(), "...and winding leaves the audio path finite");
     }
+    // F2b -- Wind and scrub the reel (standalone only).
+    //
+    // The last leg of the catalogue, and the one that is about the tape being a REEL
+    // rather than a buffer: park the song and you can wind it, hear it move under the
+    // head, and leave the head where your ear stopped -- so Play resumes from there.
+    // A locate jumps silently; a wind is audible in both directions and stops at the
+    // leader. That difference is the whole feature.
+    //
+    // "Standalone only" is really "whenever Lockstep OWNS the transport"
+    // (`transportWindable` = `!hostedLocked`). A plugin cannot move the DAW's
+    // playhead, so hosted-and-Locked SUPPRESSES the wind cells rather than offering
+    // ones that half-work -- and the journey drives that gate through the real
+    // `syncMode` parameter rather than faking a wrapper type, because the parameter
+    // IS the rule's second half.
+    void testTapeWindScrub(int& failed)
+    {
+        auto check = [&failed](bool ok, const char* what) {
+            if (!ok) { std::fprintf(stderr, "FAIL [CUJ/F2] %s\n", what); ++failed; }
+        };
+
+        UiDriver d;
+        const auto drums = WavAsset::load("drum_loop_110bpm.wav");
+        if (!test::expectReached(d, [&](UiDriver&) { return drums.valid(); },
+                                 "the drum-loop asset loads", failed))
+            return;
+
+        d.feedAudio(drums);                 // audio rig first (the F4 rule)
+        d.proc().setTrackMachine(0, TapeMachine::kMachineId);
+        d.tap(CB::SelectTrack, 0);
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.proc().isTapeTrack(0); },
+                                 "track 0 is a tape", failed))
+            return;
+        const int srcSlot = d.proc().slotForId(0, "input_source");
+        d.proc().writeParam(0, srcSlot, encodeInputSource(InputSourceKind::External, 0, 0));
+        d.runBlocks(2);
+
+        // --- Suppressed when the host owns the playhead ---------------------------
+        // syncMode defaults to Locked and the test rig is not the standalone wrapper,
+        // so the tape starts NOT windable. Assert the absence first: the claim is that
+        // the cells are not offered at all, which is a different thing from cells that
+        // are offered and do nothing.
+        auto* sync = d.proc().apvts().getParameter(ParamIDs::syncMode);
+        if (!test::expectReached(d, [&](UiDriver& dd) {
+                                     return sync != nullptr && !dd.proc().transportWindable();
+                                 },
+                                 "hosted+Locked, the transport is not windable", failed))
+            return;
+        {
+            const auto surf = d.surface();
+            check(surf.step[12].primary.isEmpty() && surf.step[13].primary.isEmpty(),
+                  "hosted-locked, the console offers no wind cells at all");
+        }
+
+        // The gate is not only cosmetic: the setter itself refuses. A cell that is
+        // not drawn is unreachable by finger, but a CONTROLLER can still send the
+        // button, so "suppress, don't half-work" has to hold below the surface too.
+        {
+            d.audioRig().playHead().setPlaying(false);
+            d.proc().clock().setInPluginPlaying(false);
+            d.runBlocks(2);
+            const double lockedHead = d.proc().tapeReelHead(0);
+            d.proc().tapeSetScrubRate(0, 4.0);
+            d.runBlocks(60);
+            check(d.proc().tapeReelHead(0) == lockedHead,
+                  "hosted-locked, even a direct wind command moves nothing");
+            d.proc().tapeSetScrubRate(0, 0.0);
+            d.audioRig().playHead().setPlaying(true);
+            d.proc().clock().setInPluginPlaying(true);
+            d.runBlocks(2);
+        }
+
+        // Auto sync: Lockstep owns the transport, so the reel can be wound.
+        sync->setValueNotifyingHost(sync->convertTo0to1(static_cast<float>(SyncMode::Auto)));
+        d.runBlocks(2);
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.proc().transportWindable(); },
+                                 "Auto sync makes the transport windable", failed))
+            return;
+        {
+            const auto surf = d.surface();
+            check(surf.step[12].primary == "<<" && surf.step[13].primary == ">>",
+                  "...and the wind cells appear on the console");
+        }
+
+        // --- Put something ON the reel, so a wind has something to play -----------
+        // A wind over blank tape is silent for an honest reason, and would make the
+        // audibility assertion below unfalsifiable.
+        d.proc().tapeApplyVerb(0, 1);          // punch in
+        d.runBlocks(300);
+        d.proc().tapeApplyVerb(0, 1);          // punch out
+        d.runBlocks(4);
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.proc().tapeRecordedSamples(0) > 0; },
+                                 "the reel holds a recorded span to wind over", failed))
+            return;
+
+        // Park the song. Winding is a PARKED-transport act: a running sequencer is
+        // never yanked by the reel (the processor's reel-is-truth locate is gated on
+        // `!blockTransport_.running`).
+        //
+        // BOTH transports have to stop, and that is not obvious. Clearing the
+        // in-plugin one parks the SEQUENCER, but the rig's stub playhead keeps
+        // advancing ppq every block on its own -- and a parked tape republishes
+        // `reelPosAtBlockStart()` as its head, so the head crawls forward at exactly
+        // 1x with no scrub running at all. Measured: it looks precisely like a wind
+        // that will not stop, including after an explicit setScrubRate(0), which is
+        // what makes it worth writing down.
+        d.audioRig().playHead().setPlaying(false);
+        d.proc().clock().setInPluginPlaying(false);
+        d.proc().tapeCue(0, -1);               // wind back toward the start
+        d.runBlocks(4);
+
+        // --- Hold to wind: the head moves, and you can HEAR it ---------------------
+        const double headBefore = d.proc().tapeReelHead(0);
+        const double ppqBefore = d.proc().clock().ppqAtBlockStart();
+        d.press(CB::Step, 13);                 // >> (fast forward)
+        float windPeak = 0.0f;
+        for (int i = 0; i < 120; ++i) { d.runBlocks(1); windPeak = std::max(windPeak, d.lastRms()); }
+        const double headWound = d.proc().tapeReelHead(0);
+
+        check(headWound > headBefore, "holding >> winds the reel forward");
+        check(windPeak > 0.0f,
+              "...audibly -- a wind plays the reel under a moving head, unlike a locate");
+
+        // Release ends it. The machine slews to rest rather than stopping dead, so the
+        // head is allowed to coast a little; what must NOT happen is winding forever.
+        d.release(CB::Step, 13);
+        d.runBlocks(120);
+        const double headSettled = d.proc().tapeReelHead(0);
+        d.runBlocks(120);
+        check(std::abs(d.proc().tapeReelHead(0) - headSettled) < 1.0,
+              "releasing the cell ends the wind -- it cannot stick");
+
+        // --- Reel-is-truth: the transport went where the ear did ------------------
+        // The point of winding rather than seeking: you stop where it sounded right,
+        // and Play/punch resume from exactly there.
+        check(d.proc().clock().ppqAtBlockStart() > ppqBefore,
+              "the transport followed the head, so play resumes where the ear stopped");
+
+        // --- Winding back stops at the leader -------------------------------------
+        // A reel has an end. Wind past it and the head parks at zero rather than
+        // running into negative tape.
+        d.press(CB::Step, 12);                 // <<
+        d.runBlocks(600);                      // far more than enough to overrun the start
+        d.release(CB::Step, 12);
+        d.runBlocks(60);
+        check(d.proc().tapeReelHead(0) >= 0.0, "winding back never runs past the leader");
+        check(d.proc().tapeReelHead(0) < 1.0, "...it parks at the start");
+        check(!d.hasNaN(), "the wind path stays finite");
+
+        // --- Jog: while parked, MZ slot 0 IS the reel ------------------------------
+        // The encoder that would pick the Source becomes the reel you rock. Asserted
+        // behaviourally -- does the head move, and is the Source left alone? -- rather
+        // than by looking for the widget, because the widget is only the affordance
+        // for this.
+        d.runBlocks(2);
+        const double headPreJog = d.proc().tapeReelHead(0);
+        const float srcPreJog = d.proc().kit(0).baseParams[static_cast<std::size_t>(srcSlot)];
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.proc().tapeScrubEligible(0); },
+                                 "a parked, windable tape is scrub-eligible", failed))
+            return;
+        d.dragMZSlider(0, -40.0f);
+        d.runBlocks(40);
+        check(d.proc().tapeReelHead(0) != headPreJog, "rocking slot 0 jogs the reel");
+        check(d.proc().kit(0).baseParams[static_cast<std::size_t>(srcSlot)] == srcPreJog,
+              "...and does NOT write the Source param it would otherwise edit");
+
+        // --- Playing, the same encoder is the Source picker again -----------------
+        // The reel widget gives way the moment the song runs: slot 0 stops being a
+        // reel and goes back to picking a source, which is the rule that keeps the
+        // encoder from meaning two things at once.
+        d.proc().tapeSetScrubRate(0, 0.0);
+        d.proc().clock().setInPluginPlaying(true);
+        d.runBlocks(4);
+        check(!d.proc().tapeScrubEligible(0),
+              "a rolling song is not scrub-eligible -- slot 0 is the Source picker again");
+    }
 }   // namespace
 
 void runCujDeckTests(int& failed)
@@ -338,5 +515,6 @@ void runCujDeckTests(int& failed)
     testRecordToPool(failed);
     testAudioLoop(failed);
     testTapePunch(failed);
+    testTapeWindScrub(failed);
 }
 }   // namespace lockstep

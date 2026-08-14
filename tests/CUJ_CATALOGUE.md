@@ -421,7 +421,33 @@ command door**. `sendLooperCommand` does a `dynamic_cast<LoopMachine*>` and simp
 misses a tape — drive a tape through it and it sits in Playing while every command
 falls on the floor. The tape's door is `tapeApplyVerb`. The **marker family** is covered too: markers drop where the head is, and a cue is a
 **LOCATE** — it moves the head and fires nothing (§40.4), which is exactly why they can
-be dropped freely mid-take. Wind/scrub (standalone-only) is left to a later wave.
+be dropped freely mid-take.
+
+**F2b — Wind and scrub the reel.** ☑ `CujDeckTest.cpp`. The leg that makes the tape a
+*reel* rather than a buffer, and the last row in this catalogue to land. Park the song
+and the head detaches: `>>`/`<<` wind it, **audibly** (a wind plays the reel under a
+moving head — a locate jumps silently, which is the whole distinction), the release
+ends the wind so it can never stick, winding back parks at the leader rather than
+running into negative tape, and **reel-is-truth** — the transport follows the head, so
+Play resumes where the ear stopped. The MZ's slot 0 becomes the reel you rock: a drag
+jogs the head and pointedly does *not* write the Source param it would otherwise edit;
+the moment the song rolls it is the Source picker again.
+
+*"Standalone only" is really "whenever Lockstep owns the transport"*
+(`transportWindable() == !hostedLocked()`), so the journey drives the gate through the
+real `syncMode` parameter rather than faking a wrapper type. Both halves are asserted:
+hosted-locked the console offers **no wind cells at all**, and — separately — the
+setter itself refuses, because a cell that is not drawn is unreachable by finger but a
+**controller can still send the button**. Suppress, don't half-work, has to hold below
+the surface too.
+
+*Precondition, and it cost a debug cycle:* **both transports must stop.** Clearing the
+in-plugin one parks the sequencer, but the rig's stub playhead keeps advancing ppq on
+its own — and a parked tape republishes `reelPosAtBlockStart()` as its head, so the
+head crawls forward at exactly 1× with no scrub running at all. Measured, it looks
+precisely like a wind that will not stop, *including after an explicit
+`setScrubRate(0)`*, which is what makes it worth writing down. Use
+`d.audioRig().playHead().setPlaying(false)` as well.
 
 **F3 — Two-track audio loop.** ☑ `CujDeckTest.cpp`. REC defines the loop on the first
 pass and the take closes into one with a length (`looperHasLoop`); with the input then

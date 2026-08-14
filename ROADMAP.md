@@ -20,9 +20,9 @@ expressible within those principles and within the existing scope+verb grammar
    no popups) and the scope+verb grammar. Smaller open holes are itemised in the
    milestone.
 
-   *(`9.36` and `9.38` are both closed — the CUJ suite has every catalogue row
-   implemented bar standalone wind/scrub, and every defect it found is fixed. The
-   suite is now a standing net rather than an arc: run it, and add a journey when a
+   *(`9.36` and `9.38` are both closed — **every** catalogue row is implemented (the
+   last, standalone wind/scrub, landed 2026-07-25) and every defect the suite found is
+   fixed. It is now a standing net rather than an arc: run it, and add a journey when a
    new flow ships.)*
 
 **Shipped since the 2026-07-14 review** (all cross-referenced against the code):
@@ -1049,8 +1049,10 @@ docs; a journey that finds a bug files it). Four of the five are the same diseas
       panic, C2's live audition, D3's fluid mute, D4's cue console, B5's LEN growth,
       B2's per-track detents, F4's `Save…` promotion, F2's markers, F3's four-sub
       widening + take-group promote, and H1's count-in. The only thing still parked is
-      standalone wind/scrub. (`E3` flipped to ☑ when `9.38` closed the leg it was
-      waiting on.)
+      standalone wind/scrub, which landed with `9.38`'s close-out (F2b — the tape as a
+      REEL: audible wind, reel-is-truth, the leader clamp, and the jog reel on MZ slot
+      0). **Every catalogue row is now implemented, with no partial rows.** (`E3`
+      flipped to ☑ when `9.38` closed the leg it was waiting on.)
 
 Invariant for every CUJ commit: `-Werror` clean, both suites green, and
 `git diff --exit-code tests/goldens/dispatch.txt` — a journey must not move the
