@@ -2642,16 +2642,15 @@ namespace lockstep
         // off the scene's diagonal home row (DESIGN §4.7) — persistent in the
         // track / VU row, visible in every mode (no modifier needed).
         {
-            const int home = processor_.activeSectionIdx();
             g.setColour(juce::Colour(juce::uint32(0xFFFFC020u)));
             for (std::size_t t = 0; t < kNumTracks; ++t)
             {
                 if (!trackBtns_[t].isVisible()) continue;
                 const int ti = static_cast<int>(t);
-                const int cur = processor_.isTrackDeviated(ti)
-                                    ? processor_.deviationPhraseIdxForTrack(ti)
-                                    : processor_.activeSectionIdx();
-                if (cur == home) continue;
+                // Read the flag, don't re-derive it. The `cur != home` recomputation
+                // that used to live here was a workaround for writers that set
+                // `deviated` true unconditionally; setDeviation owns it now (9.38).
+                if (!processor_.isTrackDeviated(ti)) continue;
                 const auto r = trackBtns_[t].getBounds();
                 const float s = 7.0f;
                 juce::Path tri;

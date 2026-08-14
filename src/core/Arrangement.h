@@ -290,12 +290,30 @@ namespace lockstep
             seedFloor();                     // re-seed floor from loaded state (DESIGN §13.6)
         }
 
+        // The one writer of a track's deviation pair (9.38). `deviated` is DERIVED,
+        // not decided: a track is deviating exactly when the phrase it plays is not
+        // the scene's own diagonal row. It used to be set by hand at three sites,
+        // two of which set it `true` unconditionally, so `Phrase + <the diagonal>`
+        // badged a track as deviated onto its own home phrase — playing precisely
+        // the scene's content while the surface said otherwise.
+        //
+        // The tell that this was always derived: two readers recomputed it
+        // defensively (`cur != home`) rather than trusting the flag. Both are gone
+        // now; if the flag is wrong again, it shows rather than being papered over.
+        void setDeviation(int t, int phraseIdx) noexcept
+        {
+            if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
+            const int N = std::clamp(phraseIdx, 0, kPhrasesPerTrack - 1);
+            const bool off = (N != sceneIdx);
+            deviated[idx(t)] = off;
+            deviationPhraseIdx[idx(t)] = off ? N : 0;
+        }
+
         void swapPhraseForTrack(int t, int phraseIdx)
         {
             if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
             writeBackWorkingTrack(t);
-            deviated[idx(t)] = true;
-            deviationPhraseIdx[idx(t)] = std::clamp(phraseIdx, 0, kPhrasesPerTrack - 1);
+            setDeviation(t, phraseIdx);
             syncWorkingTrackFromActive(t);
         }
 
@@ -318,8 +336,7 @@ namespace lockstep
         {
             if (t < 0 || t >= static_cast<int>(kNumTracks)) return;
             std::swap(working.tracks[idx(t)], stagedTrack);
-            deviated[idx(t)] = true;
-            deviationPhraseIdx[idx(t)] = std::clamp(phraseIdx, 0, kPhrasesPerTrack - 1);
+            setDeviation(t, phraseIdx);   // same rule as the message-thread path
         }
 
         // Scene+Phrase+step: deviate every track to phraseIdx.
@@ -327,20 +344,8 @@ namespace lockstep
         void deviateAllToPhrase(int phraseIdx)
         {
             writeBackWorkingToActive();
-            const int N = std::clamp(phraseIdx, 0, kPhrasesPerTrack - 1);
             for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
-            {
-                if (N == sceneIdx)
-                {
-                    deviated[idx(t)] = false;
-                    deviationPhraseIdx[idx(t)] = 0;
-                }
-                else
-                {
-                    deviated[idx(t)] = true;
-                    deviationPhraseIdx[idx(t)] = N;
-                }
-            }
+                setDeviation(t, phraseIdx);
             syncWorkingFromActive();
         }
 

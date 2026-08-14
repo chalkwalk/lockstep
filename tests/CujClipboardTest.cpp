@@ -16,10 +16,15 @@
 // authority, and the surface must keep reading it.
 //
 // FOUND WHILE WRITING THIS (filed, not fixed -- see ROADMAP 9.36): using a held
-// step as a copy/paste OPERAND also authors on release. verbs::trig marks the edit
-// context param-written for Clear but not for Record/Play, so the step-release path
-// falls through to its trig toggle: copy a step and it turns itself off; paste onto
-// a step and the release inverts what just landed. The journey therefore asserts
+// step as a copy/paste OPERAND also authored on release. FIXED in 9.38: the mark
+// moved to CommandCore::handleVerb's PS::Trig case, which every Trig verb passes
+// through, so Record and Play cannot forget it the way they did. What follows is
+// the original note, kept because it explains the shape of the assertions below.
+//
+// verbs::trig marked the edit context param-written for Clear but not for
+// Record/Play, so the step-release path fell through to its trig toggle: copy a step
+// and it turned itself off; paste onto a step and the release inverted what just
+// landed. The journey therefore asserted
 // the paste WHILE THE STEP IS STILL HELD -- which is the honest question anyway
 // ("did the paste land?") -- and never asserts the post-release state, so it will
 // not have to be re-blessed when the toggle is suppressed.
@@ -28,6 +33,7 @@
 
 #include "UiDriver.h"
 
+#include <algorithm>
 #include <cstdio>
 
 namespace lockstep
@@ -83,6 +89,23 @@ namespace
 
         // --- Step scope: hold a step, U copies it --------------------------------
         d.press(CB::Step, 0);
+        // The key SAYS so while the step is held. The glow asked a helper that knows
+        // only the five suite scopes, so a held step lit nothing -- the copy worked,
+        // the status lane said REC=COPY, and only the key stayed dark. It now asks the
+        // same question dispatch asks, where Trig is the highest-priority scope (9.38).
+        {
+            const auto surf = d.surface();
+            const auto* u = std::find_if(surf.functionRow.begin(), surf.functionRow.end(),
+                                         [](const SurfaceCell& c) {
+                                             return c.button == CB::VerbRecord;
+                                         });
+            // Asserted on the TINT, not on `!disabled`. With no scope recognised at
+            // all the whole glow block is skipped, so the key is not dimmed either --
+            // `!disabled` passes in both worlds and would assert nothing. (Caught by
+            // breaking it: the arc's own lesson about escape-hatch assertions.)
+            check(u != surf.functionRow.end() && u->scopeTint != 0 && !u->disabled,
+                  "with a step held, the COPY key glows in the scope colour");
+        }
         d.tap(CB::VerbRecord);
         {
             const auto& clip = DispatchProbe::clip(d.editor());
@@ -93,6 +116,12 @@ namespace
                   "the clip carries the step's trig");
         }
         d.release(CB::Step, 0);
+        // The step SURVIVES being used as an operand. A held step that a verb consumed
+        // is part of that gesture, so its release must not also toggle the trig --
+        // which is exactly what copying used to do: grab the step and it turned itself
+        // off behind you (9.38). This is the assertion the journey could not make.
+        check(d.proc().sequence().tracks[0].steps[0].trig,
+              "copying a step leaves its trig alone -- the release was part of the copy");
 
         // --- The clipboard is typed: a Step clip will not paste into a track ------
         // The whole point of typing it. Asserted behaviourally (does track 1 change?)
@@ -111,11 +140,10 @@ namespace
         check(d.proc().sequence().tracks[0].steps[9].trig,
               "pasting under a held step stamps the copied step there");
         d.release(CB::Step, 9);
+        check(d.proc().sequence().tracks[0].steps[9].trig,
+              "...and the pasted step stays pasted -- the release does not invert it");
 
         // --- Track scope: U copies the whole track, I pastes it onto another ------
-        // Re-author from blank: the two step holds above each authored a toggle on
-        // release (the defect in the header note), so the pattern from here on is
-        // established with plain taps, which is what a tap is FOR.
         clearTrack(d);
         d.step(0).step(4).step(12);
         if (!test::expectReached(d, [](UiDriver& dd) { return trigCount(dd, 0) == 3; },

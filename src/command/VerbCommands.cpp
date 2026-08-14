@@ -186,7 +186,9 @@ namespace lockstep::verbs
                     s.condition = TrigCondition{};
                 }
             }
-            ec.markParamWritten();
+            // (No markParamWritten here: CommandCore::handleVerb's PS::Trig case marks
+            //  it for EVERY verb that ran, so Record and Play cannot forget it the way
+            //  they used to. 9.38.)
             return true;
         }
 

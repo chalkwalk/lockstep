@@ -429,7 +429,25 @@ namespace lockstep
         using PS = EditMode::PrimaryScope;
         switch (scope)
         {
-            case PS::Trig:    return verbs::trig(verb, ctx, fx);
+            case PS::Trig:
+            {
+                // One owner for "the held step was an operand" (9.38). A verb that ran
+                // under the Trig scope consumed the held step, so releasing it must not
+                // ALSO toggle its trig -- the release was part of the gesture, not a
+                // separate tap. verbs::trig used to mark this itself, and only in the
+                // Clear branch: copying a step therefore turned its trig off on
+                // release, and pasting onto one inverted what had just landed.
+                //
+                // Fourteen other paths that touch a held step all remembered to mark
+                // it; two forgot. An obligation on fifteen writers is not an
+                // obligation, so it moves to the one place every Trig verb passes
+                // through. Marked only when the verb actually ran -- a verb that
+                // returned false consumed nothing, and the release should still toggle.
+                const bool ran = verbs::trig(verb, ctx, fx);
+                if (ran)
+                    ctx.editContext.markParamWritten();
+                return ran;
+            }
             case PS::Track:   return verbs::track(verb, ctx, fx);
             case PS::Phrase:  return verbs::phrase(verb, ctx, fx);
             case PS::Scene:   return verbs::scene(verb, ctx, fx);

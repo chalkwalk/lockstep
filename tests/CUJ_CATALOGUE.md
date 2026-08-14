@@ -99,14 +99,27 @@ step that is already held and the editor never sees a fresh hold.
 type==track; held `section`+`U` → type==section. Typing is asserted behaviourally —
 a step clip pasted under `Track` leaves the track alone — then the step paste lands
 and the track paste mirrors the source onto another track. `Track`+`O` proves the
-confirm gate (nothing clears until `P`). Surface leg: under a held Song the copy key
-**dims** (Song has no clipboard — the 9.14 st.5 lie), under a held Track it glows.
+confirm gate (nothing clears until `P`). The operand **survives being one**: copying a
+step leaves its trig alone and a pasted step stays pasted, asserted *after* the
+release. Surface leg: under a held Song the copy key **dims** (Song has no clipboard —
+the 9.14 st.5 lie), under a held Track it glows, and under a held **step** it glows
+too.
 
-*Found by this journey, filed not fixed:* (a) a held step used as a copy/paste
-**operand** still authors on release — `verbs::trig` marks the edit context
-param-written for Clear but not Record/Play — so the paste is asserted while the
-step is held; (b) the copy-key glow is wired for section-**suite** scopes only, so a
-held step or section copies without lighting the key (an omission, not a lie).
+*Found by this journey, both fixed in 9.38:* (a) a held step used as a copy/paste
+**operand** still authored on release — `verbs::trig` marked the edit context
+param-written for Clear but not Record/Play, so copying a step turned its trig off and
+pasting onto one inverted what had just landed. The mark moved to
+`CommandCore::handleVerb`'s `PS::Trig` case, which every Trig verb passes through.
+(b) the copy-key glow asked `firstHeldSectionSuiteScope`, which knows only the five
+suite scopes, where dispatch asks `primaryScope()` — in which **Trig is rank 0, the
+highest**. So a held step copied, the status lane said `REC=COPY`, and only the key
+stayed dark. A held **section** is still not covered: `UiState` carries no
+section-held flag, so the surface model cannot see it.
+
+*The glow assertion is on the TINT, not on `!disabled`* — with no scope recognised the
+whole block is skipped and the key is not dimmed either, so `!disabled` passed in both
+worlds and asserted nothing. Caught by breaking it.
+
 *Fixed on the spot* (a crash, not a wart): `commandContext()`'s `static`
 ProcessorCatalog bound the first editor's processor forever — a second plugin
 instance read the first's schema, and outliving it dangled.
@@ -332,10 +345,17 @@ other track alone; `Scene+Phrase+step` takes the whole band along; `Scene+Phrase
 the scene's own diagonal brings everyone home and the badges out. Phrase rows must
 EXIST first (a scene create fills the diagonal) — `Phrase+step` is launch, not create.
 
-*Asymmetry found, filed not asserted:* the per-track `Phrase+<diagonal>` marks the
-track deviated onto its own home phrase (`swapPhraseForTrack` sets `deviated = true`
-unconditionally), so the badge stays lit while the track plays exactly the scene's
-content. `deviateAllToPhrase` gets it right (clears on `N == sceneIdx`).
+Both spellings of "come home" are asserted, because they answer the same question and
+must agree: `Scene+Phrase` on the diagonal brings the band back, and per-track
+`Phrase+<own diagonal>` brings one player back rather than badging them as away.
+
+*Asymmetry found here, fixed by 9.38:* `swapPhraseForTrack` and `applyDeviation` set
+`deviated = true` unconditionally while `deviateAllToPhrase` cleared it on
+`N == sceneIdx`, so sending one track to its own home row badged it as deviating while
+it played exactly the scene's content. The flag was always **derived** — the tell being
+that two readers recomputed it defensively (`cur != home`) rather than trusting it.
+`Arrangement::setDeviation` derives it now and both defensive recomputations are gone,
+so a wrong flag shows rather than being papered over.
 `Phrase+U/I/O` is covered too: `Phrase+RECORD` copies the focused track's phrase
 (clipboard type `Pattern`), `Phrase+PLAY` pastes it onto another track trig for trig,
 and `Phrase+CLEAR` arms a confirm before wiping every track's phrase.

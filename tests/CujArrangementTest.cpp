@@ -308,6 +308,31 @@ namespace
                   "...and the badges go out with it");
         }
 
+        // --- The PER-TRACK gesture agrees with the all-tracks one on the diagonal --
+        // Both spellings answer the same question -- "is this track playing something
+        // other than the scene's own row?" -- so they must give the same answer. They
+        // did not: `swapPhraseForTrack` set `deviated` unconditionally, so sending one
+        // track to its own home row badged it as deviated while it played exactly the
+        // scene's content. `deviateAllToPhrase` got it right, which is what made it an
+        // asymmetry rather than a plain bug. One derived setter owns it now (9.38).
+        d.gap();
+        d.tap(CB::SelectTrack, 0);
+        d.press(CB::PhraseScope);
+        d.tap(CB::Step, 1);          // off home first, so the return is observable
+        d.release(CB::PhraseScope);
+        if (!test::expectReached(d, [](UiDriver& dd) { return dd.proc().isTrackDeviated(0); },
+                                 "the track is off its home row to come back from", failed))
+            return;
+
+        d.gap();
+        d.press(CB::PhraseScope);
+        d.tap(CB::Step, 0);          // scene 0's diagonal = this track's home
+        d.release(CB::PhraseScope);
+
+        check(!d.proc().isTrackDeviated(0),
+              "Phrase+<own diagonal> brings the track home rather than badging it there");
+        check(!d.surface().trackDeviated[0], "...and the badge goes out");
+
         // --- Phrase carries a clipboard of its own: copy, paste, clear ------------
         d.gap();
         d.tap(CB::SelectTrack, 0);

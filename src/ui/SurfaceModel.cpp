@@ -322,15 +322,12 @@ namespace lockstep
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
             model.trackHasMachine[static_cast<std::size_t>(t)] = !proc.isTrackEmpty(t);
 
-        // Per-track deviation = playing a phrase other than the scene's diagonal row.
-        const int homePhrase = proc.activeSectionIdx();
+        // Per-track deviation. This used to recompute the flag from the phrase index
+        // (`cur != homePhrase`) because two of the three writers set it `true`
+        // unconditionally and could not be trusted. Arrangement::setDeviation is the
+        // one writer now and derives it, so the flag is simply read (9.38).
         for (int t = 0; t < static_cast<int>(kNumTracks); ++t)
-        {
-            const int cur = proc.isTrackDeviated(t)
-                                ? proc.deviationPhraseIdxForTrack(t)
-                                : proc.activeSectionIdx();
-            model.trackDeviated[static_cast<std::size_t>(t)] = (cur != homePhrase);
-        }
+            model.trackDeviated[static_cast<std::size_t>(t)] = proc.isTrackDeviated(t);
 
         // Press-state helpers
         auto keyDown = [&](int rawCode) -> bool {
@@ -820,7 +817,22 @@ namespace lockstep
             { 'P', u8"P", ControllerButton::VerbConfirm, KeyRole::VerbConfirm },
         } };
 
-        const bool sectionScopeHeld = (firstHeldSectionSuiteScope(ui) != PS::None);
+        // The scope the VERB keys answer to. Dispatch routes copy/paste/clear through
+        // editMode.primaryScope(), which walks all of kScopePriority -- where Trig is
+        // rank 0, the HIGHEST. This block used to ask firstHeldSectionSuiteScope
+        // instead, which only knows the five suite scopes, so with a step held it saw
+        // no scope at all: the copy genuinely worked, the status lane genuinely said
+        // `REC=COPY`, and only the key stayed dark (9.38). The QUANT branch below had
+        // already noticed -- its comment says "or a held step" -- for a case its own
+        // gate never admitted.
+        //
+        // Section (a held section key) is still NOT covered: UiState carries no
+        // section-held flag, only the editor does, so the surface model cannot see it.
+        // Stated rather than silently half-fixed -- closing it means giving UiState the
+        // flag, which is a change to who owns that fact and wants its own decision.
+        const PS suiteScope = firstHeldSectionSuiteScope(ui);
+        const PS verbScope = ec.isActiveForEditing() ? PS::Trig : suiteScope;
+        const bool sectionScopeHeld = (verbScope != PS::None);
 
         for (int i = 0; i < 10; ++i)
         {
@@ -937,7 +949,7 @@ namespace lockstep
                     // confirm channel. Asked of the resolved row, so the colour and the
                     // label can no longer disagree about whether this key quantizes.
                     if (row->action == ActionId::QuantizeHeld)
-                        c.scopeTint = scopeColour(sectionScope).getARGB();
+                        c.scopeTint = scopeColour(verbScope).getARGB();
                     else
                         c.disabled = true;
                 }
@@ -951,15 +963,15 @@ namespace lockstep
                     // that verbs::song never implemented; now it dims, like P does.
                     // (Morph needs no special case: the matrix already says it has no
                     // clipboard, which is why it never glowed.)
-                    const auto aff = verbs::clipAffordance(sectionScope, ui.funcHeld,
+                    const auto aff = verbs::clipAffordance(verbScope, ui.funcHeld,
                                                            ClipboardType::None);
                     if (aff.canCopy)
-                        c.scopeTint = scopeColour(sectionScope).getARGB();
+                        c.scopeTint = scopeColour(verbScope).getARGB();
                     else
                         c.disabled = true;
                 }
                 else if (def.role == KeyRole::VerbSnapshot || def.role == KeyRole::VerbClear)
-                    c.scopeTint = scopeColour(sectionScope).getARGB();
+                    c.scopeTint = scopeColour(verbScope).getARGB();
             }
 
             // DeletePicker / PendingConfirm: dim all function-row keys except Func.
