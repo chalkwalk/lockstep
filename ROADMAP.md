@@ -1686,7 +1686,7 @@ hint display ("128 bpm  Amin" / "one-shot"). Excluded by design: Stream
 files (no PCM in RAM) and volatile captures. Documented follow-up:
 key-synced Stretch playback.
 
-### 4.10 — Tone (FluidLite + a bundled SF3 GM bank)  *[designed 2026-08-14 — build not started; one spike gates it]*
+### 4.10 — Tone (FluidLite + a bundled SF3 GM bank)  *[designed + researched 2026-08-14 — shape settled, nothing unknown, build not started]*
 
 **The thought.** A General MIDI machine — **`Tone`** — with its *own* bundled sound bank —
 not because GM sounds good, but because 128 named instruments in the box
@@ -1815,13 +1815,89 @@ rest on that coin-flip. Shared also buys one voice pool, one render call, one
   voices from a drum track. Hardware GM modules behave exactly this way; mitigated
   by a large pool (size to be measured in the spike).
 
-**The one load-bearing unknown — this is now the spike.** Option (b) needs
-FluidLite to support `synth.audio-groups` / multi-group `nwrite_float`, and
-FluidLite is a *stripped* FluidSynth that removed a great deal. It is not vendored,
-so this is **unverified**. If groups are absent the fallback is not "render once to
-a stereo mix" — that would cost per-track FX, capture and stems, which is the whole
-point of the machine — it is back to option (a) and its ownership question. Spike
-both.
+**The spike is ANSWERED — source read 2026-08-14** (`divideconcept/FluidLite`,
+cloned and inspected; not yet vendored). Option (b) is viable, and the
+channel-per-track shape is what the engine already does natively:
+
+```c
+/* fluid_synth.c:2308, in fluid_synth_one_block */
+auchan = fluid_channel_get_num(fluid_voice_get_channel(voice));
+auchan %= synth->audio_groups;
+left_buf = synth->left_buf[auchan];
+```
+
+MIDI channel N routes to audio group N, and `fluid_synth_nwrite_float` copies
+`synth->audio_channels` separate stereo pairs out. Set **audio-channels =
+audio-groups = 16** and `channel == track == group` is identity end to end.
+
+*Settings confirmed registered* (`fluid_synth.c:107-123`): `synth.audio-channels`
+and `synth.audio-groups` (1–256), `synth.polyphony` (default **256**, 16–4096),
+`synth.midi-channels` (min 16), `synth.sample-rate` (22050–96000, default 44100 —
+and `fluid_synth_set_sample_rate` exists, so `prepareToPlay` can retune it),
+`synth.gain` (**default 0.2** — low; raise it), `synth.reverb.active` /
+`synth.chorus.active`, and **`synth.drums-channel.active`** — the setting that
+frees channel 9. With it `"no"`, `fluid_synth_program_change` honours the
+channel's own bank, so any track reaches a kit via bank 128.
+
+**Findings that harden decisions already taken.**
+
+- **Internal FX off is now *mandatory*, not merely principled.**
+  `nwrite_float`'s `fx_left` / `fx_right` parameters appear **only in its
+  signature** — never in the body — and it always calls `one_block(synth, 1)`
+  (*do not mix fx to out*). On the multi-group path reverb and chorus are
+  therefore computed and then **discarded**. Leaving them enabled burns CPU on
+  inaudible effects.
+- **Option (a) was genuinely unsafe.** `delete_fluid_synth` deletes every sfont
+  in its list (`fluid_synth.c:616-618`), so handing one font to two synths is a
+  double-free. The fallback is worse than the entry implied.
+- **`stb_vorbis.c` is vendored in FluidLite's own tree**, so SF3 with zero
+  external dependencies is one flag pair (`ENABLE_SF3` + `STB_VORBIS`). The
+  file-static `vorbisData` that the earlier note worried about is inside
+  `#if SF3_SUPPORT == SF3_XIPH_VORBIS`; the stb path uses stateless
+  `stb_vorbis_decode_memory`, so on our path the reentrancy concern **does not
+  exist**.
+- **A pluggable file API exists** (`fluid_set_default_fileapi`, with
+  fopen/fread/fseek/fclose callbacks), so the bank can be served from an
+  **embedded memory block** — no temp file, no install-path hunting. It is
+  process-global state, which is fine with a single engine.
+- **Real-time safety is otherwise good.** Voices are pre-allocated at
+  `new_fluid_synth` from `synth.polyphony` and `alloc_voice` picks or kills from
+  that pool, so **note-on does not allocate**; all SF3 decoding happens during
+  `sfload` (hence the ~30 MB resident), not lazily on first note.
+- **FluidLite has NO internal locking — every mutex in `fluid_synth.c` is
+  commented out.** Hard constraint: one thread only. The load must be strictly
+  fenced from the audio thread and published with an atomic.
+
+**The one real hazard, and its fix.** `fluid_defsfont_sfont_get_preset` does
+`FLUID_NEW(fluid_preset_t)` on **every** lookup, and `fluid_channel_set_preset`
+frees the old one — so a program change is a free + a malloc. That lands on the
+audio thread twice over: a P-Locked program change, and (more commonly) turning
+the program knob while the pattern rolls, since `writeParam` → `EngineCmd` is
+drained in `processBlock`. Browsing instruments live is a normal gesture, so this
+is not waveable-through.
+
+**Fix — pre-resolve, then swap without owning (no fork).** Resolve all 128
+melodic presets plus the drum kits **once at load**, on the message thread, into
+a cache the engine owns; on the audio thread set `chan->preset` **directly**
+(`fluid_channel_t::preset`, `src/fluid_chan.h:37`) rather than through
+`fluid_channel_set_preset`, so nothing is ever freed and nothing is allocated.
+The ownership audit is small and provably complete — presets are freed in exactly
+**three** places, all in `fluid_chan.c`: `fluid_channel_reset` (:59),
+`delete_fluid_channel` (:162) and `fluid_channel_set_preset` (:176). Therefore:
+
+- never call `fluid_channel_set_preset`; write the member;
+- never call `fluid_synth_system_reset` — it is the *only* caller of
+  `fluid_channel_reset` (`fluid_synth.c:1233`) — nor `fluid_synth_program_reset`;
+- pass `reset_presets = 0` to `fluid_synth_sfload`;
+- at teardown, **null every `chan->preset` before `delete_fluid_synth`** so
+  `delete_fluid_channel` cannot free cache entries, then free the cache.
+
+Use the sfont iteration API (`iteration_start` / `iteration_next`) to discover
+which drum kits the bank actually contains rather than hard-coding kit numbers.
+
+*Accepted cost:* this couples us to `src/fluid_chan.h`, a private header of the
+vendored submodule. The submodule is pinned, and the four rules above are the
+whole of the coupling — but a submodule bump must re-check those three free sites.
 
 **Sections (canonical by meaning, PRINCIPLES §8).** `numSections()` returns 5
 (highest index + 1 — the trap in CLAUDE.md).
@@ -1855,9 +1931,11 @@ drum kits as a third page.
 
 **Build order.**
 
-- [ ] Spike: `synth.audio-groups` + multi-group `nwrite_float` under FluidLite;
-      if absent, sfont sharing across synths. Measure load time, steady-state CPU
-      and a voice-pool size for 16 Tone tracks.
+- [x] ~~Spike: does stripped FluidLite still do multi-group rendering?~~ **Answered
+      by reading the source (see above): yes, natively, and channel = group = track
+      is identity.** What is left is measurement, not feasibility: load time,
+      steady-state CPU for 16 Tone tracks, and a `synth.polyphony` value (default
+      256 is the starting point).
 - [ ] Docs: PRINCIPLES check (expected to pass unamended — §24 naming, §9 machines
       generate, §8 canonical sections, §20 single owner all fit) → DESIGN §29
       catalogue entry + a section on presenting one multi-timbral engine as N
@@ -1866,8 +1944,13 @@ drum kits as a third page.
       `deck_core`-style JUCE-free wrapper (`src/tonecore/`, `ToneEngine`).
 - [ ] Convert + commit the q0.8 SF3 bank as a build asset (10.07 MB, see the table
       above); licence file alongside, naming the permissive-but-not-OSI caveat.
+- [ ] `ToneEngine`: the preset cache (resolve-all-at-load) + the direct
+      `chan->preset` swap, with the four "never call" rules above enforced in one
+      place. A submodule bump re-checks the three free sites in `fluid_chan.c`.
 - [ ] `ToneMachine : IMachine`, `kMachineId = "lockstep.tone.v1"`; the pre-pass in
-      `processBlock`; internal reverb/chorus off; channel-9 constraint lifted.
+      `processBlock`; internal reverb/chorus off (mandatory, not optional);
+      `drums-channel.active = "no"`; `synth.gain` raised from its 0.2 default.
+- [ ] Bank served from an embedded memory block via a custom `fluid_fileapi_t`.
 - [ ] Program picker on the step grid; round-trip test.
 
 *Not now, but named so the space is reserved:* auto-accompaniment (`Style`), which
