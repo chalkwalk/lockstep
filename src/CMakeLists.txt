@@ -17,6 +17,12 @@ add_subdirectory(deckcore)
 # typeface JUCE has to instance per size is exactly the nondeterminism this
 # removes.
 # ---------------------------------------------------------------------------
+juce_add_binary_data(lockstep_bank
+    NAMESPACE LockstepBank
+    HEADER_NAME LockstepBank.h
+    SOURCES
+        ${CMAKE_SOURCE_DIR}/assets/bank/GeneralUser-GS.sf3)
+
 juce_add_binary_data(lockstep_fonts
     NAMESPACE LockstepFonts
     HEADER_NAME LockstepFonts.h
