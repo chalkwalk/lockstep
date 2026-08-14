@@ -1686,14 +1686,16 @@ hint display ("128 bpm  Amin" / "one-shot"). Excluded by design: Stream
 files (no PCM in RAM) and volatile captures. Documented follow-up:
 key-synced Stretch playback.
 
-### 4.10 — GMMachine (FluidLite + a bundled SF3 GM bank)  *[planned — captured 2026-08-13, research done, not designed]*
+### 4.10 — Tone (FluidLite + a bundled SF3 GM bank)  *[designed 2026-08-14 — build not started; one spike gates it]*
 
-**The thought.** A General MIDI machine with its *own* bundled sound bank —
+**The thought.** A General MIDI machine — **`Tone`** — with its *own* bundled sound bank —
 not because GM sounds good, but because 128 named instruments in the box
 opens genres the current catalogue can't reach (orchestral, jazz combo,
 pop-band sketching) without leaving the Lockstep paradigm. Every GM voice
 inherits step conditions, P-Locks, morph, cue, track FX and capture for free.
 This is a *first-party statically-linked* machine — no 6.7 ABI involvement.
+(Named in the design session below; it was captured as "GMMachine", which PRINCIPLES
+§24 does not allow.)
 
 **Research findings (2026-08-13) — the idea holds up.**
 
@@ -1747,58 +1749,129 @@ This is a *first-party statically-linked* machine — no 6.7 ABI involvement.
 - **RAM is *not* reduced.** FluidLite decodes every Vorbis sample to 16-bit
   PCM at load (`FLUID_SAMPLETYPE_OGG_VORBIS_UNPACKED`), so the resident cost
   stays ~30 MB. SF3 buys **distribution size**, not footprint. Acceptable —
-  but it is a fixed ~30 MB whenever any track holds a GMMachine.
+  but it is a fixed ~30 MB whenever any track holds a Tone.
 
-**The one real architectural question (spike this first).** Lockstep is
-one-machine-per-track with separated per-track audio; FluidLite is a
-16-channel multi-timbral module. Two candidate shapes:
+**Design session 2026-08-14 — settled.** Four decisions, and the architecture
+question is answered.
 
-- **(a) N synths, one shared bank.** `fluid_synth_add_sfont` /
-  `remove_sfont` / `get_sfont` are exposed, so one loaded `fluid_sfont_t*`
-  can in principle be attached to several synths and the sample data shared.
-  Must verify ownership: whether `delete_fluid_synth` frees the sfont it was
-  handed (a double-free / use-after-free across tracks if so). If this works
-  it is the shape that fits the existing model with no inversion.
-- **(b) One shared synth, `synth.audio-groups = 16`.** `nwrite_float` writes
-  per-group buffers, so a single instance can render 16 separately-addressable
-  stereo track outs in one call, with one bank in RAM by construction. Costs
-  an inversion: GMMachine becomes a thin per-track façade over a shared
-  engine (channel in, group buffer out) rather than an owner. Reverb/chorus
-  are global to the instance, which cuts against per-track FX identity.
+**1. The machine is called `Tone`.** `Rompler` is an agent noun, which is the
+form PRINCIPLES §24 outlaws — it is why "Sampler" became **Sample** and "Looper"
+became **Loop**; `GMMachine` breaks the other half (no `Synth`/`Machine`/`Engine`
+suffix). `Tone` is the word these keyboards literally printed on the button that
+picks the instrument, so it names the role in the idiom being homaged, in one
+scannable token. Ruled out on collision: `Voice` (polyphony), `Bank` (the mixer's
+group of 8), `Kit` (retired by 9.29), `Module` (the 6.7 ABI), `Arrange` (the
+Arrangement). **`Style` is reserved** — that is what those keyboards call the
+auto-accompaniments, so it is the name to use if that ever becomes a feature.
+*Accepted cost:* `Tone` already exists as a **param label** (Distortion's knob,
+DrumMachine slot 5). Different namespace, never on screen together; it only makes
+prose slightly awkward.
 
-Prefer (a) if the sfont can be shared safely; fall back to (b).
+**2. The target is a cheap keyboard, deliberately.** The brief is a home keyboard
+with a questionable GM bank — the cheesiness is the *point*, not a defect to be
+engineered out. This is a standing constraint: do not "improve" the bank's voicing
+later, and do not treat preset quality as a bug report.
 
-**Other findings worth carrying into the design session.**
+**3. Internal reverb and chorus are OFF.** PRINCIPLES §9 — machines generate,
+effects process — and Lockstep already gives every track its own FILTER/AMP/FX,
+which is per-track where FluidLite's is not. This also **dissolves the main
+objection to the shared-instance shape** below, which was that its reverb/chorus
+are global to the instance. *Consequence:* the GM reverb/chorus **send** CCs
+(91/93) are inert, so `Tone` does not claim the **FX** section at all — the track
+chain owns it. (`Analog` already returns `numSections() == 5`, i.e. TRIG..MOD with
+no FX, so this is a precedent rather than an exception.) The bank is voiced
+expecting some reverb and will sound drier unaided; that is accepted.
 
-- FluidLite adds a setting to lift FluidSynth's hard-coded *channel 9 = drums*
-  constraint — needed so any track can select a drum kit (bank 128).
-- `synth.sample-rate` is registered with range **22050–96000**. A 192 kHz
-  session needs a decision (clamp + resample, or refuse the machine).
-- The Xiph-Vorbis SF3 path uses a **file-static** `vorbisData` struct — not
-  reentrant. Another reason for the stb path, and `sfload` stays
-  message-thread-only regardless (it does file I/O).
-- Note-on/off/cc are direct calls with no internal queue, so driving the
-  synth from the audio thread is fine once loading is done off it.
+**4. Bundled bank only.** No user `.sf2`/`.sf3` loading. The program picker stays
+a fixed grid, and none of the sample pool's missing-file / relink / content-hash
+story is inherited.
 
-**Sketch of the surface (not designed — for the session to accept or reject).**
+**The architecture: one shared instance, channel = track index.** This is
+option (b), and it wins more clearly than the entry above suggested once the
+internal-FX objection is removed. It carries one bank in RAM *by construction*, so
+option (a)'s sfont-ownership spike disappears entirely — with (a), if
+`delete_fluid_synth` frees a shared font it is a use-after-free across tracks, and
+if sharing does not work at all it is 16 × ~30 MB resident. The design should not
+rest on that coin-flip. Shared also buys one voice pool, one render call, one
+`sfload`.
 
-- [ ] Spike: sfont sharing across synths (a) vs audio-groups (b); measure
-      load time and steady-state CPU for 16 GM tracks.
-- [ ] Vendor FluidLite as a submodule; SF3 + stb build; a `deck_core`-style
-      JUCE-free wrapper.
-- [ ] Convert + commit the SF3 bank as a build asset; licence file alongside.
-- [ ] `GMMachine : IMachine` — SRC = bank/program, FILTER/AMP/MOD/FX mapped
-      onto the GM CC set (74/71/72/73, 91/93) so the canonical sections mean
-      what they always mean. Poly declared per trig as usual.
-- [ ] Program picker on the step grid (picker paradigm — no popups): GM's
-      **16 families × 8 programs = exactly 2 pages of 64 cells**, family per
-      row. Drum kits as a third page.
-- [ ] Round-trip test: program + bank survive save/load; the standard
-      new-modality test triple (resolution / scope routing / round-trip).
+- **Channel = track index, statically.** Not allocated from 1. There is no
+  allocation table to drift (PRINCIPLES §20 — the track index *is* the channel), a
+  MIDI monitor reads straight across, and it lines up with MIDI-out tracks. It
+  spends the 16-channel space exactly, so it **assumes `kNumTracks == 16`** — stated
+  here rather than discovered later.
+- **Requires lifting the channel-9-drums constraint** (FluidLite has the setting),
+  or track 9 would be forced to drums. Any track then reaches a kit via bank 128.
+- **The inversion is smaller than feared.** `trackMidi` is a
+  `std::array<MidiBuffer, kNumTracks>` assembled **completely before** any machine
+  renders, so the pre-pass needs no new plumbing to get what it wants. But
+  `processTrackChain` runs in **routing (topological) order**, so "render on the
+  first Tone track's `process()`" is *not* safe — it must be a pre-pass:
+  1. feed every Tone track's MIDI + param→CC writes to `engine->channel(trackIdx)`;
+  2. `engine->render(n)` **once** into 16 group buffers;
+  3. each `ToneMachine::process()` copies its own group out — so the `IMachine`
+     contract is untouched.
+- **Known trade-off:** a shared voice pool means a busy pad track *can* steal
+  voices from a drum track. Hardware GM modules behave exactly this way; mitigated
+  by a large pool (size to be measured in the spike).
 
-**Docs ordering when this is taken up:** PRINCIPLES check → a DESIGN section
-(§29 catalogue + how a multi-timbral engine is presented as per-track
-machines) → then build. Nothing here is settled yet.
+**The one load-bearing unknown — this is now the spike.** Option (b) needs
+FluidLite to support `synth.audio-groups` / multi-group `nwrite_float`, and
+FluidLite is a *stripped* FluidSynth that removed a great deal. It is not vendored,
+so this is **unverified**. If groups are absent the fallback is not "render once to
+a stereo mix" — that would cost per-track FX, capture and stems, which is the whole
+point of the machine — it is back to option (a) and its ownership question. Spike
+both.
+
+**Sections (canonical by meaning, PRINCIPLES §8).** `numSections()` returns 5
+(highest index + 1 — the trap in CLAUDE.md).
+
+- **SRC** — `program` as slot 0: stepped, 0–127, `valueLabels` = the GM names.
+  It is an ordinary param, so it **P-Locks like any other** and a step can change
+  the instrument mid-pattern, which is squarely the cheap-keyboard move. Bank
+  selects the drum kits.
+- **FILTER** — CC 74 brightness, CC 71 harmonic content.
+- **AMP** — CC 73 attack, CC 72 release. **Not** CC 7/10: level and pan belong to
+  Lockstep's own channel strip, and duplicating them would give one fact two owners.
+- **MOD** — CC 1, plus portamento / vibrato from the GM2 set.
+
+**The program picker follows an existing rail, not a new gesture.** `Track +
+hold(SRC)` is already the machine picker, and `Fill + SRC` already sets a
+`TrigGridMode` for per-step sound selection (the SoundPool overlay). GM's
+**16 families × 8 programs = exactly 2 pages of 64 cells**, family per row, with
+drum kits as a third page.
+
+**Remaining details, settled here.**
+
+- **Loading** is lazy — on the first `Tone` track, off the message thread
+  (`sfload` does file I/O), the track silent until it lands. Cost is a fixed
+  ~30 MB resident whenever *any* track holds a Tone; SF3 buys distribution size,
+  not footprint.
+- **Sample rate**: FluidLite registers 22050–96000. Run the engine at the session
+  rate when it is in range; outside it, run at 48 kHz and resample through the
+  self-built polyphase `Resampler.h` from 9.25 rather than refusing the machine.
+- **Persistence**: program + bank per track; serializer bump; the standard
+  new-modality test triple (resolution / scope routing / round-trip).
+
+**Build order.**
+
+- [ ] Spike: `synth.audio-groups` + multi-group `nwrite_float` under FluidLite;
+      if absent, sfont sharing across synths. Measure load time, steady-state CPU
+      and a voice-pool size for 16 Tone tracks.
+- [ ] Docs: PRINCIPLES check (expected to pass unamended — §24 naming, §9 machines
+      generate, §8 canonical sections, §20 single owner all fit) → DESIGN §29
+      catalogue entry + a section on presenting one multi-timbral engine as N
+      per-track machines → then build.
+- [ ] Vendor FluidLite as a submodule; SF3 + vendored `stb_vorbis` build; a
+      `deck_core`-style JUCE-free wrapper (`src/tonecore/`, `ToneEngine`).
+- [ ] Convert + commit the q0.8 SF3 bank as a build asset (10.07 MB, see the table
+      above); licence file alongside, naming the permissive-but-not-OSI caveat.
+- [ ] `ToneMachine : IMachine`, `kMachineId = "lockstep.tone.v1"`; the pre-pass in
+      `processBlock`; internal reverb/chorus off; channel-9 constraint lifted.
+- [ ] Program picker on the step grid; round-trip test.
+
+*Not now, but named so the space is reserved:* auto-accompaniment (`Style`), which
+is the other half of what those keyboards did.
 
 ## Phase 10 — Melodic & Harmonic Authoring  *[mostly shipped: 10.1–10.4, 10.7–10.10 done; 10.5 partial; 10.6, 10.11 open]*
 
