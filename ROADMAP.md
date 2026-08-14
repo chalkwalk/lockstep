@@ -1716,8 +1716,8 @@ This is a *first-party statically-linked* machine — no 6.7 ABI involvement.
   be built with vendored `stb_vorbis` (`-DENABLE_SF3=YES -DSTB_VORBIS=YES`),
   keeping the "no external dependency" property and avoiding libogg/libvorbis
   licence + build surface entirely.
-- **Bank: GeneralUser GS** (v2.x, `mrbumpy409/GeneralUser-GS`). ~30 MB SF2,
-  259 presets, 11 drum kits. Its licence permits use and modification in
+- **Bank: GeneralUser GS** (v2.0.3, `mrbumpy409/GeneralUser-GS`). 30.82 MB SF2,
+  **261 presets, 13 drum kits** (corrected 2026-08-14 against the real files). Its licence permits use and modification in
   software projects and bundling; it asks that we host our own copy rather
   than hotlink. Caveat to note in the shipped licence file: it is *permissive
   but not an OSI/DFSG-free licence*, and the author states he cannot fully
@@ -1932,10 +1932,14 @@ drum kits as a third page.
 **Build order.**
 
 - [x] ~~Spike: does stripped FluidLite still do multi-group rendering?~~ **Answered
-      by reading the source (see above): yes, natively, and channel = group = track
-      is identity.** What is left is measurement, not feasibility: load time,
-      steady-state CPU for 16 Tone tracks, and a `synth.polyphony` value (default
-      256 is the starting point).
+      by reading the source: yes, natively, and channel = group = track is
+      identity — then PROVEN against the real bank by `tests/ToneEngineTest.cpp`,
+      which plays one channel and asserts every other group is silent.**
+      **Measured** (Debug, third-party at `-O2`): bank load **~495 ms** (10 MB SF3
+      decoded to ~30 MB PCM plus every preset resolved) — which is why loading is
+      async and off the audio thread, not a nicety; steady-state render with all
+      16 channels sounding 3 voices each (48 voices) **77× realtime**. Polyphony
+      stays at FluidLite's default 256.
 - [x] **Docs pass (2026-08-14).** The PRINCIPLES check did **not** pass unamended
       as predicted: §9's consequence ("a specialised engine is a third-party
       module, not a reason to grow the in-box catalogue") would, read literally,

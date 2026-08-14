@@ -5,6 +5,7 @@ endif()
 
 # The JUCE-free deck engine sits BELOW lockstep_core and knows nothing of it.
 add_subdirectory(deckcore)
+add_subdirectory(tonecore)
 
 # ---------------------------------------------------------------------------
 # Embedded product typeface (Inter, OFL-1.1 — see assets/fonts/OFL.txt).

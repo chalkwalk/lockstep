@@ -56,6 +56,7 @@ int main()
     lockstep::runEditModeTests();
     lockstep::runLayerResolveTests();
     lockstep::runLayerRemapReachabilityTests();
+    lockstep::runToneEngineTests();
     lockstep::runSurfaceLayerTests();
     lockstep::runKeyBindingTests();
     lockstep::runSerializerRoundTripTests();

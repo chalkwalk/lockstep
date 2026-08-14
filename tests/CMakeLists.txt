@@ -51,6 +51,7 @@ add_executable(lockstep_tests
     MotionRecorderTest.cpp
     EditModeTest.cpp
     LayerResolveTest.cpp
+    ToneEngineTest.cpp
     LayerRemapReachabilityTest.cpp
     SurfaceLayerTest.cpp
     KeyBindingTest.cpp
@@ -104,6 +105,7 @@ add_executable(lockstep_tests
     ../src/ui/mode/LatchOps.cpp)
 
 target_link_libraries(lockstep_tests PRIVATE
+    tone_core
     lockstep_engine
     juce::juce_gui_basics
     juce::juce_core
@@ -112,7 +114,10 @@ target_link_libraries(lockstep_tests PRIVATE
 # SurfaceInvalidationGuardTest scans the surface-owning sources for unrouted
 # repaint() calls (PRINCIPLES §22), so it needs the source tree's location.
 target_compile_definitions(lockstep_tests PRIVATE
-    LOCKSTEP_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../src")
+    LOCKSTEP_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../src"
+    # ToneEngineTest reads the real bundled bank from the repo (assets/bank),
+    # not the binary-data target -- that belongs to the plugin.
+    LOCKSTEP_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../assets")
 
 # Inherit the project's strict warning flags.
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")

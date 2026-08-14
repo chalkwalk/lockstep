@@ -80,6 +80,7 @@ namespace lockstep
     void runEditModeTests();
     void runLayerResolveTests();
     void runLayerRemapReachabilityTests();
+    void runToneEngineTests();
     void runSurfaceLayerTests();
     void runKeyBindingTests();
     void runSerializerRoundTripTests();
