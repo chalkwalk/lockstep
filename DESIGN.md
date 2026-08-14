@@ -4709,6 +4709,14 @@ lineage drives which machines ship stock:
 | Octatrack — Thru / Neighbour | `RouteMachine` (`input_source`)       | router      |
 | Octatrack — track Recorder   | `RecordMachine` (overwrite)        | capture     |
 | Octatrack — Pickup           | `LoopMachine` (overdub)            | capture     |
+| *(no Elektron lineage)*      | **`ToneMachine`** (General MIDI, §29.3) | generator |
+
+**`Tone` is the one stock machine deliberately outside the lineage.** Every
+other row earns its place by iconic parentage; `Tone` earns its place by
+**reach** — 128 named instruments opening genres the lineage cannot touch
+(orchestral, jazz combo, pop-band sketching), with every voice inheriting step
+conditions, P-Locks, morph, cue, track FX and capture for free. PRINCIPLES §9
+covers why breadth is not speciality, and why the module ABI has no shape for it.
 
 Two lineage entries are deliberately **recipes, not machines**, because
 their character is already reachable by composing what the catalogue and
@@ -4854,6 +4862,125 @@ mirrors the Octatrack (track recorders vs. pickup machine) and keeps the
 recorder trig path simple and stateless. The three are one engine wearing
 three faces (§40.1); the catalogue entries above describe the faces a
 performer picks, not three implementations.
+
+### 29.3 `Tone` — one multi-timbral engine, N per-track machines
+
+`Tone` is the General MIDI machine: a bundled SF3 bank played by a statically
+linked FluidLite. It is the first machine in the catalogue whose engine is
+**shared across tracks**, so this section describes that presentation — the rest
+of its surface is an ordinary `IMachine`.
+
+**The brief is a cheap home keyboard, and that is not a euphemism.** A
+questionable GM bank with a slightly cheesy character is the *target*, not a
+defect to be engineered out. Do not "improve" the bank's voicing, and do not
+treat preset quality as a bug report.
+
+**Channel = track = audio group, by identity.** One `fluid_synth_t` is created
+with `synth.audio-channels` and `synth.audio-groups` both at 16. FluidLite routes
+a voice to `left_buf[channel_num % audio_groups]`, so with 16 of each, MIDI
+channel N renders into group N — and Lockstep assigns **channel N to track N**,
+statically, never allocated from a free list. The track index *is* the channel
+(PRINCIPLES §20: no allocation table to drift, and a MIDI monitor reads straight
+across). This spends the 16-channel space exactly and therefore **assumes
+`kNumTracks == 16`**; that assumption is stated here rather than discovered later.
+
+`synth.drums-channel.active` must be `"no"`, or FluidLite pins channel 9 to bank
+128 and track 9 could only ever be drums. With it off, any track reaches a kit by
+selecting bank 128 like any other bank.
+
+**Rendering is a pre-pass, not per-track.** The obvious shape — let the first
+`Tone` track's `process()` render everything — is wrong, because
+`processTrackChain` runs in **routing (topological) order**, so "first" is not a
+fixed track and some tracks would read a block rendered before their own MIDI
+arrived. Instead, per block:
+
+1. **Feed.** For every `Tone` track, deliver its MIDI and its param→CC writes to
+   the engine on that track's channel. `trackMidi` is a
+   `std::array<MidiBuffer, kNumTracks>` assembled *completely before* any machine
+   renders, so the pre-pass needs no new plumbing to get what it wants.
+2. **Render once.** One `fluid_synth_nwrite_float` call fills all 16 group
+   buffers.
+3. **Copy out.** Each `ToneMachine::process()` copies its own group into its track
+   buffer — so the `IMachine` contract is untouched and everything downstream
+   (FILTER/AMP/FX, cue, capture, stems) works exactly as it does for any machine.
+
+**Internal reverb and chorus are off, and that is mandatory rather than
+principled.** PRINCIPLES §9 already puts timbre processing in an `IEffect`, and
+Lockstep's track FX is per-track where FluidLite's is per-instance. But the
+engine settles it independently: `fluid_synth_nwrite_float` never touches its
+`fx_left` / `fx_right` parameters — they appear only in its signature — and it
+always renders with *do not mix fx to out*. On the multi-group path the effects
+are computed and then **discarded**, so leaving them enabled would burn CPU on
+something inaudible. Consequently the GM reverb/chorus **send** CCs (91/93) are
+inert and `Tone` does not claim the **FX** section at all; §8's "a machine that
+has nothing for a canonical section leaves it empty" is exactly this case, and
+`AnalogMachine` already ships with `numSections() == 5` for the same reason.
+
+**Sections** (canonical by meaning, §8; `numSections()` returns 5 — highest index
+plus one, not a count):
+
+| Section | Slots |
+|---|---|
+| **SRC** | `program` (slot 0): stepped 0–127, `valueLabels` = the GM names; plus bank, which reaches the drum kits. |
+| **FILTER** | CC 74 brightness, CC 71 harmonic content. |
+| **AMP** | CC 73 attack, CC 72 release. **Not** CC 7/10 — level and pan belong to Lockstep's channel strip, and duplicating them would give one fact two owners. |
+| **MOD** | CC 1, plus portamento / vibrato from the GM2 set. |
+
+`program` is an ordinary param, so it **P-Locks like any other** and a step can
+change the instrument mid-pattern — squarely the cheap-keyboard move.
+
+**Presets are resolved once, and never allocated on the audio thread.** This is
+the one place `Tone` reaches past FluidLite's public API, deliberately.
+`fluid_defsfont_sfont_get_preset` calls `FLUID_NEW` on **every** lookup and
+`fluid_channel_set_preset` frees the previous one — so a program change is a
+free plus a malloc. That lands on the audio thread twice over: a P-Locked program
+change, and (more commonly) turning the program knob while the pattern rolls,
+since `writeParam` → `EngineCmd` is drained inside `processBlock`. Browsing
+instruments live is a normal gesture, not a rare one.
+
+So `ToneEngine` resolves every preset **once at load**, on the message thread,
+into a cache it owns, and thereafter sets `fluid_channel_t::preset` **directly**.
+Nothing is allocated and nothing is freed while audio runs. The audit that makes
+this safe is small and complete — presets are freed in exactly **three** places,
+all in `fluid_chan.c` — which yields four standing rules:
+
+- never call `fluid_channel_set_preset` (it frees the old preset);
+- never call `fluid_synth_system_reset`, the only caller of
+  `fluid_channel_reset`, nor `fluid_synth_program_reset`;
+- pass `reset_presets = 0` to `fluid_synth_sfload`;
+- at teardown, **null every channel's `preset` before `delete_fluid_synth`**, so
+  `delete_fluid_channel` cannot free a cache entry, then free the cache.
+
+*Accepted cost:* this couples Lockstep to `src/fluid_chan.h`, a private header of
+a pinned submodule. The four rules above are the whole of the coupling, and a
+submodule bump must re-check those three free sites.
+
+**Threading.** FluidLite has **no internal locking at all** — every mutex in
+`fluid_synth.c` is commented out — so exactly one thread may touch the synth.
+`sfload` does file I/O and decodes every SF3 sample to PCM (hence a fixed
+~30 MB resident whenever any track holds a `Tone`; SF3 buys distribution size,
+not footprint), so it loads off the audio thread and publishes with an atomic;
+the audio thread owns the synth from then on. Note-on does **not** allocate —
+voices are pre-allocated from `synth.polyphony` and `alloc_voice` picks or kills
+from that pool — which is what makes audio-thread note driving legitimate.
+
+**Voice pool.** One shared pool across all `Tone` tracks. This is the hardware GM
+behaviour and it allocates voices better than sixteen fixed pools would, but it
+does mean a busy pad track **can** steal voices from a drum track. `synth.gain`
+defaults to a low `0.2` and is raised at init.
+
+**Bank delivery.** The bank ships as a build asset and is served to FluidLite
+from an **embedded memory block** through a custom `fluid_fileapi_t`
+(`fluid_set_default_fileapi`) — no temp file, no install-path hunting. That
+setter is process-global state, which is fine with a single engine.
+
+**Sample rate.** FluidLite registers `synth.sample-rate` over 22050–96000. Run
+the engine at the session rate when it is in range; outside it, run at 48 kHz and
+resample through the self-built polyphase `Resampler.h` (9.25) rather than
+refusing the machine.
+
+**Reserved:** `Style` — what these keyboards call their auto-accompaniments — is
+kept free in case that ever becomes a feature.
 
 ## 30. Special Trig Types
 

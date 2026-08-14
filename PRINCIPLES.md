@@ -331,6 +331,21 @@ is a third-party module (DESIGN §36), not a reason to grow the in-box
 catalogue. This keeps both the catalogue and the section taxonomy
 (*"Canonical sections are reserved"*) from sprawling.
 
+**Breadth is not speciality.** The rule above turns on a machine being
+*specialised*, so it does not exclude an engine whose whole point is **reach**.
+A General MIDI bank (`Tone`, DESIGN §29.3) is the opposite of a granular voice:
+one machine that puts 128 named instruments in the box and opens whole genres —
+orchestral, jazz combo, pop-band sketching — that the reference lineage cannot
+touch at all. It earns its place by breadth, not by iconic parentage, and it is
+the one stock entry that is deliberately outside the Elektron lineage.
+
+There is also a structural reason it *cannot* be a module: `Tone` is a **single
+multi-timbral engine shared by every track that holds one**, and the module ABI
+(§36) is a per-machine vtable with no cross-instance hook — a shared engine has
+no way to express itself through it. Where capture stays first-party because it
+is infrastructure, `Tone` stays first-party because the ABI has no shape for it.
+That is a fact about the ABI worth knowing before someone tries to widen it.
+
 **Boundary — the module ABI is for generators and effects, not capture.**
 The "one authoring model, two link paths" contract (DESIGN §2/§36) has a
 deliberate scope line: **capture and console machines (Recorder, Looper,

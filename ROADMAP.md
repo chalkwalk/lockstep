@@ -1936,10 +1936,15 @@ drum kits as a third page.
       is identity.** What is left is measurement, not feasibility: load time,
       steady-state CPU for 16 Tone tracks, and a `synth.polyphony` value (default
       256 is the starting point).
-- [ ] Docs: PRINCIPLES check (expected to pass unamended — §24 naming, §9 machines
-      generate, §8 canonical sections, §20 single owner all fit) → DESIGN §29
-      catalogue entry + a section on presenting one multi-timbral engine as N
-      per-track machines → then build.
+- [x] **Docs pass (2026-08-14).** The PRINCIPLES check did **not** pass unamended
+      as predicted: §9's consequence ("a specialised engine is a third-party
+      module, not a reason to grow the in-box catalogue") would, read literally,
+      push `Tone` out of the catalogue. §9 gains **"Breadth is not speciality"** —
+      `Tone` earns its place by reach rather than iconic parentage, and *cannot*
+      be a module anyway, because the ABI is a per-machine vtable with no
+      cross-instance hook and a shared engine has no way to express itself through
+      it. DESIGN gains the lineage-table row (marked as deliberately outside the
+      lineage) and **§29.3**, the full architecture.
 - [ ] Vendor FluidLite as a submodule; SF3 + vendored `stb_vorbis` build; a
       `deck_core`-style JUCE-free wrapper (`src/tonecore/`, `ToneEngine`).
 - [ ] Convert + commit the q0.8 SF3 bank as a build asset (10.07 MB, see the table
