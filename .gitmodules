@@ -11,3 +11,6 @@
 [submodule "modules/signalsmith-dsp"]
 	path = modules/signalsmith-dsp
 	url = https://github.com/Signalsmith-Audio/dsp.git
+[submodule "modules/fluidlite"]
+	path = modules/fluidlite
+	url = https://github.com/divideconcept/FluidLite.git

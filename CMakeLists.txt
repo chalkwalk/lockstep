@@ -86,6 +86,20 @@ add_subdirectory(modules/bungee EXCLUDE_FROM_ALL)
 # itself when building shared, so set it here for both static archives.
 set_target_properties(bungee_library pffft PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# FluidLite — the SoundFont engine behind the `Tone` machine (4.10, DESIGN §29.3).
+# LGPL-2.1+ ("or any later version"), so GPLv3-compatible under static linking.
+#
+# SF3 via the VENDORED stb_vorbis, never libogg/libvorbis: it keeps the
+# no-external-dependency property, and the Xiph path in fluid_defsfont.c decodes
+# through a FILE-STATIC `vorbisData` struct that is not reentrant. stb's
+# stb_vorbis_decode_memory is stateless, so on this path the hazard does not exist.
+set(ENABLE_SF3 ON CACHE BOOL "" FORCE)
+set(STB_VORBIS ON CACHE BOOL "" FORCE)
+set(FLUIDLITE_BUILD_STATIC ON CACHE BOOL "" FORCE)
+set(FLUIDLITE_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+add_subdirectory(modules/fluidlite EXCLUDE_FROM_ALL)
+set_target_properties(fluidlite-static PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # Vendored DSP stays optimized even in Debug builds: we never step through it,
 # and Bungee's Eigen internals collapse ~60x at -O0 (2.7x realtime per stereo
 # stream vs 62x at -O2 — measured, S6 stretch spike). Debug's -g and asserts
@@ -93,7 +107,7 @@ set_target_properties(bungee_library pffft PROPERTIES POSITION_INDEPENDENT_CODE 
 # another separately-compiled third-party DSP library is vendored. (JUCE and
 # header-only libraries compile inside first-party targets and are not covered.)
 if(NOT MSVC)
-    foreach(third_party_target bungee_library pffft)
+    foreach(third_party_target bungee_library pffft fluidlite-static)
         target_compile_options(${third_party_target} PRIVATE $<$<CONFIG:Debug>:-O2>)
     endforeach()
 endif()
