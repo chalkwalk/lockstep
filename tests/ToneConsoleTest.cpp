@@ -153,5 +153,43 @@ void runToneConsoleTests(int& failed)
           "...and the track's base instrument is untouched (Override-ELSE-Base)");
     check(failed, !step3.trig,
           "...and the release does not toggle the trig -- the step was the operand (9.38)");
+
+    // --- The held step's OWN cell: unreachable while the key is down --------
+    // Holding step 3 means key 'H' is down, so cell 3 cannot be pressed on
+    // either page -- you cannot press a key that is already pressed. The way
+    // out is the LATCH (W7): hold the step, tap Func, let go. The step stays in
+    // the edit context as a VIRTUAL hold, the finger is free, and all sixteen
+    // cells are reachable again.
+    d.gap();
+    d.keyDown('H');               // step 3
+    d.tap(CB::Func);              // latch it
+    d.keyUp('H');                 // finger off -- the step is still the operand
+    check(failed, d.proc().editContext().hasAnyLatchedStep()
+                      && d.proc().editContext().isActiveForEditing(),
+          "hold + Func latches the step and keeps it as the edit operand");
+
+    const float baseBeforeLatch = d.proc().kit(0).baseParams[
+        static_cast<std::size_t>(ToneMachine::kProgram)];
+
+    d.gap();
+    d.longPress(CB::Section, IMachine::kSrcSecIdx);
+    check(failed, d.surface().activeLayer == SurfaceLayer::MachineConsole,
+          "the picker opens over a LATCHED step too");
+
+    d.keyTap('H');                // family 3 -- the very cell that was blocked
+    check(failed, d.ui().toneConsoleFamily == 3,
+          "...and the step's OWN cell is now pressable, because no key is held");
+    d.keyTap('H');                // program 3*8+3 = 27
+    d.runBlocks(4);
+
+    const auto& latchedStep = d.proc().sequence().tracks[0].steps[3];
+    check(failed, latchedStep.overrides.has(ToneMachine::kProgram),
+          "picking over a latched step P-LOCKS onto it");
+    check(failed, std::abs(d.proc().kit(0).baseParams[
+              static_cast<std::size_t>(ToneMachine::kProgram)] - baseBeforeLatch) < 0.5f,
+          "...leaving the track's base instrument alone");
+    d.doubleTap(CB::Func);        // universal escape drops the latch
+    check(failed, !d.proc().editContext().hasAnyLatchedStep(),
+          "double-tap Func releases the latched step");
 }
 }   // namespace lockstep

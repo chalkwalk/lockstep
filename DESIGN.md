@@ -5038,8 +5038,13 @@ ambient rather than an act, so a held step should still inspect.
 Two constraints fall out of one grid being two things, and are shared with every
 other modal picker rather than special to this one:
 
-- The picker cell must not be the **held step's own key** — pressing it is that
-  step's release.
+- While a step is **physically** held its own cell is unreachable — you cannot
+  press a key that is already down. Holding step 3 blocks family 3, and blocks
+  program-slot 3 within whichever family you drill into. The way out is already
+  in the grammar: **latch the step** (hold it, tap `Func`, let go). The step stays
+  the edit operand as a virtual hold, the finger is free, and all sixteen cells
+  are reachable — which is precisely what §13.7's latch is for. `Func`
+  double-tap releases it afterwards.
 - On a **controller**, every button shares one source id, so releasing a picker
   cell matches the held step's entry and tears the edit context down. On QWERTY
   each step has its own key code and the gesture works. That is a pre-existing
