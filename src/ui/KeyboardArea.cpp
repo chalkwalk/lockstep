@@ -1296,32 +1296,13 @@ namespace lockstep
             return;
         }
 
-        // S1: Tape console text. The MachineConsole layer is shared by the Tape
-        // console (per-track tape transport) and the Route matrix; only the Tape
-        // variant is rendered here — the labels (REC/PLAY/STOP/... , |< CUE >| ,
-        // << >>) are model-driven (SurfaceModel MachineConsole/tape branch,
-        // c.primary), mirroring the LooperConsole path above. The Route variant
-        // (non-tape track) is intentionally left to fall through unchanged.
-        if (model.activeLayer == SurfaceLayer::MachineConsole
-            && processor_.isTapeTrack(uiState_.activeTrack))
-        {
-            for (int row = 0; row < kRows; ++row)
-            {
-                for (int col2 = 0; col2 < kCols; ++col2)
-                {
-                    const int idx = row * kCols + col2;
-                    const SurfaceCell& sc = model.step[static_cast<std::size_t>(idx)];
-                    const auto cell = cellAt(row, col2 + 2).reduced(2);
-
-                    paintGridCellFill(g, cell, sc);
-                    paintGridCellText(g, cell, sc, 0.90f);
-                    if (showKeyLetters)
-                        paintCellKeyHint(g, cell, kKeyLetters[static_cast<std::size_t>(idx)], 0.55f);
-                }
-            }
-            // Tape has the always-on timeline strip; no nav-row timeline here.
-            return;
-        }
+        // (The MachineConsole layer used to be rendered by a bespoke branch here,
+        // gated on `processor_.isTapeTrack(activeTrack)`. That gate was the bug: one
+        // layer is THREE consoles — Tape, Route and Tone's program picker — and only
+        // the tape one had a painter, so the other two built labelled cells that
+        // nothing drew. MachineConsole is now StepRenderKind::Labeled and goes
+        // through paintLabeledGrid with the rest, which is what the classifier was
+        // for. See layerStepRender in SurfaceLayer.cpp.)
 
         // NoteEdit mode: 1-octave chromatic keyboard overlay.
         // Cells 0-11 = C through B; cells 12-15 = unused.

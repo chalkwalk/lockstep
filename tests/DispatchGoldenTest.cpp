@@ -850,6 +850,8 @@ namespace lockstep
     // Defined in CujDeckTest.cpp -- Group F capture/emit journeys.
     void runCujDeckTests(int& failed);
     void runToneConsoleTests(int& failed);
+    // Defined in StepLabelInkTest.cpp -- model labels must reach the screen.
+    void runStepLabelInkTests(int& failed);
     // Defined in CujCaptureTest.cpp -- Group G, the anchor capture flow.
     void runCujCaptureTests(int& failed);
 }
@@ -881,6 +883,7 @@ int main()
     lockstep::runCujTimeTests(failed);
     lockstep::runCujDeckTests(failed);
     lockstep::runToneConsoleTests(failed);
+    lockstep::runStepLabelInkTests(failed);
     lockstep::runCujCaptureTests(failed);
     std::fprintf(stderr, failed == 0 ? "All dispatch golden tests passed.\n"
                                      : "%d dispatch golden test(s) FAILED.\n", failed);

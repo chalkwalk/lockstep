@@ -544,7 +544,14 @@ namespace lockstep
                  || c.base == CellState::NameCandidateSel
                  || c.base == CellState::PaletteSwatchSel
                  || c.base == CellState::MorphPoleActive) ? 0.90f : 0.65f);
-            g.setColour(juce::Colours::white.withAlpha(alpha));
+            // Ink contrasts with the cell it sits on, rather than being white
+            // unconditionally. SelectorCurrent fills pure white (SurfaceModel's
+            // compatColour), so white-on-white made the label of the one cell the
+            // user is looking FOR the only one they could not read -- on every
+            // labelled layer, not just the one that surfaced it.
+            const bool lightFill = juce::Colour(c.baseColour).getPerceivedBrightness() > 0.6f;
+            g.setColour((lightFill ? juce::Colours::black : juce::Colours::white)
+                            .withAlpha(alpha));
             g.setFont(juce::Font(juce::FontOptions(9.0f)));
             g.drawText(c.primary, cell.reduced(2), juce::Justification::centred, true);
         }

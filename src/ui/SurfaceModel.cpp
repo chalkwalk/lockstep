@@ -53,8 +53,15 @@ namespace lockstep
             case CellState::StepOutOfRange:     return kStepOutRange;
             case CellState::StepPlayhead:       return kStepPlayhead;
             case CellState::StepHeld:           return kStepHeld;
-            case CellState::SelectorCurrent:    return 0xFFFFFFFFu;
-            case CellState::SelectorOccupied:   return kScopeStep;
+            // A selector cell CARRIES TEXT (a family, an instrument, a song name),
+            // so these two are legibility decisions, not just palette ones. Current
+            // used to be pure white, which made the label of the one cell the user
+            // is looking FOR the only one they could not read. The pair now steps
+            // down: occupied is dark enough to carry white text comfortably, and
+            // current is the shade occupied used to be -- still obviously the
+            // brightest cell on the page, still readable.
+            case CellState::SelectorCurrent:    return kScopeStep;
+            case CellState::SelectorOccupied:   return 0xFF4E5A68u;
             case CellState::SelectorEmpty:      return 0xFF404040u;
             case CellState::SelectorOutRange:   return kStepOutRange;
             case CellState::SelectorNext:       return kScopePhrase;
@@ -1491,6 +1498,16 @@ namespace lockstep
                         proc.kit(activeTrack).baseParams.size() > ToneMachine::kProgram
                             ? proc.kit(activeTrack).baseParams[ToneMachine::kProgram] : 0.0f)),
                     0, 127);
+
+                // Which of the two presses you are on. The generic "CONSOLE" banner
+                // cannot say, and on the program page the family name is otherwise
+                // nowhere on screen -- the cells show the eight instruments, not
+                // what they are eight of.
+                model.stepBanner = familyPage
+                    ? juce::String("PICK FAMILY   --   " + juce::String(programs[
+                          static_cast<std::size_t>(curProg)]) + " now")
+                    : juce::String(families[static_cast<std::size_t>(ui.toneConsoleFamily)])
+                          + "   --   pick an instrument   *   D = back";
 
                 for (int i = 0; i < 16; ++i)
                 {

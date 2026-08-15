@@ -135,7 +135,7 @@ namespace lockstep
 
             case SurfaceLayer::MachineConsole:
                 return ui.routeConsoleActive
-                           ? "ROUTING  (tap cell = cycle dest · P = commit · Func+P = cancel)"
+                           ? "ROUTING  (tap cell = cycle dest  *  P = commit  *  Func+P = cancel)"
                            : "CONSOLE";
 
             case SurfaceLayer::Identity:
@@ -192,6 +192,13 @@ namespace lockstep
             // bespoke paint branch. New text overlays belong here.
             case SurfaceLayer::Identity:
             case SurfaceLayer::Browser:
+            // MachineConsole is THREE consoles behind one layer — Tape's transport,
+            // Route's matrix and Tone's program picker. It was Custom, and its one
+            // bespoke branch was gated on `isTapeTrack`, so Route and Tone rendered
+            // their labels nowhere. A per-layer classification cannot express
+            // "labelled for some machines"; the answer is that it is labelled for
+            // all of them, because every one of the three is a grid of text cells.
+            case SurfaceLayer::MachineConsole:
                 return StepRenderKind::Labeled;
 
             // Custom: a dedicated branch in paintStepRows (grep the guard shown).
@@ -208,7 +215,6 @@ namespace lockstep
             case SurfaceLayer::MorphStepView:    // uiState_.morphHeld && !funcHeld
             case SurfaceLayer::ScopeSelector:    // KeyboardArea.cpp scopeReskin branch
             case SurfaceLayer::LooperConsole:    // activeLayer == LooperConsole
-            case SurfaceLayer::MachineConsole:   // activeLayer == MachineConsole
                 return StepRenderKind::Custom;
 
             // Sequencer: the trig step grid (the paintStepRows fall-through default).
