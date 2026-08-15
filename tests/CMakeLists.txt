@@ -60,6 +60,7 @@ add_executable(lockstep_tests
     MultiStepHoldTest.cpp
     TransportGateTest.cpp
     MetronomeIdleTest.cpp
+    NoteOrderTest.cpp
     TrigConditionTest.cpp
     MeterMathTest.cpp
     PluginStateUpgradeTest.cpp

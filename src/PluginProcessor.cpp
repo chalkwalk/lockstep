@@ -685,6 +685,68 @@ namespace lockstep
     // has not started yet. Otherwise it follows the CLICK toggle and the transport.
     // Either way it lands on the Cue bus when the host has one enabled — a click in
     // the front-of-house mix is nobody's idea of a good time — and on master if not.
+    // Emit note-offs whose gate ran past the previous block's boundary, at the
+    // offset they were scheduled for. MUST run after trig scheduling: a trig that
+    // fires earlier in this block consumes the pending offs itself (emitTrig) and
+    // emits them at its own position, so the note-off of the outgoing note can
+    // never land after the note-on of the incoming one. See the note at the top of
+    // processBlock where this used to run.
+    void LockstepProcessor::drainPendingNoteOffs(
+        std::array<juce::MidiBuffer, kNumTracks>& trackMidi, int numBlockSamples)
+    {
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+        {
+            auto& pnf = pendingNoteOffs_[i];
+            if (pnf.samplesRemaining < 0) continue;
+            if (pnf.samplesRemaining < numBlockSamples)
+            {
+                for (int n = 0; n < pnf.noteCount; ++n)
+                    trackMidi[i].addEvent(
+                        juce::MidiMessage::noteOff(1, pnf.notes[static_cast<std::size_t>(n)]),
+                        pnf.samplesRemaining);
+                pnf.samplesRemaining = -1;
+                pnf.openEnded = false;
+            }
+            else
+            {
+                pnf.samplesRemaining -= numBlockSamples;
+            }
+        }
+    }
+
+    // Diagnostic: a note-off for a pitch that FOLLOWS a note-on for that pitch in
+    // the same block. The machine cannot recover from this -- one that starts
+    // notes immediately loses the note outright -- and it is a property of the
+    // MIDI, so it is checked HERE rather than inside any machine. Putting the
+    // first version of this probe in ToneMachine was a mistake: it made a
+    // machine-independent fact look Tone-specific, and an FM run produced no
+    // evidence at all.
+    void LockstepProcessor::traceNoteOrder(
+        const std::array<juce::MidiBuffer, kNumTracks>& trackMidi, double blockStart)
+    {
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+        {
+            std::array<bool, 128> onSeen{};
+            for (const auto meta : trackMidi[i])
+            {
+                const auto m = meta.getMessage();
+                const int n = m.getNoteNumber();
+                if (n < 0 || n > 127) continue;
+                if (m.isNoteOn())
+                {
+                    onSeen[static_cast<std::size_t>(n)] = true;
+                }
+                else if (m.isNoteOff() && onSeen[static_cast<std::size_t>(n)])
+                {
+                    std::fprintf(stderr,
+                                 "[order] INVERTED ppq=%.6f track=%d note=%d "
+                                 "(note-off cancels this block's note-on)\n",
+                                 blockStart, static_cast<int>(i), n);
+                }
+            }
+        }
+    }
+
     void LockstepProcessor::processMetronome(juce::AudioBuffer<float>& buffer,
                                              juce::AudioBuffer<float>& mainOut,
                                              double blockStart, double blockEnd,
@@ -2062,26 +2124,26 @@ namespace lockstep
         // Per-track MIDI buffers populated from external MIDI and sequencer trigs.
         std::array<juce::MidiBuffer, kNumTracks> trackMidi;
 
-        // Emit note-offs that were scheduled beyond the previous block's boundary.
         const int numBlockSamples = buffer.getNumSamples();
-        for (std::size_t i = 0; i < kNumTracks; ++i)
-        {
-            auto& pnf = pendingNoteOffs_[i];
-            if (pnf.samplesRemaining < 0) continue;
-            if (pnf.samplesRemaining < numBlockSamples)
-            {
-                for (int n = 0; n < pnf.noteCount; ++n)
-                    trackMidi[i].addEvent(
-                        juce::MidiMessage::noteOff(1, pnf.notes[static_cast<std::size_t>(n)]),
-                        pnf.samplesRemaining);
-                pnf.samplesRemaining = -1;
-                pnf.openEnded = false;
-            }
-            else
-            {
-                pnf.samplesRemaining -= numBlockSamples;
-            }
-        }
+
+        // Note-offs scheduled past the previous block's boundary are emitted by
+        // drainPendingNoteOffs(), which runs AFTER trig scheduling -- never here.
+        //
+        // It used to run at this point, and that was the bug behind the dropped
+        // chord: draining first cleared `pendingNoteOffs_`, so emitTrig's guard
+        // ("if a previous trig's note-off is still pending, emit it now so the
+        // voice releases and retriggers cleanly") found nothing pending and did
+        // nothing. If the new trig then fired EARLIER in the block than the
+        // drained note-off, MidiBuffer -- which orders by sample position, not
+        // insertion -- handed the machine a note-ON followed by the stale
+        // note-OFF of the same pitch. Any machine loses the note; a machine that
+        // starts notes immediately and resolves a note-off to "the voice playing
+        // this pitch" (FluidLite, so the Tone machine) loses it completely,
+        // before a single sample is rendered.
+        //
+        // Draining after scheduling lets the guard hold the offs and emit them at
+        // the trig's own position, ahead of its note-ons -- which is what it was
+        // written to do all along.
 
         // Route external note-on: record into sequencer-scope fields,
         // then inject into the track's MIDI buffer.
@@ -2722,6 +2784,7 @@ namespace lockstep
             // Tone's shared engine renders ONCE, before the loop: the loop runs
             // in ROUTING order, so there is no "first Tone track" to hang it on
             // (DESIGN §29.3).
+            drainPendingNoteOffs(trackMidi, numBlockSamples);
             toneEnginePrePass(trackMidi, numBlockSamples, faderNow, /*idlePath=*/true);
 
             const auto routeOrderIdle = routing::computeOrder(routingEdges(), tapEdges());
@@ -3794,6 +3857,8 @@ namespace lockstep
         // Feed every Tone track's MIDI (now fully scheduled) into the shared
         // engine and render all 16 groups ONCE, before any track copies its own
         // group out (DESIGN §29.3).
+        drainPendingNoteOffs(trackMidi, numBlockSamples);
+        if (traceMute_) traceNoteOrder(trackMidi, blockStart);
         toneEnginePrePass(trackMidi, numBlockSamples, faderNow, /*idlePath=*/false);
 
         // ── Render pass ──────────────────────────────────────────────────────

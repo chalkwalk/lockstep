@@ -1691,6 +1691,15 @@ namespace lockstep
         void beginPreRoll();
         void cancelPreRoll();
         // One home for the click, called from both the running and idle paths.
+        // Machine-independent: reports a note-off that cancels a note-on from the
+        // same block. Trace-gated; the durable check is tests/NoteOrderTest.cpp.
+        void traceNoteOrder(const std::array<juce::MidiBuffer, kNumTracks>& trackMidi,
+                            double blockStart);
+
+        // Runs AFTER trig scheduling -- see the definition. Order is load-bearing.
+        void drainPendingNoteOffs(std::array<juce::MidiBuffer, kNumTracks>& trackMidi,
+                                  int numBlockSamples);
+
         void processMetronome(juce::AudioBuffer<float>& buffer,
                               juce::AudioBuffer<float>& mainOut,
                               double blockStart, double blockEnd,
