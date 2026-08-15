@@ -160,6 +160,7 @@ add_executable(lockstep_dispatch_tests
     CujArrangementTest.cpp
     CujTimeTest.cpp
     CujDeckTest.cpp
+    ToneConsoleTest.cpp
     CujCaptureTest.cpp
     ../src/PluginEditorFactory.cpp   # the real createEditor() (not the test stub)
     ../src/PluginEditor.cpp

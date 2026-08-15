@@ -1,4 +1,5 @@
 #include "SurfaceModel.h"
+#include "../machine/ToneMachine.h"
 #include "MetaBand.h"
 #include "../core/Subdivision.h"
 #include "../core/TrigEvaluator.h"
@@ -1451,6 +1452,64 @@ namespace lockstep
                     c.base = c.pressed ? CellState::Pressed : tok[static_cast<std::size_t>(i)];
                     c.baseColour = compatColour(tok[static_cast<std::size_t>(i)]);
                     c.primary = juce::String(kLabel[i]);
+                }
+            }
+            else if (activeLayer == SurfaceLayer::MachineConsole
+                     && proc.machineForTrack(activeTrack) != nullptr
+                     && std::string(proc.machineForTrack(activeTrack)->machineId())
+                            == ToneMachine::kMachineId)
+            {
+                // 4.10: the Tone console IS the program picker, in two presses.
+                // GM's shape and the grid's agree exactly -- 16 families fills the
+                // 16-cell page, a family holds 8 -- so any of the 128 instruments
+                // is two presses away with no paging (DESIGN §29.3).
+                const bool familyPage = (ui.toneConsoleFamily < 0);
+                const auto families = ToneMachine::familyNames();
+                const auto programs = ToneMachine::programNames();
+                const int curProg = std::clamp(
+                    static_cast<int>(std::lround(
+                        proc.kit(activeTrack).baseParams.size() > ToneMachine::kProgram
+                            ? proc.kit(activeTrack).baseParams[ToneMachine::kProgram] : 0.0f)),
+                    0, 127);
+
+                for (int i = 0; i < 16; ++i)
+                {
+                    SurfaceCell& c = model.step[static_cast<std::size_t>(i)];
+                    c.button = ControllerButton::Step;
+                    c.index = i;
+                    c.keyHint = kStepKeyHints[static_cast<std::size_t>(i)];
+                    c.pressed = physPressed(kStepKeyCodes[i], ControllerButton::Step, i);
+
+                    if (familyPage)
+                    {
+                        // Every cell is a family, and the one holding the current
+                        // program is lit -- so opening the console shows you where
+                        // you already are rather than a blank menu.
+                        const bool isCur = (i == curProg / ToneMachine::kProgramsPerFamily);
+                        c.primary = juce::String(families[static_cast<std::size_t>(i)]);
+                        c.base = c.pressed ? CellState::Pressed
+                                           : (isCur ? CellState::SelectorCurrent
+                                                    : CellState::SelectorOccupied);
+                    }
+                    else
+                    {
+                        // Eight programs; the back half of the page is dim. A
+                        // family has 8 members and the grid has 16 cells -- the
+                        // spare row is left empty rather than filled with
+                        // something that would make the page mean two things.
+                        const int prog = ui.toneConsoleFamily * ToneMachine::kProgramsPerFamily + i;
+                        if (i >= ToneMachine::kProgramsPerFamily || prog > 127)
+                        {
+                            c.base = CellState::StepOutOfRange;
+                            c.baseColour = kStepOutRange;
+                            continue;
+                        }
+                        c.primary = juce::String(programs[static_cast<std::size_t>(prog)]);
+                        c.base = c.pressed ? CellState::Pressed
+                                           : (prog == curProg ? CellState::SelectorCurrent
+                                                              : CellState::SelectorOccupied);
+                    }
+                    c.baseColour = compatColour(c.base);
                 }
             }
             else if (activeLayer == SurfaceLayer::MachineConsole)

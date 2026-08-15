@@ -267,6 +267,14 @@ namespace lockstep
         // ignore this flag. Ephemeral — never serialised.
         bool machineConsoleOpen = false;
 
+        // 4.10: which page the Tone console is showing.
+        //   -1      the FAMILY page: 16 cells, one GM family each.
+        //   0..15   that family's PROGRAM page: 8 cells, the family's 8 programs.
+        // Two presses reach any of the 128 instruments with no paging, because
+        // GM's 16x8 shape and the 16-cell grid agree exactly (DESIGN §29.3).
+        // Reset to -1 whenever the console opens. Ephemeral -- never serialised.
+        int toneConsoleFamily = -1;
+
         // 7c: Route routing-matrix scratch session. Live while the Route console is
         // open. routeScratch[t] holds the staged output destination for track t
         // (encoded, matching decodeOutputDest). SurfaceModel renders from it; Confirm

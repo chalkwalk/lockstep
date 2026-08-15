@@ -113,7 +113,7 @@ namespace
     // the net -- the failure mode a golden test is supposed to make impossible.
     // If this static_assert trips: add the field below, then re-bless.
     // ---------------------------------------------------------------------------
-    static_assert(sizeof(UiState) == 1336,
+    static_assert(sizeof(UiState) == 1344,
                   "UiState changed size: add the new field(s) to digest() below, then "
                   "regenerate the golden (LOCKSTEP_REGEN_GOLDEN=1) and read the diff.");
 
@@ -187,6 +187,7 @@ namespace
         put(d, "fxPickerPage", u.fxPickerPage);
         put(d, "deckConsolePage", u.deckConsolePage);
         put(d, "machineConsoleOpen", u.machineConsoleOpen);
+        put(d, "toneConsoleFamily", u.toneConsoleFamily);
         put(d, "routeConsoleActive", u.routeConsoleActive);
 
         put(d, "overlay", static_cast<int>(u.overlay));
@@ -848,6 +849,7 @@ namespace lockstep
     void runCujTimeTests(int& failed);
     // Defined in CujDeckTest.cpp -- Group F capture/emit journeys.
     void runCujDeckTests(int& failed);
+    void runToneConsoleTests(int& failed);
     // Defined in CujCaptureTest.cpp -- Group G, the anchor capture flow.
     void runCujCaptureTests(int& failed);
 }
@@ -878,6 +880,7 @@ int main()
     lockstep::runCujArrangementTests(failed);
     lockstep::runCujTimeTests(failed);
     lockstep::runCujDeckTests(failed);
+    lockstep::runToneConsoleTests(failed);
     lockstep::runCujCaptureTests(failed);
     std::fprintf(stderr, failed == 0 ? "All dispatch golden tests passed.\n"
                                      : "%d dispatch golden test(s) FAILED.\n", failed);

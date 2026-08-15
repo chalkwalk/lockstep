@@ -1686,7 +1686,7 @@ hint display ("128 bpm  Amin" / "one-shot"). Excluded by design: Stream
 files (no PCM in RAM) and volatile captures. Documented follow-up:
 key-synced Stretch playback.
 
-### 4.10 — Tone (FluidLite + a bundled SF3 GM bank)  *[designed + researched 2026-08-14 — shape settled, nothing unknown, build not started]*
+### 4.10 — Tone (FluidLite + a bundled SF3 GM bank)  *[SHIPPED 2026-08-14]*
 
 **The thought.** A General MIDI machine — **`Tone`** — with its *own* bundled sound bank —
 not because GM sounds good, but because 128 named instruments in the box
@@ -1931,11 +1931,15 @@ Program is fully usable meanwhile — SRC slot 0 is a stepped param with the GM
 names as `valueLabels`, so the encoder browses instruments by name like any other
 stepped slot. The picker is ergonomics, not what makes Tone playable.
 
-- [ ] Build it: `ToneMachine::consoleMode() -> OnDemand`; a `SurfaceLayer::MachineConsole`
-      branch in `SurfaceModel` for Tone (families / programs-of-family), the cell-press
-      handling in the editor, and one `UiState` field for the chosen family. The
-      console layer is currently hard-coded to Route's matrix, so this adds a
-      second consumer to it.
+- [x] **Built.** `consoleMode() -> OnDemand`, a Tone branch in `SurfaceModel`'s
+      `MachineConsole` layer (families / programs-of-family), the editor's
+      cell-press handling, and `UiState::toneConsoleFamily`. The console layer
+      gained its second consumer and took it without a refactor — the Route
+      branch was already gated on the focused machine, so Tone slots in beside
+      it. The console always opens on the family page: resuming mid-drill would
+      make the gesture sometimes one press and sometimes two, which is worse
+      than either. Program selection goes through `writeParam`, so **a held step
+      P-Locks the instrument** — the step-changes-instrument move, for free.
 
 **Remaining details, settled here.**
 
@@ -1998,8 +2002,8 @@ stepped slot. The picker is ergonomics, not what makes Tone playable.
       `kit().baseParams` directly is discarded, because the save flushes working
       state over the kit. Writes go through `writeParam` + a block, which is the
       documented rule and now has a test that would catch its being forgotten.
-- [ ] Program picker: two-press family → program, as Tone's OnDemand console
-      (designed above; no new gesture needed).
+- [x] Program picker: two-press family → program, as Tone's OnDemand console
+      (`tests/ToneConsoleTest.cpp`).
 
 *Not now, but named so the space is reserved:* auto-accompaniment (`Style`), which
 is the other half of what those keyboards did.

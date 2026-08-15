@@ -94,6 +94,18 @@ namespace lockstep
         // cell either way.
         [[nodiscard]] static std::span<const char* const> programNames() noexcept;
 
+        // The 16 GM families, in GM order. Eight programs each, so family F owns
+        // programs F*8 .. F*8+7 -- which is what makes the picker two presses
+        // (DESIGN §29.3): 16 families fills a 16-cell page exactly.
+        static constexpr int kNumFamilies = 16;
+        static constexpr int kProgramsPerFamily = 8;
+        [[nodiscard]] static std::span<const char* const> familyNames() noexcept;
+
+        // The console IS the program picker. OnDemand + the default
+        // consoleSectionIndex() (SRC) means bare hold(SRC) toggles it, re-hold
+        // closes -- the same rail Route's matrix rides, and no new gesture.
+        [[nodiscard]] ConsoleMode consoleMode() const override { return ConsoleMode::OnDemand; }
+
     private:
         tone::ToneEngine* engine_ = nullptr;
         int channel_ = -1;

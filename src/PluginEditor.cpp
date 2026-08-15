@@ -16,6 +16,7 @@
 #include "machine/ISliceable.h"
 #include "machine/SampleMachine.h"
 #include "machine/RouteMachine.h"
+#include "machine/ToneMachine.h"
 #include "machine/EffectPickerModel.h"
 #include "ui/KeyLabel.h"
 #include "ui/MeterMath.h"
@@ -2968,6 +2969,10 @@ namespace lockstep
     void LockstepEditor::openMachineConsole()
     {
         uiState_.machineConsoleOpen = true;
+        // 4.10: a Tone console always opens on the FAMILY page. Two presses is
+        // the whole promise; resuming mid-drill would make it sometimes one and
+        // sometimes two, which is worse than either.
+        uiState_.toneConsoleFamily = -1;
         // 7c: for a Route track, snapshot every track's committed output dest into
         // the scratch buffer so edits can be staged and reverted.
         const int at = keyboardArea_.getActiveTrack();
@@ -5563,6 +5568,34 @@ namespace lockstep
                                 case 12: processor_.tapeSetScrubRate(mct, -kTapeWindRate); break;  // <<
                                 case 13: processor_.tapeSetScrubRate(mct, +kTapeWindRate); break;  // >>
                                 default: break;
+                            }
+                            refreshSurface();
+                            return true;
+                        }
+                        // 4.10: the Tone console picks an instrument in two
+                        // presses -- family, then program. Press one drills in,
+                        // press two writes the program and closes.
+                        if (dynamic_cast<const ToneMachine*>(
+                                processor_.machineForTrack(mct)) != nullptr)
+                        {
+                            if (uiState_.toneConsoleFamily < 0)
+                            {
+                                if (ev.index < ToneMachine::kNumFamilies)
+                                    uiState_.toneConsoleFamily = ev.index;
+                            }
+                            else if (ev.index < ToneMachine::kProgramsPerFamily)
+                            {
+                                const int prog = uiState_.toneConsoleFamily
+                                                     * ToneMachine::kProgramsPerFamily + ev.index;
+                                if (prog <= 127)
+                                {
+                                    // Through writeParam, so a held step P-LOCKS the
+                                    // instrument instead of writing the base -- the
+                                    // step-changes-instrument move, for free.
+                                    processor_.writeParam(mct, ToneMachine::kProgram,
+                                                          static_cast<float>(prog));
+                                    closeMachineConsole();
+                                }
                             }
                             refreshSurface();
                             return true;

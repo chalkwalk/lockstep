@@ -46,6 +46,14 @@ namespace
         "GtrFret", "Breath", "Seashore", "BirdTwit", "Phone", "Helicptr", "Applause", "Gunshot"
     } };
 
+    // GM's sixteen families, in order. Short enough for a grid cell.
+    constexpr std::array<const char*, 16> kGmFamilies = { {
+        "Piano", "Chrom", "Organ", "Guitar",
+        "Bass", "Strings", "Ensmbl", "Brass",
+        "Reed", "Pipe", "Lead", "Pad",
+        "SynFX", "Ethnic", "Perc", "SFX"
+    } };
+
     // 0..1 -> 0..127, the MIDI CC domain.
     int toCc(float v) noexcept
     {
@@ -56,6 +64,11 @@ namespace
 std::span<const char* const> ToneMachine::programNames() noexcept
 {
     return std::span<const char* const>(kGmNames.data(), kGmNames.size());
+}
+
+std::span<const char* const> ToneMachine::familyNames() noexcept
+{
+    return std::span<const char* const>(kGmFamilies.data(), kGmFamilies.size());
 }
 
 void ToneMachine::reset()
