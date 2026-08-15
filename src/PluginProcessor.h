@@ -1900,6 +1900,10 @@ namespace lockstep
         // [ATOMIC] diagnostic metering — audio thread writes, UI timer reads.
         std::array<std::atomic<float>, kNumTracks> trackPeak_{};
         std::array<std::atomic<float>, kNumTracks> trigPulse_{};
+
+        // LOCKSTEP_TRACE_MUTE: read once at construction so the audio thread never
+        // calls getenv (which is not RT-safe and would be paid every block).
+        const bool traceMute_ = std::getenv("LOCKSTEP_TRACE_MUTE") != nullptr;
         // MIDI-out VU: velocity-loudness accumulator + CC-sent pulse (Part 3).
         std::array<std::atomic<float>, kNumTracks> midiActivity_{};
         std::array<std::atomic<float>, kNumTracks> midiCcPulse_{};

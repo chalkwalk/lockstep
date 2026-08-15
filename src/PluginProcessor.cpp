@@ -3060,6 +3060,21 @@ namespace lockstep
                 if (!isStandalone)
                     midi.addEvents(stopBuf, 0, -1, 0);
             }
+            // Diagnostic trace (LOCKSTEP_TRACE_MUTE): the moment a track's audible
+            // state actually CHANGES, in transport PPQ. Not the moment the button
+            // was clicked -- the audio thread sees a param write at block
+            // granularity, and the applied edge is the only timestamp that can be
+            // replayed. Emitted on the audio thread and not RT-safe, which is
+            // acceptable for a rare, opt-in, edge-triggered diagnostic.
+            if (silent != wasSilent_[i] && traceMute_)
+            {
+                std::fprintf(stderr,
+                             "[mute] ppq=%.6f track=%d silent=%d "
+                             "(global=%d section=%d soloGate=%d)\n",
+                             blockStart, static_cast<int>(i), silent ? 1 : 0,
+                             globalMuted ? 1 : 0, sectionMuted ? 1 : 0,
+                             (anySoloed && !soloAudible[i]) ? 1 : 0);
+            }
             wasSilent_[i] = silent;
 
             // W5: drive the per-track mute declick. A muted (global or Scene) audio
@@ -3123,7 +3138,18 @@ namespace lockstep
             auto emitTrig = [&](int stepIdx, int fireAt) {
                 // W5: a muted track's cursor still advances (so it stays in sync and
                 // its voices fade via the mute ramp), but it emits no NEW notes.
-                if (silent) return;
+                if (silent)
+                {
+                    // The suppressed case is the one worth seeing: no notes AND no
+                    // VU pulse, because this returns before trigPulse_ is set. A
+                    // step lost here is indistinguishable from one that was never
+                    // scheduled, unless it says so.
+                    if (traceMute_)
+                        std::fprintf(stderr, "[trig] SUPPRESSED (silent) ppq=%.6f "
+                                             "track=%d step=%d\n",
+                                     blockStart, static_cast<int>(i), stepIdx);
+                    return;
+                }
                 trigPulse_[i].store(1.0f, std::memory_order_relaxed);
                 const auto trig = StateResolver::resolveTrig(track, stepIdx, curFillActive);
 
