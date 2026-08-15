@@ -34,6 +34,7 @@
 // so leaving them on would burn CPU on something inaudible. Lockstep's per-track
 // FX section is where reverb belongs anyway (PRINCIPLES §9).
 
+#include <atomic>
 #include <memory>
 #include <string>
 #include <vector>
@@ -86,6 +87,13 @@ namespace lockstep::tone
         // ---- audio thread, after ready() ------------------------------------
 
         void noteOn(int chan, int note, int velocity) noexcept;
+
+        // Note-ons FluidLite refused. Should be zero; anything else is a note the
+        // sequencer thinks it played and the listener never heard.
+        [[nodiscard]] int noteOnFailures() const noexcept
+        {
+            return noteOnFailures_.load(std::memory_order_relaxed);
+        }
         void noteOff(int chan, int note) noexcept;
         void controlChange(int chan, int cc, int value) noexcept;
         void pitchBend(int chan, int value14) noexcept;   // 0..16383, 8192 centre
@@ -113,6 +121,7 @@ namespace lockstep::tone
 
         bool ready_ = false;
         int maxBlock_ = 0;
+        std::atomic<int> noteOnFailures_{ 0 };
         std::string lastError_;
         std::vector<Instrument> melodic_;
         std::vector<Instrument> drumKits_;

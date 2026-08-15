@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <unordered_map>
 
@@ -277,7 +278,24 @@ void ToneEngine::selectProgram(int chan, int bank, int program) noexcept
 void ToneEngine::noteOn(int chan, int note, int velocity) noexcept
 {
     if (chan < 0 || chan >= kNumChannels) return;
-    fluid_synth_noteon(impl_->synth, chan, note, velocity);
+
+    // The return value is NOT discarded. fluid_synth_noteon has silent failure
+    // modes -- a channel with no preset, and voice allocation giving up -- and
+    // each one is a note the sequencer believes it played. That is exactly the
+    // "the trig fired, the VU dot flashed, nothing sounded" report, so a failure
+    // here is counted (and, under LOCKSTEP_TRACE_TONE, printed with the state
+    // needed to tell the two causes apart).
+    if (fluid_synth_noteon(impl_->synth, chan, note, velocity) != 0)   // FLUID_OK == 0; the public header does not export the enum
+    {
+        noteOnFailures_.fetch_add(1, std::memory_order_relaxed);
+        if (std::getenv("LOCKSTEP_TRACE_TONE") != nullptr)
+            std::fprintf(stderr,
+                         "[tone] noteOn FAILED ch=%d note=%d vel=%d  preset=%s  "
+                         "activeVoices=%d\n",
+                         chan, note, velocity,
+                         lockstep_tone_get_channel_preset(impl_->synth, chan) != nullptr ? "yes" : "NULL",
+                         lockstep_tone_active_voice_count(impl_->synth));
+    }
 }
 
 void ToneEngine::noteOff(int chan, int note) noexcept

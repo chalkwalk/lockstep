@@ -73,3 +73,8 @@ void lockstep_tone_detach_all_presets(fluid_synth_t* synth)
         if (synth->channel[i] != NULL)
             synth->channel[i]->preset = NULL;
 }
+
+int lockstep_tone_active_voice_count(fluid_synth_t* synth)
+{
+    return synth != NULL ? synth->active_voice_count : 0;
+}

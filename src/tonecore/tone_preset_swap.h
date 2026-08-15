@@ -21,6 +21,11 @@ void lockstep_tone_set_channel_preset(fluid_synth_t* synth, int chan,
 
 fluid_preset_t* lockstep_tone_get_channel_preset(fluid_synth_t* synth, int chan);
 
+// Active voice count -- diagnostic only. Reaches into the synth struct, which is
+// why it lives here with the rest of the private-header coupling rather than
+// being a second place that includes fluid_synth.h.
+int lockstep_tone_active_voice_count(fluid_synth_t* synth);
+
 // Rule 4: call before delete_fluid_synth so delete_fluid_channel cannot free a
 // cache entry. Leaves every channel holding NULL.
 void lockstep_tone_detach_all_presets(fluid_synth_t* synth);
