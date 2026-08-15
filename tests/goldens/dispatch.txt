@@ -509,6 +509,9 @@ L24 | RecordArm idx=-1 | action=64
 L24 | PlayStop idx=-1 | action=71
     (no observable state change)
 
+L24 | VerbRecord idx=-1 | action=64
+    up   proc.recordArmed: false -> true
+
 
 # Scenarios: verbs whose effect depends on prior state.
 

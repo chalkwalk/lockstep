@@ -384,6 +384,7 @@ namespace lockstep
         { CB::VerbRecord, -1, kModNone, SL::Base, AId::PlayStopReset, u8"RESET", CS::Resting,
           Gesture::Hold, false },
 
+
         // VerbSnapshot Func+Y (RESTORE): hold = RESTORE → FLOOR.
         { CB::VerbSnapshot, -1, kModFunc, SL::Base, AId::RestoreFloor, u8"→ FLOOR", CS::Resting,
           Gesture::Hold, false },
@@ -401,6 +402,20 @@ namespace lockstep
         // PlayStop (key 0): tap = PLAY/STOP toggle.
         { CB::PlayStop, -1, kModNone, SL::Base, AId::PlayStopToggle, u8"PLY/STOP", CS::Resting,
           Gesture::Tap, false },
+
+        // APPENDED, and it must stay appended: the dispatch golden is keyed by row
+        // ordinal, so inserting a row mid-table renumbers every row after it and
+        // the diff buries the one real change (same reason VerbUndo was appended).
+        //
+        // VerbRecord (key U): dbl-tap = OVERDUB (arms record AND overdub together).
+        // Editor-owned and display-only, like the RESET row above -- and it was
+        // MISSING. The gesture has always worked; the help overlay could not say so,
+        // because the overlay reads this table. 9.14's lesson with the sign flipped:
+        // a row is a promise dispatch must keep, and behaviour with no row is
+        // invisible. Key 9's RecordArm has carried its own tap/dbl-tap pair all
+        // along, which is what made the omission look deliberate.
+        { CB::VerbRecord, -1, kModNone, SL::Base, AId::RecordArmOverdub, u8"OVERDUB", CS::Resting,
+          Gesture::DoubleTap, false },
     };
     // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
 
