@@ -1463,7 +1463,27 @@ namespace lockstep
                 // GM's shape and the grid's agree exactly -- 16 families fills the
                 // 16-cell page, a family holds 8 -- so any of the 128 instruments
                 // is two presses away with no paging (DESIGN §29.3).
+                // Row layout (4.10, and the reason is probability, not taste).
+                // The grid is 2 rows of 8. For ANY track length that is not a
+                // multiple of 16 the last page's BOTTOM row has fewer live steps
+                // than its top row, so a held step is strictly less likely to sit
+                // there -- and on a track of 8 or less it cannot sit there at all.
+                // So the picker puts what you press on the BOTTOM row:
+                //
+                //   Programs      -> cells 8..15, never 0..7.
+                //   Families      -> rotated by 8, so GM's first (conventional)
+                //                    eight land on the bottom row and the more
+                //                    specialised eight on the top.
+                //
+                // This is a STATIC relabelling, not a conditional one: nothing
+                // moves at runtime, so there is one arrangement to learn and the
+                // grammar is untouched. The rotation is mechanical rather than a
+                // curated "most used" list on purpose -- a taste judgement here
+                // would be wrong for somebody, and this way being wrong only
+                // costs a slightly higher latch rate, never a broken surface.
                 const bool familyPage = (ui.toneConsoleFamily < 0);
+                // Cell -> family, and its inverse, in one place.
+                const auto familyAtCell = [](int cell) { return (cell + 8) % 16; };
                 const auto families = ToneMachine::familyNames();
                 const auto programs = ToneMachine::programNames();
                 const int curProg = std::clamp(
@@ -1485,20 +1505,35 @@ namespace lockstep
                         // Every cell is a family, and the one holding the current
                         // program is lit -- so opening the console shows you where
                         // you already are rather than a blank menu.
-                        const bool isCur = (i == curProg / ToneMachine::kProgramsPerFamily);
-                        c.primary = juce::String(families[static_cast<std::size_t>(i)]);
+                        const int fam = familyAtCell(i);
+                        const bool isCur = (fam == curProg / ToneMachine::kProgramsPerFamily);
+                        c.primary = juce::String(families[static_cast<std::size_t>(fam)]);
                         c.base = c.pressed ? CellState::Pressed
                                            : (isCur ? CellState::SelectorCurrent
                                                     : CellState::SelectorOccupied);
                     }
+                    else if (i == 0)
+                    {
+                        // BACK, in the conventional top-left. Drilling in used to
+                        // be one-way: the only way out was to close the console
+                        // and re-open it.
+                        c.primary = "BACK";
+                        c.base = c.pressed ? CellState::Pressed : CellState::SelectorOccupied;
+                    }
+                    else if (i < ToneMachine::kProgramsPerFamily)
+                    {
+                        // The rest of the top row is spare, and stays empty rather
+                        // than being filled with something that would make one page
+                        // mean two things.
+                        c.base = CellState::StepOutOfRange;
+                        c.baseColour = kStepOutRange;
+                        continue;
+                    }
                     else
                     {
-                        // Eight programs; the back half of the page is dim. A
-                        // family has 8 members and the grid has 16 cells -- the
-                        // spare row is left empty rather than filled with
-                        // something that would make the page mean two things.
-                        const int prog = ui.toneConsoleFamily * ToneMachine::kProgramsPerFamily + i;
-                        if (i >= ToneMachine::kProgramsPerFamily || prog > 127)
+                        const int slot = i - ToneMachine::kProgramsPerFamily;
+                        const int prog = ui.toneConsoleFamily * ToneMachine::kProgramsPerFamily + slot;
+                        if (prog > 127)
                         {
                             c.base = CellState::StepOutOfRange;
                             c.baseColour = kStepOutRange;

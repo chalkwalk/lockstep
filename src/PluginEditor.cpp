@@ -5578,15 +5578,24 @@ namespace lockstep
                         if (dynamic_cast<const ToneMachine*>(
                                 processor_.machineForTrack(mct)) != nullptr)
                         {
+                            // The layout is bottom-row-first (SurfaceModel says
+                            // why): families are rotated by 8 and programs live on
+                            // cells 8..15, because a held step is strictly less
+                            // likely to sit on the bottom row.
                             if (uiState_.toneConsoleFamily < 0)
                             {
                                 if (ev.index < ToneMachine::kNumFamilies)
-                                    uiState_.toneConsoleFamily = ev.index;
+                                    uiState_.toneConsoleFamily = (ev.index + 8) % 16;
                             }
-                            else if (ev.index < ToneMachine::kProgramsPerFamily)
+                            else if (ev.index == 0)
                             {
+                                uiState_.toneConsoleFamily = -1;   // BACK to families
+                            }
+                            else if (ev.index >= ToneMachine::kProgramsPerFamily)
+                            {
+                                const int slot = ev.index - ToneMachine::kProgramsPerFamily;
                                 const int prog = uiState_.toneConsoleFamily
-                                                     * ToneMachine::kProgramsPerFamily + ev.index;
+                                                     * ToneMachine::kProgramsPerFamily + slot;
                                 if (prog <= 127)
                                 {
                                     // Through writeParam, so a held step P-LOCKS the

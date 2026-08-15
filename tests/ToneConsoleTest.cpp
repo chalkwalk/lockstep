@@ -66,30 +66,42 @@ void runToneConsoleTests(int& failed)
         const auto surf = d.surface();
         check(failed, surf.activeLayer == SurfaceLayer::MachineConsole,
               "the grid re-skins to the console");
-        check(failed, surf.step[0].primary == "Piano" && surf.step[4].primary == "Bass",
-              "every cell is a GM family, in GM order");
-        check(failed, surf.step[15].primary == "SFX",
-              "...and all 16 fit exactly, with no page to turn");
+        // Families are ROTATED BY 8: GM's conventional first eight sit on the
+        // BOTTOM row, where a held step is strictly less likely to be, and the
+        // specialised eight take the top. A static relabelling -- nothing moves
+        // at runtime -- so there is still one arrangement to learn.
+        check(failed, surf.step[8].primary == "Piano" && surf.step[12].primary == "Bass",
+              "GM's first eight families sit on the BOTTOM row");
+        check(failed, surf.step[0].primary == "Reed" && surf.step[7].primary == "SFX",
+              "...and the specialised eight on the top row");
         // The family holding the current program is lit, so opening the console
         // shows you where you already are rather than a blank menu.
-        check(failed, surf.step[0].base == CellState::SelectorCurrent,
+        check(failed, surf.step[8].base == CellState::SelectorCurrent,
               "the family holding the current program reads as current");
     }
 
     // --- Press two: a family's 8 programs ------------------------------------
-    d.clickStep(5);          // family 5 = Strings
+    d.clickStep(13);         // cell 13 -> family 5 (Strings), rotated
     check(failed, d.ui().toneConsoleFamily == 5, "pressing a family drills into it");
     {
         const auto surf = d.surface();
-        check(failed, surf.step[0].primary == "Violin",
-              "the page becomes that family's programs");
-        check(failed, surf.step[7].primary == "Timpani", "...all eight of them");
-        check(failed, surf.step[8].base == CellState::StepOutOfRange,
-              "the spare half-page is dim rather than meaning something else");
+        check(failed, surf.step[8].primary == "Violin",
+              "the family's programs are on the BOTTOM row");
+        check(failed, surf.step[15].primary == "Timpani", "...all eight of them");
+        check(failed, surf.step[0].primary == "BACK",
+              "top-left is BACK -- drilling in is no longer one-way");
+        check(failed, surf.step[3].base == CellState::StepOutOfRange,
+              "the rest of the spare row is dim rather than meaning something else");
     }
 
+    // BACK returns to the families without closing and re-opening.
+    d.clickStep(0);
+    check(failed, d.ui().toneConsoleFamily < 0, "BACK returns to the family page");
+    check(failed, d.ui().machineConsoleOpen, "...without closing the console");
+    d.clickStep(13);         // back into Strings
+
     // --- Pressing a program selects it and closes ----------------------------
-    d.clickStep(2);          // Strings + 2 = program 42 (Cello)
+    d.clickStep(10);         // bottom-row slot 2 -> Strings + 2 = program 42 (Cello)
     d.runBlocks(4);
     check(failed, !d.ui().machineConsoleOpen, "picking a program closes the console");
 
@@ -106,7 +118,7 @@ void runToneConsoleTests(int& failed)
     {
         // Now the CURRENT family is 5, so the lit cell moved with the selection.
         const auto surf = d.surface();
-        check(failed, surf.step[5].base == CellState::SelectorCurrent,
+        check(failed, surf.step[13].base == CellState::SelectorCurrent,
               "the lit family follows the chosen instrument");
     }
 
@@ -137,11 +149,11 @@ void runToneConsoleTests(int& failed)
           "with a step held, the picker still owns the grid -- the step is its "
           "OPERAND, not a competitor for the cells");
 
-    d.keyTap('G');           // family 2 = Organ
+    d.keyTap('B');           // cell 10 -> family 2 (Organ)
     // NB: the picker cell must not be the held step's OWN key -- pressing it is
     // that step's release. Inherent to one grid being two things, and the same
     // constraint the SoundPool overlay has.
-    d.keyTap('K');           // slot 5 -> program 21 (a DIFFERENT key from the held step)
+    d.keyTap(',');           // cell 13 -> slot 5 -> program 21
     d.runBlocks(4);
     d.keyUp('H');
 
@@ -153,6 +165,38 @@ void runToneConsoleTests(int& failed)
           "...and the track's base instrument is untouched (Override-ELSE-Base)");
     check(failed, !step3.trig,
           "...and the release does not toggle the trig -- the step was the operand (9.38)");
+
+    // --- Why the layout is bottom-row-first ---------------------------------
+    // The whole point of rotating families and putting programs on cells 8..15:
+    // a held step is strictly less likely to sit on the bottom row (for any
+    // track length that is not a multiple of 16 the last page's bottom row has
+    // fewer live steps, and on a track of 8 or less it has none). So with a step
+    // held on the TOP row -- the common case, and the near-certain one on a short
+    // track -- EVERY program cell is reachable. Guarded so nobody tidies the
+    // layout back to the natural-looking one.
+    d.gap();
+    d.keyDown('D');          // step 0: the most likely step to be P-Locked
+    d.longPress(CB::Section, IMachine::kSrcSecIdx);
+    check(failed, d.surface().activeLayer == SurfaceLayer::MachineConsole,
+          "picker opens over a held step 0");
+    d.keyTap('C');           // cell 8 -> family 0 (Piano)
+    check(failed, d.ui().toneConsoleFamily == 0,
+          "with step 0 held, its own cell blocks a SPECIALISED family, not a common one");
+    {
+        const auto surf = d.surface();
+        bool allReachable = true;
+        for (int i = ToneMachine::kProgramsPerFamily; i < 16; ++i)
+            if (surf.step[static_cast<std::size_t>(i)].primary.isEmpty())
+                allReachable = false;
+        check(failed, allReachable,
+              "...and every one of the family's 8 programs is on a cell the held "
+              "step is not occupying");
+    }
+    d.keyTap('V');           // cell 9 -> slot 1
+    d.runBlocks(4);
+    d.keyUp('D');
+    check(failed, d.proc().sequence().tracks[0].steps[0].overrides.has(ToneMachine::kProgram),
+          "so the whole pick lands as a P-Lock with no latch needed");
 
     // --- The held step's OWN cell: unreachable while the key is down --------
     // Holding step 3 means key 'H' is down, so cell 3 cannot be pressed on
@@ -176,10 +220,10 @@ void runToneConsoleTests(int& failed)
     check(failed, d.surface().activeLayer == SurfaceLayer::MachineConsole,
           "the picker opens over a LATCHED step too");
 
-    d.keyTap('H');                // family 3 -- the very cell that was blocked
-    check(failed, d.ui().toneConsoleFamily == 3,
+    d.keyTap('H');                // cell 3 -- the very cell that was blocked
+    check(failed, d.ui().toneConsoleFamily == 11,
           "...and the step's OWN cell is now pressable, because no key is held");
-    d.keyTap('H');                // program 3*8+3 = 27
+    d.keyTap('N');                // cell 11 -> slot 3 -> program 11*8+3 = 91
     d.runBlocks(4);
 
     const auto& latchedStep = d.proc().sequence().tracks[0].steps[3];

@@ -5002,8 +5002,33 @@ GM's shape and the grid's shape agree exactly, which is what makes this work:
 So:
 
 1. `hold(SRC)` opens the console — 16 cells, one GM family each.
-2. Press a family — the console becomes that family's 8 programs (cells 8–15 dim).
+2. Press a family — the console becomes that family's 8 programs, plus **BACK**.
 3. Press a program — it is selected and the console closes.
+
+**The grid is 2 rows of 8, and the picker puts what you press on the BOTTOM row.**
+Programs occupy cells 8–15; the families are **rotated by 8**, so GM's conventional
+first eight (piano … brass) land on the bottom row and the specialised eight
+(reed … SFX) on the top. `BACK` takes the conventional top-left, so drilling into
+a family is no longer one-way.
+
+The reason is probability, not taste. For **any** track length that is not a
+multiple of 16, the last page's bottom row carries fewer live steps than its top
+row, so a held step is *strictly* less likely to sit there — and on a track of 8
+or fewer it cannot sit there at all. Since a held step blocks its own cell (you
+cannot press a key that is already down), putting the pressable content on the
+bottom row makes the collision **impossible** on short tracks and **no more
+likely** on any other. Win-or-neutral, never worse.
+
+This is a **static relabelling, not a conditional one** — nothing moves at
+runtime, so there is one arrangement to learn and the grammar is untouched. That
+is what distinguishes it from the rejected alternatives (swapping rows depending
+on where the held step is, or displacing a "least used" family out of the way):
+both of those made cell positions a function of live state, which is the thing
+muscle memory cannot absorb, and both needed extra cases for multi-step holds.
+The rotation is deliberately **mechanical** rather than a curated "most used"
+list, because a taste judgement there would be wrong for somebody; being wrong
+about GM's ordering only costs a slightly higher latch rate, never a broken
+surface.
 
 128 instruments in **two presses, with no paging and no scrolling**. The rejected
 alternative was 8 pages of 16 in GM order, which is the same information behind a
