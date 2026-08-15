@@ -1694,7 +1694,8 @@ namespace lockstep
         void processMetronome(juce::AudioBuffer<float>& buffer,
                               juce::AudioBuffer<float>& mainOut,
                               double blockStart, double blockEnd,
-                              double samplesPerPpq, int numBlockSamples);
+                              double samplesPerPpq, int numBlockSamples,
+                              bool transportRunning);
 
         MotionRecorder motionRecorder_;
         std::array<int, kNumTracks> motionStepIdx_{};

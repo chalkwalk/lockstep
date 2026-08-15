@@ -688,7 +688,8 @@ namespace lockstep
     void LockstepProcessor::processMetronome(juce::AudioBuffer<float>& buffer,
                                              juce::AudioBuffer<float>& mainOut,
                                              double blockStart, double blockEnd,
-                                             double samplesPerPpq, int numBlockSamples)
+                                             double samplesPerPpq, int numBlockSamples,
+                                             bool transportRunning)
     {
         metronome_.setLevel(project_.metronomeLevel);
         const auto metroCt = effectiveTimeSig();
@@ -717,7 +718,16 @@ namespace lockstep
             return;
         }
 
-        if (clock_.isMetronomeEnabled())
+        // The free-running click needs the transport to actually be MOVING, not
+        // merely enabled. A stopped clock still publishes a forward window --
+        // Clock.cpp computes ppqBlockEnd_ = ppqBlockStart_ + one block
+        // unconditionally, while localPpq_ only advances when playing -- so a
+        // parked transport hands this the same [ppq, ppq + block) range every
+        // block. Park it exactly on a beat and the metronome re-triggers that beat
+        // forever: a ~86 Hz buzz on the 1 kHz strong click. `hold(Rec)` (transport
+        // reset) parks it on PPQ 0, which is why that gesture reproduced it every
+        // time while an ordinary stop mid-pattern usually did not.
+        if (transportRunning && clock_.isMetronomeEnabled())
             metronome_.process(blockStart, blockEnd, samplesPerPpq, metroOut,
                                metroCt.numerator, metroCt.denominator);
     }
@@ -2796,8 +2806,10 @@ namespace lockstep
 
             // A6: a count-in runs with the sequencer stopped — that is what it is
             // for — so the click has to sound on the idle path too.
+            // The sequencer is stopped on this path, so only the count-in's own
+            // branch may click (it runs off preRollPpq_, not the parked transport).
             processMetronome(buffer, mainOut, blockStart, blockEnd, samplesPerPpq,
-                             numBlockSamples);
+                             numBlockSamples, /*transportRunning=*/false);
 
             // Keep audio path (gain smoothing, DC blocker) running so it doesn't freeze.
             const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();
@@ -3854,7 +3866,8 @@ namespace lockstep
         // Master insert chain — before metronome so the click is not sent through FX.
         processMasterChain(buffer, mainOut, numBlockSamples);
 
-        processMetronome(buffer, mainOut, blockStart, blockEnd, samplesPerPpq, numBlockSamples);
+        processMetronome(buffer, mainOut, blockStart, blockEnd, samplesPerPpq, numBlockSamples,
+                         sequencerRunning);
 
         // Output stage: smoothed gain → DC blocker → transparent soft-knee clip
         const float targetGainDb = apvts_.getRawParameterValue(ParamIDs::outputGain)->load();

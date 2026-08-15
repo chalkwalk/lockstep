@@ -73,6 +73,7 @@ int main()
     lockstep::runEngineTests();
     // v27 transport AND-gate + deterministic restart re-floor
     lockstep::runTransportGateTests();
+    lockstep::runMetronomeIdleTests();
     // 9.31 iteration rule (m:n) properties
     lockstep::runTrigConditionTests();
     // 9.31 meter tick + master drag mapping

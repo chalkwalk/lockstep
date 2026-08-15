@@ -99,6 +99,7 @@ namespace lockstep
     void runEngineTests();
     // v27 hosted-Locked transport AND-gate + restart re-floor
     void runTransportGateTests();
+    void runMetronomeIdleTests();
     // 9.31 iteration rule (m:n) -- m fires per n cycles, evenly distributed
     void runTrigConditionTests();
     // 9.31 meter geometry + master-VU drag mapping
