@@ -1,0 +1,67 @@
+FluidLite: SF3 loop-end check is off by one, and "repairs" the loop by
+looping the whole sample.
+
+Applied to modules/fluidlite (a submodule, so the fix cannot simply be
+committed) by the root CMakeLists before add_subdirectory. Reported
+upstream; delete this file and the apply step once it lands there.
+
+WHAT BREAKS
+-----------
+Sustained GeneralUser GS piano notes repeat every ~2 s, quietly, like a
+delay with very low feedback -- the whole sample loops instead of its
+sustain loop. It hits some patches and not others (Grand Piano and Bright
+yes; E.Grand and E.Piano no), which is what makes it look like a bad
+patch rather than a loader bug.
+
+WHY
+---
+In `fluid_defsfont_get_sample`, an SF3 sample is decoded and then:
+
+    sample->start = 0;
+    sample->end   = sampleframes - 1;      /* LAST VALID INDEX */
+
+`loopend`, per the SoundFont spec, is the first sample AFTER the loop --
+an EXCLUSIVE bound. FluidLite knows this; fluid_voice.c:1795 says so in
+as many words:
+
+    /* 'end' is last valid sample, loopend can be + 1 */
+
+But the validity check three lines below the decode compares the
+exclusive bound against the inclusive index:
+
+    if (sample->loopend > sample->end || ...)
+
+so every sample whose loop runs to the very end -- `loopend == end + 1`,
+which is legal and common -- is judged "fowled" and repaired to
+
+    loopstart = start + 8;  loopend = end - 8;
+
+i.e. loop the entire sample. Most of GeneralUser's Grand Piano samples
+loop to the end (their loopend equals the decoded frame count), so most
+of them get this treatment; the E.Piano samples loop well short of the
+end, so they are untouched.
+
+MEASURED
+--------
+A held C4 on program 0, rendered 14 s and scanned for re-attacks in the
+decaying envelope (a monotonic decay has none):
+
+    before:  4 re-attacks, +1.6 dB, evenly spaced ~2.0 s
+    after:   0
+    fluidsynth 2.4.8, same bank:      0  (control)
+    fluidsynth 2.4.8, the source SF2: 0  (control -- rules out the
+                                          SF2 -> SF3 conversion)
+
+diff --git a/src/fluid_defsfont.c b/src/fluid_defsfont.c
+index c5aeefb..cd32d2d 100644
+--- a/src/fluid_defsfont.c
++++ b/src/fluid_defsfont.c
+@@ -660,7 +660,7 @@ fluid_sample_t* fluid_defsfont_get_sample(fluid_defsfont_t* sfont, char *s)
+         sample->end = sampleframes - 1;
+ 
+         /* loop is fowled?? (cluck cluck :) */
+-        if (sample->loopend > sample->end ||
++        if (sample->loopend > sample->end + 1 ||
+             sample->loopstart >= sample->loopend ||
+             sample->loopstart <= sample->start) {
+           /* can pad loop by 8 samples and ensure at least 4 for loop (2*8+4) */

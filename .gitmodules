@@ -14,3 +14,6 @@
 [submodule "modules/fluidlite"]
 	path = modules/fluidlite
 	url = https://github.com/divideconcept/FluidLite.git
+	# Patched in place at configure time (patches/fluidlite-sf3-loop-offbyone.patch),
+	# so a working tree here is EXPECTED to be dirty.
+	ignore = dirty

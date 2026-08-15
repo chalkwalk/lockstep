@@ -22,6 +22,18 @@ measured ladder is recorded in ROADMAP 4.10.
 sample to PCM at load, so the resident cost is the SF2's ~30 MB whenever any
 track holds a Tone.
 
+**SF3 also needs a loader patch.** FluidLite judges an SF3 sample's loop
+"fowled" whenever its loop runs to the end of the sample — comparing the
+spec's *exclusive* `loopend` against an *inclusive* last-sample index — and
+repairs it by looping the whole sample. Most of this bank's Grand Piano
+samples loop to the end, so a held piano note repeated every ~2 s, quietly,
+under the decay. `patches/fluidlite-sf3-loop-offbyone.patch` (applied by the
+root `CMakeLists.txt`) carries the one-character fix, the diagnosis and the
+measurements; `ToneEngineTest` asserts the audio so the patch cannot go
+missing quietly. **It is a loader bug, not a bank bug** — the same file plays
+correctly under fluidsynth 2.4.8, as does the source SF2, which is what ruled
+the conversion out.
+
 ## Licence — separate from this repository's
 
 `GeneralUser-GS-LICENSE.txt` is the bank's own licence, verbatim and unmodified.
