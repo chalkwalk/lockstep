@@ -4991,6 +4991,59 @@ namespace lockstep
         CHECK(finite, "...and the Tone path stays finite");
     }
 
+    // 4.10: a Tone's instrument survives save/load.
+    //
+    // The standard new-modality round-trip. `program` and `drumkit` are ordinary
+    // baseParams, so this asserts the generic path really does carry them rather
+    // than assuming it -- which is the whole point of a round-trip test on a
+    // machine that stores its identity in a param rather than a file reference.
+    static void testToneProgramRoundTrip()
+    {
+        const juce::File f = juce::File::createTempFile("lockstep_tone_rt.lockstep");
+        f.deleteFile();
+
+        {
+            auto procPtr = std::make_unique<LockstepProcessor>();
+            auto& proc = *procPtr;
+            proc.setRateAndBufferSizeDetails(48000.0, 256);
+            proc.prepareToPlay(48000.0, 256);
+            proc.setTrackMachine(0, ToneMachine::kMachineId);
+            proc.setTrackMachine(1, ToneMachine::kMachineId);
+
+            // Through writeParam, not by poking kit().baseParams: a base write is
+            // applied on the AUDIO thread (drainEngineCmds at the top of
+            // processBlock) and the save FLUSHES working state over the kit
+            // first, so a direct poke is silently discarded. Measured -- the
+            // first cut of this test wrote the kit and read back defaults.
+            proc.writeParam(0, ToneMachine::kProgram, 48.0f);
+            proc.writeParam(1, ToneMachine::kDrumKit, 1.0f);
+            proc.writeParam(0, ToneMachine::kBrightness, 0.25f);
+            {
+                juce::AudioBuffer<float> b(proc.getTotalNumOutputChannels(), 256);
+                juce::MidiBuffer m;
+                for (int k = 0; k < 4; ++k) { b.clear(); m.clear(); proc.processBlock(b, m); }
+            }
+            CHECK(proc.saveProjectFile(f), "a project with Tone tracks saves");
+        }
+
+        {
+            auto procPtr = std::make_unique<LockstepProcessor>();
+            auto& proc = *procPtr;
+            proc.setRateAndBufferSizeDetails(48000.0, 256);
+            CHECK(proc.loadProjectFile(f), "...and loads back");
+            CHECK(proc.kit(0).machineId == ToneMachine::kMachineId,
+                  "the track is still a Tone after a reload");
+            const auto prog0 = proc.kit(0).baseParams[static_cast<std::size_t>(ToneMachine::kProgram)];
+            const auto kit1 = proc.kit(1).baseParams[static_cast<std::size_t>(ToneMachine::kDrumKit)];
+            const auto brite = proc.kit(0).baseParams[static_cast<std::size_t>(ToneMachine::kBrightness)];
+            CHECK(feq(prog0, 48.0f), "the chosen PROGRAM survives -- the instrument is the state");
+            CHECK(feq(kit1, 1.0f), "...and a drum-kit selection survives on another track");
+            CHECK(feq(brite, 0.25f), "...and an ordinary CC param with it");
+        }
+
+        f.deleteFile();
+    }
+
     void runEngineTests()
     {
         testProjectEpochLifecycle();
@@ -5104,5 +5157,6 @@ namespace lockstep
         testStemmableCountTracksRouting();
         testTakeSheetLogsLaunches();
         testToneTrackSounds();
+        testToneProgramRoundTrip();
     }
 }

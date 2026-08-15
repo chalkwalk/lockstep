@@ -1911,11 +1911,25 @@ whole of the coupling — but a submodule bump must re-check those three free si
   Lockstep's own channel strip, and duplicating them would give one fact two owners.
 - **MOD** — CC 1, plus portamento / vibrato from the GM2 set.
 
-**The program picker follows an existing rail, not a new gesture.** `Track +
-hold(SRC)` is already the machine picker, and `Fill + SRC` already sets a
-`TrigGridMode` for per-step sound selection (the SoundPool overlay). GM's
-**16 families × 8 programs = exactly 2 pages of 64 cells**, family per row, with
-drum kits as a third page.
+**The program picker — re-scoped, because the arithmetic was wrong.** The design
+said GM's "16 families × 8 programs = exactly 2 pages of 64 cells, family per
+row". That assumed a 64-cell grid; the step grid is **`kPageSteps == 16`**, so
+128 programs is 8 pages of 16, and the tidy family-per-row mapping does not fall
+out. Caught while starting the build, not by a test — the numbers simply did not
+survive contact with `KeyboardArea::kPageSteps`.
+
+**Program is already fully usable without it:** it is SRC slot 0, a stepped param
+with the GM names as `valueLabels`, so the encoder browses instruments and shows
+them by name exactly as any other stepped slot does (a machine's `model`, a
+sample picker's `sample_id`). The grid picker is an *ergonomic* addition, not the
+thing that makes Tone playable.
+
+- [ ] Design and build it against a 16-cell page. Candidates: two families per
+      page (8 pages, GM order preserved), or a family-select page that drills
+      into an 8-of-16 program page. It follows an existing rail either way —
+      `Track + hold(SRC)` is the machine picker, and `Fill + SRC` already sets a
+      `TrigGridMode` for per-step sound selection — so this needs a layout
+      decision, not a new gesture.
 
 **Remaining details, settled here.**
 
@@ -1973,7 +1987,13 @@ drum kits as a third page.
       of the scheduling pass: both Tone assertions fail. Golden unmoved, ASan
       clean.
 - [ ] Bank served from an embedded memory block via a custom `fluid_fileapi_t`.
-- [ ] Program picker on the step grid; round-trip test.
+- [x] Round-trip test: `program`, `drumkit` and an ordinary CC param survive
+      save/load. It failed on the first run and was right to — poking
+      `kit().baseParams` directly is discarded, because the save flushes working
+      state over the kit. Writes go through `writeParam` + a block, which is the
+      documented rule and now has a test that would catch its being forgotten.
+- [ ] Program picker on the step grid (re-scoped above — needs a 16-cell layout
+      decision).
 
 *Not now, but named so the space is reserved:* auto-accompaniment (`Style`), which
 is the other half of what those keyboards did.
