@@ -1911,25 +1911,31 @@ whole of the coupling — but a submodule bump must re-check those three free si
   Lockstep's own channel strip, and duplicating them would give one fact two owners.
 - **MOD** — CC 1, plus portamento / vibrato from the GM2 set.
 
-**The program picker — re-scoped, because the arithmetic was wrong.** The design
-said GM's "16 families × 8 programs = exactly 2 pages of 64 cells, family per
-row". That assumed a 64-cell grid; the step grid is **`kPageSteps == 16`**, so
-128 programs is 8 pages of 16, and the tidy family-per-row mapping does not fall
-out. Caught while starting the build, not by a test — the numbers simply did not
-survive contact with `KeyboardArea::kPageSteps`.
+**The program picker — settled 2026-08-14: two presses, on the console rail.**
+The earlier design said "16 families × 8 programs = exactly 2 pages of 64 cells",
+which assumed a 64-cell grid; `KeyboardArea::kPageSteps` is 16. The fix is not a
+different page mapping but a different *interaction*: **press one for the family,
+press two for the program**. 16 families fills the 16-cell page exactly, a family
+holds 8 — so 128 instruments are reachable in **two presses with no paging**,
+where 8 pages of 16 would have been the same information behind a hunt.
 
-**Program is already fully usable without it:** it is SRC slot 0, a stepped param
-with the GM names as `valueLabels`, so the encoder browses instruments and shows
-them by name exactly as any other stepped slot does (a machine's `model`, a
-sample picker's `sample_id`). The grid picker is an *ergonomic* addition, not the
-thing that makes Tone playable.
+**It needs no new gesture.** `ConsoleMode::OnDemand` plus the default
+`consoleSectionIndex() == kSrcSecIdx` means bare `hold(SRC)` already toggles a
+machine console (re-hold closes) — the rail Route's matrix and the deck consoles
+already ride. The section rule is untouched: *tap pages, hold asks what fills it.*
+`Track + hold(SRC)` still picks the machine; bare `hold(SRC)` picks what fills the
+machine's SRC. Drum kits stay on the `Kit` slot rather than competing for a family
+cell.
 
-- [ ] Design and build it against a 16-cell page. Candidates: two families per
-      page (8 pages, GM order preserved), or a family-select page that drills
-      into an 8-of-16 program page. It follows an existing rail either way —
-      `Track + hold(SRC)` is the machine picker, and `Fill + SRC` already sets a
-      `TrigGridMode` for per-step sound selection — so this needs a layout
-      decision, not a new gesture.
+Program is fully usable meanwhile — SRC slot 0 is a stepped param with the GM
+names as `valueLabels`, so the encoder browses instruments by name like any other
+stepped slot. The picker is ergonomics, not what makes Tone playable.
+
+- [ ] Build it: `ToneMachine::consoleMode() -> OnDemand`; a `SurfaceLayer::MachineConsole`
+      branch in `SurfaceModel` for Tone (families / programs-of-family), the cell-press
+      handling in the editor, and one `UiState` field for the chosen family. The
+      console layer is currently hard-coded to Route's matrix, so this adds a
+      second consumer to it.
 
 **Remaining details, settled here.**
 
@@ -1992,8 +1998,8 @@ thing that makes Tone playable.
       `kit().baseParams` directly is discarded, because the save flushes working
       state over the kit. Writes go through `writeParam` + a block, which is the
       documented rule and now has a test that would catch its being forgotten.
-- [ ] Program picker on the step grid (re-scoped above — needs a 16-cell layout
-      decision).
+- [ ] Program picker: two-press family → program, as Tone's OnDemand console
+      (designed above; no new gesture needed).
 
 *Not now, but named so the space is reserved:* auto-accompaniment (`Style`), which
 is the other half of what those keyboards did.

@@ -4995,6 +4995,33 @@ the engine at the session rate when it is in range; outside it, run at 48 kHz an
 resample through the self-built polyphase `Resampler.h` (9.25) rather than
 refusing the machine.
 
+**The program picker is two presses, and it is Tone's machine console.**
+
+GM's shape and the grid's shape agree exactly, which is what makes this work:
+**16 families fills a 16-cell page precisely**, and a family holds **8 programs**.
+So:
+
+1. `hold(SRC)` opens the console — 16 cells, one GM family each.
+2. Press a family — the console becomes that family's 8 programs (cells 8–15 dim).
+3. Press a program — it is selected and the console closes.
+
+128 instruments in **two presses, with no paging and no scrolling**. The rejected
+alternative was 8 pages of 16 in GM order, which is the same information behind a
+hunt. (An earlier draft of this section said "16 families × 8 = exactly 2 pages of
+64 cells" — that assumed a 64-cell grid; `KeyboardArea::kPageSteps` is 16, and the
+arithmetic only works out this well once the two presses do the splitting.)
+
+**It needs no new gesture.** `ConsoleMode::OnDemand` with the default
+`consoleSectionIndex() == kSrcSecIdx` means bare `hold(SRC)` already toggles a
+machine console, and re-holding closes it — the same rail Route's routing matrix
+and the deck consoles use. The section-key rule is unchanged and is exactly what
+this wants: *tap pages the section, hold asks what fills it.* `Track + hold(SRC)`
+still picks the machine; bare `hold(SRC)` picks what fills the machine's SRC,
+which for a Tone is the instrument.
+
+Drum kits stay on the `Kit` slot rather than competing for space on the family
+page, which is already exactly full.
+
 **Reserved:** `Style` — what these keyboards call their auto-accompaniments — is
 kept free in case that ever becomes a feature.
 
