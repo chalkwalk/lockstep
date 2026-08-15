@@ -178,6 +178,52 @@ void runToneEngineTests()
               "a drum kit sounds on a channel that is NOT 9 (the GM lock is lifted)");
     }
 
+    // ── Track 10 is an ordinary track (the GM channel-10 rule is OFF) ─────
+    // GM reserves channel 10 for percussion, and channel == track here, so
+    // track 10 would be the one track that could not play an instrument. Three
+    // things in FluidLite act on channel 9 and all are gated on
+    // `synth.drums-channel.active`, which ToneEngine sets to "no": the bank
+    // forced at construction (fluid_synth.c:558), and the two bank-select CC
+    // paths (fluid_chan.c:251/272). The fourth -- the "not found" fallback that
+    // substitutes drum preset 0 on channel 9 (fluid_synth.c:1579) -- is NOT
+    // gated, but it lives inside fluid_synth_program_change, which selectProgram
+    // deliberately does not call (it assigns a pre-resolved preset instead).
+    //
+    // That is four source reads and an inference, so assert it instead: the same
+    // program and note on channel 9 and on channel 3 must render the SAME audio.
+    // Not merely "channel 9 makes a sound" -- a drum kit would pass that.
+    {
+        // Channels 11 and 9 are both untouched so far. The control MUST be a
+        // channel with no history: an earlier leg's release tail still ringing in
+        // the reference group reads exactly like channel 9 being different.
+        eng.selectProgram(9, ToneEngine::kMelodicBank, 0);   // piano on track 10
+        eng.selectProgram(11, ToneEngine::kMelodicBank, 0);  // piano on track 12
+
+        eng.noteOn(9, 60, 100);
+        eng.noteOn(11, 60, 100);
+
+        double diff = 0.0, energy = 0.0;
+        for (int block = 0; block < 16; ++block)
+        {
+            eng.render(512);
+            const float* a = eng.groupLeft(9);
+            const float* b = eng.groupLeft(11);
+            for (int s = 0; s < 512; ++s)
+            {
+                diff += double(a[s] - b[s]) * (a[s] - b[s]);
+                energy += double(b[s]) * b[s];
+            }
+        }
+        eng.allNotesOff(9);
+        eng.allNotesOff(11);
+
+        CHECK(energy > 0.0, "a melodic program on channel 9 (track 10) sounds");
+        CHECK(diff <= energy * 1.0e-6,
+              juce::String("...and renders IDENTICALLY to the same program on channel 11 -- "
+                           "track 10 is not silently a drum channel (residual ")
+                  + juce::String(diff / std::max(energy, 1.0e-12), 8) + ")");
+    }
+
     // ── Looped instruments loop their SUSTAIN, not the whole sample ───────
     // FluidLite judged an SF3 loop "fowled" whenever loopend ran to the end of
     // the sample -- comparing an EXCLUSIVE bound against an INCLUSIVE last index
