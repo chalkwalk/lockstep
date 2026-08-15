@@ -4895,9 +4895,22 @@ fixed track and some tracks would read a block rendered before their own MIDI
 arrived. Instead, per block:
 
 1. **Feed.** For every `Tone` track, deliver its MIDI and its param→CC writes to
-   the engine on that track's channel. `trackMidi` is a
-   `std::array<MidiBuffer, kNumTracks>` assembled *completely before* any machine
-   renders, so the pre-pass needs no new plumbing to get what it wants.
+   the engine on that track's channel.
+
+   > **Correction (2026-08-14, found by the test that asserted it).** This section
+   > originally claimed `trackMidi` was "assembled completely before any machine
+   > renders", so the pre-pass needed no new plumbing. That is true of the **idle**
+   > transport path and false of the **running** one: there, the scheduling that
+   > writes `trackMidi[i]` and the `processTrackChain(i)` that renders it are the
+   > *same iteration* of one routing-ordered loop, so a pre-pass placed before the
+   > loop sees no notes at all. Measured: engine ready, every group silent, a Drum
+   > control track on the same setup sounding normally.
+   >
+   > The running path therefore needs that loop **split into a scheduling pass and
+   > a render pass** — which also restores the property this design wanted, since
+   > the render pass keeps routing order while scheduling (per-track independent,
+   > by that loop's own comment) does not care about it. Until that lands, `Tone`
+   > sounds from live play-in and not from sequenced trigs.
 2. **Render once.** One `fluid_synth_nwrite_float` call fills all 16 group
    buffers.
 3. **Copy out.** Each `ToneMachine::process()` copies its own group into its track

@@ -61,6 +61,7 @@ add_library(lockstep_core STATIC
     machine/TapeMachine.cpp
     machine/StreamMachine.cpp
     machine/StretchMachine.cpp
+    machine/ToneMachine.cpp
     dsp/BungeeStretchEngine.cpp
     machine/SamplePool.cpp
     machine/MachineParamTable.cpp
@@ -101,6 +102,8 @@ set_target_properties(lockstep_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(lockstep_core
     PUBLIC
         deck_core
+        tone_core
+        lockstep_bank
         bungee_library
         juce::juce_audio_utils
         juce::juce_audio_processors

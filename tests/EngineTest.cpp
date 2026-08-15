@@ -17,6 +17,7 @@
 #include "TestHarness.h"
 #include "EngineHarness.h"
 #include "../src/machine/DrumMachine.h"
+#include "../src/machine/ToneMachine.h"
 #include "../src/machine/AnalogMachine.h"
 #include "../src/machine/FMMachine.h"
 #include "../src/machine/SampleMachine.h"
@@ -4905,6 +4906,73 @@ namespace lockstep
         CHECK(after != born, "epoch: newProject is a NEW seed space (the stamp survives the blob)");
     }
 
+    // ── 4.10: the Tone machine on the real processor ───────────────────────
+    //
+    // What this proves today, and what it does NOT.
+    //
+    // PROVEN: a track can hold a Tone, the shared engine stands up on a
+    // message-thread tick and loads in the background, and the machine binds to
+    // its channel (which is its track index).
+    //
+    // BLOCKED, deliberately not asserted: sound from a SEQUENCED trig. The
+    // design assumed `trackMidi` was fully assembled before any machine renders
+    // -- I checked that and got it wrong. In the RUNNING transport path the
+    // scheduling that writes trackMidi[i] and the processTrackChain(i) that
+    // renders it are the SAME iteration of one ~800-line routing-ordered loop
+    // (PluginProcessor.cpp ~3013-3811), so a pre-pass before that loop sees no
+    // notes at all. Measured: the engine is ready, every group is silent, and a
+    // Drum control track on the same setup sounds fine.
+    //
+    // The fix is to split that loop into scheduling-then-render passes, which is
+    // a real change to the hottest function in the codebase and wants doing
+    // deliberately rather than as a footnote. The IDLE path is unaffected (its
+    // trackMidi holds external MIDI assembled before the loop), so live play-in
+    // through a Tone works today.
+    static void testToneTrackInstalls()
+    {
+        // HEAP, never the stack: LockstepProcessor owns an Arrangement of ~47 MB
+        // and stack-constructing it blows the stack -- a segfault at the
+        // declaration itself, which is exactly what it looks like.
+        auto procPtr = std::make_unique<LockstepProcessor>();
+        auto& proc = *procPtr;
+        StubPlayHead ph(120.0, 48000.0, 256);
+        proc.setPlayHead(&ph);
+        proc.setRateAndBufferSizeDetails(48000.0, 256);
+        proc.prepareToPlay(48000.0, 256);
+
+        proc.setTrackMachine(0, ToneMachine::kMachineId);
+        proc.setTrackMachine(1, ToneMachine::kMachineId);
+        CHECK(proc.kit(0).machineId == ToneMachine::kMachineId, "a track can hold a Tone");
+        CHECK(proc.slotForId(0, "tone.program") == ToneMachine::kProgram,
+              "program is SRC slot 0 -- the picker's operand");
+
+        // The engine stands up on a message-thread tick, then loads in the
+        // background (~495 ms). Wait for it the way the editor's timer would.
+        proc.pollToneEngine();
+        const auto deadline = juce::Time::getMillisecondCounter() + 15000;
+        while (proc.toneEngine() == nullptr && juce::Time::getMillisecondCounter() < deadline)
+            juce::Thread::sleep(20);
+        CHECK(proc.toneEngine() != nullptr,
+              "the shared Tone engine stands up and loads off the message thread");
+
+        // Blocks run clean with Tone tracks installed, whatever else is true.
+        const int totalOut = proc.getTotalNumOutputChannels();
+        juce::AudioBuffer<float> buf(totalOut, 256);
+        juce::MidiBuffer midi;
+        bool finite = true;
+        for (int b = 0; b < 40; ++b)
+        {
+            buf.clear();
+            midi.clear();
+            proc.processBlock(buf, midi);
+            ph.advance();
+            for (int ch = 0; ch < std::min(2, totalOut); ++ch)
+                for (int i = 0; i < 256; ++i)
+                    if (! std::isfinite(buf.getSample(ch, i))) finite = false;
+        }
+        CHECK(finite, "the Tone path stays finite");
+    }
+
     void runEngineTests()
     {
         testProjectEpochLifecycle();
@@ -5017,5 +5085,6 @@ namespace lockstep
         testStemStaysAlignedAcrossMute();
         testStemmableCountTracksRouting();
         testTakeSheetLogsLaunches();
+        testToneTrackInstalls();
     }
 }

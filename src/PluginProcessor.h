@@ -31,6 +31,7 @@
 #include "machine/IEffect.h"
 #include "machine/EffectFactory.h"
 #include "machine/IMachine.h"
+#include "tonecore/ToneEngine.h"
 #include "core/RoutingGraph.h"     // routing::TapEdges (the tap edge table)
 #include "machine/InputSource.h"   // kVolatileBufferLabels (sizes the REC bank)
 #include "machine/ITempoAware.h"
@@ -1520,6 +1521,44 @@ namespace lockstep
             std::atomic<bool> done{ false };
             int useTimeSlice() override;
         };
+        // ── The `Tone` machine's shared SoundFont engine (4.10, DESIGN §29.3) ──
+        // ONE engine serves every track holding a Tone; MIDI channel N renders
+        // into audio group N, and N is the track index. Created lazily on the
+        // first Tone track and loaded on a background thread: the bank takes
+        // ~495 ms to decode (10 MB SF3 -> ~30 MB PCM plus every preset
+        // resolved), which would be an unmistakable stall on the message
+        // thread. Tone tracks are silent until it lands.
+        //
+        // FluidLite has NO internal locking, so the handover is the whole
+        // safety story: the loader thread touches the engine, publishes
+        // toneReady_ with release, and never touches it again; the audio thread
+        // acquires toneReady_ and owns the engine from then on.
+        struct ToneLoadJob : juce::TimeSliceClient
+        {
+            LockstepProcessor* owner = nullptr;
+            int useTimeSlice() override;
+        };
+        std::unique_ptr<tone::ToneEngine> toneEngine_;
+        std::unique_ptr<juce::TimeSliceThread> toneLoadThread_;
+        std::unique_ptr<ToneLoadJob> toneLoadJob_;
+        std::atomic<bool> toneReady_{ false };   // [ATOMIC] loader -> audio thread
+        void ensureToneEngine();                 // message thread
+        // Message-thread tick (driven beside pollLoopBakes). Stands the engine
+        // up the first time ANY track holds a Tone, whatever put it there --
+        // the picker, a project load, a song switch. One hook instead of one
+        // per install path, which is the class of bug that leaves a machine
+        // permanently silent for a reason nothing on the surface can show.
+        void pollToneEngine();
+        // Audio thread. PRE-PASS: feed every Tone track's MIDI + params to the
+        // shared engine, then render all 16 groups ONCE. Must run BEFORE the
+        // machine loop -- see DESIGN §29.3 for why per-track rendering is wrong.
+        void toneEnginePrePass(std::array<juce::MidiBuffer, kNumTracks>& trackMidi,
+                               int numBlockSamples, float faderNow, bool idlePath);
+        [[nodiscard]] tone::ToneEngine* toneEngine() noexcept
+        {
+            return toneReady_.load(std::memory_order_acquire) ? toneEngine_.get() : nullptr;
+        }
+
         std::unique_ptr<juce::TimeSliceThread> bakeThread_;
         std::vector<std::unique_ptr<LoopBakeJob>> bakeJobs_;   // in-flight bakes
         std::array<std::uint32_t, kNumTracks> lastBakeGen_{};  // last-seen fit generation

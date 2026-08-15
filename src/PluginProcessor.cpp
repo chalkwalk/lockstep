@@ -21,6 +21,9 @@
 #include "dsp/StretchRender.h"
 #include "machine/StreamMachine.h"
 #include "machine/StretchMachine.h"
+#include "machine/ToneMachine.h"
+
+#include <LockstepBank.h>
 #include "machine/MidiDevicePresets.h"
 #include "machine/DrumMachine.h"
 #include "machine/FMMachine.h"
@@ -253,6 +256,16 @@ namespace lockstep
         if (bakeThread_ != nullptr)
             bakeThread_->stopThread(2000);
         bakeJobs_.clear();
+
+        // Same for the Tone bank loader, and for the same reason: members are
+        // destroyed in reverse declaration order, so the JOB would go first
+        // while the thread still holds a pointer to it. Stop the thread, then
+        // release the job, then the engine -- which the loader thread also
+        // touches. (Found as a teardown segfault; the load itself was fine.)
+        if (toneLoadThread_ != nullptr)
+            toneLoadThread_->stopThread(5000);
+        toneLoadJob_.reset();
+        toneEngine_.reset();
     }
 
     void LockstepProcessor::setMZSlots(int slotOffset)
@@ -2696,6 +2709,11 @@ namespace lockstep
             // Render voice tails and any externally-triggered notes.
             // trackMidi already contains note events routed from external MIDI.
             // A2: drive tracks in routing order so a bus's inbound audio is ready.
+            // Tone's shared engine renders ONCE, before the loop: the loop runs
+            // in ROUTING order, so there is no "first Tone track" to hang it on
+            // (DESIGN §29.3).
+            toneEnginePrePass(trackMidi, numBlockSamples, faderNow, /*idlePath=*/true);
+
             const auto routeOrderIdle = routing::computeOrder(routingEdges(), tapEdges());
             for (std::size_t oi = 0; oi < kNumTracks; ++oi)
             {
@@ -2962,6 +2980,12 @@ namespace lockstep
             }
         }
 
+
+        // Tone's shared engine renders ONCE, before the loop below: that loop
+        // runs in ROUTING order, so there is no fixed "first Tone track" to
+        // hang the render on, and some tracks would render before others had
+        // delivered their MIDI (DESIGN §29.3).
+        toneEnginePrePass(trackMidi, numBlockSamples, faderNow, /*idlePath=*/false);
 
         // A2: process tracks in routing (topological) order so a bus's inbound
         // audio is deposited before the bus runs. Scheduling is per-track
@@ -6603,6 +6627,86 @@ namespace lockstep
     // Install machines whose IDs match the active Kit's machineId per track.
     // Called from setStateInformation (sequencer is stopped during state load).
     // Unsupported IDs receive a silent StubMachine that preserves data.
+    // ── The Tone engine's lifecycle (4.10, DESIGN §29.3) ────────────────────
+    // Created on the first Tone track and loaded on a background thread. The
+    // bank is ~495 ms to decode, so a synchronous load would be a visible stall
+    // every time someone picks Tone in the machine picker; instead the track is
+    // silent until the engine lands, which is the same contract a missing
+    // sample has.
+    int LockstepProcessor::ToneLoadJob::useTimeSlice()
+    {
+        if (owner == nullptr || owner->toneEngine_ == nullptr)
+            return -1;   // remove me
+
+        // The loader thread owns the engine for exactly this call. Nothing else
+        // may touch it until toneReady_ is published -- FluidLite has no locks.
+        const bool ok = owner->toneEngine_->load(LockstepBank::GeneralUserGS_sf3,
+                                                 LockstepBank::GeneralUserGS_sf3Size,
+                                                 owner->preparedSampleRate_ > 0.0
+                                                     ? owner->preparedSampleRate_ : 48000.0,
+                                                 256);
+        if (ok)
+            owner->toneReady_.store(true, std::memory_order_release);
+
+        return -1;   // one-shot: never called again
+    }
+
+    void LockstepProcessor::ensureToneEngine()
+    {
+        if (toneEngine_ != nullptr) return;   // already created (or loading)
+
+        toneEngine_ = std::make_unique<tone::ToneEngine>();
+        toneEngine_->setMaxBlockSize(std::max(preparedBlockSize_, 1024));
+
+        toneLoadJob_ = std::make_unique<ToneLoadJob>();
+        toneLoadJob_->owner = this;
+        toneLoadThread_ = std::make_unique<juce::TimeSliceThread>("lockstep.tone.load");
+        toneLoadThread_->startThread(juce::Thread::Priority::low);
+        toneLoadThread_->addTimeSliceClient(toneLoadJob_.get());
+    }
+
+    void LockstepProcessor::pollToneEngine()
+    {
+        if (toneEngine_ != nullptr) return;
+        for (const auto& m : machines_)
+            if (dynamic_cast<ToneMachine*>(m.get()) != nullptr)
+            {
+                ensureToneEngine();
+                return;
+            }
+    }
+
+    void LockstepProcessor::toneEnginePrePass(std::array<juce::MidiBuffer, kNumTracks>& trackMidi,
+                                              int numBlockSamples, float faderNow, bool idlePath)
+    {
+        auto* eng = toneEngine();      // null until the background load lands
+        if (eng == nullptr) return;
+
+        bool any = false;
+        for (std::size_t i = 0; i < kNumTracks; ++i)
+        {
+            auto* tm = dynamic_cast<ToneMachine*>(machines_[i].get());
+            if (tm == nullptr) continue;
+
+            // Bind every block rather than at install. It is two stores, and it
+            // makes "the machine was never bound" unrepresentable no matter
+            // which path created it.
+            tm->bindEngine(eng, static_cast<int>(i));
+            any = true;
+
+            const int resolveStep = idlePath ? idleResolveStep(static_cast<int>(i))
+                                             : firedStepIdx_[i];
+            const bool fillNow = fillActiveForTrack(static_cast<int>(i));
+            const MorphContext mc{ &section(), static_cast<int>(i), faderNow, tm };
+            auto frame = StateResolver::resolve(sequence().tracks[i], resolveStep, fillNow, &mc);
+            padFrameToMachine(frame, tm);
+            tm->feedEngine(trackMidi[i], frame);
+        }
+
+        if (any)
+            eng->render(numBlockSamples);
+    }
+
     static std::unique_ptr<IMachine> makeMachineForId(const std::string& id,
                                                       SamplePool& pool)
     {
@@ -6630,6 +6734,8 @@ namespace lockstep
             return std::make_unique<StreamMachine>(pool);
         if (id == StretchMachine::kMachineId)
             return std::make_unique<StretchMachine>(pool);
+        if (id == ToneMachine::kMachineId)
+            return std::make_unique<ToneMachine>();
         // "lockstep.stub" is an explicitly-empty track (unknownId = "").
         // Any other unrecognised ID keeps its original id as the unknownId.
         if (id == StubMachine::kMachineId)
@@ -6642,6 +6748,7 @@ namespace lockstep
 
     static constexpr LockstepProcessor::MachineInfo kAvailableMachines[] = {
         { SampleMachine::kMachineId, "Sample" },
+        { ToneMachine::kMachineId, "Tone" },
         { SliceMachine::kMachineId, "Slice" },
         { FMMachine::kMachineId, "FM" },
         { AnalogMachine::kMachineId, "Analog" },

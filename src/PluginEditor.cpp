@@ -1794,6 +1794,7 @@ namespace lockstep
         // any newly-engaged streaming fit and adopt completed bakes (decoupled from
         // the transport; the loop streams correctly until the bake lands).
         processor_.pollLoopBakes();
+        processor_.pollToneEngine();   // 4.10: stand the shared Tone engine up
 
         // A2: flash the status line when the engine refused / dormant-marked a
         // routing edit (DESIGN §27). Decoupled poll: any seq bump = a new notice.

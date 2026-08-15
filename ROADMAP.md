@@ -1956,9 +1956,21 @@ drum kits as a third page.
 - [ ] `ToneEngine`: the preset cache (resolve-all-at-load) + the direct
       `chan->preset` swap, with the four "never call" rules above enforced in one
       place. A submodule bump re-checks the three free sites in `fluid_chan.c`.
-- [ ] `ToneMachine : IMachine`, `kMachineId = "lockstep.tone.v1"`; the pre-pass in
-      `processBlock`; internal reverb/chorus off (mandatory, not optional);
-      `drums-channel.active = "no"`; `synth.gain` raised from its 0.2 default.
+- [x] `ToneMachine : IMachine`, `kMachineId = "lockstep.tone.v1"`; internal
+      reverb/chorus off (mandatory, not optional); `drums-channel.active = "no"`;
+      `synth.gain` raised from its 0.2 default; the engine stands up on a
+      message-thread tick and loads in the background.
+- [ ] **Split the running-transport track loop into scheduling and render
+      passes.** The pre-pass design assumed `trackMidi` was fully assembled
+      before any machine rendered; that holds for the IDLE path and NOT for the
+      running one, where scheduling and `processTrackChain` are the same
+      iteration of one ~800-line routing-ordered loop
+      (`PluginProcessor.cpp` ~3013–3811). Found by the test that asserted sound
+      and got silence, with a Drum control track proving the transport innocent.
+      Until this lands, Tone sounds from **live play-in** but not from sequenced
+      trigs. The split wants `curFillActive` carried per track; the render pass
+      keeps routing order, the scheduling pass does not need it (that loop's own
+      comment says scheduling is per-track independent).
 - [ ] Bank served from an embedded memory block via a custom `fluid_fileapi_t`.
 - [ ] Program picker on the step grid; round-trip test.
 
