@@ -88,6 +88,15 @@ namespace lockstep::tone
 
         void noteOn(int chan, int note, int velocity) noexcept;
 
+        // Blocks rendered since load -- the only clock the engine has, and the one
+        // that makes a trace line locatable in a capture: block N starts at
+        // sample N*blockSize. The audio edges of the reported dropout land exactly
+        // on block boundaries, so this is what lines the two up.
+        [[nodiscard]] long long blockCount() const noexcept
+        {
+            return blocks_.load(std::memory_order_relaxed);
+        }
+
         // Note-ons FluidLite refused. Should be zero; anything else is a note the
         // sequencer thinks it played and the listener never heard.
         [[nodiscard]] int noteOnFailures() const noexcept
@@ -122,6 +131,9 @@ namespace lockstep::tone
         bool ready_ = false;
         int maxBlock_ = 0;
         std::atomic<int> noteOnFailures_{ 0 };
+        std::atomic<long long> blocks_{ 0 };
+
+        static bool traceNotes() noexcept;
         std::string lastError_;
         std::vector<Instrument> melodic_;
         std::vector<Instrument> drumKits_;

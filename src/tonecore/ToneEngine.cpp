@@ -285,6 +285,11 @@ void ToneEngine::noteOn(int chan, int note, int velocity) noexcept
     // "the trig fired, the VU dot flashed, nothing sounded" report, so a failure
     // here is counted (and, under LOCKSTEP_TRACE_TONE, printed with the state
     // needed to tell the two causes apart).
+    if (traceNotes())
+        std::fprintf(stderr, "[tone] blk=%lld ON  ch=%d note=%d vel=%d voices=%d\n",
+                     blocks_.load(std::memory_order_relaxed), chan, note, velocity,
+                     lockstep_tone_active_voice_count(impl_->synth));
+
     if (fluid_synth_noteon(impl_->synth, chan, note, velocity) != 0)   // FLUID_OK == 0; the public header does not export the enum
     {
         noteOnFailures_.fetch_add(1, std::memory_order_relaxed);
@@ -301,6 +306,9 @@ void ToneEngine::noteOn(int chan, int note, int velocity) noexcept
 void ToneEngine::noteOff(int chan, int note) noexcept
 {
     if (chan < 0 || chan >= kNumChannels) return;
+    if (traceNotes())
+        std::fprintf(stderr, "[tone] blk=%lld OFF ch=%d note=%d\n",
+                     blocks_.load(std::memory_order_relaxed), chan, note);
     fluid_synth_noteoff(impl_->synth, chan, note);
 }
 
@@ -318,15 +326,29 @@ void ToneEngine::pitchBend(int chan, int value14) noexcept
 
 void ToneEngine::allNotesOff(int chan) noexcept
 {
+    // The loudest line in the trace: this kills every sounding note on a track
+    // at once, which is what a whole chord vanishing mid-sustain looks like.
+    if (traceNotes())
+        std::fprintf(stderr, "[tone] blk=%lld ALL-NOTES-OFF ch=%d  <-- kills the chord\n",
+                     blocks_.load(std::memory_order_relaxed), chan);
     if (chan < 0 || chan >= kNumChannels) return;
     // CC 123. Not fluid_synth_system_reset -- RULE 2: that walks
     // fluid_channel_reset, which frees cache-owned presets.
     fluid_synth_cc(impl_->synth, chan, 123, 0);
 }
 
+bool ToneEngine::traceNotes() noexcept
+{
+    // Read once: getenv on the audio thread, every note, would be worse than the
+    // bug being traced.
+    static const bool on = std::getenv("LOCKSTEP_TRACE_TONE") != nullptr;
+    return on;
+}
+
 void ToneEngine::render(int numSamples) noexcept
 {
     auto& im = *impl_;
+    blocks_.fetch_add(1, std::memory_order_relaxed);
     const int n = std::min(numSamples, maxBlock_);
     if (n <= 0 || !ready_) return;
 
