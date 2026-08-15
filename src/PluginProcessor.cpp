@@ -2981,11 +2981,24 @@ namespace lockstep
         }
 
 
-        // Tone's shared engine renders ONCE, before the loop below: that loop
-        // runs in ROUTING order, so there is no fixed "first Tone track" to
-        // hang the render on, and some tracks would render before others had
-        // delivered their MIDI (DESIGN §29.3).
-        toneEnginePrePass(trackMidi, numBlockSamples, faderNow, /*idlePath=*/false);
+        // 4.10: this used to be ONE loop that both scheduled a track's trigs into
+        // trackMidi[i] and rendered it. That is fine for a machine that owns its
+        // own engine, and impossible for one that does not: Tone shares a single
+        // multi-timbral engine across tracks, so every Tone track's notes must be
+        // in hand before ANY of them renders. Split into a scheduling pass and a
+        // render pass, with the shared-engine render between them.
+        //
+        // The split is safe in the direction that matters: scheduling is
+        // per-track independent (probability/density are deterministic by
+        // track+step, see below), while the RENDER pass keeps routing order so a
+        // bus still runs after its feeders. Only the render half ever needed that
+        // order.
+        //
+        // Carried between the passes, because the tail is moved verbatim:
+        //   renderTrack[i]  — did the scheduling pass fall through, or `continue`?
+        //   fillAtRender[i] — the track's fill state at schedule time.
+        std::array<bool, kNumTracks> renderTrack{};
+        std::array<bool, kNumTracks> fillAtRender{};
 
         // A2: process tracks in routing (topological) order so a bus's inbound
         // audio is deposited before the bus runs. Scheduling is per-track
@@ -3082,6 +3095,7 @@ namespace lockstep
                 nextTriggerPpq_[i] = trackGridFloor(i, blockStart, divPpq);
 
             const bool curFillActive = fillActiveForTrack(static_cast<int>(i));
+            fillAtRender[i] = curFillActive;   // carried to the render pass
 
             // Read effective swing for this track (DESIGN §19.2).
             // Song-all + song-track delta + scene-all delta; RT-safe reads mirroring
@@ -3735,6 +3749,25 @@ namespace lockstep
             // rather than only from the next one.
             motionRecorder_.closeExpired(static_cast<int>(i), nowSeconds);
             motionRecorder_.paintDirty(static_cast<int>(i), motionStepIdx_[i], motionSink);
+
+            renderTrack[i] = true;   // reached the end: this track renders below
+        }
+
+        // Feed every Tone track's MIDI (now fully scheduled) into the shared
+        // engine and render all 16 groups ONCE, before any track copies its own
+        // group out (DESIGN §29.3).
+        toneEnginePrePass(trackMidi, numBlockSamples, faderNow, /*idlePath=*/false);
+
+        // ── Render pass ──────────────────────────────────────────────────────
+        // Routing order, so a bus runs after the tracks feeding it. The body is
+        // the former loop's tail, moved verbatim; `track` is re-derived and
+        // `curFillActive` comes from the scheduling pass.
+        for (std::size_t oi = 0; oi < kNumTracks; ++oi)
+        {
+            const std::size_t i = static_cast<std::size_t>(routeOrderRun[oi]);
+            if (! renderTrack[i]) continue;
+            const auto& track = sequence().tracks[i];
+            const bool curFillActive = fillAtRender[i];
 
             // Resolve ParamFrame for the machine using the last-fired step so that
             // P-Locks (including fill-layer overrides) persist for the full note

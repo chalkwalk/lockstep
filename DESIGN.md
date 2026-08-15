@@ -4897,20 +4897,23 @@ arrived. Instead, per block:
 1. **Feed.** For every `Tone` track, deliver its MIDI and its param→CC writes to
    the engine on that track's channel.
 
-   > **Correction (2026-08-14, found by the test that asserted it).** This section
-   > originally claimed `trackMidi` was "assembled completely before any machine
-   > renders", so the pre-pass needed no new plumbing. That is true of the **idle**
-   > transport path and false of the **running** one: there, the scheduling that
-   > writes `trackMidi[i]` and the `processTrackChain(i)` that renders it are the
-   > *same iteration* of one routing-ordered loop, so a pre-pass placed before the
-   > loop sees no notes at all. Measured: engine ready, every group silent, a Drum
-   > control track on the same setup sounding normally.
+   > **How this got here (2026-08-14).** This section first claimed `trackMidi`
+   > was "assembled completely before any machine renders", so the pre-pass
+   > needed no new plumbing. That was true of the **idle** transport path and
+   > false of the **running** one, where the scheduling that writes
+   > `trackMidi[i]` and the `processTrackChain(i)` that renders it were the *same
+   > iteration* of one routing-ordered loop — so a pre-pass before it saw no
+   > notes at all. The test that asserted sound found it; a Drum control track on
+   > the same setup sounded normally, which cleared the transport.
    >
-   > The running path therefore needs that loop **split into a scheduling pass and
-   > a render pass** — which also restores the property this design wanted, since
-   > the render pass keeps routing order while scheduling (per-track independent,
-   > by that loop's own comment) does not care about it. Until that lands, `Tone`
-   > sounds from live play-in and not from sequenced trigs.
+   > **The running loop is now SPLIT** into a scheduling pass and a render pass,
+   > with the shared-engine render between them, which is what makes the claim
+   > above true rather than aspirational. The split is safe in the direction that
+   > matters: scheduling is per-track independent (that loop's own comment says
+   > so), while only the render pass needs routing order — and it keeps it. Two
+   > facts are carried between the passes, because the render body was moved
+   > verbatim: whether the scheduling pass fell through or `continue`d, and the
+   > track's fill state.
 2. **Render once.** One `fluid_synth_nwrite_float` call fills all 16 group
    buffers.
 3. **Copy out.** Each `ToneMachine::process()` copies its own group into its track

@@ -4906,29 +4906,19 @@ namespace lockstep
         CHECK(after != born, "epoch: newProject is a NEW seed space (the stamp survives the blob)");
     }
 
-    // ── 4.10: the Tone machine on the real processor ───────────────────────
+    // ── 4.10: a Tone track sounds through the REAL processor ───────────────
     //
-    // What this proves today, and what it does NOT.
+    // ToneEngineTest proves the engine in isolation. This proves the MACHINE:
+    // a track holding a Tone gets its own group's audio through the whole
+    // Lockstep chain, from a SEQUENCED trig.
     //
-    // PROVEN: a track can hold a Tone, the shared engine stands up on a
-    // message-thread tick and loads in the background, and the machine binds to
-    // its channel (which is its track index).
-    //
-    // BLOCKED, deliberately not asserted: sound from a SEQUENCED trig. The
-    // design assumed `trackMidi` was fully assembled before any machine renders
-    // -- I checked that and got it wrong. In the RUNNING transport path the
-    // scheduling that writes trackMidi[i] and the processTrackChain(i) that
-    // renders it are the SAME iteration of one ~800-line routing-ordered loop
-    // (PluginProcessor.cpp ~3013-3811), so a pre-pass before that loop sees no
-    // notes at all. Measured: the engine is ready, every group is silent, and a
-    // Drum control track on the same setup sounds fine.
-    //
-    // The fix is to split that loop into scheduling-then-render passes, which is
-    // a real change to the hottest function in the codebase and wants doing
-    // deliberately rather than as a footnote. The IDLE path is unaffected (its
-    // trackMidi holds external MIDI assembled before the loop), so live play-in
-    // through a Tone works today.
-    static void testToneTrackInstalls()
+    // Two Tone tracks on purpose. One shared engine means every Tone track's
+    // notes must be in hand before ANY of them renders, which is why the
+    // scheduling and render passes are split (DESIGN §29.3). With a single
+    // combined loop this test measured silence -- the pre-pass ran before the
+    // notes existed -- so the second track is the part that would regress if
+    // anyone recombined them.
+    static void testToneTrackSounds()
     {
         // HEAP, never the stack: LockstepProcessor owns an Arrangement of ~47 MB
         // and stack-constructing it blows the stack -- a segfault at the
@@ -4939,6 +4929,7 @@ namespace lockstep
         proc.setPlayHead(&ph);
         proc.setRateAndBufferSizeDetails(48000.0, 256);
         proc.prepareToPlay(48000.0, 256);
+        proc.clock().setInPluginPlaying(true);
 
         proc.setTrackMachine(0, ToneMachine::kMachineId);
         proc.setTrackMachine(1, ToneMachine::kMachineId);
@@ -4954,23 +4945,50 @@ namespace lockstep
             juce::Thread::sleep(20);
         CHECK(proc.toneEngine() != nullptr,
               "the shared Tone engine stands up and loads off the message thread");
+        if (proc.toneEngine() == nullptr) return;
 
-        // Blocks run clean with Tone tracks installed, whatever else is true.
+        // Different instruments per track, so the two are not one sound twice.
+        proc.kit(1).baseParams[static_cast<std::size_t>(ToneMachine::kProgram)] = 48.0f;
+        for (int t = 0; t < 2; ++t)
+        {
+            auto& trk = proc.sequence().tracks[static_cast<std::size_t>(t)];
+            for (auto& st : trk.steps) st.trig = false;
+            trk.steps[0].trig = true;
+            trk.steps[0].trigOverride.hasGate = true;
+            trk.steps[0].trigOverride.gateValue = MusicalGate::G1_4;
+        }
+
         const int totalOut = proc.getTotalNumOutputChannels();
         juce::AudioBuffer<float> buf(totalOut, 256);
         juce::MidiBuffer midi;
+        float peak = 0.0f;
         bool finite = true;
-        for (int b = 0; b < 40; ++b)
+        float group0 = 0.0f, group1 = 0.0f;
+        for (int b = 0; b < 200; ++b)
         {
             buf.clear();
             midi.clear();
             proc.processBlock(buf, midi);
             ph.advance();
+            if (auto* e = proc.toneEngine())
+                for (int i = 0; i < 256; ++i)
+                {
+                    group0 = std::max(group0, std::abs(e->groupLeft(0)[i]));
+                    group1 = std::max(group1, std::abs(e->groupLeft(1)[i]));
+                }
             for (int ch = 0; ch < std::min(2, totalOut); ++ch)
                 for (int i = 0; i < 256; ++i)
-                    if (! std::isfinite(buf.getSample(ch, i))) finite = false;
+                {
+                    const float v = buf.getSample(ch, i);
+                    if (! std::isfinite(v)) finite = false;
+                    peak = std::max(peak, std::abs(v));
+                }
         }
-        CHECK(finite, "the Tone path stays finite");
+        CHECK(peak > 0.0f, "a Tone track's sequenced trig makes General MIDI sound");
+        CHECK(group0 > 0.0f && group1 > 0.0f,
+              "BOTH Tone tracks render -- the shared engine saw every track's notes "
+              "before it rendered (the scheduling/render split)");
+        CHECK(finite, "...and the Tone path stays finite");
     }
 
     void runEngineTests()
@@ -5085,6 +5103,6 @@ namespace lockstep
         testStemStaysAlignedAcrossMute();
         testStemmableCountTracksRouting();
         testTakeSheetLogsLaunches();
-        testToneTrackInstalls();
+        testToneTrackSounds();
     }
 }

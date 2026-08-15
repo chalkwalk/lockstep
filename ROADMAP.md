@@ -1960,17 +1960,18 @@ drum kits as a third page.
       reverb/chorus off (mandatory, not optional); `drums-channel.active = "no"`;
       `synth.gain` raised from its 0.2 default; the engine stands up on a
       message-thread tick and loads in the background.
-- [ ] **Split the running-transport track loop into scheduling and render
+- [x] **Split the running-transport track loop into scheduling and render
       passes.** The pre-pass design assumed `trackMidi` was fully assembled
-      before any machine rendered; that holds for the IDLE path and NOT for the
-      running one, where scheduling and `processTrackChain` are the same
-      iteration of one ~800-line routing-ordered loop
-      (`PluginProcessor.cpp` ~3013–3811). Found by the test that asserted sound
-      and got silence, with a Drum control track proving the transport innocent.
-      Until this lands, Tone sounds from **live play-in** but not from sequenced
-      trigs. The split wants `curFillActive` carried per track; the render pass
-      keeps routing order, the scheduling pass does not need it (that loop's own
-      comment says scheduling is per-track independent).
+      before any machine rendered; that held for the IDLE path and not for the
+      running one, where scheduling and `processTrackChain` were the same
+      iteration of one routing-ordered loop. Found by the test that asserted
+      sound and got silence, with a Drum control track proving the transport
+      innocent. The render body moved **verbatim** (its only loop-local
+      dependencies were `track`, re-derived, and `curFillActive`, carried), so
+      the diff is reviewable as a move; the render pass keeps routing order and
+      scheduling does not need it. Proven by putting the pre-pass back in front
+      of the scheduling pass: both Tone assertions fail. Golden unmoved, ASan
+      clean.
 - [ ] Bank served from an embedded memory block via a custom `fluid_fileapi_t`.
 - [ ] Program picker on the step grid; round-trip test.
 
