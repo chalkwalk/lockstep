@@ -48,6 +48,22 @@ namespace lockstep
         // cleared on release.
         if (ui.stepMoveActive) { return SurfaceLayer::Base; }
 
+        // 4.10: an OnDemand console the user DELIBERATELY opened outranks the
+        // step inspector, because a held step is its OPERAND, not a competitor.
+        // This is the house pattern the SoundPool overlay already sets (it sits
+        // well above the inspector for the same reason): hold the step(s) first,
+        // open the picker, and the picker writes onto them. Without this the
+        // grid silently reverts to the inspector and the picker is unreachable
+        // the moment a step is down -- which is exactly how the Tone program
+        // picker behaved before the rule was written down.
+        //
+        // AlwaysOn stays BELOW (see the console block further down): it is
+        // ambient rather than an act, so a held step should still inspect.
+        if (f.activeTrackConsoleMode == ConsoleMode::OnDemand && ui.machineConsoleOpen)
+        {
+            return SurfaceLayer::MachineConsole;
+        }
+
         if (ec.heldStepIndex() >= 0) { return SurfaceLayer::StepInspector; }
 
         if (ui.pLockClearMode && ui.pLockClearTrack == f.activeTrack && ui.pLockClearStep >= 0)
@@ -85,10 +101,7 @@ namespace lockstep
         // like the looper; OnDemand only while the user has it open. Both sit below
         // every held modal above so a scope/mute chord still wins.
         if (f.activeTrackConsoleMode == ConsoleMode::AlwaysOn) { return SurfaceLayer::MachineConsole; }
-        if (f.activeTrackConsoleMode == ConsoleMode::OnDemand && ui.machineConsoleOpen)
-        {
-            return SurfaceLayer::MachineConsole;
-        }
+        // (OnDemand is resolved ABOVE the step inspector — see 4.10 there.)
 
         return SurfaceLayer::Base;
     }

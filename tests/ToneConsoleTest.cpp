@@ -114,5 +114,44 @@ void runToneConsoleTests(int& failed)
     d.gap();
     d.longPress(CB::Section, IMachine::kSrcSecIdx);
     check(failed, !d.ui().machineConsoleOpen, "re-holding SRC closes the console");
+
+    // --- P-Locking an instrument onto a step, the house way -----------------
+    // The standard method for a modal picker, set by the SoundPool overlay:
+    // HOLD THE STEP FIRST, then open the picker, and the picker writes onto the
+    // held step(s). It only works if the picker's layer outranks StepInspector
+    // -- otherwise the grid silently reverts to the step's inspector and the
+    // picker is unreachable the moment a step is down. SoundPool has always sat
+    // above the inspector for exactly this reason; the Tone console now does too
+    // (4.10), and this is the assertion that keeps it there.
+    d.gap();
+    const float baseBefore = d.proc().kit(0).baseParams[
+        static_cast<std::size_t>(ToneMachine::kProgram)];
+
+    // Real QWERTY keys, not the controller path: a controller source shares one
+    // id across every button, so releasing a picker cell matches the HELD step's
+    // entry and tears the edit context down. On the keyboard each step has its
+    // own code, which is the surface this gesture is designed for.
+    d.keyDown('H');                                         // step 3, held first
+    d.longPress(CB::Section, IMachine::kSrcSecIdx);         // then the picker
+    check(failed, d.surface().activeLayer == SurfaceLayer::MachineConsole,
+          "with a step held, the picker still owns the grid -- the step is its "
+          "OPERAND, not a competitor for the cells");
+
+    d.keyTap('G');           // family 2 = Organ
+    // NB: the picker cell must not be the held step's OWN key -- pressing it is
+    // that step's release. Inherent to one grid being two things, and the same
+    // constraint the SoundPool overlay has.
+    d.keyTap('K');           // slot 5 -> program 21 (a DIFFERENT key from the held step)
+    d.runBlocks(4);
+    d.keyUp('H');
+
+    const auto& step3 = d.proc().sequence().tracks[0].steps[3];
+    check(failed, step3.overrides.has(ToneMachine::kProgram),
+          "picking with a step held P-LOCKS the instrument onto that step");
+    check(failed, std::abs(d.proc().kit(0).baseParams[
+              static_cast<std::size_t>(ToneMachine::kProgram)] - baseBefore) < 0.5f,
+          "...and the track's base instrument is untouched (Override-ELSE-Base)");
+    check(failed, !step3.trig,
+          "...and the release does not toggle the trig -- the step was the operand (9.38)");
 }
 }   // namespace lockstep

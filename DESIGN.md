@@ -5022,6 +5022,29 @@ which for a Tone is the instrument.
 Drum kits stay on the `Kit` slot rather than competing for space on the family
 page, which is already exactly full.
 
+**P-Locking an instrument onto a step needs no gesture of its own** — it is the
+house pattern the SoundPool overlay already set: **hold the step(s) first, then
+open the picker, and the picker writes onto them.** `writeParam` routes to the
+held step's override when the edit context is active, so the same two presses
+that set a track's instrument set a *step's* instrument when a step is down.
+
+That only works if the picker's layer outranks `StepInspector`, which is why
+`resolveActiveLayer` now resolves a **deliberately-opened `OnDemand` console**
+above it (`SoundPool` has always sat above it for exactly this reason). Without
+that the grid silently reverts to the step's inspector and the picker is
+unreachable the moment a step is down. `AlwaysOn` consoles stay *below*: they are
+ambient rather than an act, so a held step should still inspect.
+
+Two constraints fall out of one grid being two things, and are shared with every
+other modal picker rather than special to this one:
+
+- The picker cell must not be the **held step's own key** — pressing it is that
+  step's release.
+- On a **controller**, every button shares one source id, so releasing a picker
+  cell matches the held step's entry and tears the edit context down. On QWERTY
+  each step has its own key code and the gesture works. That is a pre-existing
+  wrinkle in the controller release path, not a property of this picker.
+
 **Reserved:** `Style` — what these keyboards call their auto-accompaniments — is
 kept free in case that ever becomes a feature.
 

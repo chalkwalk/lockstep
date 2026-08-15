@@ -5592,8 +5592,15 @@ namespace lockstep
                                     // Through writeParam, so a held step P-LOCKS the
                                     // instrument instead of writing the base -- the
                                     // step-changes-instrument move, for free.
+                                    // writeParam routes to the held step's P-Lock
+                                    // when the edit context is active, so holding
+                                    // a step and picking locks the instrument to
+                                    // it -- the SoundPool pattern.
                                     processor_.writeParam(mct, ToneMachine::kProgram,
                                                           static_cast<float>(prog));
+                                    // The held step was the OPERAND: its release
+                                    // must not also toggle the trig (9.38).
+                                    processor_.editContext().markParamWritten();
                                     closeMachineConsole();
                                 }
                             }
