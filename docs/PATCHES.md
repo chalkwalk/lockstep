@@ -7,6 +7,12 @@ as a patch file in `patches/` and applied at CMake **configure time** —
 never as a submodule commit (a forked submodule SHA can't be fetched from
 the public upstream, which breaks every clone).
 
+The patch is applied to whichever JUCE tree the build selected --
+this repository's submodule, or the shared checkout named by
+`CHALKWALK_JUCE_DIR` (`cmake/JuceSource.cmake`). The shared checkout therefore
+carries the UNION of the ecosystem's JUCE patches; they touch disjoint files
+today, so the union is well defined.
+
 ## Active patches
 
 | Patch | Target | Why |

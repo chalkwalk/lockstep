@@ -33,6 +33,11 @@ else()
     set(LOCKSTEP_SANITIZE_FLAGS "")
 endif()
 
+# Where JUCE comes from: this repository's submodule, or a shared checkout named
+# by CHALKWALK_JUCE_DIR. Included BEFORE the patch block below, because that
+# block writes into whichever tree this selects.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/JuceSource.cmake)
+
 # ---------------------------------------------------------------------------
 # Vendored-JUCE patch (see docs/PATCHES.md).
 # The standalone quit guard (9.2/D2) needs an `onCloseRequested` hook in
@@ -50,28 +55,31 @@ if(GIT_FOUND AND EXISTS "${LOCKSTEP_JUCE_PATCH}")
     # the working tree; non-zero means it still needs applying.
     execute_process(
         COMMAND "${GIT_EXECUTABLE}" apply --reverse --check "${LOCKSTEP_JUCE_PATCH}"
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/JUCE"
+        WORKING_DIRECTORY "${CHALKWALK_JUCE_ROOT}"
         RESULT_VARIABLE _juce_patch_present
         ERROR_QUIET OUTPUT_QUIET)
     if(NOT _juce_patch_present EQUAL 0)
         message(STATUS "Applying JUCE patch: juce-standalone-onCloseRequested.patch")
         execute_process(
             COMMAND "${GIT_EXECUTABLE}" apply "${LOCKSTEP_JUCE_PATCH}"
-            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/JUCE"
+            WORKING_DIRECTORY "${CHALKWALK_JUCE_ROOT}"
             RESULT_VARIABLE _juce_patch_result)
         if(NOT _juce_patch_result EQUAL 0)
             message(FATAL_ERROR
-                "Failed to apply ${LOCKSTEP_JUCE_PATCH} to the JUCE submodule. "
-                "Ensure submodules are initialised (git submodule update --init "
-                "--recursive) and the JUCE working tree is clean.")
+                "Failed to apply ${LOCKSTEP_JUCE_PATCH} to the JUCE tree at "
+                "${CHALKWALK_JUCE_ROOT}. Ensure submodules are initialised (git "
+                "submodule update --init --recursive), or that the shared "
+                "checkout named by CHALKWALK_JUCE_DIR is clean enough to accept "
+                "it.")
         endif()
     else()
         message(STATUS "JUCE patch already applied: juce-standalone-onCloseRequested.patch")
     endif()
 endif()
 
-# JUCE
-add_subdirectory(JUCE)
+# JUCE. A shared checkout lives outside this source tree, so add_subdirectory
+# needs an explicit binary directory; the submodule case is unaffected by it.
+add_subdirectory("${CHALKWALK_JUCE_ROOT}" "${CMAKE_BINARY_DIR}/JUCE")
 
 # CLAP JUCE extensions
 add_subdirectory(modules/clap-juce-extensions EXCLUDE_FROM_ALL)
