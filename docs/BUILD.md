@@ -53,6 +53,29 @@ tree automatically and idempotently. See [PATCHES.md](PATCHES.md) for the full
 flow (the submodule stays pinned to a real upstream commit; the patch is never
 committed into the submodule).
 
+## FluidLite comes from chalkwalk-soundfont
+
+The SoundFont engine behind `Tone` is not a submodule here any more. It arrives
+through `libs/soundfont`
+([chalkwalk-soundfont](https://github.com/chalkwalk/chalkwalk-soundfont)), which
+owns the FluidLite pin, the one-character SF3 loop-end patch, the writeup that
+makes it re-derivable, and the regression test that proves it is still applied.
+That test runs in this project's `ctest`, so the assertion covers the build you
+made rather than one some other CI checked.
+
+`ToneEngine` did not move: it lives in `src/tonecore` and drives FluidLite
+directly. The shared repository is a vendoring, not a wrapper.
+
+To iterate on it without a commit and a push, point at a working checkout:
+
+```bash
+cmake -B build -DCHALKWALK_SOUNDFONT_DIR=$HOME/Programming/chalkwalk-soundfont
+```
+
+Configure prints `OVERRIDE` when one is in use, because the submodule SHA no
+longer describes what you built -- so CI must not use it, and neither should
+anything meant to be attributable.
+
 ## Tests & gates
 
 - Format gate: `tools/check.sh` (clang-format dry-run).

@@ -14,6 +14,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# enable_testing() must be called at the TOP level for ctest to work. It used to
+# live in tests/CMakeLists.txt, which registered that directory's tests and
+# nothing else -- so `ctest --test-dir build` reported zero tests and every
+# suite outside tests/ was invisible to it, including the one chalkwalk-soundfont
+# contributes. The tests were still run, by invoking the binaries directly,
+# which is exactly why nobody noticed.
+enable_testing()
+
 # ---------------------------------------------------------------------------
 # Sanitizer support — set LOCKSTEP_SANITIZE=asan or tsan at configure time.
 # Applied to lockstep_core and lockstep_tests only (not the plugin wrappers,
@@ -97,53 +105,17 @@ set_target_properties(bungee_library pffft PROPERTIES POSITION_INDEPENDENT_CODE 
 # FluidLite — the SoundFont engine behind the `Tone` machine (4.10, DESIGN §29.3).
 # LGPL-2.1+ ("or any later version"), so GPLv3-compatible under static linking.
 #
-# SF3 via the VENDORED stb_vorbis, never libogg/libvorbis: it keeps the
-# no-external-dependency property, and the Xiph path in fluid_defsfont.c decodes
-# through a FILE-STATIC `vorbisData` struct that is not reentrant. stb's
-# stb_vorbis_decode_memory is stateless, so on this path the hazard does not exist.
-set(ENABLE_SF3 ON CACHE BOOL "" FORCE)
-set(STB_VORBIS ON CACHE BOOL "" FORCE)
-set(FLUIDLITE_BUILD_STATIC ON CACHE BOOL "" FORCE)
-set(FLUIDLITE_BUILD_SHARED OFF CACHE BOOL "" FORCE)
-
-# FluidLite carries an off-by-one that silently loops the WHOLE sample instead
-# of the sustain loop for any SF3 sample whose loop runs to the end -- most of
-# the bundled bank's piano. It is a submodule, so the one-character fix lives in
-# a patch applied here; patches/fluidlite-sf3-loop-offbyone.patch has the full
-# diagnosis and the measurements. `git apply --reverse --check` asks "is it
-# already applied?", which makes re-configuring a no-op rather than an error.
+# It arrives through chalkwalk-soundfont rather than as a direct submodule,
+# because FluidLite needs a one-character patch and TWO projects need it patched
+# the same way. What lives there is the submodule pin, the patch, the writeup
+# that makes the patch re-derivable, and the regression test that proves it is
+# still applied -- and that test runs in OUR ctest, so the assertion covers the
+# build we actually made rather than one some other CI checked.
 #
-# A patch that stops applying must not fail QUIETLY -- the symptom is a slightly
-# wrong sound, not a broken build -- so this is a fatal error here AND covered
-# behaviourally by ToneEngineTest's loop assertion, which fails on the audio
-# itself if this step is ever skipped or removed.
-find_package(Git QUIET)
-if(GIT_FOUND)
-    set(_fl_patch "${CMAKE_CURRENT_SOURCE_DIR}/patches/fluidlite-sf3-loop-offbyone.patch")
-    execute_process(
-        COMMAND "${GIT_EXECUTABLE}" apply --reverse --check "${_fl_patch}"
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/modules/fluidlite"
-        RESULT_VARIABLE _fl_already OUTPUT_QUIET ERROR_QUIET)
-    if(NOT _fl_already EQUAL 0)
-        execute_process(
-            COMMAND "${GIT_EXECUTABLE}" apply "${_fl_patch}"
-            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/modules/fluidlite"
-            RESULT_VARIABLE _fl_applied ERROR_VARIABLE _fl_err)
-        if(NOT _fl_applied EQUAL 0)
-            message(FATAL_ERROR
-                "Failed to apply ${_fl_patch}:\n${_fl_err}\n"
-                "FluidLite has probably moved. Re-check the SF3 loop-end test in "
-                "fluid_defsfont_get_sample before dropping the patch.")
-        endif()
-        message(STATUS "Applied FluidLite SF3 loop-end patch")
-    endif()
-else()
-    message(WARNING "Git not found -- the FluidLite SF3 loop patch was NOT applied; "
-                    "looped SF3 instruments will sound wrong (ToneEngineTest will fail).")
-endif()
-
-add_subdirectory(modules/fluidlite EXCLUDE_FROM_ALL)
-set_target_properties(fluidlite-static PROPERTIES POSITION_INDEPENDENT_CODE ON)
+# It is a vendoring and not a wrapper: `ToneEngine` stays here, drives FluidLite
+# directly, and did not move.
+include(cmake/ChalkwalkLibrary.cmake)
+chalkwalk_add_library(soundfont libs/soundfont)
 
 # Vendored DSP stays optimized even in Debug builds: we never step through it,
 # and Bungee's Eigen internals collapse ~60x at -O0 (2.7x realtime per stereo

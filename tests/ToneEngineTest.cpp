@@ -224,70 +224,12 @@ void runToneEngineTests()
                   + juce::String(diff / std::max(energy, 1.0e-12), 8) + ")");
     }
 
-    // ── Looped instruments loop their SUSTAIN, not the whole sample ───────
-    // FluidLite judged an SF3 loop "fowled" whenever loopend ran to the end of
-    // the sample -- comparing an EXCLUSIVE bound against an INCLUSIVE last index
-    // -- and repaired it by looping the entire sample. Most of this bank's Grand
-    // Piano samples loop to the end, so a held piano note repeated every ~2 s,
-    // quietly, like a delay with very low feedback. The fix is one character
-    // (patches/fluidlite-sf3-loop-offbyone.patch, applied by the root
-    // CMakeLists), and this is what stops it being lost: a patch that silently
-    // stops applying costs a slightly wrong SOUND, which no build error catches.
-    //
-    // Stated as a property rather than a fixture: a decaying note's envelope
-    // falls monotonically. A loop that jumps back to a louder point shows up as
-    // a re-attack -- the envelope rising again -- and nothing else in a single
-    // held note does that. So count the rises.
-    {
-        eng.allNotesOff(5);
-        eng.selectProgram(0, ToneEngine::kMelodicBank, 0);   // Grand Piano
-        eng.noteOn(0, 60, 100);
-
-        constexpr int kHop = 1102;          // 25 ms at 44.1k
-        std::vector<float> env;
-        for (int i = 0; i < 400; ++i)       // 10 s
-        {
-            double acc = 0.0;
-            int n = 0;
-            while (n < kHop)
-            {
-                eng.render(512);
-                const float* l = eng.groupLeft(0);
-                for (int s = 0; s < 512; ++s) acc += double(l[s]) * l[s];
-                n += 512;
-            }
-            env.push_back(static_cast<float>(std::sqrt(acc / n)));
-        }
-        eng.allNotesOff(0);
-
-        float peak = 0.0f;
-        for (const float v : env) peak = std::max(peak, v);
-
-        // Skip the attack, and stop once the note has decayed into the noise --
-        // dB of near-silence is not a measurement of anything.
-        int last = static_cast<int>(env.size());
-        while (last > 0 && env[static_cast<std::size_t>(last - 1)] < peak * 3.0e-4f) --last;
-
-        int reAttacks = 0;
-        float worst = 0.0f;
-        for (int i = 21; i + 1 < last; ++i)
-        {
-            const auto at = [&env](int k) { return env[static_cast<std::size_t>(k)]; };
-            if (! (at(i) > at(i - 1) && at(i) >= at(i + 1))) continue;
-            float floorV = at(i);
-            for (int k = std::max(0, i - 6); k < i; ++k) floorV = std::min(floorV, at(k));
-            const float riseDb = 20.0f * std::log10(std::max(at(i), 1.0e-9f)
-                                                    / std::max(floorV, 1.0e-9f));
-            if (riseDb > 1.0f) { ++reAttacks; worst = std::max(worst, riseDb); }
-        }
-
-        CHECK(peak > 0.0f, "a held piano note sounds");
-        CHECK(reAttacks == 0,
-              juce::String("...and decays without re-attacking -- it loops its sustain, "
-                           "not the whole sample (")
-                  + juce::String(reAttacks) + " rises, worst +"
-                  + juce::String(worst, 2) + " dB; the SF3 loop patch is not applied)");
-    }
+    // The SF3 sustain-loop assertion that used to sit here now lives in
+    // chalkwalk-soundfont, where the patch it guards does, and it runs in this
+    // project's ctest through that library's own suite -- so the coverage moved
+    // rather than went away. It is a better test there: it drives FluidLite
+    // directly against a 449 KB single-preset fixture, so it fails on the
+    // LIBRARY being unpatched rather than on anything about ToneEngine.
 
     // An unknown (bank, program) is ignored rather than silencing the channel:
     // the bank does not carry all 128 slots in every bank.

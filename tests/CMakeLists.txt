@@ -133,7 +133,8 @@ else()
     target_link_libraries(lockstep_tests PUBLIC juce::juce_recommended_warning_flags)
 endif()
 
-enable_testing()
+# enable_testing() moved to the root CMakeLists -- called here it registered
+# only this directory, which is why ctest saw nothing from anywhere else.
 add_test(NAME SurfaceModelTest COMMAND lockstep_tests)
 
 # ---------------------------------------------------------------------------
