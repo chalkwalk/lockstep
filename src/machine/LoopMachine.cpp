@@ -15,8 +15,7 @@ namespace lockstep
         // stateless, allocation-free; the kernel bank is built once at static init.
         const dc::Resampler& sharedLoopResampler()
         {
-            static const dc::Resampler r;
-            return r;
+            return dc::kernels();   // this project's guard, not the library's
         }
     }
 

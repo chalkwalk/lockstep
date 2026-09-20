@@ -11,6 +11,7 @@
 #include "SpectralMeasure.h"
 #include "../src/deckcore/Resampler.h"
 #include "../src/deckcore/Interpolation.h"
+#include "../src/deckcore/Heads.h"
 
 #include <cmath>
 #include <vector>
@@ -36,7 +37,7 @@ namespace lockstep
 
     void runResamplerTests()
     {
-        const dc::Resampler rs;
+        const dc::Resampler& rs = dc::kernels();
         constexpr double kSr = 48000.0;
 
         // ── Unity passthrough ────────────────────────────────────────────────
@@ -268,6 +269,56 @@ namespace lockstep
             CHECK(std::isfinite(held) && std::abs(held) <= 0.6f,
                   "rate-0 circular read holds a bounded sample ("
                   + juce::String(held) + ")");
+        }
+
+        // ── This project's bank, not the library's ───────────────────────────
+        // chalkwalk-tape's `sharedKernels()` guards its cutoff at 1.15x below
+        // Nyquist for a deck that shuttles at twelve times speed. We keep 1.0
+        // (deckcore/Resampler.h has the measurement). Every head this project
+        // creates must carry ours, and that is a property of the TYPE rather
+        // than of remembering to call setKernels -- so what is asserted here is
+        // that a DEFAULT-CONSTRUCTED dc head already has it.
+        //
+        // TEETH: below unity the two banks agree exactly, so the same check
+        // written at rate 1 would pass with the seam's constructors deleted.
+        // These read above unity, where the guard is the whole difference.
+        {
+            CHECK(&dc::kernels() != &dc::sharedKernels(),
+                  "this project's bank is not the library's shared one");
+
+            const dc::ReadHead probe;
+            CHECK(&probe.kernels() == &dc::kernels(),
+                  "a default-constructed dc::ReadHead carries this project's bank");
+
+            const dc::WriteHead wprobe;
+            CHECK(&wprobe.kernels() == &dc::kernels(),
+                  "a default-constructed dc::WriteHead carries this project's bank");
+
+            // And the difference is real rather than nominal: at rate 1.25 the
+            // library's guard is 3 dB or more down on a tone our guard passes.
+            constexpr int cap = 4096;
+            std::vector<float> src(static_cast<std::size_t>(cap));
+            for (int i = 0; i < cap; ++i)
+                src[static_cast<std::size_t>(i)] =
+                    static_cast<float>(std::sin(2.0 * 3.14159265358979323846 * 0.35 * i));
+
+            const auto rms = [&src, cap](const dc::Resampler& bank) {
+                double sum = 0.0;
+                double pos = 64.0;
+                for (int i = 0; i < 1024; ++i, pos += 1.25)
+                {
+                    const double v = bank.read(src.data(), cap, pos, 1.25);
+                    sum += v * v;
+                }
+                return std::sqrt(sum / 1024.0);
+            };
+
+            const double ours = rms(dc::kernels());
+            const double theirs = rms(dc::sharedKernels());
+            const double dB = 20.0 * std::log10(ours / theirs);
+            CHECK(dB > 3.0,
+                  "our guard passes materially more above unity (" + juce::String(dB)
+                  + " dB)");
         }
     }
 }

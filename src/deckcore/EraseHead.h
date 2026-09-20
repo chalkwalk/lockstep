@@ -23,5 +23,32 @@
 
 namespace dc
 {
-    using chalkwalk::tape::EraseHead;
+    // Same reasoning as the heads in Heads.h: the erase gap must be measured
+    // against the bank the WRITE head deposits with, and that is this project's
+    // rather than the library's. `minGapFor(rate)` on the library type reads
+    // `sharedKernels()` and would hand back the tape machine's number.
+    //
+    // NOT `kMinGap`, EVER. It is the bank's worst case -- 8 while this project
+    // owned a fixed sixteen-tap bank, 128 once the bank is sized by rate -- so
+    // every caller that asked for "the erase gap" silently asked for one
+    // sixteen times too large. Nine HeadsTest cases caught it; the production
+    // site in TapeMachine.cpp had the same bug where no test could see it. The
+    // constant is deliberately not re-exported here.
+    struct EraseHead : chalkwalk::tape::EraseHead
+    {
+        EraseHead() noexcept
+        {
+            // `dc::`, not bare `kernels()`: unqualified, that binds to the
+            // INHERITED `Head::kernels()` accessor -- which compiles, returns
+            // the default bank, and makes this constructor a no-op.
+            setKernels(dc::kernels());
+        }
+
+        [[nodiscard]] static double minGapFor(double rate) noexcept
+        {
+            return chalkwalk::tape::EraseHead::minGapFor(rate, dc::kernels());
+        }
+
+        using chalkwalk::tape::EraseHead::leadFor;
+    };
 }

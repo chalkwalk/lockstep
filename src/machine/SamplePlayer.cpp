@@ -15,8 +15,7 @@ namespace lockstep
         // reads (rate > 1) where Hermite would alias; down-pitch stays on Hermite.
         const dc::Resampler& sharedResampler()
         {
-            static const dc::Resampler r;
-            return r;
+            return dc::kernels();   // this project's guard, not the library's
         }
     }
 
