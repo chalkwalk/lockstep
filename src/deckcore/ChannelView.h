@@ -1,48 +1,24 @@
 #pragma once
 
+// deckcore/ChannelView.h is now a seam, not an implementation.
+//
+// The deck engine was extracted into chalkwalk-tape (MIT, JUCE-free) and
+// Remanence grew on it: a windowed medium, a rate-sized resampling bank, a
+// commit mark measured in tape rather than in memory. Keeping a second copy
+// here is how two copies drift apart, and they had already started to.
+//
+// The names stay in `dc` deliberately. Every consumer in this project says
+// `dc::Medium` and includes "deckcore/Medium.h", and rewriting several
+// hundred of those would be a large diff that changed no behaviour -- which
+// is exactly the diff you do not want wrapped around a library swap, because
+// it buries the changes that DO alter the sound. `dc` is still a real
+// namespace rather than an alias, because `dc::hermite4` (Interpolation.h)
+// is ours and stays.
+
+#include <chalkwalk/tape/ChannelView.h>
+
 namespace dc
 {
-    // How audio crosses the deck_core boundary (DESIGN §40.11): a non-owning view
-    // over channel pointers the caller owns. deck_core allocates nothing on the
-    // process path and never learns what a juce::AudioBuffer is; a host with any
-    // buffer type at all can hand it one of these.
-    //
-    // `chans` points at `numChans` channel pointers, each with `numSamples` frames.
-    // The view does not outlive the caller's buffer, and nothing in the library
-    // stores one across a call.
-    struct ChannelView
-    {
-        float* const* chans = nullptr;
-        int numChans = 0;
-        int numSamples = 0;
-
-        [[nodiscard]] bool empty() const noexcept
-        {
-            return chans == nullptr || numChans <= 0 || numSamples <= 0;
-        }
-
-        [[nodiscard]] float* channel(int c) const noexcept { return chans[c]; }
-    };
-
-    struct ConstChannelView
-    {
-        const float* const* chans = nullptr;
-        int numChans = 0;
-        int numSamples = 0;
-
-        ConstChannelView() = default;
-        ConstChannelView(const float* const* c, int n, int s) noexcept
-            : chans(c), numChans(n), numSamples(s) {}
-
-        // A writable view reads as a const one.
-        ConstChannelView(const ChannelView& v) noexcept  // NOLINT(google-explicit-constructor)
-            : chans(v.chans), numChans(v.numChans), numSamples(v.numSamples) {}
-
-        [[nodiscard]] bool empty() const noexcept
-        {
-            return chans == nullptr || numChans <= 0 || numSamples <= 0;
-        }
-
-        [[nodiscard]] const float* channel(int c) const noexcept { return chans[c]; }
-    };
+    using chalkwalk::tape::ChannelView;
+    using chalkwalk::tape::ConstChannelView;
 }

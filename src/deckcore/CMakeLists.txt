@@ -14,26 +14,23 @@
 # the sequencer.
 #
 # ---------------------------------------------------------------------------
-add_library(deck_core STATIC
-    Medium.cpp
-    LayerStack.cpp
-    Deck.cpp)
+# INTERFACE, not STATIC. The translation units this target used to compile --
+# Medium.cpp, LayerStack.cpp, Deck.cpp -- are chalkwalk-tape's now; what is left
+# here is the seam that keeps them reachable as `dc::` (see any header in this
+# directory) plus one Hermite read that was never part of the deck.
+add_library(deck_core INTERFACE)
 
-target_include_directories(deck_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_link_libraries(deck_core INTERFACE chalkwalk::tape)
+
+target_include_directories(deck_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
 # signalsmith-dsp (MIT, header-only). SYSTEM so its warnings never trip the
 # consumers' -Werror. Rooted at modules/ so headers namespace as
 # <signalsmith-dsp/...>.
-target_include_directories(deck_core SYSTEM PUBLIC ${CMAKE_SOURCE_DIR}/modules)
+target_include_directories(deck_core SYSTEM INTERFACE ${CMAKE_SOURCE_DIR}/modules)
 
-target_compile_features(deck_core PUBLIC cxx_std_20)
-set_target_properties(deck_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_compile_features(deck_core INTERFACE cxx_std_20)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(deck_core PRIVATE
-        -Wall -Wextra -Wpedantic
-        -Wsign-conversion -Wfloat-conversion -Wshadow -Wimplicit-fallthrough
-        -Werror
-        ${LOCKSTEP_SANITIZE_FLAGS})
-    target_link_options(deck_core PUBLIC ${LOCKSTEP_SANITIZE_FLAGS})
+    target_link_options(deck_core INTERFACE ${LOCKSTEP_SANITIZE_FLAGS})
 endif()

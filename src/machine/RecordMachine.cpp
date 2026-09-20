@@ -1,3 +1,4 @@
+#include <cstdint>
 #include "RecordMachine.h"
 #include <algorithm>
 #include <cmath>
@@ -182,7 +183,12 @@ namespace lockstep
         // The reel region actually recorded (its high-water), clamped to the pool
         // slot's capacity so the commit never overruns it.
         const int cap = pool_.volatileCapacity(poolIdx);
-        const int usedLen = std::clamp(medium_.used(0), 0, std::max(0, cap));
+        // `used` is a reel coordinate and therefore 64-bit in chalkwalk-tape:
+        // a windowed medium's tape outruns its memory, and the mark counts tape.
+        // Nothing here records more than a pool slot holds, so the narrowing is
+        // safe -- but it is written down rather than inferred.
+        const int usedLen = static_cast<int>(
+            std::clamp<std::int64_t>(medium_.used(0), 0, std::max(0, cap)));
         if (usedLen <= 0) return;
 
         // Claim + clear the pool slot region, then copy the reel take into it. A5:

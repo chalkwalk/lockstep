@@ -117,6 +117,26 @@ set_target_properties(bungee_library pffft PROPERTIES POSITION_INDEPENDENT_CODE 
 include(cmake/ChalkwalkLibrary.cmake)
 chalkwalk_add_library(soundfont libs/soundfont)
 
+# ---------------------------------------------------------------------------
+# chalkwalk-tape -- the deck engine this project wrote and then outgrew.
+# MIT, JUCE-free: Medium, Heads, EraseHead, LayerStack, Seam, MarkerLane, Deck,
+# and the polyphase resampler with both the gather read and the scatter write.
+#
+# `src/deckcore/` used to BE this code. It was extracted so a second consumer
+# (Remanence, a catalogue of tape machines) could stand on it, and that consumer
+# has since paid for the extraction: a windowed medium that streams a reel far
+# larger than memory, a resampling bank sized by rate instead of a fixed sixteen
+# taps, and a commit mark measured in tape rather than in memory. Keeping our
+# own copy meant keeping our own bugs; this is the direction the fixes flow.
+#
+# `src/deckcore/` survives as a seam -- one `using` per name, so every consumer
+# here still says `dc::Medium` and nothing outside that directory changed.
+#
+# Its own Catch2 suite runs in OUR ctest, so this project verifies the library
+# rather than assuming it.
+# ---------------------------------------------------------------------------
+chalkwalk_add_library(tape libs/tape)
+
 # Vendored DSP stays optimized even in Debug builds: we never step through it,
 # and Bungee's Eigen internals collapse ~60x at -O0 (2.7x realtime per stereo
 # stream vs 62x at -O2 — measured, S6 stretch spike). Debug's -g and asserts

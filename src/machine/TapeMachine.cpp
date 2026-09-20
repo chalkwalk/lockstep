@@ -673,13 +673,22 @@ namespace lockstep
                 w.setPosition(posStart);
                 e.setErasure(1.0f);
                 e.setRate(r);
-                e.setPosition(dc::EraseHead::leadFor(w, dc::EraseHead::kMinGap));
+                e.setPosition(dc::EraseHead::leadFor(w, dc::EraseHead::minGapFor(r)));
             }
             // A generous, bounded window over the kernel + erase-lead extent: any
             // sample the erase/write can touch is saved before either runs. Extra
             // saved originals just restore to themselves (harmless).
+            //
+            // SIZED FROM THE KERNEL THIS RATE ACTUALLY USES, not from the bank's
+            // worst case. `Resampler::kHalf` and the `kMinGap` built on it were
+            // 8 while the bank was a fixed sixteen taps; chalkwalk-tape's bank
+            // is sized by rate and reaches 128 at rate 32, so the constants now
+            // describe a shuttle this project never performs. Taking the bound
+            // from `halfFor(r)` restores the numbers this code was written
+            // against at every rate it runs at, and stays correct above them.
+            const auto half = static_cast<double>(dc::sharedKernels().halfFor(r));
             const auto reach = static_cast<std::int64_t>(
-                dc::Resampler::kHalf + dc::EraseHead::kMinGap + std::ceil(std::abs(r)) + 2.0);
+                half + dc::EraseHead::minGapFor(r) + std::ceil(std::abs(r)) + 2.0);
             double wpos = posStart;
             for (int i = 0; i < numSamples; ++i)
             {

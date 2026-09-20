@@ -332,7 +332,14 @@ namespace lockstep
                 dc::EraseHead e;
                 e.setErasure(erasure);
                 e.setRate(rate);
-                e.setPosition(dc::EraseHead::leadFor(w, dc::EraseHead::kMinGap));
+                // `minGapFor(rate)`, not `kMinGap`. The gap that matters is the
+                // half-width of the kernel THIS pass writes with; `kMinGap` is
+                // the whole bank's worst case, which chalkwalk-tape's rate-sized
+                // bank took from 8 to 128. Asserting against the worst case here
+                // would place the erase head 120 samples further ahead than the
+                // write it is clearing for, and the margins below would be
+                // measuring the gap rather than the erasure.
+                e.setPosition(dc::EraseHead::leadFor(w, dc::EraseHead::minGapFor(rate)));
 
                 for (int i = 0; i < n; ++i)
                 {
@@ -425,7 +432,7 @@ namespace lockstep
             w.setPosition(1000.0);
             dc::EraseHead e;
             e.setErasure(1.0f);
-            e.setPosition(w.position() - dc::EraseHead::kMinGap);  // WRONG side
+            e.setPosition(w.position() - dc::EraseHead::minGapFor(1.0));  // WRONG side
 
             for (int i = 0; i < 600; ++i)
             {

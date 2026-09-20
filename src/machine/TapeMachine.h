@@ -178,7 +178,10 @@ namespace lockstep
         [[nodiscard]] int recordedSamples() const noexcept
         {
             int m = 0;
-            for (int sub = 0; sub < kMaxInputSubTracks; ++sub) m = std::max(m, medium_.used(sub));
+            // `used` is 64-bit (a reel coordinate); a take here is bounded by
+            // the medium's own capacity, which is an int.
+            for (int sub = 0; sub < kMaxInputSubTracks; ++sub)
+                m = std::max<int>(m, static_cast<int>(medium_.used(sub)));
             return m;
         }
         // Copy the recorded extent out for promotion (§40.8), reading through the

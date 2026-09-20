@@ -14,3 +14,6 @@
 [submodule "libs/soundfont"]
 	path = libs/soundfont
 	url = https://github.com/chalkwalk/chalkwalk-soundfont.git
+[submodule "libs/tape"]
+	path = libs/tape
+	url = https://github.com/chalkwalk/chalkwalk-tape.git
