@@ -103,6 +103,9 @@ target_link_libraries(lockstep_core
     PUBLIC
         deck_core
         tone_core
+        # MelodyGen.h turns a seed context into an RNG seed with this, and it is
+        # PUBLIC because that header is included from the editor as well.
+        chalkwalk::seed
         lockstep_bank
         bungee_library
         juce::juce_audio_utils

@@ -17,3 +17,6 @@
 [submodule "libs/tape"]
 	path = libs/tape
 	url = https://github.com/chalkwalk/chalkwalk-tape.git
+[submodule "libs/seed"]
+	path = libs/seed
+	url = https://github.com/chalkwalk/chalkwalk-seed.git

@@ -20,6 +20,8 @@
 // onsets follows a contour (rise/fall/arch/walk) with seed-driven deviation
 // bounded by the step/leap parameter. Output is ordinary, hand-editable steps.
 
+#include <chalkwalk/seed/Derive.h>
+
 #include "Euclidean.h"
 #include "MusicalGate.h"
 #include "Scale.h"
@@ -95,41 +97,69 @@ namespace lockstep
         int      seed          = 1;  // the SEED encoder (1..999) -- the musical dial
     };
 
-    // FNV-1a over a machine id string. Inline + JUCE-free so the seed context stays
-    // usable from the pure core (and from a test) without dragging in juce::String.
+    // A machine id string, folded to a label.
+    //
+    // Was FNV-1a. It is `chalkwalk::seed` now for the same reason the combine
+    // below is: not because FNV was wrong -- it is perfectly portable -- but
+    // because this was the third hand-rolled derivation in the ecosystem and
+    // the third one is where they stop agreeing with each other.
     [[nodiscard]] inline uint32_t melodyHashMachineId(const char* id) noexcept
     {
-        uint32_t h = 2166136261u;
-        if (id == nullptr) return h;
+        std::uint64_t h = 0x9E3779B97F4A7C15ULL;
+        if (id == nullptr) return static_cast<uint32_t>(h);
         for (const char* p = id; *p != '\0'; ++p)
-        {
-            h ^= static_cast<uint32_t>(static_cast<unsigned char>(*p));
-            h *= 16777619u;
-        }
-        return h;
-    }
-
-    // Boost-style hash_combine: order-dependent, avalanches well enough that two
-    // adjacent tracks (or two adjacent SEEDs) do not produce neighbouring streams.
-    [[nodiscard]] inline uint32_t melodyHashCombine(uint32_t h, uint32_t v) noexcept
-    {
-        return h ^ (v + 0x9e3779b9u + (h << 6) + (h >> 2));
+            h = chalkwalk::seed::derive(h, static_cast<unsigned char>(*p));
+        return static_cast<uint32_t>(h >> 32);
     }
 
     // The effective RNG seed. NEVER zero: xorshift32 is dead at zero, and a seed
     // context that happened to hash to 0 would silently collapse every melody it
     // touched into the same one.
+    //
+    // ---- THE DERIVATION IS SHARED; THE STREAM IS NOT ----
+    //
+    // This used to be a boost-style `hash_combine` chain over the seven context
+    // fields. Nothing was wrong with it -- unlike Arps Euclidya's, which reached
+    // for `std::uniform_real_distribution` and was therefore stable only per
+    // toolchain, this was integer arithmetic throughout and portable. It went
+    // because it was a THIRD implementation of a solved problem, and three
+    // implementations is how three answers start diverging.
+    //
+    // `mgNext` below stays ours. `chalkwalk::seed` is deliberately not a stream
+    // -- it has no state to advance -- and a melody generator wants one. What it
+    // replaces is the part that was duplicated: turning "which track, which
+    // scene, which project, which SEED" into a number.
+    //
+    // WHAT THIS CHANGES FOR A PLAYER: turning SEED to a given number produces a
+    // different melody from the one it produced before this commit. Nothing in a
+    // saved project moves -- `generateMelody` PRINTS its notes into the phrase's
+    // steps and they are serialised as ordinary step data, not re-derived on
+    // load -- so old projects sound exactly as they did. Only new generations
+    // differ, and "SEED 7 on track 3" was never a promise across versions.
     [[nodiscard]] inline uint32_t melodySeedFor(const MelodySeedContext& c) noexcept
     {
-        uint32_t h = 0x811c9dc5u;
-        h = melodyHashCombine(h, static_cast<uint32_t>(c.seed));
-        h = melodyHashCombine(h, static_cast<uint32_t>(c.track));
-        h = melodyHashCombine(h, c.machineIdHash);
-        h = melodyHashCombine(h, static_cast<uint32_t>(c.song));
-        h = melodyHashCombine(h, static_cast<uint32_t>(c.scene));
-        h = melodyHashCombine(h, static_cast<uint32_t>(c.phrase));
-        h = melodyHashCombine(h, c.projectEpoch);
-        return h != 0u ? h : 0x9e3779b9u;
+        // Folded SEQUENTIALLY, each field through the running value. That is
+        // what makes two fields holding the same number distinguishable --
+        // position, not the labels: `derive` is not commutative, so track=5 at
+        // the second fold and song=5 at the fourth cannot land on each other.
+        // Verified by swapping two labels and watching the suite stay green.
+        //
+        // The labels are belt-and-braces on top of that, and cost nothing. What
+        // they defend against is a future refactor that folds the fields in a
+        // loop or a parallel xor, where position stops carrying the difference.
+        std::uint64_t h = 0x511C9DC5511C9DC5ULL;
+        h = chalkwalk::seed::derive(h, static_cast<std::uint64_t>(c.seed)          ^ 0x01);
+        h = chalkwalk::seed::derive(h, static_cast<std::uint64_t>(c.track)         ^ 0x02);
+        h = chalkwalk::seed::derive(h, static_cast<std::uint64_t>(c.machineIdHash) ^ 0x03);
+        h = chalkwalk::seed::derive(h, static_cast<std::uint64_t>(c.song)          ^ 0x04);
+        h = chalkwalk::seed::derive(h, static_cast<std::uint64_t>(c.scene)         ^ 0x05);
+        h = chalkwalk::seed::derive(h, static_cast<std::uint64_t>(c.phrase)        ^ 0x06);
+        h = chalkwalk::seed::derive(h, static_cast<std::uint64_t>(c.projectEpoch)  ^ 0x07);
+
+        // The top half: the low bits of a multiply-based mixer are its weakest,
+        // and xorshift32 is fed directly from this.
+        const auto v = static_cast<uint32_t>(h >> 32);
+        return v != 0u ? v : 0x9E3779B9u;
     }
 
     struct MelodyParams
@@ -153,6 +183,11 @@ namespace lockstep
 
     // Deterministic PRNG (xorshift32) — the generator owns its randomness and
     // never touches global RNG state.
+    //
+    // STAYS OURS, deliberately. `chalkwalk::seed` derives, it does not stream:
+    // it has no state to advance, and this generator walks a melody step by
+    // step and wants one. Plain integer shifts, portable everywhere, and the
+    // seed it starts from is the shared derivation above.
     [[nodiscard]] inline uint32_t mgNext(uint32_t& s) noexcept
     {
         s ^= s << 13;

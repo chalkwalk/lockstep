@@ -267,6 +267,38 @@ namespace lockstep
             CHECK(melodySeedFor(c) != ref, "seed salting: SEED still turns (the musical dial)");
         }
 
+        // FIELDS ARE DISTINGUISHABLE, which the old order-dependent hash_combine
+        // gave for free and the labelled fold that replaced it does not. Every
+        // check above moves ONE field away from a base where track, song, scene
+        // and phrase are all 0 -- so two labels swapped in the derivation would
+        // satisfy all of them. This is the case that would not survive it.
+        {
+            auto byTrack  = base; byTrack.track  = 5;
+            auto bySong   = base; bySong.song    = 5;
+            auto byScene  = base; byScene.scene  = 5;
+            auto byPhrase = base; byPhrase.phrase = 5;
+            const uint32_t a = melodySeedFor(byTrack);
+            const uint32_t b = melodySeedFor(bySong);
+            const uint32_t c = melodySeedFor(byScene);
+            const uint32_t d = melodySeedFor(byPhrase);
+            CHECK(a != b && a != c && a != d && b != c && b != d && c != d,
+                  "seed salting: the same value in different fields is a different melody");
+        }
+
+        // A machine id is a string and must fold to a label that distinguishes
+        // ids and reproduces for the same one.
+        {
+            const uint32_t fm = melodyHashMachineId("lockstep.fm.v1");
+            CHECK(fm == melodyHashMachineId("lockstep.fm.v1"),
+                  "machine id: the same id folds the same way");
+            CHECK(fm != melodyHashMachineId("lockstep.fm.v2"),
+                  "machine id: one character apart is a different machine");
+            CHECK(fm != melodyHashMachineId(""),
+                  "machine id: a real id is not the empty one");
+            CHECK(melodyHashMachineId(nullptr) == melodyHashMachineId(nullptr),
+                  "machine id: a null id is handled and stable");
+        }
+
         // Never zero: xorshift32 is dead at zero, so a context that hashed to 0 would
         // silently collapse every melody it touched into one. Sweep a wide space.
         for (int t = 0; t < 16; ++t)

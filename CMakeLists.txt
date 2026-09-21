@@ -137,6 +137,23 @@ chalkwalk_add_library(soundfont libs/soundfont)
 # ---------------------------------------------------------------------------
 chalkwalk_add_library(tape libs/tape)
 
+# ---------------------------------------------------------------------------
+# chalkwalk-seed -- deterministic derivation.
+# Submodule: https://github.com/chalkwalk/chalkwalk-seed (MIT, JUCE-free).
+#
+# `MelodyGen` turns "which track, which scene, which project, which SEED" into
+# an RNG seed, and had its own FNV-1a plus a boost-style combine to do it.
+# Nothing was wrong with that -- it was integer arithmetic and portable. It
+# went because it was the THIRD hand-rolled derivation in this ecosystem, and
+# three implementations of a solved problem is how three answers begin to
+# differ. One of the other two was genuinely broken, which is what made this a
+# library rather than a snippet everyone copies.
+#
+# The xorshift32 STREAM stays here: chalkwalk-seed derives and does not stream,
+# and a melody generator walking step by step wants one.
+# ---------------------------------------------------------------------------
+chalkwalk_add_library(seed libs/seed)
+
 # Vendored DSP stays optimized even in Debug builds: we never step through it,
 # and Bungee's Eigen internals collapse ~60x at -O0 (2.7x realtime per stereo
 # stream vs 62x at -O2 — measured, S6 stretch spike). Debug's -g and asserts
