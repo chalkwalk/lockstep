@@ -1766,6 +1766,20 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
         for the engine to stop naming a symbol it does not own — a factory the
         consumer registers, or moving the seam somewhere a one-pass linker
         cannot get wrong. **Do not reintroduce LTO before that lands.**
+- [ ] **Run the two GUI suites on a real Windows desktop and say which way they
+      go.** `SurfaceModelTest` and `DispatchGoldenTest` both stand up a JUCE
+      component tree through `EditorRig`, and both SegFault on a Windows CI
+      runner — while passing on Linux and macOS, and while the four vendored
+      suites pass on Windows. A Windows runner has no interactive desktop
+      session; antiphon's GUI audit fails on the same runners for the same
+      reason, and macOS images do have a window server, which is why macOS runs
+      all six.
+      - They are excluded on Windows so that job reports honestly on what it
+        *can* check (MSVC compiles the whole project; vendored suites pass)
+        rather than being uniformly red. **This is not a claim they would fail
+        on a real desktop, nor that they would pass — nobody has run them
+        there.** It is a debt, and the exclusion comes off the moment someone
+        says which it is.
 - [ ] **P4 — documentation site.** Docusaurus; CNAME `lockstep.chalkwalkmusic.com`.
       `README.md` is already a 2365-line manual with a table of contents, so it
       is the source, not a thing to rewrite. **Decide first whether README

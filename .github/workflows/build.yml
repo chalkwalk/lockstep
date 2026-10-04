@@ -144,7 +144,36 @@ jobs:
       # DISPLAY and WAYLAND_DISPLAY unset, with the X libraries merely installed.
       # EditorRig is genuinely headless. Keeping xvfb would have been cargo.
       - name: Test
+        if: runner.os != 'Windows'
         run: ctest --test-dir build -C Release --output-on-failure
+
+      # WINDOWS RUNS FOUR OF THE SIX SUITES. Read that before trusting a green
+      # tick here.
+      #
+      # SurfaceModelTest and DispatchGoldenTest both stand up a real JUCE
+      # component tree through EditorRig, and both die with SegFault on a
+      # Windows runner -- while passing on Linux and macOS, and while the four
+      # vendored suites pass on Windows too. A Windows runner executes without
+      # an interactive desktop session, which is the documented shape of this
+      # failure: antiphon's GUI audit segfaults on the same runners for the same
+      # reason. macOS images do have a window server, which is why macOS runs
+      # all six.
+      #
+      # This is NOT a claim that the two suites would fail on a real Windows
+      # desktop, and NOT a claim that they would pass. Nobody has run them
+      # there. It is excluded so the Windows job reports honestly on what it can
+      # actually check -- that the whole project compiles under MSVC, and that
+      # the vendored libraries pass -- instead of being uniformly red and saying
+      # nothing new on every run.
+      #
+      # It is a debt. It comes off when someone runs the suite on a Windows
+      # desktop and says which way it goes; CONTRIBUTING.md asks for exactly
+      # that, and ROADMAP 6.8 carries the item.
+      - name: Test (Windows; the two GUI suites are excluded -- see above)
+        if: runner.os == 'Windows'
+        run: >
+          ctest --test-dir build -C Release --output-on-failure
+          -E "SurfaceModelTest|DispatchGoldenTest"
 
       # An ELF binary keeps its symbol table even without -g, which is why Linux
       # artefacts stay several times the size of the other two; macOS and Windows
