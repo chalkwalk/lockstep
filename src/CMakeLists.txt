@@ -210,8 +210,39 @@ target_link_libraries(Lockstep
         lockstep_fonts
         juce::juce_audio_plugin_client
     PUBLIC
-        juce::juce_recommended_config_flags
-        juce::juce_recommended_lto_flags)
+        juce::juce_recommended_config_flags)
+
+# NO juce_recommended_lto_flags, and this is a correctness decision rather than
+# a taste one.
+#
+# There is a real circular dependency between two static archives here.
+# `lockstep_engine` is deliberately UI-free -- it holds LockstepProcessor and
+# nothing else -- so its `createEditor()` references a `LockstepEditor` it does
+# not own. That is a link seam, and it is on purpose: the headless test binary
+# satisfies it with TestEditorStub.cpp, and the dispatch test binary compiles
+# the real PluginEditor.cpp straight into itself. Both of those work because an
+# object file is linked unconditionally.
+#
+# The plugin is the case that does not. PluginEditor.cpp lives in the Lockstep
+# (SharedCode) target, SharedCode depends on lockstep_engine, so CMake must
+# place libLockstep_SharedCode.a BEFORE liblockstep_engine.a -- and a one-pass
+# linker reaching engine's undefined LockstepEditor has already walked past the
+# archive that defines it. That it linked at all was luck: some earlier object
+# happened to pull PluginEditor.o in.
+#
+# LTO removes the luck. It defers symbol resolution until after the merge, past
+# the point where a skipped archive member can be reconsidered, and the
+# standalone fails with an undefined reference to the editor's constructor.
+# Measured: GCC links it, Clang 21 links it, Clang 18.1.3 (ubuntu-latest, and
+# well above this project's stated Clang 10 floor) does not.
+#
+# So LTO goes. It buys some inlining across translation units; it costs a build
+# that only links on some toolchains, which is not a trade worth making for a
+# plugin already compiled at -O3.
+#
+# This is a workaround and the cycle is the actual bug. Fixing it properly means
+# the engine not naming a symbol it does not own -- see ROADMAP 6.8. Until then,
+# do not reintroduce these flags without fixing that first.
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(Lockstep PRIVATE

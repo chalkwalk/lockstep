@@ -1746,6 +1746,26 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
         project already had locally and had never recorded.
       - `CHALKWALK_JUCE_DIR` was checked for the same hazard and is clean: the
         shared checkout is at `501c076`, exactly the submodule pin.
+- [ ] **Break the engine/editor link cycle, then restore LTO.**
+      `lockstep_engine` is UI-free by design, so `createEditor()` names a
+      `LockstepEditor` it does not own — a deliberate link seam, satisfied by
+      `TestEditorStub.cpp` in one test binary and by compiling the real
+      `PluginEditor.cpp` into the other. Both work because an object file links
+      unconditionally.
+      - The plugin does not. `PluginEditor.cpp` sits in the `Lockstep`
+        (SharedCode) target, SharedCode depends on the engine, so CMake must
+        emit `libLockstep_SharedCode.a` *before* `liblockstep_engine.a` — and a
+        one-pass linker reaching engine's undefined symbol has already passed
+        the archive defining it. It linked only by luck of member pull-in.
+      - LTO removed the luck: resolution is deferred past the point a skipped
+        member can be reconsidered. **GCC links it, Clang 21 links it, Clang
+        18.1.3 does not** — and 18 is far above this project's stated Clang 10
+        floor. `juce_recommended_lto_flags` is dropped as a result (2026-10-04),
+        costing cross-TU inlining and ~4 MB of binary.
+      - The workaround is in `src/CMakeLists.txt` with the reasoning. The fix is
+        for the engine to stop naming a symbol it does not own — a factory the
+        consumer registers, or moving the seam somewhere a one-pass linker
+        cannot get wrong. **Do not reintroduce LTO before that lands.**
 - [ ] **P4 — documentation site.** Docusaurus; CNAME `lockstep.chalkwalkmusic.com`.
       `README.md` is already a 2365-line manual with a table of contents, so it
       is the source, not a thing to rewrite. **Decide first whether README
