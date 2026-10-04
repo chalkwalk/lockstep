@@ -1,0 +1,211 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    # macOS and Windows have NEVER been compiled, by anyone, at the time this
+    # workflow lands -- not once, not locally. Every line of Lockstep was built
+    # with Clang on Linux. So the flag here is not hiding a known failure; it is
+    # holding the door open while two platforms are genuinely unexplored.
+    #
+    # Take it off a platform the day that platform earns it, and never use it to
+    # make a real breakage look green.
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+            experimental: false
+          - name: macOS (never yet compiled)
+            os: macos-latest
+            experimental: true
+          - name: Windows (never yet compiled)
+            os: windows-latest
+            experimental: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # Seven submodules, and bungee carries its own (eigen, pffft), so
+          # recursive is not optional. All seven resolve unauthenticated --
+          # checked before this workflow was written.
+          submodules: recursive
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev libx11-dev libxcomposite-dev libxcursor-dev \
+            libxext-dev libxinerama-dev libxrandr-dev libxrender-dev \
+            libfreetype6-dev libfontconfig1-dev libcurl4-openssl-dev \
+            libgl1-mesa-dev libglu1-mesa-dev ninja-build xvfb
+
+      - name: Install Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      # No -DCHALKWALK_JUCE_DIR here, deliberately: CI is the one place that
+      # uses the submodule rather than the ecosystem's shared JUCE checkout, and
+      # the root CMakeLists applies the standalone patch itself at configure
+      # time against whichever root it resolved. That path was verified by
+      # cloning this repository fresh and configuring with the variable unset,
+      # because it is the case nobody exercises locally.
+      - name: Configure (Linux and macOS)
+        if: runner.os != 'Windows'
+        run: >
+          cmake -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DJUCE_BUILD_EXAMPLES=OFF -DJUCE_BUILD_EXTRAS=OFF
+        shell: bash
+
+      # Deliberately no -G here. With Ninja on a Windows runner CMake picks up
+      # whichever compiler is on PATH, which is MinGW g++ -- and JUCE refuses to
+      # build under MinGW outright. Letting CMake choose its default generator
+      # gets Visual Studio and MSVC instead.
+      #
+      # Expect real errors from MSVC rather than warnings: the strict set and
+      # -Werror are Clang-gated in src/ and tests/CMakeLists.txt, so a new
+      # compiler fails on portability, not on pedantry.
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DJUCE_BUILD_EXAMPLES=OFF -DJUCE_BUILD_EXTRAS=OFF
+
+      - name: Build
+        run: cmake --build build --config Release -j 4
+
+      # Six suites, ~3 minutes. Two are ours (SurfaceModelTest,
+      # DispatchGoldenTest); the rest come from the vendored libraries and run
+      # here on purpose -- the SF3 sustain-loop assertion then covers the
+      # FluidLite we actually built rather than a pristine upstream one.
+      #
+      # Under xvfb on Linux: both of our suites construct a real headless JUCE
+      # editor through EditorRig, and a runner has no window session. This is
+      # the cheap insurance; if it turns out they never needed a display, drop
+      # the wrapper rather than keeping it out of superstition.
+      - name: Test (Linux, under xvfb)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a ctest --test-dir build -C Release --output-on-failure
+
+      - name: Test (macOS and Windows)
+        if: runner.os != 'Linux'
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      # An ELF binary keeps its symbol table even without -g, which is why Linux
+      # artefacts stay several times the size of the other two; macOS and Windows
+      # already ship symbols elsewhere. --strip-unneeded keeps the dynamic
+      # symbols a host needs to load the plugin.
+      - name: Strip Linux artefacts
+        if: runner.os == 'Linux'
+        run: |
+          before=$(du -sh build/src/Lockstep_artefacts | cut -f1)
+          find build/src/Lockstep_artefacts -type f \
+            \( -name '*.so' -o -name '*.clap' -o -name 'Lockstep' \) \
+            -exec strip --strip-unneeded {} +
+          echo "artefacts: $before -> $(du -sh build/src/Lockstep_artefacts | cut -f1)"
+
+      # juce_add_plugin lives in src/CMakeLists.txt, so artefacts land under
+      # build/src/ rather than build/.
+      #
+      # The AU is built on macOS and has never been through auval, nor loaded by
+      # any host. It is uploaded so somebody can be the first; its presence here
+      # is not a claim that it works.
+      - name: Upload artefacts
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Lockstep-${{ matrix.name }}
+          if-no-files-found: warn
+          path: |
+            build/src/Lockstep_artefacts/**/VST3/*.vst3
+            build/src/Lockstep_artefacts/**/CLAP/*.clap
+            build/src/Lockstep_artefacts/**/Standalone/*
+            build/src/Lockstep_artefacts/**/AU/*.component
+
+  lint:
+    name: Format and tidy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev libx11-dev libxcomposite-dev libxcursor-dev \
+            libxext-dev libxinerama-dev libxrandr-dev libxrender-dev \
+            libfreetype6-dev libfontconfig1-dev libcurl4-openssl-dev \
+            libgl1-mesa-dev libglu1-mesa-dev ninja-build clang-tidy
+
+      # Pinned, and from PyPI rather than apt, because clang-format is not
+      # stable across major versions -- 18 and 20 disagree about `({})` as a
+      # call argument, which is enough to fail a gate on code nobody touched.
+      # apt gives whatever the runner image ships. Keep this in step with
+      # CONTRIBUTING.md, which tells contributors to install the same one.
+      - name: Install clang-format
+        run: pip install "clang-format==20.1.8"
+
+      # ADVISORY, and this is a measurement rather than a preference.
+      #
+      # Antiphon's equivalent gate is blocking, on the grounds that its codebase
+      # was already written in the style the config describes. That is NOT true
+      # here: 233 of 402 files differ, about 24k lines of 120k. Checked at both
+      # the pinned 20.1.8 and at 21.1.8 and the count is identical, so it is not
+      # version skew -- this tree was simply never run through clang-format.
+      #
+      # Making it blocking today would mean reformatting more than half the
+      # source in one commit: it would destroy `git blame` across the codebase
+      # and put 24k unreviewed lines through a -Werror build. That is its own
+      # piece of work with its own risk, not a thing to smuggle into CI setup.
+      #
+      # This becomes blocking in the same change that takes the count to zero,
+      # and not before. ROADMAP.md 6.8 carries the item.
+      - name: clang-format (advisory)
+        continue-on-error: true
+        run: |
+          clang-format --version
+          files=$(find src tests tools \( -name '*.cpp' -o -name '*.h' \))
+          bad=0; total=0
+          for f in $files; do
+            total=$((total+1))
+            clang-format --dry-run -Werror "$f" >/dev/null 2>&1 || bad=$((bad+1))
+          done
+          echo "unformatted: $bad / $total"
+          echo "### clang-format: $bad of $total files unformatted" >> "$GITHUB_STEP_SUMMARY"
+          echo "Advisory while the backlog is worked down; see ROADMAP.md 6.8." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Configure (for the compile database)
+        run: cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      # Advisory too, for the same reason: the count at adoption is unmeasured,
+      # and a gate adopted at an unknown count is a gate that fails on its first
+      # run. The first green run of this step establishes the baseline; record
+      # it in ROADMAP.md 6.8 and work it down from there.
+      - name: clang-tidy (advisory)
+        continue-on-error: true
+        run: |
+          clang-tidy -p build --quiet src/*.cpp tools/*.cpp 2>&1 | tee tidy.log
+          echo "findings: $(grep -cE 'warning:|error:' tidy.log || true)"

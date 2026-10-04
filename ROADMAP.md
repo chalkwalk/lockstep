@@ -1683,8 +1683,23 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
       so neither new compiler fails on warnings. Verify the JUCE patch path
       (root `CMakeLists.txt` 45–88) works with `CHALKWALK_JUCE_DIR` unset and a
       fresh submodule, which is the CI case and never the local one. Plus the
-      lint job: clang-format pinned and blocking, clang-tidy advisory with its
-      finding count recorded here.
+      lint job: clang-tidy advisory, and **clang-format advisory too**, which
+      is a departure from the sibling template and was measured, not assumed —
+      see below.
+- [ ] **Reformat the tree, then make clang-format blocking.** `233 of 402`
+      files differ from `.clang-format` — ~24k lines of 120k. The count is
+      identical at the pinned 20.1.8 and at 21.1.8, so it is **not version
+      skew**: this tree was never run through clang-format. Antiphon can gate
+      on format because its codebase was written in the style its config
+      describes; ours was not.
+      - Doing it is one commit that rewrites more than half the source: it
+        destroys `git blame` across the codebase and puts 24k unreviewed lines
+        through a `-Werror` build. That is its own piece of work with its own
+        risk, and it was deliberately **not** smuggled into CI setup.
+      - The gate flips to blocking in the same change that takes the count to
+        zero, and not before.
+- [ ] **Record the clang-tidy baseline** from the first green lint run, the way
+      antiphon records its 142, then work it down.
 - [ ] **P4 — documentation site.** Docusaurus; CNAME `lockstep.chalkwalkmusic.com`.
       `README.md` is already a 2365-line manual with a table of contents, so it
       is the source, not a thing to rewrite. **Decide first whether README
