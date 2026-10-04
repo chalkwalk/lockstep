@@ -41,6 +41,28 @@
 
 namespace lockstep
 {
+
+    // ── The editor seam (see PluginProcessor.h) ──────────────────────────────
+    // A plain function pointer rather than a std::function: it is set once,
+    // before any processor exists, and never from the audio thread.
+    namespace
+    {
+        EditorFactory g_editorFactory = nullptr;
+    }
+
+    void setEditorFactory(EditorFactory factory) noexcept { g_editorFactory = factory; }
+    EditorFactory editorFactory() noexcept { return g_editorFactory; }
+
+    juce::AudioProcessorEditor* LockstepProcessor::createEditor()
+    {
+        return g_editorFactory != nullptr ? g_editorFactory(*this) : nullptr;
+    }
+
+    // Answers honestly rather than always true. A host that is told there is an
+    // editor and then handed nullptr is worse off than one told there is none,
+    // and the headless suites genuinely have none.
+    bool LockstepProcessor::hasEditor() const { return g_editorFactory != nullptr; }
+
     namespace
     {
         struct BusesPropertiesAccessor : juce::AudioProcessor

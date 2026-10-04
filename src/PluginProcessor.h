@@ -66,6 +66,25 @@ namespace lockstep
         int ccNumber = -1;
     };
 
+    class LockstepProcessor;
+
+    // ── The editor seam ──────────────────────────────────────────────────────
+    // The engine is UI-free on purpose: LockstepProcessor and nothing else, so
+    // the headless test binary can link it without dragging in JUCE components.
+    // That seam used to be a link-time one -- createEditor() declared here and
+    // defined over in the plugin target -- which made a cycle between two
+    // static archives and only ever linked by luck (6.8).
+    //
+    // It is a runtime seam now. Whoever provides a UI registers a factory from
+    // a translation unit that is definitely linked; the plugin does it in
+    // createPluginFilter(), which the JUCE wrappers call. Nobody registers one
+    // and the processor simply has no editor, which is exactly what the
+    // headless suites want and what they used to get from a stub definition.
+    using EditorFactory = juce::AudioProcessorEditor* (*)(LockstepProcessor&);
+
+    void setEditorFactory(EditorFactory factory) noexcept;
+    [[nodiscard]] EditorFactory editorFactory() noexcept;
+
     class LockstepProcessor : public juce::AudioProcessor
     {
     public:
@@ -81,8 +100,20 @@ namespace lockstep
         bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
         void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) override;
 
+        // Both defined in PluginProcessor.cpp, and neither names the editor.
+        //
+        // createEditor() used to be defined in PluginEditorFactory.cpp, over in
+        // the plugin target, so this library's vtable carried an undefined
+        // reference to a symbol living in an archive the linker had already
+        // walked past. It resolved only because some earlier object happened to
+        // pull that member in first, and LTO removed the luck -- see 6.8.
+        //
+        // Now the engine owns both and asks a registered factory for the
+        // editor, so the UI depends on the engine and the engine depends on
+        // nothing. Whoever wants a UI calls setEditorFactory(); see
+        // PluginEditorFactory.cpp.
         juce::AudioProcessorEditor* createEditor() override;
-        bool hasEditor() const override { return true; }
+        bool hasEditor() const override;
 
         const juce::String getName() const override { return "Lockstep"; }
         bool acceptsMidi() const override { return true; }

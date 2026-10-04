@@ -1746,26 +1746,25 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
         project already had locally and had never recorded.
       - `CHALKWALK_JUCE_DIR` was checked for the same hazard and is clean: the
         shared checkout is at `501c076`, exactly the submodule pin.
-- [ ] **Break the engine/editor link cycle, then restore LTO.**
-      `lockstep_engine` is UI-free by design, so `createEditor()` names a
-      `LockstepEditor` it does not own — a deliberate link seam, satisfied by
-      `TestEditorStub.cpp` in one test binary and by compiling the real
-      `PluginEditor.cpp` into the other. Both work because an object file links
-      unconditionally.
-      - The plugin does not. `PluginEditor.cpp` sits in the `Lockstep`
-        (SharedCode) target, SharedCode depends on the engine, so CMake must
-        emit `libLockstep_SharedCode.a` *before* `liblockstep_engine.a` — and a
-        one-pass linker reaching engine's undefined symbol has already passed
-        the archive defining it. It linked only by luck of member pull-in.
-      - LTO removed the luck: resolution is deferred past the point a skipped
-        member can be reconsidered. **GCC links it, Clang 21 links it, Clang
-        18.1.3 does not** — and 18 is far above this project's stated Clang 10
-        floor. `juce_recommended_lto_flags` is dropped as a result (2026-10-04),
-        costing cross-TU inlining and ~4 MB of binary.
-      - The workaround is in `src/CMakeLists.txt` with the reasoning. The fix is
-        for the engine to stop naming a symbol it does not own — a factory the
-        consumer registers, or moving the seam somewhere a one-pass linker
-        cannot get wrong. **Do not reintroduce LTO before that lands.**
+- [x] **Engine/editor link cycle broken; LTO restored** *(2026-10-04)*. The
+      engine no longer names a symbol it does not own. `createEditor()` was
+      declared in `lockstep_engine` and *defined* in the plugin target, so the
+      engine's vtable referenced a symbol in an archive the linker had already
+      walked past; it resolved only because some earlier object happened to
+      pull that member in first, and LTO removed the luck.
+      - The link-time seam is a **runtime** one now: `setEditorFactory()`. The
+        registration lives in `createPluginFilter()`, which the JUCE wrappers
+        call, so it is in a translation unit that is always linked — a static
+        initialiser elsewhere would have reproduced the original problem, since
+        an archive member only links if something already references it.
+      - `hasEditor()` answers honestly instead of always `true`: a host told
+        there is an editor and then handed `nullptr` is worse off than one told
+        there is none, and the headless suites genuinely have none.
+      - `tests/TestEditorStub.cpp` is deleted. It existed only to supply the
+        other half of the link seam, and there is no seam to fill.
+      - **Verified by CI, not locally.** Clang 21 linked the cycle *with* LTO,
+        so a local pass proves nothing; Clang 18.1.3 on `ubuntu-latest` is what
+        failed and is what has to say this is fixed.
 - [ ] **Run the two GUI suites on a real Windows desktop and say which way they
       go.** `SurfaceModelTest` and `DispatchGoldenTest` both stand up a JUCE
       component tree through `EditorRig`, and both SegFault on a Windows CI
