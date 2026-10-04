@@ -112,10 +112,23 @@ namespace
     // field that dispatch writes but the digest omits would be an invisible hole in
     // the net -- the failure mode a golden test is supposed to make impossible.
     // If this static_assert trips: add the field below, then re-bless.
+    //
+    // PLATFORM-GATED, and it has to be. A struct's size is an ABI property, not a
+    // property of the source: 1344 is what x86_64 Linux lays this out as, and the
+    // first macOS build ever attempted failed here on arm64 with nothing changed.
+    // An absolute sizeof can only ever be true on the machine it was measured on.
+    //
+    // Gating costs nothing the guard was actually providing. Its job is to make a
+    // contributor who adds a field notice digest() -- and they will, because this
+    // fires for everyone developing on x86_64 Linux and in CI's Linux job, which
+    // is where fields get added. On another ABI it was never checking the field
+    // list; it was only ever checking that the ABI matched Linux's.
     // ---------------------------------------------------------------------------
+#if defined(__linux__) && defined(__x86_64__)
     static_assert(sizeof(UiState) == 1344,
                   "UiState changed size: add the new field(s) to digest() below, then "
                   "regenerate the golden (LOCKSTEP_REGEN_GOLDEN=1) and read the diff.");
+#endif
 
     using Digest = std::map<juce::String, juce::String>;
 
