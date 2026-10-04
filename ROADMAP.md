@@ -1728,19 +1728,24 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
         ahead (`e3d52bd` "Build on macOS and Windows", `63da1d4`) and neither
         touches `Resampler.h` — those fixed `Bias.h`, `TapeEq.h`, `LossEffects.h`
         and `HeadLengthLoss.h`. The sites are byte-identical at both commits.
-- [ ] **Decide what the `libs/tape` pin should be, and stop local builds lying
-      about it.** The submodule pins `80d9adf`; the local `build/` cache has
-      `CHALKWALK_TAPE_DIR` pointing at a working checkout at `63da1d4`, two
-      commits ahead and clean. So **every local build and test run has been
-      against the override, not the pin** — including the 6/6 baseline this arc
-      started from. CI has no override and builds the pin, so local green and CI
-      green are not the same claim.
-      - `cmake/ChalkwalkLibrary.cmake` warns about exactly this in its own
-        header comment ("THE SUBMODULE SHA NO LONGER DESCRIBES WHAT YOU BUILT")
-        and says: use an override to iterate, bump the submodule and re-verify
-        before calling anything done. The bump was never done.
-      - Either bump to `63da1d4` and re-verify, or clear the override and
-        confirm the pin still passes. Not both silently.
+- [x] **`libs/tape` pin bumped to `63da1d4`, and the override cleared**
+      (2026-10-04). The submodule pinned `80d9adf` while this tree's `build/`
+      cache pointed `CHALKWALK_TAPE_DIR` at a working checkout two commits
+      ahead — so every local build and test run, including the baseline this
+      arc opened with, was against the override and not the pin. CI has no
+      override and builds the pin, so the two were never the same claim.
+      - `cmake/ChalkwalkLibrary.cmake` warns about exactly this in capitals in
+        its own header ("THE SUBMODULE SHA NO LONGER DESCRIBES WHAT YOU BUILT")
+        and says to bump and re-verify before calling anything done.
+      - **CI is what forced the issue.** macOS died on `std::cyl_bessel_j` in
+        `LossEffects.h`, which Apple's standard library has never shipped —
+        and the upstream commit sitting unpinned (`e3d52bd`, "Build on macOS
+        and Windows, which it has not done since the promotion") had already
+        replaced it with `dsp::besselJ0`, *and* fixed the same `M_PI` problem
+        for MSVC via `dsp::kPi`. The fix for both platforms was a pin the
+        project already had locally and had never recorded.
+      - `CHALKWALK_JUCE_DIR` was checked for the same hazard and is clean: the
+        shared checkout is at `501c076`, exactly the submodule pin.
 - [ ] **P4 — documentation site.** Docusaurus; CNAME `lockstep.chalkwalkmusic.com`.
       `README.md` is already a 2365-line manual with a table of contents, so it
       is the source, not a thing to rewrite. **Decide first whether README
