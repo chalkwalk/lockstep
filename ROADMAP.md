@@ -1780,14 +1780,25 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
         on a real desktop, nor that they would pass — nobody has run them
         there.** It is a debt, and the exclusion comes off the moment someone
         says which it is.
-- [ ] **P4 — documentation site.** Docusaurus; CNAME `lockstep.chalkwalkmusic.com`.
-      `README.md` is already a 2365-line manual with a table of contents, so it
-      is the source, not a thing to rewrite. **Decide first whether README
-      becomes a landing page or the site generates from it** — two divergent
-      copies of a 2365-line gesture reference is worse than either. Lands after
-      `6.9`, so it documents modality as it ends up.
-- [ ] **P5 — wiki sync.** Needs Wikis enabled and one page saved by hand;
-      GitHub does not create `.wiki.git` until then.
+- [x] **P4 — documentation site.** *(2026-10-04.)* Docusaurus at
+      `lockstep.chalkwalkmusic.com`. The README question is settled: it was
+      2,371 lines and **is now 97** — paradigm, glossary, tutorial, the
+      1,400-line feature reference, implemented-vs-planned and the gesture tree
+      all moved to `website/docs/`, which is the manual now. Split at top level
+      only; the reference stays one page because most of its 42 anchors point
+      within it. Docs serve at the root rather than `/docs`, because the
+      siblings' React landing page wants artwork Lockstep does not have yet.
+      - Two Docusaurus traps, both now in the config with reasons:
+        `markdown.format` must be `'detect'` or `.md` is parsed as MDX and every
+        `<reason>` placeholder is a JSX error; and a frontmatter title
+        containing a colon must be quoted or the build fails with an unrelated
+        metadata error.
+- [x] **P5 — wiki sync.** *(2026-10-04.)* Wiki enabled and synced; one source
+      renders two ways, and `wiki_transform.py` mirrors `website/docs/` as
+      flat wiki pages with a generated `_Sidebar`.
+- [ ] **Turn on Enforce HTTPS** once GitHub finishes issuing the certificate
+      for the custom domain. Enabling it before the cert exists breaks TLS,
+      which is how it was found; enforcement is off until then.
 - [ ] **P6 — release honesty.** A page naming every gap (see the locked
       decision), then tag the beta.
 - [ ] Performance pass (voice CPU profile, choke-fade SIMD, voice cap).
