@@ -4,6 +4,17 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+    # Documentation does not affect the build, and this repository commits a
+    # lot of it -- the roadmap and the plan files move on their own cadence.
+    # Without this, a ROADMAP-only commit starts a run that cancels the one
+    # actually compiling something, which happened twice in the first hour of
+    # this workflow's life. A tag push is exempt: a release builds regardless.
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".github/workflows/deploy.yml"
+      - ".github/workflows/wiki-sync.yml"
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -55,7 +66,7 @@ jobs:
             libasound2-dev libx11-dev libxcomposite-dev libxcursor-dev \
             libxext-dev libxinerama-dev libxrandr-dev libxrender-dev \
             libfreetype6-dev libfontconfig1-dev libcurl4-openssl-dev \
-            libgl1-mesa-dev libglu1-mesa-dev ninja-build xvfb
+            libgl1-mesa-dev libglu1-mesa-dev ninja-build
 
       - name: Install Ninja (macOS)
         if: runner.os == 'macOS'
@@ -94,21 +105,17 @@ jobs:
       - name: Build
         run: cmake --build build --config Release -j 4
 
-      # Six suites, ~3 minutes. Two are ours (SurfaceModelTest,
+      # Six suites, ~78s in Release. Two are ours (SurfaceModelTest,
       # DispatchGoldenTest); the rest come from the vendored libraries and run
       # here on purpose -- the SF3 sustain-loop assertion then covers the
       # FluidLite we actually built rather than a pristine upstream one.
       #
-      # Under xvfb on Linux: both of our suites construct a real headless JUCE
-      # editor through EditorRig, and a runner has no window session. This is
-      # the cheap insurance; if it turns out they never needed a display, drop
-      # the wrapper rather than keeping it out of superstition.
-      - name: Test (Linux, under xvfb)
-        if: runner.os == 'Linux'
-        run: xvfb-run -a ctest --test-dir build -C Release --output-on-failure
-
-      - name: Test (macOS and Windows)
-        if: runner.os != 'Linux'
+      # No xvfb, and that was measured rather than assumed. Both of our suites
+      # build a real JUCE editor through EditorRig, so a wrapper looked like
+      # cheap insurance on a runner with no window session -- but both pass with
+      # DISPLAY and WAYLAND_DISPLAY unset, with the X libraries merely installed.
+      # EditorRig is genuinely headless. Keeping xvfb would have been cargo.
+      - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
 
       # An ELF binary keeps its symbol table even without -g, which is why Linux
