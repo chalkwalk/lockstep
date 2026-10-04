@@ -100,14 +100,23 @@ clap-juce-extensions MIT, Bungee + Eigen MPL-2.0 file-level copyleft, PFFFT
 BSD-like, Signalsmith MIT, Inter OFL-1.1, FluidLite LGPL-2.1+). That audit is
 already the best of the four sibling repos; it just has no `LICENSE` beside it.
 
-- [ ] `LICENSE` — GPLv3 verbatim, copied from `/home/programming/antiphon/LICENSE`
-      (674 lines, unmodified FSF text).
-- [ ] `CONTRIBUTING.md` — port antiphon's 164 lines; replace its accessibility
-      gate with Lockstep's real local gates: Clang-only build (a GCC build
-      silently drops `-Werror` and the whole strict warning set — see
-      `docs/BUILD.md`), `ctest`, and the ASan/UBSan sweep with its
-      `ASAN_OPTIONS=help=1` instrumentation check.
-- [ ] Add a short "Licence" section to `README.md` pointing at both files.
+- [x] `LICENSE` — GPLv3 verbatim (674 lines; md5 matches antiphon's, so it is the
+      unmodified FSF text).
+- [x] `CONTRIBUTING.md` — ported and adapted. Antiphon's accessibility gate is
+      replaced by Lockstep's real ones: Clang-only build, the six-suite `ctest`,
+      the ASan sweep with its `ASAN_OPTIONS=help=1` instrumentation check, and
+      the two guards that fail the *build* rather than a test
+      (`SurfaceInvalidationGuardTest`, `LayerRemapReachabilityTest`).
+      - Three rules differ from the siblings and had to be stated rather than
+        copied: **C++20 pinned at project scope** (per-target is an ODR hazard),
+        **non-ASCII allowed in comments but not string literals** (antiphon is
+        ASCII-only throughout; here `juce::String(const char*)` asserts), and
+        the **no-bespoke-button** grammar rule, which settles more design
+        arguments than anything else in the file.
+      - "What is most needed" leads with macOS/Windows, as antiphon's does, then
+        asks for **modality reports** — the `6.9` sweep cannot model a human
+        getting stuck.
+- [x] Add a short "Licence" section to `README.md` pointing at both files.
 
 ## P2 — GitHub repository
 

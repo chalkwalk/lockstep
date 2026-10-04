@@ -2344,7 +2344,13 @@ edits alike ([§5.7](#57-parameter-editing-p-locks),
 
 ## Licensing & third-party
 
-Lockstep is released under the **GPL**. Time-stretching and pitch-shifting for the
+Lockstep is released under the **GPLv3** — the full text is in
+[`LICENSE`](LICENSE), and JUCE is used under its GPL option. Contributions are
+accepted on those terms; see [`CONTRIBUTING.md`](CONTRIBUTING.md), which also
+lists what the project most needs (building and running it on macOS and Windows,
+above everything else).
+
+Time-stretching and pitch-shifting for the
 sample players (Stretch, Stream) use the **Bungee** engine (MPL-2.0), which vendors
 **Eigen** (MPL-2.0) and **PFFFT** (BSD-like) — all GPL-compatible. The surface renders
 in **Inter** (SIL Open Font License 1.1), embedded in the binary from
