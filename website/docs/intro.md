@@ -4,7 +4,7 @@ title: "What Lockstep is"
 slug: /
 ---
 
-# Lockstep
+# Lockstep {#lockstep}
 
 Lockstep is a performance-oriented step sequencer that runs as a plugin inside
 your DAW or as a standalone application. It is a **VST3**, a **CLAP**, a
@@ -30,7 +30,7 @@ One rule shapes more of the design than any other: every key earns its place in
 a small **scope + verb** grammar, and adding a bespoke single-purpose button is
 forbidden. If a feature would need its own key, it is not ready.
 
-## Status: pre-beta, and honest about it
+## Status: pre-beta, and honest about it {#status-pre-beta-and-honest-about-it}
 
 Lockstep is not released yet. There are **no downloadable builds** — you build
 it from source today. See [Installing](./installing.md).
@@ -49,7 +49,7 @@ in CI for exactly these reasons. If you run Lockstep on either, a report of what
 happened is the single most useful contribution the project can receive — see
 [CONTRIBUTING.md](https://github.com/chalkwalk/lockstep/blob/main/CONTRIBUTING.md).
 
-## Where to go next
+## Where to go next {#where-to-go-next}
 
 - **[Installing](./installing.md)** — building from source, and what each
   platform is actually known to do.
@@ -62,8 +62,10 @@ happened is the single most useful contribution the project can receive — see
   press order.
 - **[Implemented vs. planned](./status.md)** — what exists today, stated
   honestly against what is designed.
+- **[What is not done](./not-done.md)** — the gaps, the unverified claims and
+  the internal debts, in one place rather than scattered.
 
-## Licence
+## Licence {#licence}
 
 Lockstep is free software under the **GPLv3**. Its dependencies and their
 obligations are recorded in

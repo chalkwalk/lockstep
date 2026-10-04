@@ -3,7 +3,7 @@ sidebar_position: 11
 title: "Tutorial: your first piece of music"
 ---
 
-# Tutorial: your first piece of music
+# Tutorial: your first piece of music {#tutorial-your-first-piece-of-music}
 
 This walkthrough builds a simple beat from an empty project. It uses the
 **standalone** application; the workflow is identical inside a DAW. The
@@ -13,7 +13,7 @@ key letters refer to the QWERTY layout described in
 > Throughout: **step keys** are the bottom two QWERTY rows
 > (`S D F G H J K L` = steps 1–8, `X C V B N M , .` = steps 9–16).
 
-### Step 1 — Load a sample
+### Step 1 — Load a sample {#step-1-load-a-sample}
 
 Drag an audio file (a kick drum, say) onto the sample pool area of the
 window, or use the file dialog. The sample is decoded and added to the
@@ -30,7 +30,7 @@ cached with the project (keyed by the sample hash), so reopening is instant
 and only a changed file re-analyses. Analysis of very long files (>30 s) is
 skipped — that is `StreamMachine`'s domain.
 
-### Step 2 — Place some trigs
+### Step 2 — Place some trigs {#step-2-place-some-trigs}
 
 Press step keys to toggle trigs on the focused track. For a
 four-on-the-floor kick, toggle steps **1, 5, 9, 13** (`S`, `H`, `X`, `N`).
@@ -38,7 +38,7 @@ four-on-the-floor kick, toggle steps **1, 5, 9, 13** (`S`, `H`, `X`, `N`).
 Press **Play** (key `O`) to start the transport. You should hear the
 kick on every beat. Press `O` again to stop.
 
-### Step 3 — Add a second track
+### Step 3 — Add a second track {#step-3-add-a-second-track}
 
 Hold **Track** (`2`) and press a step key to select a track:
 `2 + F` selects track 2 (the step keys `D F G H J K L ;` are tracks
@@ -48,7 +48,7 @@ Load a snare into the pool and place trigs on steps **5 and 13**
 (`H`, `N`) for a backbeat. (If track 2 isn't pointed at the snare yet,
 open the **SRC** section — see Step 5 — and set its sample.)
 
-### Step 4 — Make a track polymetric
+### Step 4 — Make a track polymetric {#step-4-make-a-track-polymetric}
 
 Focus a track, then hold **Track** and tap the **TRIG** section key
 (`2 + 5`) to reach the track-meta layer, and set its **length** to
@@ -56,7 +56,7 @@ something other than 16 — try 7. That track now loops every
 7 steps while the others loop every 16, and the two phase against each
 other. This is the heart of Lockstep's groove.
 
-### Step 5 — Tweak a sound (and lock it per step)
+### Step 5 — Tweak a sound (and lock it per step) {#step-5-tweak-a-sound-and-lock-it-per-step}
 
 The **Section Bar** is keys `5`–`0` (TRIG / SRC / FILTER / AMP / MOD /
 FX). Press a section key (e.g. **SRC**, the sound-source section) to
@@ -80,7 +80,7 @@ the lock stays.
 To remove a lock, hold the step and clear it (push the held encoder, or
 use the section-clear gesture).
 
-### Step 6 — Add a conditional trig
+### Step 6 — Add a conditional trig {#step-6-add-a-conditional-trig}
 
 Open the **COND** layer. With no step held, `Func + TRIG` (i.e. `1 + 5`)
 sets the **track's** base condition (probability, iteration m:n). Set
@@ -96,7 +96,7 @@ its normal `DIV` meta and `Func + TRIG` still reaches the track base
 condition. The grid shows you what will fire before it happens: certain
 hits are bright, skips are dim, probabilistic steps are in between.
 
-### Step 7 — Record a melody live
+### Step 7 — Record a melody live {#step-7-record-a-melody-live}
 
 Press **Record** (`U`) with no scope held to arm recording. Now play
 notes (via the on-screen keyboard or an attached MIDI keyboard) and
@@ -111,7 +111,7 @@ turns amber, labelled "Overdub") — notes accumulate across passes up to
 
 Press `U` again to disarm.
 
-### Step 8 — Perform variations
+### Step 8 — Perform variations {#step-8-perform-variations}
 
 - **Mute a track live:** hold **Mute** (`Z`) and press a track's step
   key (`Z + D` = mute track 1). Non-destructive. Audio tracks fade out over a
@@ -127,7 +127,7 @@ Press `U` again to disarm.
   snapshot. Experiment freely. Press `Func + Y` (RESTORE) to revert
   (tap = pop one, hold = jump to the saved floor). Up to 8 levels deep.
 
-### Step 9 — Save
+### Step 9 — Save {#step-9-save}
 
 Save the project (host save inside a DAW, or the standalone's save). The
 project stores your sequence, P-Locks, conditions, and sample

@@ -25,6 +25,7 @@ const sidebars: SidebarsConfig = {
       items: ['reference', 'gestures', 'status'],
     },
     'troubleshooting',
+    'not-done',
   ],
 };
 

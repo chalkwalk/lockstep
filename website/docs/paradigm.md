@@ -3,12 +3,12 @@ sidebar_position: 10
 title: "The paradigm"
 ---
 
-# The paradigm
+# The paradigm {#the-paradigm}
 
 If you understand five ideas, you can predict how almost everything in
 Lockstep behaves.
 
-### 2.1 Scope + verb
+### 2.1 Scope + verb {#21-scope-verb}
 
 Every editing and performance action is built from two halves:
 
@@ -34,7 +34,7 @@ The verb meant "copy" in all three; only the scope changed. Once you
 internalise this, new features stop being new shortcuts to memorise —
 they are old verbs applied to new scopes.
 
-### 2.2 Override-ELSE-Base
+### 2.2 Override-ELSE-Base {#22-override-else-base}
 
 Every value that can vary per step follows exactly one rule:
 
@@ -55,7 +55,7 @@ This is why "holding a step and tweaking" always means the same thing —
 it writes a step override. Tweaking with no step held writes the track
 base.
 
-### 2.3 The edit context (held step = step scope)
+### 2.3 The edit context (held step = step scope) {#23-the-edit-context-held-step-step-scope}
 
 Whether your edit lands on a **step** or on the **track** depends on one
 piece of state: *is a step currently held?*
@@ -70,7 +70,7 @@ MIDI CC from a hardware knob, or the on-screen encoder all resolve
 through the same gate. Holding a step and turning a knob P-Locks it;
 holding a step and playing a note records that note onto the step.
 
-### 2.4 The container hierarchy
+### 2.4 The container hierarchy {#24-the-container-hierarchy}
 
 ```
 Set
@@ -101,7 +101,7 @@ musical subdivision (1/64 to 4/1, straight / dotted / triplet), so a
 7-step track and a 16-step track phase against each other naturally with
 no master-bar concept.
 
-### 2.5 The sound path: what the names mean and where they sit
+### 2.5 The sound path: what the names mean and where they sit {#25-the-sound-path-what-the-names-mean-and-where-they-sit}
 
 The container hierarchy above says where *musical content* lives. This
 section is the other axis — what a **track** *is*, and the order sound

@@ -3,13 +3,12 @@ sidebar_position: 30
 title: "Feature reference"
 ---
 
-# Feature reference
+# Feature reference {#feature-reference}
 
 This section documents the gestures and what they do, in what context.
 Key letters are the default QWERTY mapping.
 
-<a name="51-the-keyboard-layout"></a>
-### 5.1 The keyboard layout
+### 5.1 The keyboard layout {#51-the-keyboard-layout}
 
 Lockstep uses a fixed **10×4** grid (shipped in 3.1, DESIGN §33). The **left two columns** are an
 eight-key modifier cluster, all reachable by one hand; the **right
@@ -53,7 +52,7 @@ The verb keys are **context-sensitive** — they read three layers:
 
 There is no separate transport key — the verb row does double duty, which
 is why the surface needs no extra buttons. The full action set is indexed
-by press-order in [§7](/docs/gestures#7-gesture-tree).
+by press-order in [§7](/docs/gestures).
 
 In **Ortholinear** and **Staggered** display modes the keys immediately
 outside the 10-column block — `` ` ``, `Tab`, `CapsLock`, `Shift` on
@@ -67,7 +66,7 @@ written when you press the toggle. The whole window is **resizable** with a
 locked aspect ratio — drag any edge to scale the entire UI (fonts included)
 crisply; the scale defaults to 1.2× and persists.
 
-### 5.2 Modifier (scope) keys
+### 5.2 Modifier (scope) keys {#52-modifier-scope-keys}
 
 The eight modifiers form the left two columns, ordered by
 frequency-of-use (most-touched at row 0, performance specialists on
@@ -108,7 +107,7 @@ forbidden. Counting is by held scopes — holding many steps or tapping
 many mutes is one operand, not many keys. Every live gesture's rung is
 catalogued in DESIGN §13.0.
 
-### 5.3 Verb keys
+### 5.3 Verb keys {#53-verb-keys}
 
 The five verb keys carry an on-screen primary legend, a `Func`-layer
 secondary legend, and a scope-compound meaning. (Note: the key the README
@@ -127,9 +126,9 @@ historically called "Yes" is the `Y`/SNAP key; the confirm action lives on
 > `Func+Y`(RESTORE). Both are *scope-respecting*: with no scope held the
 > snapshot is the Song; with `Track` / `Scene` / `Phrase` held it captures
 > that scope. While a section-suite scope is held, `Y` is that scope's
-> snapshot rather than a global one. See [§5.15](#515-checkpoints-live-undo).
+> snapshot rather than a global one. See [§5.15](/docs/reference#515-marks-and-undo-live-undo).
 
-### 5.4 Transport and navigation
+### 5.4 Transport and navigation {#54-transport-and-navigation}
 
 Transport and record-arm ride the verb row (no scope held — see §5.1):
 
@@ -145,7 +144,7 @@ Transport and record-arm ride the verb row (no scope held — see §5.1):
 | `4` | Navigate up (inverted-T above `E R T`). |
 | `E` / `R` / `T` | Navigate left / down / right. |
 
-### 5.4a Deletion picker and named confirms
+### 5.4a Deletion picker and named confirms {#54a-deletion-picker-and-named-confirms}
 
 **Holding** the Clear key under a scope (`Track` / `Phrase` / `Scene` + hold `O`)
 enters the **deletion picker** modality — the step grid repaints as a slot-selector for
@@ -179,7 +178,7 @@ currently playing/focused slot is highlighted.
   to uninitialised. Delete Scene N = clear scene slot N (falls back to scene 0
   if the active scene is deleted). Delete Track = mark the track as empty.
 
-### 5.5 Track selection and focus
+### 5.5 Track selection and focus {#55-track-selection-and-focus}
 
 Lockstep has 16 tracks. The track header shows 8 at a time; the **"1–8" / "9–16"** page button (top-left of the track row) flips between banks. Selecting a track via keyboard automatically flips to the correct page.
 
@@ -191,7 +190,7 @@ Lockstep has 16 tracks. The track header shows 8 at a time; the **"1–8" / "9�
 
 Tracks 1–8 default to `SampleMachine` and tracks 9–16 to `MidiOutMachine` (Digitakt-style default split). Any track can be reassigned to any machine via **`Track + hold(SRC)`** (hold `2`, hold the SRC section key — the step grid re-skins to machine names; press a step to load one). A small **"M"** badge in the top-right corner of a track button identifies MIDI-out tracks at a glance.
 
-#### The Machines — what each one is for
+#### The Machines — what each one is for {#the-machines-what-each-one-is-for}
 
 Every track hosts one **machine** — its sound-making (or sound-shaping) engine.
 The catalogue is a small, opinionated "greatest hits" set: one machine per iconic
@@ -339,7 +338,7 @@ filter CC per step, then let a scene morph re-voice both your internal machines 
 the outboard box together in one gesture.
 
 <a id="machine-catalogue"></a>
-#### Machine catalogue
+#### Machine catalogue {#machine-catalogue}
 
 | Machine | Badge | Description |
 |---|---|---|
@@ -418,7 +417,7 @@ references a module you don't have installed loads safely: the track
 shows a stub you can relink, and the missing module's settings are
 preserved on re-save. See DESIGN §36.
 
-### 5.6 Step editing
+### 5.6 Step editing {#56-step-editing}
 
 | Gesture | Action |
 |---|---|
@@ -426,7 +425,7 @@ preserved on re-save. See DESIGN §36.
 | step key (hold) | Enter step (Trig) scope — subsequent parameter edits become P-Locks / trig overrides on that step. |
 | multiple step keys (hold) | Hold several steps at once; edits and copies apply to all of them. |
 
-### 5.7 Parameter editing (P-Locks)
+### 5.7 Parameter editing (P-Locks) {#57-parameter-editing-p-locks}
 
 | Context | Where the edit lands |
 |---|---|
@@ -456,7 +455,7 @@ recording stops on its own about a beat after you let go. Holding a step still
 means what it always meant — edit *that* step — so the classic gesture is never
 taken away from you.
 
-### 5.8 Sections and the Manipulation Zone
+### 5.8 Sections and the Manipulation Zone {#58-sections-and-the-manipulation-zone}
 
 | Key | Section (machine layer) |
 |---|---|
@@ -739,8 +738,7 @@ The swing band is also accessible on hardware controllers (Push1, X-Touch):
 the single encoder edits the cumulative swing level.
 Swing lives in musical state, not APVTS — it is not host-automatable.
 
-<a name="59-copy-paste-clear"></a>
-### 5.9 Copy / paste / clear
+### 5.9 Copy / paste / clear {#59-copy-paste-clear}
 
 A single uniform grammar — **hold scope, press verb**:
 
@@ -758,7 +756,7 @@ pasting many over one unrolls forward. The clipboard is in-memory only and
 **typed** — a step clipboard can't be pasted into a phrase scope, etc. (An
 `All` omni grab, `Func+U`, can be pasted into any matching scope.)
 
-### 5.10 Control-All
+### 5.10 Control-All {#510-control-all}
 
 Hold **Track** (`Q`) with **no** specific track selected, then make a
 parameter edit. The change broadcasts to **every** track that exposes a
@@ -767,7 +765,7 @@ Obeys the edit context: if a step is held, it writes a P-Lock on that
 step on every matching track; otherwise it updates each base. Use it for
 sweeping a filter or tightening every decay across the kit at once.
 
-### 5.11 Mutes
+### 5.11 Mutes {#511-mutes}
 
 | Gesture | Action |
 |---|---|
@@ -802,7 +800,7 @@ already-playing track, *retriggers* it (phase-reset only); bare unmute resumes
 cycle. There is deliberately no separate per-track "stopped" state — "stopped"
 is just muted. See DESIGN §4.8 / §13.4 / §16.1, PRINCIPLES §25.
 
-### 5.12 Fills
+### 5.12 Fills {#512-fills}
 
 - Hold **Fill** (`X`): while held, every step's condition treats "fill"
   as true.
@@ -812,7 +810,7 @@ is just muted. See DESIGN §4.8 / §13.4 / §16.1, PRINCIPLES §25.
 - The grid previews fill-only steps in a distinct colour so you can see
   what a fill will do before you trigger it.
 
-### 5.13 Trig conditions
+### 5.13 Trig conditions {#513-trig-conditions}
 
 Set in the **COND** layer (`Func + TRIG`, i.e. `Func + 5`). Three
 condition types, each valid at track level (no step held) or step level
@@ -833,7 +831,7 @@ All conditions are **deterministic and pre-computable**, so the grid
 shows certain-fire / certain-skip / probabilistic states ahead of the
 playhead.
 
-### 5.14 Scenes, phrases, and songs (the launch model)
+### 5.14 Scenes, phrases, and songs (the launch model) {#514-scenes-phrases-and-songs-the-launch-model}
 
 Performance is **launch-based**, not arrangement-based (Phase 7). There is
 no bank dimension, no pattern queue, and no written chain — you launch
@@ -856,7 +854,7 @@ Scenes and switch Songs live.
 | `Scene + Phrase (Q) + step key` | **Deviate all tracks** to that phrase. Landing on the Scene's diagonal row (row N for Scene N) clears all deviations. |
 | `Song (S) + step key` | Switch Songs (quantized) — a full reset; live deviations clear. |
 
-### 5.15 Marks and undo (live undo)
+### 5.15 Marks and undo (live undo) {#515-marks-and-undo-live-undo}
 
 > **Implemented** (ROADMAP 9.4, with the gestures settled by 9.37; rationale in
 > DESIGN §13.6). 9.4 built the model and 9.37 made every gesture in it reachable —
@@ -920,7 +918,7 @@ designed but ships after the first cut.)
 **RAM-only** — marks do *not* survive save/reload; the floor is re-seeded
 from disk so "reload saved" always works.
 
-### 5.16 MIDI input
+### 5.16 MIDI input {#516-midi-input}
 
 - **CC mapping** with two modes: absolute (with soft-takeover, so knobs
   don't jump) and relative (endless encoders).
@@ -935,8 +933,7 @@ from disk so "reload saved" always works.
   stop).
 - Transport controls bind to MIDI realtime / MMC, not to CC.
 
-<a name="517-keyboard-ui-revamp"></a>
-### 5.17 Keyboard / UI revamp *(shipped — Phase 3)*
+### 5.17 Keyboard / UI revamp *(shipped — Phase 3)* {#517-keyboard-ui-revamp}
 
 The chrome-and-grammar pass over the 10×4 surface that 3.1/3.2 froze. It
 shipped across 3.3–3.10; the detail below documents the behaviour now in
@@ -1092,7 +1089,7 @@ Stage E / 7.5 and has shipped — see *Phrase-length authoring* below.)
   oscillators by slot: notes 1 & 3 → osc1+sub, notes 2 & 4 → osc2+sub.
   A single shared noise generator replaces per-voice noise generators.
 
-### 5.18 Modal trig-grid surfaces
+### 5.18 Modal trig-grid surfaces {#518-modal-trig-grid-surfaces}
 
 The step grid can be re-skinned into non-step roles. Three paths exist:
 
@@ -1155,7 +1152,7 @@ The step grid can be re-skinned into non-step roles. Three paths exist:
   `Func + AMP` entry and `Func + Fill` bake/print **Accent velocity generator**
   have both been **retired** — the live overlay (v20) supersedes them.
 
-### 5.19 Standalone project files *(shipped — Phase 9)*
+### 5.19 Standalone project files *(shipped — Phase 9)* {#519-standalone-project-files-shipped-phase-9}
 
 In standalone mode, a **File bar** appears below the tempo bar with four
 buttons: **New**, **Open**, **Save**, and **Save As…**
@@ -1181,7 +1178,7 @@ buttons: **New**, **Open**, **Save**, and **Save As…**
   data is lost across a clean restart. A dedicated quit-confirmation dialog
   (requiring a custom standalone app) is deferred to a future phase.
 
-### 5.20 Performance capture — the tape deck *(shipped)*
+### 5.20 Performance capture — the tape deck *(shipped)* {#520-performance-capture-the-tape-deck-shipped}
 
 `Func + Song + U` (Func + Song + Rec) is the **CAPTURE** cell: a separate
 recording device for the master output, not a DAW timeline export. All of
@@ -1231,7 +1228,7 @@ decisive, long-press = deliberate** — so there is no mode to learn.
 
 ---
 
-### 5.21 Key signatures & the brightness model *(shipped — Phase 10, except where marked)*
+### 5.21 Key signatures & the brightness model *(shipped — Phase 10, except where marked)* {#521-key-signatures-the-brightness-model-shipped-phase-10-except-where-marked}
 
 Lockstep has a **key signature** set at the same granularity as the time
 signature (Set → Song → Scene), built on an opinionated idea: the **circle of
@@ -1288,7 +1285,7 @@ Design: PRINCIPLES §23, DESIGN §4.10 + §39.11–39.12.
 
 ---
 
-### 5.22 The deck engine — Record, Loop, Tape *(shipped — Phase 11)*
+### 5.22 The deck engine — Record, Loop, Tape *(shipped — Phase 11)* {#522-the-deck-engine-record-loop-tape-shipped-phase-11}
 
 Note the difference from §5.20 above: the **tape deck** is a capture *device*
 that writes your master output to a WAV file. The **deck engine** is a
@@ -1334,7 +1331,7 @@ grow from the same engine is a concept brief only: `docs/partner-app-concept.md`
 
 ---
 
-### 5.23 Workflows — the capture family, end to end
+### 5.23 Workflows — the capture family, end to end {#523-workflows-the-capture-family-end-to-end}
 
 Six devices touch audio capture: **Record** (grab), **Loop** (build),
 **Tape** (the 4-track), **Stream** (bring long material back), the

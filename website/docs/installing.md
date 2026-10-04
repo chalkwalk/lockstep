@@ -3,7 +3,7 @@ sidebar_position: 2
 title: "Installing"
 ---
 
-# Installing
+# Installing {#installing}
 
 There are **no released builds yet**. Lockstep is built from source.
 
@@ -14,7 +14,7 @@ standalone, and the macOS AU — and you can download those from a run's
 unsigned, untagged, and built from whatever `main` was at the time. Treat them
 as something to experiment with, not as a release.
 
-## Building from source
+## Building from source {#building-from-source}
 
 Lockstep needs **Clang** and **C++20**, and Clang is load-bearing rather than a
 preference: the strict warning set and `-Werror` are gated to it, so a GCC build
@@ -33,7 +33,7 @@ ctest --test-dir build --output-on-failure
 `--recurse-submodules` is not optional. There are seven of them, and one
 (Bungee) carries its own.
 
-### Linux build dependencies
+### Linux build dependencies {#linux-build-dependencies}
 
 On Debian or Ubuntu:
 
@@ -45,7 +45,7 @@ sudo apt-get install -y \
   libgl1-mesa-dev libglu1-mesa-dev ninja-build
 ```
 
-### Where the artefacts land
+### Where the artefacts land {#where-the-artefacts-land}
 
 `juce_add_plugin` lives in `src/CMakeLists.txt`, so everything is built under
 `build/src/`, not `build/`:
@@ -60,7 +60,7 @@ build/src/Lockstep_artefacts/Release/AU/Lockstep.component   (macOS)
 Copy the VST3 or CLAP into wherever your host scans, or run the standalone
 directly.
 
-## Platform caveats worth knowing before you start
+## Platform caveats worth knowing before you start {#platform-caveats-worth-knowing-before-you-start}
 
 - **Linux** is the developed and tested platform.
 - **macOS** compiles and passes the full suite in CI, but no host has ever

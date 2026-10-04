@@ -3,7 +3,7 @@ sidebar_position: 50
 title: "Gesture tree"
 ---
 
-# Gesture tree
+# Gesture tree {#gesture-tree}
 
 This appendix indexes **every live gesture** the surface interprets,
 organised the way your hands actually move. It is the *by-press-order*
@@ -11,7 +11,7 @@ view of the grammar; `DESIGN.md` §13.0 is the **same set ordered by
 gesture cost** (how many keys a chord holds). When a gesture is added or
 changed, update both.
 
-### How to read a chord
+### How to read a chord {#how-to-read-a-chord}
 
 You **hold a chord of scope keys, then strike one operand last.** The
 operand is the only key you "press and release" to fire the action — a
@@ -50,9 +50,9 @@ Mute > Morph > Song > Fill > Func`); `Func`-only gestures live under
 and Mute gestures.
 
 Legends in parentheses are the on-screen key labels (see
-[§5.3](#53-verb-keys)).
+[§5.3](/docs/reference#53-verb-keys)).
 
-### No scope — strike a key alone
+### No scope — strike a key alone {#no-scope-strike-a-key-alone}
 
 ```
 (nothing held)
@@ -71,15 +71,15 @@ Legends in parentheses are the on-screen key labels (see
 
 When the focused track is in **CHROMATIC** or **LEVELS** input mode, the
 step keys instead play notes / set velocity buckets — see
-[§5.18](#518-modal-trig-grid-surfaces). The **mini-sequencer timeline** in the
+[§5.18](/docs/reference#518-modal-trig-grid-surfaces). The **mini-sequencer timeline** in the
 nav row remains visible in all three modes; the mode badge in the top context
 band identifies the active mode.
 
-Links: [§5.6](#56-step-editing) · [§5.17](/docs/reference#517-keyboard-ui-revamp) ·
-[§5.15](#515-checkpoints-live-undo) · [§5.4](#54-transport-and-navigation) ·
-[§5.3](#53-verb-keys)
+Links: [§5.6](/docs/reference#56-step-editing) · [§5.17](/docs/reference#517-keyboard-ui-revamp) ·
+[§5.15](/docs/reference#515-marks-and-undo-live-undo) · [§5.4](/docs/reference#54-transport-and-navigation) ·
+[§5.3](/docs/reference#53-verb-keys)
 
-### Func — the qualifier, held alone
+### Func — the qualifier, held alone {#func-the-qualifier-held-alone}
 
 ```
 Func (1)
@@ -102,12 +102,12 @@ Func (1)
 └─ Func double-tap    → universal escape (clears latches, Euclid, density/vel sticky) — §39
 ```
 
-Links: [§5.15](#515-checkpoints-live-undo) ·
-[§5.4](#54-transport-and-navigation) · [§5.3](#53-verb-keys) ·
-[§5.8](#58-sections-and-the-manipulation-zone) ·
+Links: [§5.15](/docs/reference#515-marks-and-undo-live-undo) ·
+[§5.4](/docs/reference#54-transport-and-navigation) · [§5.3](/docs/reference#53-verb-keys) ·
+[§5.8](/docs/reference#58-sections-and-the-manipulation-zone) ·
 [§5.17](/docs/reference#517-keyboard-ui-revamp)
 
-### Trig — one or more held steps
+### Trig — one or more held steps {#trig-one-or-more-held-steps}
 
 ```
 step(s) held  (opens inspector: grid shows the step's P-Locks; tap a slot to clear it)
@@ -126,9 +126,9 @@ step(s) held  (opens inspector: grid shows the step's P-Locks; tap a slot to cle
 ```
 
 Links: [§5.9](/docs/reference#59-copy-paste-clear) · [§5.17](/docs/reference#517-keyboard-ui-revamp) ·
-[§5.7](#57-parameter-editing-p-locks)
+[§5.7](/docs/reference#57-parameter-editing-p-locks)
 
-### Section — a held section key (5–0: TRIG/SRC/FILTER/AMP/MOD/FX)
+### Section — a held section key (5–0: TRIG/SRC/FILTER/AMP/MOD/FX) {#section-a-held-section-key-50-trigsrcfilterampmodfx}
 
 ```
 section (5–0)
@@ -145,12 +145,12 @@ section (5–0)
 ```
 
 (Section contents vary by machine — see the catalogue and value tables in
-[§5.5](#55-track-selection-and-focus).)
+[§5.5](/docs/reference#55-track-selection-and-focus).)
 
-Links: [§5.8](#58-sections-and-the-manipulation-zone) ·
+Links: [§5.8](/docs/reference#58-sections-and-the-manipulation-zone) ·
 [§5.9](/docs/reference#59-copy-paste-clear) · [§5.17](/docs/reference#517-keyboard-ui-revamp)
 
-### Track (2)
+### Track (2) {#track-2}
 
 ```
 Track (2)
@@ -173,12 +173,12 @@ Track (2)
                        = copy / paste / init the sound — §5.5
 ```
 
-Links: [§5.5](#55-track-selection-and-focus) ·
-[§5.10](#510-control-all) · [§5.17](/docs/reference#517-keyboard-ui-revamp) ·
-[§5.18](#518-modal-trig-grid-surfaces) · [§5.9](/docs/reference#59-copy-paste-clear) ·
-[§5.14](#514-scenes-phrases-and-songs-the-launch-model)
+Links: [§5.5](/docs/reference#55-track-selection-and-focus) ·
+[§5.10](/docs/reference#510-control-all) · [§5.17](/docs/reference#517-keyboard-ui-revamp) ·
+[§5.18](/docs/reference#518-modal-trig-grid-surfaces) · [§5.9](/docs/reference#59-copy-paste-clear) ·
+[§5.14](/docs/reference#514-scenes-phrases-and-songs-the-launch-model)
 
-### Phrase (Q)
+### Phrase (Q) {#phrase-q}
 
 ```
 Phrase (Q)
@@ -195,10 +195,10 @@ Phrase (Q)
 (Euclidean generator entry moved to the generator hub — hold `3`, pick EUCLID — §5.18.)
 ```
 
-Links: [§5.14](#514-scenes-phrases-and-songs-the-launch-model) ·
+Links: [§5.14](/docs/reference#514-scenes-phrases-and-songs-the-launch-model) ·
 [§5.9](/docs/reference#59-copy-paste-clear)
 
-### Scene (W)
+### Scene (W) {#scene-w}
 
 ```
 Scene (W)
@@ -219,10 +219,10 @@ Scene (W)
 └─ Scene + Mute + step      → per-scene mute (this track's active-mask) — §5.11
 ```
 
-Links: [§5.14](#514-scenes-phrases-and-songs-the-launch-model) ·
-[§5.11](#511-mutes)
+Links: [§5.14](/docs/reference#514-scenes-phrases-and-songs-the-launch-model) ·
+[§5.11](/docs/reference#511-mutes)
 
-### Song (S)
+### Song (S) {#song-s}
 
 ```
 Song (S)
@@ -236,10 +236,10 @@ Song (S)
 └─ Func + Song       → Global / master-bus focus — §5.2
 ```
 
-Links: [§5.14](#514-scenes-phrases-and-songs-the-launch-model) ·
-[§5.2](#52-modifier-scope-keys)
+Links: [§5.14](/docs/reference#514-scenes-phrases-and-songs-the-launch-model) ·
+[§5.2](/docs/reference#52-modifier-scope-keys)
 
-### Morph (A) — *implemented (5.2)*
+### Morph (A) — *implemented (5.2)* {#morph-a-implemented-52}
 
 ```
 Morph (A)   hold/latch = scene-layer selector (symmetric with held step → P-Lock)
@@ -252,9 +252,9 @@ Morph (A)   hold/latch = scene-layer selector (symmetric with held step → P-Lo
 └─ Func + Morph + O      → **ERASE** — wipe both Morph maps for this scene — §5.2
 ```
 
-Links: [§5.2](#52-modifier-scope-keys)
+Links: [§5.2](/docs/reference#52-modifier-scope-keys)
 
-### Mute (Z)
+### Mute (Z) {#mute-z}
 
 ```
 Mute (Z)
@@ -263,9 +263,9 @@ Mute (Z)
 └─ Func + Mute + step  → solo that track (additive) — §5.11
 ```
 
-Links: [§5.11](#511-mutes)
+Links: [§5.11](/docs/reference#511-mutes)
 
-### Fill (X)
+### Fill (X) {#fill-x}
 
 ```
 Fill (X)
@@ -278,9 +278,9 @@ Fill (X)
 └─ Func + Fill       → (unbound — the old Accent generator was folded into the Velocity overlay, §5.8 / §39.10)
 ```
 
-Links: [§5.12](#512-fills)
+Links: [§5.12](/docs/reference#512-fills)
 
-### Encoders — turn a control (any source)
+### Encoders — turn a control (any source) {#encoders-turn-a-control-any-source}
 
 ```
 encoder
@@ -292,8 +292,8 @@ encoder
 ```
 
 The same edit-context rule governs encoders, mapped MIDI CCs, and QWERTY
-edits alike ([§5.7](#57-parameter-editing-p-locks),
-[§5.16](#516-midi-input)).
+edits alike ([§5.7](/docs/reference#57-parameter-editing-p-locks),
+[§5.16](/docs/reference#516-midi-input)).
 
 > **Keeping this in sync.** This tree and `DESIGN.md` §13.0 are two views
 > of one gesture set (press-order vs. cost-rung). A new or changed gesture

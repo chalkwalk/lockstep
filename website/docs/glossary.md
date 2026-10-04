@@ -3,7 +3,7 @@ sidebar_position: 20
 title: "Glossary"
 ---
 
-# Glossary
+# Glossary {#glossary}
 
 | Term | Meaning |
 |---|---|

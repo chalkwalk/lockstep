@@ -3,7 +3,7 @@ sidebar_position: 40
 title: "Implemented vs. planned"
 ---
 
-# Implemented vs. planned
+# Implemented vs. planned {#implemented-vs-planned}
 
 Lockstep is under active development. This manual describes both the
 shipped behaviour and the design intent. `ROADMAP.md` is the single source of

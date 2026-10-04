@@ -3,9 +3,9 @@ sidebar_position: 3
 title: "Troubleshooting"
 ---
 
-# Troubleshooting
+# Troubleshooting {#troubleshooting}
 
-## The build
+## The build {#the-build}
 
 **CMake says "No JUCE."**
 The submodules are not checked out. Run
@@ -44,7 +44,7 @@ libc++ has never shipped the C++17 special maths functions; and
 `std::array::const_iterator` is a raw pointer in libstdc++ and libc++ but a
 class type in MSVC's standard library, so `const auto*` does not bind to it.
 
-## Running it
+## Running it {#running-it}
 
 **The standalone opens but is silent.**
 That is correct for an empty project — Lockstep makes no sound until a track
@@ -61,7 +61,7 @@ the known weak point is that mode *entry* and mode *exit* are enforced
 asymmetrically. Say exactly which keys you pressed, in order, and whether any
 were still held when it went wrong.
 
-## Reporting
+## Reporting {#reporting}
 
 Open an issue at
 [github.com/chalkwalk/lockstep/issues](https://github.com/chalkwalk/lockstep/issues).

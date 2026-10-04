@@ -22,6 +22,18 @@ const config: Config = {
   // rather than shipping as a dead link.
   onBrokenLinks: 'throw',
 
+  // Anchors too, and for the same reason. The manual was one file until
+  // 2026-10-04, so every cross-reference was a same-page jump against GitHub's
+  // auto-generated heading slugs. Splitting it broke them two ways at once:
+  // the target often moved to another page, and Docusaurus mints its own
+  // heading ids rather than GitHub's and does not count a raw <a name> as an
+  // anchor at all. Thirty-two links were silently landing nowhere.
+  //
+  // Left as a warning this would rot again on the next split. A dead in-page
+  // link in a 1,400-line reference is exactly the kind of thing nobody reports
+  // and everybody works around.
+  onBrokenAnchors: 'throw',
+
   // Parse .md as CommonMark, not MDX.
   //
   // Docusaurus 3 treats .md as MDX by default, which makes every `<` a
