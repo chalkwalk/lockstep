@@ -13,6 +13,12 @@ on:
       - "**.md"
       - "docs/**"
       - "LICENSE"
+      # The documentation site has its own two workflows and cannot affect a
+      # C++ build. Without this, editing a Docusaurus config rebuilds three
+      # platforms -- and, because this workflow cancels in progress, kills a
+      # real build to do it. That happened the first time the site landed.
+      - "website/**"
+      - ".github/scripts/**"
       - ".github/workflows/deploy.yml"
       - ".github/workflows/wiki-sync.yml"
   pull_request:
