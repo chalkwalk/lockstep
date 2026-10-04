@@ -3,6 +3,7 @@
 #include "../machine/IEffect.h"
 #include "TempoRate.h"
 #include <cmath>
+#include <numbers>
 
 namespace lockstep
 {
@@ -87,7 +88,7 @@ namespace lockstep
                     const float fc = std::exp(logMin + lfo * (logMax - logMin));
                     // Allpass coefficient: a = (tan(pi*fc/sr) - 1) / (tan(pi*fc/sr) + 1)
                     const float tan_fc = std::tan(
-                        static_cast<float>(M_PI) * juce::jlimit(1.0f, static_cast<float>(sampleRate_ * 0.49), fc)
+                        std::numbers::pi_v<float> * juce::jlimit(1.0f, static_cast<float>(sampleRate_ * 0.49), fc)
                         / static_cast<float>(sampleRate_));
                     const float a = (tan_fc - 1.0f) / (tan_fc + 1.0f);
 

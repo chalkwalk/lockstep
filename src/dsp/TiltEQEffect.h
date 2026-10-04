@@ -2,6 +2,7 @@
 
 #include "../machine/IEffect.h"
 #include <cmath>
+#include <numbers>
 
 namespace lockstep
 {
@@ -41,7 +42,7 @@ namespace lockstep
 
             // One-pole LP shelf pivot at fc = 700 Hz.
             const float alpha = static_cast<float>(
-                1.0 - std::exp(-2.0 * M_PI * 700.0 / sampleRate_));
+                1.0 - std::exp(-2.0 * std::numbers::pi * 700.0 / sampleRate_));
 
             for (int c = 0; c < std::min(numCh, 2); ++c)
             {

@@ -2,6 +2,7 @@
 
 #include "../machine/IEffect.h"
 #include <cmath>
+#include <numbers>
 
 namespace lockstep
 {
@@ -76,7 +77,7 @@ namespace lockstep
 
             // Sidechain HPF coefficient.
             const float hpfAlpha = 1.0f - std::exp(
-                -2.0f * static_cast<float>(M_PI) * schpfHz / static_cast<float>(sr_));
+                -2.0f * std::numbers::pi_v<float> * schpfHz / static_cast<float>(sr_));
 
             for (int n = 0; n < numSamples; ++n)
             {

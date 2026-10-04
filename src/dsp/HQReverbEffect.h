@@ -5,6 +5,7 @@
 #include <cmath>
 #include <array>
 #include <vector>
+#include <numbers>
 
 namespace lockstep
 {
@@ -87,7 +88,7 @@ namespace lockstep
             const float dampCoef  = 1.0f - std::exp(-1.0f / static_cast<float>(0.001 * sr_));
             const float dampTarget = damp * 0.85f;
             const float lcAlpha   = 1.0f - std::exp(
-                -2.0f * static_cast<float>(M_PI) * lowcut / static_cast<float>(sr_));
+                -2.0f * std::numbers::pi_v<float> * lowcut / static_cast<float>(sr_));
             const float modDepth  = mod * 4.0f;  // ±4 samples max modulation
             const float modRate   = 0.5f;
             const float modPhInc  = static_cast<float>(

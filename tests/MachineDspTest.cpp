@@ -32,6 +32,7 @@
 #include <juce_dsp/juce_dsp.h>
 #include <cmath>
 #include <vector>
+#include <numbers>
 
 namespace lockstep
 {
@@ -1296,7 +1297,7 @@ namespace lockstep
                 // moves the length continuously; feedback low, fully wet.
                 const ParamFrame prm = { 0.0f, 0.3f, 0.0f, 1.0f, 1.0f };
                 double phase = 0.0;
-                const double w = 2.0 * M_PI * 440.0 / sr;
+                const double w = 2.0 * std::numbers::pi * 440.0 / sr;
                 float worst = 0.0f;
                 for (int blk = 0; blk < blocks; ++blk)
                 {
@@ -1372,7 +1373,7 @@ namespace lockstep
                 // rate=1 (5 Hz), depth=1 (full swing), mix=1 (fully wet), fb=0.
                 const ParamFrame prm = { 1.0f, 1.0f, 1.0f, 0.0f };
                 double phase = 0.0;
-                const double w = 2.0 * M_PI * 330.0 / sr;
+                const double w = 2.0 * std::numbers::pi * 330.0 / sr;
                 float worst = 0.0f;
                 double sumLR = 0.0, sumLL = 0.0, sumRR = 0.0;
                 for (int blk = 0; blk < blocks; ++blk)
@@ -1496,7 +1497,7 @@ namespace lockstep
                 // predelay, size, decay, damp, lowcut, mod=1 (max), mix=1 (wet).
                 const ParamFrame prm = { 0.0f, 0.5f, 3.0f, 0.5f, 80.0f, 1.0f, 1.0f };
                 double phase = 0.0;
-                const double w = 2.0 * M_PI * 220.0 / sr;
+                const double w = 2.0 * std::numbers::pi * 220.0 / sr;
                 float worst = 0.0f;
                 for (int blk = 0; blk < 48; ++blk)
                 {
@@ -1607,7 +1608,7 @@ namespace lockstep
                 // -> ~+6 dB over ceiling before limiting.
                 const ParamFrame prm = { 6.0f, ceilDb, 50.0f };
                 double phase = 0.0;
-                const double w = 2.0 * M_PI * 220.0 / sr;
+                const double w = 2.0 * std::numbers::pi * 220.0 / sr;
                 float peak = 0.0f;
                 for (int blk = 0; blk < 40; ++blk)
                 {

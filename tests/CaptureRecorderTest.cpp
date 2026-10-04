@@ -9,6 +9,7 @@
 
 #include "TestHarness.h"
 #include "../src/io/CaptureRecorder.h"
+#include <numbers>
 
 namespace lockstep
 {
@@ -30,7 +31,7 @@ namespace lockstep
         juce::AudioBuffer<float> sine(kChannels, kBlockSize);
         for (int ch = 0; ch < kChannels; ++ch)
             for (int i = 0; i < kBlockSize; ++i)
-                sine.setSample(ch, i, std::sin(2.0f * static_cast<float>(M_PI) *
+                sine.setSample(ch, i, std::sin(2.0f * std::numbers::pi_v<float> *
                                440.0f * static_cast<float>(i) / static_cast<float>(kSR)));
 
         CaptureRecorder rec;

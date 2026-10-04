@@ -4,6 +4,7 @@
 #include "../deckcore/Interpolation.h"
 #include <cmath>
 #include <vector>
+#include <numbers>
 
 namespace lockstep
 {
@@ -100,7 +101,7 @@ namespace lockstep
             if (std::abs(beats - lastBeats_) > 1.0e-6f) { lastBeats_ = beats; updateDelayLen(); }
 
             const float colorAlpha = 1.0f - std::exp(
-                -2.0f * static_cast<float>(M_PI) * (color >= 0.0f ? 3000.0f : 200.0f)
+                -2.0f * std::numbers::pi_v<float> * (color >= 0.0f ? 3000.0f : 200.0f)
                 / static_cast<float>(sr_));
 
             const int bufLen = static_cast<int>(buf_[0].size());

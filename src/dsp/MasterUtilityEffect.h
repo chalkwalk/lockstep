@@ -2,6 +2,7 @@
 
 #include "../machine/IEffect.h"
 #include <cmath>
+#include <numbers>
 
 namespace lockstep
 {
@@ -48,7 +49,7 @@ namespace lockstep
                                        : 1.0f;
 
             const float alpha = static_cast<float>(
-                1.0 - std::exp(-2.0 * M_PI * 700.0 / sr_));
+                1.0 - std::exp(-2.0 * std::numbers::pi * 700.0 / sr_));
 
             auto* dL = numCh > 0 ? buffer.getWritePointer(0) : nullptr;
             auto* dR = numCh > 1 ? buffer.getWritePointer(1) : nullptr;
