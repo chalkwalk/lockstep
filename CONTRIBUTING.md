@@ -208,14 +208,22 @@ patch. Each root file owns one job and a fact belongs in exactly one of them:
 | `DESIGN.md` | Architecture, the grammar, surface layout |
 | `NON-GOALS.md` | What Lockstep refuses to become, and why |
 | `ROADMAP.md` | Milestones and status — **the only authority on status** |
-| `README.md` | The user manual |
+| `README.md` | Repository landing page: what Lockstep is, status, how to build |
+| `website/docs/` | **The user manual** — published to lockstep.chalkwalkmusic.com and mirrored to the wiki |
 | `THIRDPARTY.md` | Dependency licences and obligations |
 | `AGENTS.md` | Conventions, gotchas, agent workflow |
 
-**`README.md` must stay true.** Anything it marks as *implemented* has to be
-correct — real bindings, real behaviour. It may run ahead of reality for
-*planned* items. When a planned feature ships, move it into the working set in
-the same change and verify the shortcut table.
+**The manual must stay true.** Anything `website/docs/` marks as *implemented*
+has to be correct — real bindings, real behaviour. It may run ahead of reality
+for *planned* items. When a planned feature ships, move it into the working set
+in the same change and verify the gesture tree.
+
+The manual lives in `website/docs/` and nowhere else. It was `README.md` until
+2026-10-04, when 2,300 of its 2,400 lines moved to the site and the README
+became a landing page. **Do not start a second copy.** One source renders two
+ways: Docusaurus builds the site, and `wiki_transform.py` mirrors the same
+markdown to the wiki. A fact belongs in one file, and a manual that disagrees
+with itself is worse than one that is only in one place.
 
 Shipped roadmap work is compressed in place rather than deleted; the convention
 is documented in the `ROADMAP.md` preamble.

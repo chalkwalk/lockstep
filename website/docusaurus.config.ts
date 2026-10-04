@@ -20,6 +20,18 @@ const config: Config = {
   // rather than shipping as a dead link.
   onBrokenLinks: 'throw',
 
+  // Parse .md as CommonMark, not MDX.
+  //
+  // Docusaurus 3 treats .md as MDX by default, which makes every `<` a
+  // potential JSX tag. This documentation is migrated prose from README.md and
+  // is full of angle-bracket placeholders -- `<reason>`, `<name>`, `Func+<key>`
+  // -- plus comparison operators in tables. MDX rejects them, and escaping
+  // several dozen of them would be a permanent tax on writing ordinary English
+  // here. 'detect' keeps MDX available for any .mdx file that wants it.
+  markdown: {
+    format: 'detect',
+  },
+
   i18n: {
     defaultLocale: 'en',
     locales: ['en'],

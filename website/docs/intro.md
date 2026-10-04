@@ -1,6 +1,6 @@
 ---
 sidebar_position: 1
-title: What Lockstep is
+title: "What Lockstep is"
 slug: /
 ---
 
@@ -49,18 +49,19 @@ in CI for exactly these reasons. If you run Lockstep on either, a report of what
 happened is the single most useful contribution the project can receive — see
 [CONTRIBUTING.md](https://github.com/chalkwalk/lockstep/blob/main/CONTRIBUTING.md).
 
-## Where the full manual lives
+## Where to go next
 
-The complete user manual — the paradigm, the glossary, a tutorial, the feature
-reference and the full gesture tree — is
-[`README.md`](https://github.com/chalkwalk/lockstep/blob/main/README.md) in the
-repository. It is around 2,400 lines and is the authority on how Lockstep
-behaves.
-
-These pages deliberately do **not** restate it. A second copy of a moving
-document goes stale, and a manual that disagrees with itself is worse than one
-that only lives in one place. Migrating it here is planned work, and when it
-happens the README will become a short landing page rather than a second copy.
+- **[Installing](./installing.md)** — building from source, and what each
+  platform is actually known to do.
+- **[Tutorial](./tutorial.md)** — your first piece of music.
+- **[The paradigm](./paradigm.md)** — how to reason about the system. Worth
+  reading before the reference; most confusion about Lockstep is a paradigm
+  mismatch rather than a missing feature.
+- **[Feature reference](./reference.md)** and
+  **[Gesture tree](./gestures.md)** — the complete surface, every action by
+  press order.
+- **[Implemented vs. planned](./status.md)** — what exists today, stated
+  honestly against what is designed.
 
 ## Licence
 
