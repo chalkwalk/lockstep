@@ -34,9 +34,11 @@
 // the golden on failure precisely so that "read the diff" is possible for a picture:
 //     LOCKSTEP_REGEN_GOLDEN=1 ./build/tests/lockstep_dispatch_tests
 //
-// KNOWN LIMIT, accepted: these are blessed on one machine. Another machine may need to
-// re-bless or widen the tolerance. Single-dev repo; revisit if CI elsewhere ever
-// arrives.
+// KNOWN LIMIT, now revisited: these are blessed on one machine. That note used to end
+// "single-dev repo; revisit if CI elsewhere ever arrives". It arrived (6.8), and the
+// answer is below in runSceneGoldenTests -- the pixel comparison is gated to the
+// platform that blessed it, because a different rasteriser is not the kind of variation
+// the fuzz was built to absorb.
 //
 // EVERY SCENE VERIFIES ITSELF FIRST. A scene that failed to reach its state still
 // renders a perfectly good picture -- of the wrong thing -- and would be blessed as the
@@ -313,8 +315,43 @@ namespace
 
 void runSceneGoldenTests(int& failed)
 {
+#if defined(__linux__) && defined(__x86_64__)
     const bool regen = std::getenv("LOCKSTEP_REGEN_GOLDEN") != nullptr;
     for (const auto& s : scenes())
         runScene(s, regen, failed);
+#else
+    // The revisit the KNOWN LIMIT above asked for. CI on three platforms arrived
+    // in 6.8, and these goldens compare PIXELS against images blessed on x86_64
+    // Linux.
+    //
+    // The fuzz (6x box downscale, per-channel tolerance 10) was tuned to absorb
+    // variation WITHIN one rasteriser -- a different FreeType build, different
+    // hinting, different subpixel positioning. It was never going to absorb a
+    // DIFFERENT rasteriser. macOS draws through CoreGraphics, and the first macOS
+    // run to get this far moved ~1% of blocks with channel deltas up to 59,
+    // against a 0.05% budget, on a surface nobody had touched.
+    //
+    // Widening the tolerance that far would take it well past the point where it
+    // still catches a moved or recoloured widget, which is the only thing it is
+    // for. Per-platform goldens would mean three sets of images to re-bless on
+    // every visual change -- and "re-bless and LOOK at the image" is the
+    // discipline that keeps this file worth having, so tripling the cost of it is
+    // how it stops being done.
+    //
+    // What is lost here is real and worth naming: chrome with no model -- the
+    // inspector, transport, timeline strip, MZ rotaries, banners, hint rails --
+    // is unverified on macOS and Windows. It takes a human looking at the app on
+    // those platforms, which is already the top ask in CONTRIBUTING.md.
+    //
+    // What is NOT lost: the behavioural golden next door is platform-independent
+    // and runs everywhere. On the macOS run that produced this gate it reported
+    // "dispatch behaviour matches (125 rows)" -- so dispatch is verified there,
+    // and only the pixels are not.
+    juce::ignoreUnused(failed);
+    std::fprintf(stderr,
+                 "[scene-golden] SKIPPED on this platform: pixel goldens are blessed on "
+                 "x86_64 Linux and the rasteriser differs here. The 125-row dispatch "
+                 "golden still runs.\n");
+#endif
 }
 }   // namespace lockstep
