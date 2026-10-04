@@ -1669,15 +1669,15 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
       and wired; the staging guard is proven live. AGENTS.md's stale Status
       section is now a pointer to this file, its durable half kept as
       "Load-bearing lessons", and its phantom `libs/music/` submodule struck.
-- [ ] **P1 — licence + contributor docs.** `LICENSE` (GPLv3 verbatim; JUCE is
+- [x] **P1 — licence + contributor docs.** *(2026-10-04.)* `LICENSE` (GPLv3 verbatim; JUCE is
       used under its GPL option) and `CONTRIBUTING.md`. `THIRDPARTY.md` already
       audits every dependency and is the best of the four sibling repos — it
       just has no `LICENSE` beside it.
-- [ ] **P2 — the repository.** `chalkwalk/lockstep`, public. Keep the existing
+- [x] **P2 — the repository.** *(2026-10-04: public, `main`, verified against the remote that no agent file travelled.)* `chalkwalk/lockstep`, public. Keep the existing
       `pi@192.168.1.31` origin under another name; 1487 commits live against it.
       Decide `master`→`main` (every sibling workflow triggers on `main`).
       Verify after pushing that no agent file travelled.
-- [ ] **P3 — build workflow.** **The schedule gate: read the macOS/Windows
+- [x] **P3 — build workflow.** *(2026-10-04. **Gate answered: Linux and macOS green; Windows compiles under MSVC and passes 4/6 suites.** Seven runs, eight distinct real bugs, none in sequencer logic — the biggest being that Linux had never built with Clang, so `-Werror` was enforced nowhere.)* **The schedule gate: read the macOS/Windows
       result before committing to a beta date.** Expect genuine portability
       errors there, not warnings — the strict set and `-Werror` are Clang-gated,
       so neither new compiler fails on warnings. Verify the JUCE patch path
