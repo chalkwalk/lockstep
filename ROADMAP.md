@@ -1698,8 +1698,23 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
         risk, and it was deliberately **not** smuggled into CI setup.
       - The gate flips to blocking in the same change that takes the count to
         zero, and not before.
-- [ ] **Record the clang-tidy baseline** from the first green lint run, the way
-      antiphon records its 142, then work it down.
+- [ ] **Work down the clang-tidy backlog. Baseline: 2227 findings**
+      (first green lint run, 2026-10-04). Antiphon's comparable number is 142.
+      - Read that figure carefully before reacting to it: the step runs
+        `clang-tidy -p build src/*.cpp tools/*.cpp`, and that glob is **not
+        recursive** — it matches only the handful of top-level translation
+        units (`PluginProcessor.cpp`, `PluginEditor.cpp`, `Parameters.cpp`, …),
+        not `src/ui/`, `src/machine/`, `src/core/` and the rest. So 2227 is the
+        count from ~5 files plus every header they pull in, and the true
+        whole-tree figure is unknown and larger.
+      - Widening the glob and re-measuring is step one; the number will get
+        worse before it gets better, and that is the honest baseline rather
+        than a flattering one.
+      - The gate goes blocking (with `WarningsAsErrors` restored in
+        `.clang-tidy`) in the same change that takes the count to zero.
+- [x] **clang-format baseline confirmed in CI: 233 / 402** at the pinned
+      20.1.8 — identical to the local measurement, so the figure is not an
+      artifact of one machine's toolchain.
 - [ ] **Fix the sign-conversions in `chalkwalk-tape`'s `Resampler.h`** (upstream,
       not here). Five `size_t * int` sites in the polyphase indexing. AppleClang
       errors on them under `-Wsign-conversion`; Ubuntu Clang 21 does not, which
