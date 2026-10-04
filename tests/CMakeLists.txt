@@ -159,6 +159,7 @@ add_executable(lockstep_dispatch_tests
     CujGeneratorsTest.cpp
     CujRecordTest.cpp
     CujClipboardTest.cpp
+    ModalSweepTest.cpp
     CujSoundTest.cpp
     CujPerformanceTest.cpp
     CujArrangementTest.cpp

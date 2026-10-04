@@ -852,6 +852,7 @@ namespace lockstep
     void runCujRecordTests(int& failed);
     // Defined in CujClipboardTest.cpp -- Group A clipboard journey.
     void runCujClipboardTests(int& failed);
+    void runModalSweepTests(int& failed);
     // Defined in CujSoundTest.cpp -- Group C sound journeys.
     void runCujSoundTests(int& failed);
     // Defined in CujPerformanceTest.cpp -- Group D performance overlays.
@@ -890,6 +891,7 @@ int main()
     lockstep::runCujGeneratorsTests(failed);
     lockstep::runCujRecordTests(failed);
     lockstep::runCujClipboardTests(failed);
+    lockstep::runModalSweepTests(failed);
     lockstep::runCujSoundTests(failed);
     lockstep::runCujPerformanceTests(failed);
     lockstep::runCujArrangementTests(failed);

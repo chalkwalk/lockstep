@@ -51,7 +51,7 @@ namespace lockstep
     // impossible.
     // =========================================================================
     // NOLINTNEXTLINE(cert-err58-cpp)
-    static const std::array<OverlayDescriptor, 9> kOverlays = {{
+    static constexpr std::array<OverlayDescriptor, 10> kOverlays = {{
         // ── Identity (5.3) ────────────────────────────────────────────────────
         // Generative naming + colour editor for a Song/Scene/Sound. Uses the two
         // step rows (compose) + Nav (mode cycle / reshuffle / colour page), like
@@ -163,6 +163,37 @@ namespace lockstep
             .songScopeForeign   = false,  // Song retargets TIME scope (Func+Song=Set, Song=Song)
             .exitOnDoubleTapFunc = true,
         },
+        // ── Melodic ─────────────────────────────────────────────────────────
+        // The print-model twin of Harmony below, and identical in exit policy:
+        // it drives the step grid rather than the sections, so Func double-tap
+        // is the way out and entry/stash restore stays editor-owned.
+        //
+        // This row did not exist until 6.9 M2. Melodic (10.7) and Harmony (10.8)
+        // shipped one after the other and only Harmony was given a descriptor,
+        // so findDescriptor() returned null for an armed melodic generator and
+        // handleOverlayEvent answered NotConsumed to everything. The universal
+        // escape did not escape it, no foreign scope exited it, and the single
+        // way out was a Section press through the editor's own imperative
+        // branch -- a mode a player could genuinely get stuck in.
+        //
+        // The ExitPolicy-has-no-default rule makes an incomplete row a compile
+        // error; it could say nothing about a row that was never written. The
+        // static_assert under this table is what closes that.
+        {
+            .id                      = Overlay::Melodic,
+            .internalSection         = -1,
+            .internalSectionConsumed = false,
+            .internalSectionRelabelFn = nullptr,
+            .exitOnSectionPressOther  = false,
+            .trackScopeForeign  = false,
+            .phraseScopeForeign = false,
+            .sceneScopeForeign  = false,
+            .morphScopeForeign  = false,
+            .muteScopeForeign   = false,
+            .fillScopeForeign   = false,
+            .songScopeForeign   = false,
+            .exitOnDoubleTapFunc = true,
+        },
         // ── Harmony ─────────────────────────────────────────────────────────
         // Sticky voice-mover: like Euclid it uses the step grid (not sections),
         // so only Func double-tap exits; entry/stash restore is editor-owned.
@@ -218,6 +249,38 @@ namespace lockstep
             .exitOnDoubleTapFunc = true,
         },
     }};
+
+    // Every overlay except None must have a descriptor.
+    //
+    // The ExitPolicy fields have no defaults, so an INCOMPLETE row is a compile
+    // error. Nothing caught a row that was never written at all, and in 6.9 M2
+    // that turned out not to be hypothetical: Melodic had no descriptor, so
+    // findDescriptor() returned null, handleOverlayEvent answered NotConsumed
+    // to every event, and the armed melodic generator could not be escaped by
+    // the universal escape at all.
+    //
+    // This is the check that makes the omission impossible rather than merely
+    // findable. Add an Overlay value and this fails until it has a row; the
+    // compiler asks the question instead of a player discovering the answer.
+    constexpr bool everyOverlayHasADescriptor()
+    {
+        for (int i = 0; i <= static_cast<int>(Overlay::Browser); ++i)
+        {
+            const auto ov = static_cast<Overlay>(i);
+            if (ov == Overlay::None)
+                continue;
+            bool found = false;
+            for (const auto& d : kOverlays)
+                if (d.id == ov)
+                    found = true;
+            if (!found)
+                return false;
+        }
+        return true;
+    }
+    static_assert(everyOverlayHasADescriptor(),
+                  "an Overlay value has no row in kOverlays: handleOverlayEvent would "
+                  "answer NotConsumed to every event and the mode could not be escaped");
 
     // =========================================================================
     // Internal helpers
