@@ -1756,25 +1756,31 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
         project already had locally and had never recorded.
       - `CHALKWALK_JUCE_DIR` was checked for the same hazard and is clean: the
         shared checkout is at `501c076`, exactly the submodule pin.
-- [x] **Engine/editor link cycle broken; LTO restored** *(2026-10-04)*. The
-      engine no longer names a symbol it does not own. `createEditor()` was
-      declared in `lockstep_engine` and *defined* in the plugin target, so the
-      engine's vtable referenced a symbol in an archive the linker had already
-      walked past; it resolved only because some earlier object happened to
-      pull that member in first, and LTO removed the luck.
-      - The link-time seam is a **runtime** one now: `setEditorFactory()`. The
-        registration lives in `createPluginFilter()`, which the JUCE wrappers
-        call, so it is in a translation unit that is always linked — a static
-        initialiser elsewhere would have reproduced the original problem, since
-        an archive member only links if something already references it.
-      - `hasEditor()` answers honestly instead of always `true`: a host told
-        there is an editor and then handed `nullptr` is worse off than one told
-        there is none, and the headless suites genuinely have none.
-      - `tests/TestEditorStub.cpp` is deleted. It existed only to supply the
-        other half of the link seam, and there is no seam to fill.
-      - **Verified by CI, not locally.** Clang 21 linked the cycle *with* LTO,
-        so a local pass proves nothing; Clang 18.1.3 on `ubuntu-latest` is what
-        failed and is what has to say this is fixed.
+- [x] **Engine/editor link cycle broken** *(2026-10-04)*. The engine no longer
+      names a symbol it does not own: `createEditor()` is defined in
+      `lockstep_engine` and asks a factory the consumer registers, so the UI
+      depends on the engine and the engine depends on nothing. The registration
+      lives in `createPluginFilter()`, a translation unit the JUCE wrappers
+      guarantee is linked — a static initialiser elsewhere would have
+      reproduced the original problem, since an archive member only links if
+      something already references it. `hasEditor()` answers honestly rather
+      than always `true`, and `tests/TestEditorStub.cpp` is deleted.
+- [ ] **LTO stays off, and the cycle was not why.** This is a correction. The
+      cycle was real and is fixed; restoring LTO still failed on Clang 18.1.3,
+      and the undefined reference is now **inside a single archive** —
+      `createPluginFilter()`'s lambda needs `LockstepEditor`'s constructor, and
+      both translation units are members of `libLockstep_SharedCode.a`. A
+      linker is expected to re-scan an archive for symbols newly required by a
+      member it just pulled in; under that LTO plugin it does not.
+      - So it is archive-member resolution in **Clang 18's LTO**, not our
+        dependency direction, and restructuring targets cannot move it.
+        Measured across four toolchains: GCC links it, Clang 21 links it,
+        **macOS/AppleClang links it with LTO on**, Clang 18.1.3 does not.
+      - The lever, if revisited, is the link line rather than the source:
+        either link the plugin's own objects unconditionally instead of through
+        an archive, or wrap the static libraries in a rescan group. Both are
+        linker-specific, which is why neither was done for an optimisation
+        nicety. Cost of leaving it off: cross-TU inlining and ~4 MB.
 - [ ] **Run the two GUI suites on a real Windows desktop and say which way they
       go.** `SurfaceModelTest` and `DispatchGoldenTest` both stand up a JUCE
       component tree through `EditorRig`, and both SegFault on a Windows CI

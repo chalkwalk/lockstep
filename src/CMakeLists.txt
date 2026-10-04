@@ -210,8 +210,37 @@ target_link_libraries(Lockstep
         lockstep_fonts
         juce::juce_audio_plugin_client
     PUBLIC
-        juce::juce_recommended_config_flags
-        juce::juce_recommended_lto_flags)
+        juce::juce_recommended_config_flags)
+
+# NO juce_recommended_lto_flags. The reason is not the one first recorded here,
+# and the correction matters because it points somewhere else entirely.
+#
+# The original diagnosis was a circular dependency between two static archives:
+# lockstep_engine named a LockstepEditor it did not own, and SharedCode.a has to
+# precede liblockstep_engine.a, so a one-pass linker met the undefined symbol
+# after walking past the archive defining it. That cycle was real and is now
+# fixed -- the engine owns createEditor() and asks a registered factory, so it
+# names nothing it does not own.
+#
+# IT DID NOT FIX THE LINK. With LTO back on, Clang 18.1.3 still fails, and now
+# the undefined reference is INSIDE ONE ARCHIVE: createPluginFilter()'s lambda
+# needs LockstepEditor's constructor, and PluginEditorFactory.cpp and
+# PluginEditor.cpp are both members of libLockstep_SharedCode.a. A linker is
+# expected to re-scan an archive for symbols newly required by a member it just
+# pulled in; under this LTO plugin that does not happen.
+#
+# So this is archive-member resolution in Clang 18's LTO, not our dependency
+# direction, and no amount of restructuring our targets will move it. Measured:
+# GCC links it, Clang 21 links it, Clang 18.1.3 does not -- and 18 is far above
+# the Clang 10 floor this project claims.
+#
+# The cost of leaving LTO off is cross-TU inlining and about 4 MB of binary.
+# The cost of turning it on is a build that links only on some toolchains.
+#
+# If this is revisited: the lever is the link line, not the source. Either make
+# the plugin's own objects link unconditionally rather than through an archive,
+# or wrap the static libraries in a rescan group. Both are linker-specific,
+# which is why neither was done for a nicety.
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(Lockstep PRIVATE
         -Wall -Wextra -Wpedantic
