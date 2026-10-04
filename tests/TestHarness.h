@@ -31,6 +31,7 @@ namespace lockstep
 
     void runSurfaceModelTests();
     void runSurfaceInvalidationGuardTests();   // 9.15: §22 has one channel (source scan)
+    void runOverlayEntryGuardTests();          // 6.9 M1: one way into the overlay field
     void runClockFunnelGuardTests();          // UI harness: the editor has one clock (source scan)
     void runChromeStyleGuardTests();           // 9.33: chrome look has one owner (source scan)
     void runSamplePoolTests();   // 6.2 volatile REC buffers (DESIGN §28)

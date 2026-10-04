@@ -80,6 +80,28 @@ namespace lockstep
     // Equivalent to the per-mode escape* functions in the editor.
     void escapeOverlay(UiState& ui, Overlay ov) noexcept;
 
+    // Enters a sticky overlay. The single owner of the transition INTO a mode,
+    // mirroring escapeOverlay(), which owns the transition out.
+    //
+    // WHY THIS EXISTS. Exit was funnelled and entry was not: escapeOverlay() is
+    // the only way out, but entry was six raw `ui.overlay = Overlay::X`
+    // assignments in PluginEditor.cpp. A raw write is not merely untidy -- it
+    // SKIPS THE OUTGOING OVERLAY'S RESET. Overlay parameters live beside the
+    // field (densityBank, velSubPage, cueParamPage, samplePropsPoolIndex, the
+    // identity and browser blocks) and escapeOverlay() is what clears them, so
+    // assigning straight over a live overlay left the previous one's state
+    // behind for the next time it was opened.
+    //
+    // This escapes whatever is active first, then sets the field, so the two
+    // directions are symmetrical and a mode is always entered clean.
+    //
+    // Transient chord overlays (Euclid/Melodic/Harmony) are NOT stored in the
+    // field -- they live in their own held flags and activeOverlay() reports
+    // them ahead of it -- so this is a no-op for them. Writing the field for a
+    // chord would manufacture exactly the illegal co-existence the single
+    // field exists to prevent.
+    void enterOverlay(UiState& ui, Overlay ov) noexcept;
+
     // Main event dispatcher.  Looks up the active overlay's descriptor and
     // applies exit/consume policy.  Mutates ui on Consumed or Exited.
     // The caller refreshes the meta band and repaints based on the result.

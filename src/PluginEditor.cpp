@@ -1159,7 +1159,7 @@ namespace lockstep
             if (poolIndex < 0 || poolIndex >= processor_.samplePool().size())
                 return;
             poolOverlay_.setVisible(false);
-            uiState_.overlay = Overlay::SampleProps;
+            enterOverlay(uiState_, Overlay::SampleProps);
             uiState_.samplePropsPoolIndex = poolIndex;
             refreshMetaBand();
             refreshSurface();
@@ -3584,7 +3584,7 @@ namespace lockstep
     void LockstepEditor::enterDensitySticky()
     {
         if (uiState_.overlay == Overlay::Density) return;
-        uiState_.overlay = Overlay::Density;
+        enterOverlay(uiState_, Overlay::Density);
         escapeVelSticky();
         escapeOverlay(uiState_, Overlay::Time);
         refreshMetaBand();
@@ -3593,7 +3593,7 @@ namespace lockstep
     void LockstepEditor::enterVelSticky()
     {
         if (uiState_.overlay == Overlay::Vel) return;
-        uiState_.overlay = Overlay::Vel;
+        enterOverlay(uiState_, Overlay::Vel);
         uiState_.velSubPage = velAnyEnabled()
             ? UiState::VelSubPage::Depth : UiState::VelSubPage::Mode;
         escapeDensitySticky();
@@ -3867,7 +3867,7 @@ namespace lockstep
     {
         auditionAllOff();
         uiState_.cueHeld = false;
-        uiState_.overlay = Overlay::Cue;
+        enterOverlay(uiState_, Overlay::Cue);
         uiState_.cueParamPage = false;
         // 6.4: seed the track bank to the focused track's bank (re-pressing AMP on
         // the param page pages from there).
@@ -3962,7 +3962,7 @@ namespace lockstep
             }
         }
 
-        uiState_.overlay = Overlay::Identity;
+        enterOverlay(uiState_, Overlay::Identity);
         uiState_.identityScope = scope;
         uiState_.identityIndex = index;
         uiState_.identityColourPage = false;
@@ -4109,7 +4109,7 @@ namespace lockstep
     {
         uiState_.resetBrowser();
         uiState_.browserCursor = processor_.activeSectionIdx();  // start on the live scene
-        uiState_.overlay = Overlay::Browser;
+        enterOverlay(uiState_, Overlay::Browser);
         refreshMetaBand();
         refreshSurface();
     }

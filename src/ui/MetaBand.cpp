@@ -3,6 +3,7 @@
 #include "ParamFormat.h"
 #include "../PluginProcessor.h"
 #include "../ParameterIDs.h"
+#include "mode/ModeReducer.h"
 #include "../core/AccentVel.h"
 #include "../core/Density.h"
 #include "../core/Subdivision.h"
@@ -174,7 +175,19 @@ namespace lockstep
 
     void escapeTimeSticky(UiState& ui) noexcept
     {
-        if (ui.overlay == Overlay::Time) { ui.overlay = Overlay::None; }
+        // Delegates rather than clearing the field itself. This was a second
+        // exit path for the Time overlay and it DISAGREED with the first: it
+        // cleared the field and set swingDismissed, but never reset sigPage,
+        // which escapeOverlay() does. So whether TIME reopened on its own page
+        // depended on which way you had left it last time.
+        //
+        // Found by the 6.9 guard test, not by anyone noticing.
+        escapeOverlay(ui, Overlay::Time);
+
+        // Kept outside the delegation on purpose: escapeOverlay only touches
+        // state when Time is actually open, and this has always been set
+        // unconditionally. Narrowing it is a behaviour change this commit is
+        // not making.
         ui.swingDismissed = true;
     }
 

@@ -369,6 +369,41 @@ namespace lockstep
         }
     }
 
+    void enterOverlay(UiState& ui, Overlay ov) noexcept
+    {
+        // Exhaustive and deliberately without a default, like escapeOverlay
+        // above: a new Overlay value must come here and be classified as
+        // sticky or transient rather than defaulting into either.
+        switch (ov)
+        {
+            // Held-chord overlays. Not stored in ui.overlay; nothing to enter.
+            case Overlay::Euclid:
+            case Overlay::Melodic:
+            case Overlay::Harmony:
+            case Overlay::None:
+                return;
+
+            // Sticky overlays: the field is the storage.
+            case Overlay::Time:
+            case Overlay::Density:
+            case Overlay::Vel:
+            case Overlay::SampleProps:
+            case Overlay::Cue:
+            case Overlay::Identity:
+            case Overlay::Browser:
+                break;
+        }
+
+        // The part a raw assignment skipped. Each overlay's parameters live
+        // beside the field and escapeOverlay() is what resets them, so going
+        // straight from one overlay to another without this left the first
+        // one's state behind.
+        if (ui.overlay != Overlay::None && ui.overlay != ov)
+            escapeOverlay(ui, ui.overlay);
+
+        ui.overlay = ov;
+    }
+
     OverlayResult handleOverlayEvent(UiState& ui,
                                      const ModeEvent& ev,
                                      const ScopeCtx& ctx) noexcept

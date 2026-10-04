@@ -11,6 +11,7 @@ int main()
 
     lockstep::runSurfaceModelTests();
     lockstep::runSurfaceInvalidationGuardTests();
+    lockstep::runOverlayEntryGuardTests();
     lockstep::runClockFunnelGuardTests();
     lockstep::runChromeStyleGuardTests();
     lockstep::runSamplePoolTests();
