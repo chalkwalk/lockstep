@@ -1698,8 +1698,18 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
         risk, and it was deliberately **not** smuggled into CI setup.
       - The gate flips to blocking in the same change that takes the count to
         zero, and not before.
-- [ ] **Work down the clang-tidy backlog. Baseline: 2227 findings**
-      (first green lint run, 2026-10-04). Antiphon's comparable number is 142.
+- [ ] **Work down the clang-tidy backlog. Real baseline: 16,926 findings**
+      across all 67 translation units in `src/` (measured 2026-10-04).
+      Antiphon's comparable number is 142.
+      - The CI step reported **2227**, and that figure was flattering rather
+        than wrong: its glob `src/*.cpp tools/*.cpp` is not recursive and
+        covered about five top-level units plus their headers. Widening it
+        measured 7.6x more. Findings in a shared header are counted once per
+        translation unit that includes it, so the number of *distinct* issues
+        is smaller than 16,926 — but it is the number a blocking gate would
+        have to reach zero against, so it is the one recorded.
+      - Widen the CI glob so the step reports the real figure rather than a
+        subset. It will look like a large regression and will not be one.
       - Read that figure carefully before reacting to it: the step runs
         `clang-tidy -p build src/*.cpp tools/*.cpp`, and that glob is **not
         recursive** — it matches only the handful of top-level translation
