@@ -1,16 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-hidden="true">
-  <!-- Eight steps on a grid, four of them lit: the trig row the whole surface
-       is built around. Colours are the product's own -- the cyan is the step
-       accent, the ground is the surface background. -->
-  <rect width="64" height="64" rx="12" fill="#14181d"/>
-  <g>
-    <rect x="8"  y="14" width="10" height="16" rx="2.5" fill="#35c3e8"/>
-    <rect x="22" y="14" width="10" height="16" rx="2.5" fill="#28323c"/>
-    <rect x="36" y="14" width="10" height="16" rx="2.5" fill="#35c3e8"/>
-    <rect x="50" y="14" width="6"  height="16" rx="2.5" fill="#28323c"/>
-    <rect x="8"  y="34" width="10" height="16" rx="2.5" fill="#28323c"/>
-    <rect x="22" y="34" width="10" height="16" rx="2.5" fill="#35c3e8"/>
-    <rect x="36" y="34" width="10" height="16" rx="2.5" fill="#28323c"/>
-    <rect x="50" y="34" width="6"  height="16" rx="2.5" fill="#35c3e8"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Lockstep">
+  <!--
+    Favicon, deliberately not the logo.
+
+    The full mark is two gear-toothed ribbons locked together. Rendered small,
+    the teeth alias into a blur and the interlock, which is the whole idea,
+    is the first thing lost; measured at 16, 24, 32, 48 and 64 px, it only
+    begins to read at about 48.
+
+    So this keeps the idea and drops the detail that cannot survive it: two
+    links, same rotational symmetry, same gradient, stroked heavily enough to
+    hold at one quarter of this viewBox. Checked at 16 px, not assumed.
+  -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0.25" y2="1">
+      <stop offset="0" stop-color="#2AF4F1"/>
+      <stop offset="1" stop-color="#3C8FD1"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="url(#g)" stroke-width="7" stroke-linecap="round">
+    <path d="M34 12 A14 14 0 1 0 44 22"/>
+    <path d="M30 52 A14 14 0 1 0 20 42"/>
   </g>
 </svg>

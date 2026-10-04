@@ -69,12 +69,14 @@ const config: Config = {
     colorMode: {
       respectPrefersColorScheme: true,
     },
-    image: 'img/lockstep-surface.png',
+    image: 'img/social-card.png',
     navbar: {
       title: 'Lockstep',
       // Decorative: the title beside it already carries the name, so alt text
       // here would only make a screen reader say "Lockstep" twice.
-      logo: { alt: '', src: 'img/logo.svg' },
+      // The simplified mark, not the full one: the navbar renders it at about
+      // 32px, where the detailed mark's gear teeth alias into a blur.
+      logo: { alt: '', src: 'img/favicon.svg' },
       items: [
         {
           type: 'docSidebar',
