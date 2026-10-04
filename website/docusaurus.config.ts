@@ -10,6 +10,8 @@ const config: Config = {
     v4: true,
   },
 
+  favicon: 'img/favicon.svg',
+
   url: 'https://lockstep.chalkwalkmusic.com',
   baseUrl: '/',
 
@@ -43,13 +45,16 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          // Docs at the root, unlike the sibling sites, which serve them under
-          // /docs behind a React landing page. That landing page wants a logo,
-          // a social card and a favicon, and shipping another project's
-          // artwork as Lockstep's would be worse than having none. So the
-          // domain opens straight onto the documentation until there is real
-          // artwork to put in front of it.
-          routeBasePath: '/',
+          // Docs under /docs, with a landing page at the root -- the same
+          // shape as antiphon, arps-euclidya and star-canopy.
+          //
+          // This briefly served docs at the root instead, because the hero
+          // wants a logo and a screenshot and inventing artwork is worse than
+          // having none. Both turned out to exist already: the screenshot is a
+          // blessed scene golden from the test suite, so it cannot drift from
+          // what the app draws without a test failing, and the mark is drawn
+          // from the surface's own step grid and accent colour.
+          routeBasePath: 'docs',
           editUrl: 'https://github.com/chalkwalk/lockstep/tree/main/website/',
         },
         blog: false,
@@ -64,8 +69,12 @@ const config: Config = {
     colorMode: {
       respectPrefersColorScheme: true,
     },
+    image: 'img/lockstep-surface.png',
     navbar: {
       title: 'Lockstep',
+      // Decorative: the title beside it already carries the name, so alt text
+      // here would only make a screen reader say "Lockstep" twice.
+      logo: { alt: '', src: 'img/logo.svg' },
       items: [
         {
           type: 'docSidebar',
@@ -86,9 +95,9 @@ const config: Config = {
         {
           title: 'Documentation',
           items: [
-            { label: 'What Lockstep is', to: '/' },
-            { label: 'Installing', to: '/installing' },
-            { label: 'Troubleshooting', to: '/troubleshooting' },
+            { label: 'What Lockstep is', to: '/docs/' },
+            { label: 'Installing', to: '/docs/installing' },
+            { label: 'Troubleshooting', to: '/docs/troubleshooting' },
           ],
         },
         {

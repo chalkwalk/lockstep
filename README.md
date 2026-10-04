@@ -38,7 +38,7 @@ Pre-beta. There are no released builds yet; you build from source.
 | **macOS** | Compiles and passes the full suite in CI. **Never loaded in a host**; the AU has never been through `auval`. |
 | **Windows** | Compiles under MSVC and passes the vendored suites. Its two GUI suites are excluded in CI (no interactive desktop on a runner), so they are **unrun rather than passing**. |
 
-[Implemented vs. planned](https://lockstep.chalkwalkmusic.com/status) states
+[Implemented vs. planned](https://lockstep.chalkwalkmusic.com/docs/status) states
 precisely what exists today against what is designed.
 
 ## Building
@@ -56,7 +56,7 @@ ctest --test-dir build --output-on-failure
 ```
 
 Full instructions, dependencies and artefact paths:
-[Installing](https://lockstep.chalkwalkmusic.com/installing).
+[Installing](https://lockstep.chalkwalkmusic.com/docs/installing).
 
 ## Contributing
 

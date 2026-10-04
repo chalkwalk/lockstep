@@ -75,7 +75,7 @@ step keys instead play notes / set velocity buckets — see
 nav row remains visible in all three modes; the mode badge in the top context
 band identifies the active mode.
 
-Links: [§5.6](#56-step-editing) · [§5.17](/reference#517-keyboard-ui-revamp) ·
+Links: [§5.6](#56-step-editing) · [§5.17](/docs/reference#517-keyboard-ui-revamp) ·
 [§5.15](#515-checkpoints-live-undo) · [§5.4](#54-transport-and-navigation) ·
 [§5.3](#53-verb-keys)
 
@@ -105,7 +105,7 @@ Func (1)
 Links: [§5.15](#515-checkpoints-live-undo) ·
 [§5.4](#54-transport-and-navigation) · [§5.3](#53-verb-keys) ·
 [§5.8](#58-sections-and-the-manipulation-zone) ·
-[§5.17](/reference#517-keyboard-ui-revamp)
+[§5.17](/docs/reference#517-keyboard-ui-revamp)
 
 ### Trig — one or more held steps
 
@@ -125,7 +125,7 @@ step(s) held  (opens inspector: grid shows the step's P-Locks; tap a slot to cle
 └─ + encoder turn    → write a P-Lock on the held step(s) — §5.7
 ```
 
-Links: [§5.9](/reference#59-copy-paste-clear) · [§5.17](/reference#517-keyboard-ui-revamp) ·
+Links: [§5.9](/docs/reference#59-copy-paste-clear) · [§5.17](/docs/reference#517-keyboard-ui-revamp) ·
 [§5.7](#57-parameter-editing-p-locks)
 
 ### Section — a held section key (5–0: TRIG/SRC/FILTER/AMP/MOD/FX)
@@ -148,7 +148,7 @@ section (5–0)
 [§5.5](#55-track-selection-and-focus).)
 
 Links: [§5.8](#58-sections-and-the-manipulation-zone) ·
-[§5.9](/reference#59-copy-paste-clear) · [§5.17](/reference#517-keyboard-ui-revamp)
+[§5.9](/docs/reference#59-copy-paste-clear) · [§5.17](/docs/reference#517-keyboard-ui-revamp)
 
 ### Track (2)
 
@@ -174,8 +174,8 @@ Track (2)
 ```
 
 Links: [§5.5](#55-track-selection-and-focus) ·
-[§5.10](#510-control-all) · [§5.17](/reference#517-keyboard-ui-revamp) ·
-[§5.18](#518-modal-trig-grid-surfaces) · [§5.9](/reference#59-copy-paste-clear) ·
+[§5.10](#510-control-all) · [§5.17](/docs/reference#517-keyboard-ui-revamp) ·
+[§5.18](#518-modal-trig-grid-surfaces) · [§5.9](/docs/reference#59-copy-paste-clear) ·
 [§5.14](#514-scenes-phrases-and-songs-the-launch-model)
 
 ### Phrase (Q)
@@ -196,7 +196,7 @@ Phrase (Q)
 ```
 
 Links: [§5.14](#514-scenes-phrases-and-songs-the-launch-model) ·
-[§5.9](/reference#59-copy-paste-clear)
+[§5.9](/docs/reference#59-copy-paste-clear)
 
 ### Scene (W)
 

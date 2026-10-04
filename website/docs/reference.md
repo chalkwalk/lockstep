@@ -53,7 +53,7 @@ The verb keys are **context-sensitive** — they read three layers:
 
 There is no separate transport key — the verb row does double duty, which
 is why the surface needs no extra buttons. The full action set is indexed
-by press-order in [§7](/gestures#7-gesture-tree).
+by press-order in [§7](/docs/gestures#7-gesture-tree).
 
 In **Ortholinear** and **Staggered** display modes the keys immediately
 outside the 10-column block — `` ` ``, `Tab`, `CapsLock`, `Shift` on

@@ -8,7 +8,7 @@ title: "Tutorial: your first piece of music"
 This walkthrough builds a simple beat from an empty project. It uses the
 **standalone** application; the workflow is identical inside a DAW. The
 key letters refer to the QWERTY layout described in
-[§5.1](/reference#51-the-keyboard-layout) — keep that diagram handy.
+[§5.1](/docs/reference#51-the-keyboard-layout) — keep that diagram handy.
 
 > Throughout: **step keys** are the bottom two QWERTY rows
 > (`S D F G H J K L` = steps 1–8, `X C V B N M , .` = steps 9–16).
