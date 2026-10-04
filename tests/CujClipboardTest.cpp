@@ -95,7 +95,7 @@ namespace
         // same question dispatch asks, where Trig is the highest-priority scope (9.38).
         {
             const auto surf = d.surface();
-            const auto* u = std::find_if(surf.functionRow.begin(), surf.functionRow.end(),
+            const auto u = std::find_if(surf.functionRow.begin(), surf.functionRow.end(),
                                          [](const SurfaceCell& c) {
                                              return c.button == CB::VerbRecord;
                                          });
