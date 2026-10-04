@@ -546,6 +546,50 @@ P-Lock and the trig it decorates is untouched.
 
 ---
 
+## Group I — The modal sweep (6.9)
+
+Not a journey. Every other group walks one task the way a person performs it;
+this one walks **every modal state** and asks the two questions a journey does
+not: can a real gesture *reach* it, and can any gesture *leave* it.
+
+| ID | Journey | Status | Deps |
+|----|---------|--------|------|
+| I1 | Modal sweep: entry, interruption, escape | ☑ | |
+
+**I1 — Modal sweep.** ☑ `ModalSweepTest.cpp`. For each value of `Modal`, drive the
+documented entry gesture, assert it arrived, then apply a battery of ten
+interruptions — Func double-tap, a tap of each of the eight scope modifiers, and
+transport start/stop. After each, two assertions:
+
+- the surface must not show a layer that ranks *below* the active modal (the
+  enum is in priority order, so something outranking it is legitimate; something
+  beneath it means the modal is active and invisible), and
+- a short fixed escape sequence must reach rest, where **rest means every modal
+  flag clear**, not merely `activeModal() == None`. That distinction is the
+  point: the accessor returns one value by priority and can never report two, so
+  "exactly one is active" is true by construction and proves nothing. What goes
+  wrong is a modal left half-shut — field cleared, parameters still set.
+
+**Coverage is 15 of 16 and the test says so on every run.** The table is
+exhaustive over `Modal` and fails if a value is missing from it, so a new modal
+cannot be added without someone deciding how it is reached. `SampleProps` is the
+one undriven value: it opens from a Props button on a pool row, so it needs a
+populated pool — a fixture, not a gesture.
+
+**What it found.** The melodic generator could not be escaped. `kOverlays` had
+descriptors for Euclid and Harmony and none for Melodic, which shipped between
+them; with no descriptor `handleOverlayEvent` answered `NotConsumed` to every
+event, so the universal escape did nothing and only a Section press got you out.
+A `constexpr` check now requires every `Overlay` except `None` to have a row.
+
+*Harness notes, paid for once:* the generator hub needs the editor's timer ticked
+or a long hold is invisible; a held chord must not be released, and `GeneratorHub`
+correctly outranks the generator it launches while still down; the step inspector
+fires mid-hold from the timer, so the step stays pressed.
+
+This is a **standing net, not an arc**: run it, and add a row when a new modal
+ships.
+
 ## Out of scope (named, not chased)
 
 - StreamMachine long-form and the in-DAW Aux-output stem path (G3) — deferred until

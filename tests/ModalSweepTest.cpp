@@ -48,7 +48,9 @@ namespace
     using test::UiDriver;
 
     // Section indices, as the binding table spells them.
+    constexpr int kSecTrig = 0;  // TRIG
     constexpr int kSecSrc = 1;   // SRC
+    constexpr int kSecAmp = 3;   // AMP
     constexpr int kSecMod = 4;   // MOD
     constexpr int kSecFx = 5;    // FX
 
@@ -193,23 +195,39 @@ namespace
                                 d.release(CB::SongScope); d.release(CB::Func); },
               nullptr },
 
-            // --- Not yet driven -------------------------------------------------
-            // Each of these is reachable by a person; none has a gesture derived
-            // from a source this test can cite yet, and inventing one would make
-            // the sweep assert against its own guess rather than against the
-            // product. Wave two.
-            { Modal::Time, "Time", nullptr,
-              "entry is a scope+TRIG chord whose owning row is not in KeyBindings" },
-            { Modal::NoteEdit, "NoteEdit", nullptr,
-              "Func+SRC+step; needs a step carrying a trig override to be meaningful" },
-            { Modal::PLockClear, "PLockClear", nullptr,
-              "Func+step; needs a step carrying P-locks to be meaningful" },
+            // --- Wave two: gestures derived from the binding table and the
+            //     editor's own entry sites, rather than guessed ------------------
+            { Modal::Time, "Time",
+              [](UiDriver& d) { d.press(CB::SongScope); d.tap(CB::Section, kSecTrig);
+                                d.release(CB::SongScope); },
+              nullptr },
+
+            // The step inspector arms on a long hold of a single step and fires
+            // from the editor's timer mid-hold, so the step stays down.
+            { Modal::PLockClear, "PLockClear",
+              [](UiDriver& d) { holdLong(d, CB::Step, 4); },
+              nullptr },
+
+            // Entered from the inspector: SRC tapped while the step is still held.
+            { Modal::NoteEdit, "NoteEdit",
+              [](UiDriver& d) { holdLong(d, CB::Step, 4); d.tap(CB::Section, kSecSrc); },
+              nullptr },
+
+            // Cue scope + AMP arms a long press; the console opens on the key-up.
+            { Modal::Cue, "Cue",
+              [](UiDriver& d) { d.press(CB::CueScope); d.longPress(CB::Section, kSecAmp); },
+              nullptr },
+
+            // Song + hold(MOD) names the song. Scene + hold(MOD) is the same
+            // modal on a different operand and is covered by the Song variant.
+            { Modal::Identity, "Identity",
+              [](UiDriver& d) { d.press(CB::SongScope); holdLong(d, CB::Section, kSecMod); },
+              nullptr },
+
+            // --- Still not driven ---------------------------------------------
             { Modal::SampleProps, "SampleProps", nullptr,
-              "opened from a pool row's Props button; needs a populated sample pool" },
-            { Modal::Cue, "Cue", nullptr,
-              "Cue scope + long-hold(AMP), gated on cueConsoleArmed_" },
-            { Modal::Identity, "Identity", nullptr,
-              "hold(MOD) under a Song/Scene/Sound scope; three variants to cover" },
+              "opened from a Props button on a pool row; needs a populated sample "
+              "pool and the pool overlay, which is a fixture rather than a gesture" },
         };
     }
 

@@ -1438,7 +1438,7 @@ scopes use (reachable secondaries were invisible), and the §6.2 relocations
 landed: `TRACK` meta -> `Track+TRIG`, `GLOBAL` -> `Song+FX`, with `Func`
 pinned to COND/NOTE.
 
-## Phase 6 — Routing, FX & Platform  *[6.1/6.2/6.3/6.5 shipped; 6.4 shipped incl. access pass + 6.4a overlay tiers (Cue+Scene / Cue+MIDI-out deferred); 6.6 in progress; 6.7 waits for a second consumer; **6.8 active** (publication, P0 shipped); **6.9 planned** (modality)]*
+## Phase 6 — Routing, FX & Platform  *[6.1/6.2/6.3/6.5 shipped; 6.4 shipped incl. access pass + 6.4a overlay tiers (Cue+Scene / Cue+MIDI-out deferred); 6.6 in progress; 6.7 waits for a second consumer; **6.8 active** (publication, P0 shipped); **6.9 shipped** (modality)]*
 
 The audio-input boundary and the machines it unlocks, the effects system, the cue
 bus, external controller surfaces, the machine-module ABI, and the beta polish.
@@ -1808,53 +1808,36 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
 - [ ] AU is built on macOS but has never been through `auval`. Treat as
       untested-in-a-host alongside VST3 and CLAP, and say so.
 
-### 6.9 — Modality: one owner for entry, and a sweep that proves it  *[planned]*
+### 6.9 — Modality: one owner for entry, and a sweep that proves it  *[SHIPPED 2026-10-04]*
 
-The modal architecture is **sound**, and this milestone is not a rewrite:
-`activeModal()` collapses every scattered flag into one 16-value `Modal` enum
-with a documented priority order; `FuncReskin` gives the five Func-layer pickers
-one priority order and one exit; `layerBanner` is exhaustive over 17 layers with
-no `default:`; `LayerRemapReachabilityTest` guards the remap rule that has bitten
-four times.
+The modal architecture was sound and this was not a rewrite. The gap was that
+**entry and exit were enforced asymmetrically**: `escapeOverlay()` was the only
+way out, while entry was six raw `ui.overlay = Overlay::X` assignments that
+skipped the outgoing overlay's parameter reset.
 
-The gap is that **entry and exit are enforced asymmetrically**. Exit is
-funnelled — 19 `escapeOverlay()` calls, one `exitFuncReskin()`, and a `kOverlays`
-table whose `ExitPolicy` has no default so omitting a field is a compile error.
-Entry is not: **six raw `ui.overlay = Overlay::X` writes in `PluginEditor.cpp`**
-(SampleProps, Density, Vel, Cue, Identity, Browser) set the field directly,
-bypassing the table that owns the matching exit. And `ModalStateTest` tests the
-*pure state* — it never asks whether a real gesture can reach a mode, or whether
-any gesture can leave it. All ten defects the CUJ arc found were found
-end-to-end by `UiDriver`, not by the unit tests over the same state.
+- **M1** — `enterOverlay()` owns entry, escaping whatever is active first.
+  `OverlayEntryGuardTest` keeps it. The guard found a seventh site the same day:
+  `MetaBand.cpp` had its own `escapeTimeSticky()` that *disagreed* with
+  `escapeOverlay` — it never reset `sigPage`, so whether TIME reopened on its own
+  page depended on which exit you last used.
+- **M2** — `ModalSweepTest`: every `Modal` entered by its real gesture, then ten
+  interruptions each, asserting the surface cannot show a layer ranked below the
+  active modal and that a bounded escape reaches rest with **every flag clear**.
+  15 of 16 driven, 150 cases; the table is exhaustive over `Modal` and fails if a
+  value is missing. `SampleProps` is undriven and says so — it needs a populated
+  pool, which is a fixture rather than a gesture.
+- **M3** — **the find: the melodic generator could not be escaped.** `kOverlays`
+  had rows for Euclid and Harmony and none for Melodic, so `handleOverlayEvent`
+  answered `NotConsumed` to everything and the universal escape did nothing. A
+  `constexpr` check now requires every `Overlay` except `None` to have a row.
+  Also: the guard's own pattern missed `ui.overlay = cond ? A : B`, found while
+  looking up a gesture; and `ModalState.h`'s entry comments were corrected
+  against `kBindings` — three had been wrong since 9.29 moved the pickers off
+  the Func layer.
+- **M4** — landed as Group I in `tests/CUJ_CATALOGUE.md`. A standing net: run it,
+  add a row when a new modal ships.
 
-- [ ] **M1 — funnel entry.** Each of the six overlays enters through
-      `handleOverlayEvent`, so the `kOverlays` row owns both ends of a mode's
-      life. Keep the existing line: `processor_`-touching commits stay
-      editor-owned, only `UiState` transitions move. Add a build-time guard (in
-      the spirit of `SurfaceInvalidationGuardTest`) failing a raw
-      `overlay = Overlay::` assignment outside the reducer without a reason
-      comment — the second time this repo has needed that shape of guard.
-- [ ] **M2 — the sweep.** `tests/ModalSweepTest.cpp` in
-      `lockstep_dispatch_tests`. For each of the 16 `Modal` values: drive the
-      documented entry gesture and assert `activeModal()` agrees
-      (`expectReached`); then a fixed interrupt battery — `Esc`, `Func`
-      double-tap, a tap of each of the eight modifiers, transport start/stop,
-      and entry of a *different* modal. After each: exactly one modal live, the
-      displayed `SurfaceLayer` equal to the one `activeModal()` reports, and a
-      bounded escape back to `Modal::None`. ~200 cases.
-      - **A mode with no reachable entry gesture is itself a finding**, and is
-        the most likely thing this turns up. It is the 9.14 failure generalised:
-        the banner is a promise dispatch must keep.
-      - Harness gotchas, already paid for: `gap()` between same-modifier chords
-        or the second latches; mute is launch-quantized; `Track+Clear` needs a
-        confirm; UI tests asserting engine state need a `processBlock`.
-- [ ] **M3 — fix what it finds.** Triage into real bugs, undocumented-but-intended
-      behaviour (fix the docs), and dead gestures (retire them — the layer-remap
-      rule has killed five, and a dead gesture wearing a label is exactly the
-      9.14 failure). One focused commit per fix, each with its sweep case.
-- [ ] **M4 — land it as a standing net.** A Group I in `tests/CUJ_CATALOGUE.md`;
-      note here that it is a net, not an arc — run it, add a row when a new modal
-      ships.
+**Open, small:** drive `SampleProps` once a pool fixture exists.
 
 ---
 
