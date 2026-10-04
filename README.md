@@ -1,8 +1,7 @@
 # Lockstep
 
-> **Lockstep** is the working codename for a performance-oriented step
-> sequencer plugin (VST3 / CLAP / Standalone; AU on macOS). The final
-> product name is not yet chosen.
+> **Lockstep** is a performance-oriented step sequencer plugin
+> (VST3 / CLAP / Standalone; AU on macOS).
 
 Lockstep is a step sequencer you play like an instrument. Trigs,
 conditional logic, and per-step parameter locks replace the

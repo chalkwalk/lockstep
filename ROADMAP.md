@@ -10,7 +10,25 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus (refreshed 2026-07-25):**
+**Active focus (refreshed 2026-10-03):**
+
+0. **`6.8` — Publication, then `6.9` — Modality.** The project is being taken
+   public, in the shape antiphon / arps-euclidya / star-canopy already use: CI on
+   Linux/macOS/Windows, a Docusaurus site at `lockstep.chalkwalkmusic.com`, docs
+   mirrored to the wiki. **"Lockstep" is the final name** and the first release
+   is **a beta with its gaps named** (both in the locked-decisions list).
+
+   Publication runs *first*, and the reason is specific: **nothing in this
+   codebase has ever been compiled on macOS or Windows.** That is the only
+   unbounded risk on the path to a beta, and CI sizes it in an afternoon.
+   `6.8` P3 is the schedule gate — read the result before promising a date.
+
+   `6.9` then closes the one real modality gap: entry and exit are enforced
+   asymmetrically, and ~200 mechanical cases will say what that has cost.
+
+   Plan: `docs/superpowers/plans/2026-10-03-publish-beta-build.md`.
+   *(P0 — the agent tooling AGENTS.md described but no repo in the ecosystem
+   actually had — shipped 2026-10-03.)*
 
 1. **`5.3` — Song/Scene management UI.** Names, colours, browser and phrase
    copy/fork all ship (two play-test rounds landed 2026-07-16/17). What remains is
@@ -245,6 +263,20 @@ are sequencing decisions with no other home.
 - **Non-goals are a maintained record.** What Lockstep refuses to become, with the
   competitor feature and rejecting principle for each. → `NON-GOALS.md`; PRINCIPLES
   "Non-Goals".
+- **"Lockstep" is the product name** *(roadmap, 2026-10-03)*. Decided, not
+  deferred: the 6.8 rename item is closed, the docs domain is
+  `lockstep.chalkwalkmusic.com`, the repo is `chalkwalk/lockstep`. README's
+  "working codename … final name not yet chosen" caveat goes with it.
+- **The first public release is a beta with its gaps named** *(roadmap,
+  2026-10-03)*. `5.3`'s recall unit, `9.23`, `10.6`, `10.11`, the deferred
+  `Cue + Scene` / `Cue + MIDI-out`, freeze-to-disk, and every user-gated ear
+  test do **not** block publication; they are listed openly instead. The
+  register is antiphon's: "builds and tests clean" is a real result and is not
+  the same as "supported". → `6.8`.
+- **Publication precedes the modality arc** *(roadmap, 2026-10-03)*. Not because
+  it matters more, but because nothing in this codebase has ever been compiled
+  on macOS or Windows, and that is the only unbounded risk on the path to a
+  beta. `6.9`'s cost is bounded; `6.8`'s is not, until CI runs once. → `6.8`.
 
 ---
 
@@ -1406,7 +1438,7 @@ scopes use (reachable secondaries were invisible), and the §6.2 relocations
 landed: `TRACK` meta -> `Track+TRIG`, `GLOBAL` -> `Song+FX`, with `Func`
 pinned to COND/NOTE.
 
-## Phase 6 — Routing, FX & Platform  *[6.1/6.2/6.3/6.5 shipped; 6.4 shipped incl. access pass + 6.4a overlay tiers (Cue+Scene / Cue+MIDI-out deferred); 6.6 in progress; 6.7 waits for a second consumer; 6.8 open]*
+## Phase 6 — Routing, FX & Platform  *[6.1/6.2/6.3/6.5 shipped; 6.4 shipped incl. access pass + 6.4a overlay tiers (Cue+Scene / Cue+MIDI-out deferred); 6.6 in progress; 6.7 waits for a second consumer; **6.8 active** (publication, P0 shipped); **6.9 planned** (modality)]*
 
 The audio-input boundary and the machines it unlocks, the effects system, the cue
 bus, external controller surfaces, the machine-module ABI, and the beta polish.
@@ -1618,12 +1650,105 @@ Not a CLAP/VST3 sub-host; in-process, no IPC/sandbox.
       sample access, freeze ABI v1 with a golden-header CI test). Author 4.5 / 4.6
       against the SDK thereafter.
 
-### 6.8 — Polish, CI, beta  *[planned]*  *(was M9)*
-- [ ] Multi-platform GitHub Actions CI (Linux/macOS/Windows).
+### 6.8 — Publication: CI, site, public beta  *[active — P0 shipped 2026-10-03]*  *(was M9)*
+
+Getting Lockstep out, in the shape the three sibling projects already use:
+multi-platform CI, a Docusaurus site on GitHub Pages behind a CNAME, docs
+mirrored to the wiki. Build plan:
+`docs/superpowers/plans/2026-10-03-publish-beta-build.md`. The template is
+antiphon (`.github/workflows/{build,deploy,wiki-sync}.yml`) — read its workflow
+comments before writing ours; they record measured failures (MinGW vs MSVC, the
+`-g` artefact-size blowup, clang-format version skew) worth not rediscovering.
+
+**Baseline measured 2026-10-03:** build clean; **6/6 ctest suites pass, 172s**
+(Debug); 465 tracked files, 170 MB `.git`, largest blob 11 MB (no LFS needed);
+~30 TODO/FIXME across `src/` + `libs/`; **33/33 CUJ rows implemented**.
+
+- [x] **P0 — agent tooling.** AGENTS.md documented six slash commands and two
+      hooks that existed in no repo in the ecosystem. Written from its own spec
+      and wired; the staging guard is proven live. AGENTS.md's stale Status
+      section is now a pointer to this file, its durable half kept as
+      "Load-bearing lessons", and its phantom `libs/music/` submodule struck.
+- [ ] **P1 — licence + contributor docs.** `LICENSE` (GPLv3 verbatim; JUCE is
+      used under its GPL option) and `CONTRIBUTING.md`. `THIRDPARTY.md` already
+      audits every dependency and is the best of the four sibling repos — it
+      just has no `LICENSE` beside it.
+- [ ] **P2 — the repository.** `chalkwalk/lockstep`, public. Keep the existing
+      `pi@192.168.1.31` origin under another name; 1487 commits live against it.
+      Decide `master`→`main` (every sibling workflow triggers on `main`).
+      Verify after pushing that no agent file travelled.
+- [ ] **P3 — build workflow.** **The schedule gate: read the macOS/Windows
+      result before committing to a beta date.** Expect genuine portability
+      errors there, not warnings — the strict set and `-Werror` are Clang-gated,
+      so neither new compiler fails on warnings. Verify the JUCE patch path
+      (root `CMakeLists.txt` 45–88) works with `CHALKWALK_JUCE_DIR` unset and a
+      fresh submodule, which is the CI case and never the local one. Plus the
+      lint job: clang-format pinned and blocking, clang-tidy advisory with its
+      finding count recorded here.
+- [ ] **P4 — documentation site.** Docusaurus; CNAME `lockstep.chalkwalkmusic.com`.
+      `README.md` is already a 2365-line manual with a table of contents, so it
+      is the source, not a thing to rewrite. **Decide first whether README
+      becomes a landing page or the site generates from it** — two divergent
+      copies of a 2365-line gesture reference is worse than either. Lands after
+      `6.9`, so it documents modality as it ends up.
+- [ ] **P5 — wiki sync.** Needs Wikis enabled and one page saved by hand;
+      GitHub does not create `.wiki.git` until then.
+- [ ] **P6 — release honesty.** A page naming every gap (see the locked
+      decision), then tag the beta.
 - [ ] Performance pass (voice CPU profile, choke-fade SIMD, voice cap).
 - [ ] Factory patch library.
-- [ ] Final product name (replace "Lockstep"), bundle ids, icons, About box.
-- [ ] First public beta build.
+- [ ] Bundle ids, icons, About box. *(The rename item is closed — "Lockstep" is
+      the name; see the locked decisions.)*
+- [ ] AU is built on macOS but has never been through `auval`. Treat as
+      untested-in-a-host alongside VST3 and CLAP, and say so.
+
+### 6.9 — Modality: one owner for entry, and a sweep that proves it  *[planned]*
+
+The modal architecture is **sound**, and this milestone is not a rewrite:
+`activeModal()` collapses every scattered flag into one 16-value `Modal` enum
+with a documented priority order; `FuncReskin` gives the five Func-layer pickers
+one priority order and one exit; `layerBanner` is exhaustive over 17 layers with
+no `default:`; `LayerRemapReachabilityTest` guards the remap rule that has bitten
+four times.
+
+The gap is that **entry and exit are enforced asymmetrically**. Exit is
+funnelled — 19 `escapeOverlay()` calls, one `exitFuncReskin()`, and a `kOverlays`
+table whose `ExitPolicy` has no default so omitting a field is a compile error.
+Entry is not: **six raw `ui.overlay = Overlay::X` writes in `PluginEditor.cpp`**
+(SampleProps, Density, Vel, Cue, Identity, Browser) set the field directly,
+bypassing the table that owns the matching exit. And `ModalStateTest` tests the
+*pure state* — it never asks whether a real gesture can reach a mode, or whether
+any gesture can leave it. All ten defects the CUJ arc found were found
+end-to-end by `UiDriver`, not by the unit tests over the same state.
+
+- [ ] **M1 — funnel entry.** Each of the six overlays enters through
+      `handleOverlayEvent`, so the `kOverlays` row owns both ends of a mode's
+      life. Keep the existing line: `processor_`-touching commits stay
+      editor-owned, only `UiState` transitions move. Add a build-time guard (in
+      the spirit of `SurfaceInvalidationGuardTest`) failing a raw
+      `overlay = Overlay::` assignment outside the reducer without a reason
+      comment — the second time this repo has needed that shape of guard.
+- [ ] **M2 — the sweep.** `tests/ModalSweepTest.cpp` in
+      `lockstep_dispatch_tests`. For each of the 16 `Modal` values: drive the
+      documented entry gesture and assert `activeModal()` agrees
+      (`expectReached`); then a fixed interrupt battery — `Esc`, `Func`
+      double-tap, a tap of each of the eight modifiers, transport start/stop,
+      and entry of a *different* modal. After each: exactly one modal live, the
+      displayed `SurfaceLayer` equal to the one `activeModal()` reports, and a
+      bounded escape back to `Modal::None`. ~200 cases.
+      - **A mode with no reachable entry gesture is itself a finding**, and is
+        the most likely thing this turns up. It is the 9.14 failure generalised:
+        the banner is a promise dispatch must keep.
+      - Harness gotchas, already paid for: `gap()` between same-modifier chords
+        or the second latches; mute is launch-quantized; `Track+Clear` needs a
+        confirm; UI tests asserting engine state need a `processBlock`.
+- [ ] **M3 — fix what it finds.** Triage into real bugs, undocumented-but-intended
+      behaviour (fix the docs), and dead gestures (retire them — the layer-remap
+      rule has killed five, and a dead gesture wearing a label is exactly the
+      9.14 failure). One focused commit per fix, each with its sweep case.
+- [ ] **M4 — land it as a standing net.** A Group I in `tests/CUJ_CATALOGUE.md`;
+      note here that it is a net, not an arc — run it, add a row when a new modal
+      ships.
 
 ---
 

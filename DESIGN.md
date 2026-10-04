@@ -1,9 +1,9 @@
 # Lockstep — Design
 
-> Working name. **Lockstep** is the codename used throughout the source
-> tree (CMake project, namespace `lockstep`, bundle id
-> `com.ChalkWalkMusic.Lockstep`); the eventual product name will replace
-> it.
+> **Lockstep** is the product name, settled 2026-10-03 (see the
+> locked-decision list in `ROADMAP.md`). It is also what the source tree
+> already says — CMake project, namespace `lockstep`, bundle id
+> `com.ChalkWalkMusic.Lockstep` — so nothing has to move.
 
 ## 1. Vision
 
