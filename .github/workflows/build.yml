@@ -78,8 +78,36 @@ jobs:
       # time against whichever root it resolved. That path was verified by
       # cloning this repository fresh and configuring with the variable unset,
       # because it is the case nobody exercises locally.
-      - name: Configure (Linux and macOS)
-        if: runner.os != 'Windows'
+      #
+      # NAME THE COMPILER ON LINUX. ubuntu-latest's default `c++` is GCC, and
+      # src/CMakeLists.txt gates the strict warning set AND -Werror behind
+      # Clang -- a GCC build silently takes the else() branch and gets only
+      # juce_recommended_warning_flags, with no -Werror at all.
+      #
+      # Left to the default, this job compiles the code but does not enforce
+      # the project's warning policy, which makes the macOS job the de-facto
+      # -Werror gate. That is backwards for a Clang-first project, and it is
+      # how five -Wsign-conversion errors in a vendored header reached CI
+      # unseen: Ubuntu's Clang 21 flags them exactly as AppleClang does, when
+      # it is actually asked to. It never was.
+      #
+      # AGENTS.md already carries this warning for the sanitizer trees, where
+      # the same default silently turned a sweep into a GCC build. Same trap,
+      # same fix: say which compiler you mean.
+      - name: Configure (Linux)
+        if: runner.os == 'Linux'
+        run: >
+          cmake -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DJUCE_BUILD_EXAMPLES=OFF -DJUCE_BUILD_EXTRAS=OFF
+        shell: bash
+
+      # macOS needs no such flag: AppleClang is already the default, which is
+      # why this platform was the first to enforce -Werror on anything.
+      - name: Configure (macOS)
+        if: runner.os == 'macOS'
         run: >
           cmake -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Release

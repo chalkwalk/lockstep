@@ -302,7 +302,11 @@ namespace lockstep
                 src[static_cast<std::size_t>(i)] =
                     static_cast<float>(std::sin(2.0 * 3.14159265358979323846 * 0.35 * i));
 
-            const auto rms = [&src, cap](const dc::Resampler& bank) {
+            // `cap` is constexpr, so it is usable here without being captured
+            // and Clang's -Wunused-lambda-capture rejects naming it. GCC has no
+            // such warning, which is why this survived until CI built with
+            // Clang on Linux for the first time.
+            const auto rms = [&src](const dc::Resampler& bank) {
                 double sum = 0.0;
                 double pos = 64.0;
                 for (int i = 0; i < 1024; ++i, pos += 1.25)
