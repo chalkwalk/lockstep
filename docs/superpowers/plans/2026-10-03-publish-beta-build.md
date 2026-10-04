@@ -120,18 +120,19 @@ already the best of the four sibling repos; it just has no `LICENSE` beside it.
 
 ## P2 — GitHub repository
 
-- [ ] `gh repo create chalkwalk/lockstep --public` with a one-line description in
-      the register of the siblings (see `gh repo list chalkwalk` for the house
-      style — a concrete claim, not a pitch).
-- [ ] Add it as a remote. **Keep the existing `pi@192.168.1.31` remote** under
-      another name; it is the current origin and 1487 commits of history live
-      against it.
-- [ ] Push `master`. **Decide branch naming:** every sibling workflow triggers on
-      `main`. Either rename `master`→`main` (then the workflows port unchanged)
-      or change three trigger blocks. Renaming is the lower-friction choice and
-      costs one `git branch -m` plus a default-branch flip.
-- [ ] Verify the untracked agent files did not travel: after the push,
-      `git ls-files | grep -E 'AGENTS|CLAUDE|GEMINI|\.claude'` must be empty.
+*Done 2026-10-03. Decided at the time: **public immediately** (nothing here is
+secret, and a red first macOS tick is an honest look for a pre-beta project),
+and **`master` → `main`** so the sibling workflows port unchanged.*
+
+- [x] `gh repo create chalkwalk/lockstep --public` — https://github.com/chalkwalk/lockstep
+- [x] Old remote kept as `pi`; `origin` is now GitHub. 1487 commits of history
+      still have their home on the pi.
+- [x] `master` renamed to `main`, pushed, default branch confirmed `main`.
+- [x] Verified **against the remote, not the local index**: the GitHub contents
+      API lists no `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` / `.claude`. `JUCE`
+      appears as a gitlink, as it should.
+- [x] All seven submodule URLs confirmed reachable unauthenticated — the
+      recursive checkout CI does cannot fail on a private dependency.
 
 ## P3 — Build workflow
 
