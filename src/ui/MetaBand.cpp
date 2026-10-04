@@ -163,12 +163,18 @@ namespace lockstep
     bool applyTimeEntry(UiState& ui) noexcept
     {
         const bool entering = (ui.overlay != Overlay::Time);
-        ui.overlay = entering ? Overlay::Time : Overlay::None;
         if (entering)
         {
+            enterOverlay(ui, Overlay::Time);
             ui.timeEntryScope = timeScopeFor(ui);
             ui.sigPage = UiState::SigPage::Time;  // always open on the TIME page
             ui.swingDismissed = true;
+        }
+        else
+        {
+            // Was a bare `ui.overlay = Overlay::None`, which skipped the
+            // parameter reset the way every other hand-rolled transition did.
+            escapeOverlay(ui, Overlay::Time);
         }
         return entering;
     }

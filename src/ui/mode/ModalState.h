@@ -26,25 +26,33 @@ namespace lockstep
     enum class Modal : uint8_t
     {
         None,
-        // Func-layer pickers / editors (step-grid modals), highest priority first:
-        MasterFxPicker,   // Func+Song+FX     (entered)
-        TrackFxPicker,    // Func+FX          (held-chord)
-        MachinePicker,    // Func+Track       (held-chord)
-        GeneratorHub,     // 3-key long-hold  (held-chord)
-        NoteEdit,         // Func+Src+step    (entered)
-        PLockClear,       // Func+step        (entered)
-        // Armed generators (step grid shows trigs; commit/cancel/escape):
+        // Func-layer pickers / editors (step-grid modals), highest priority first.
+        //
+        // The gestures below were corrected in 6.9 against `kBindings`, which is
+        // the authority (9.12). Three of them had been wrong since 9.29 moved
+        // the pickers off the Func layer when Func+Track became the Machine
+        // scope, and a fourth described the generator hub as a chord it has
+        // not been for some time. A comment is not load-bearing until someone
+        // believes it, and these were believed.
+        MasterFxPicker,   // Song + hold(FX)    (entered)
+        TrackFxPicker,    // Track + hold(FX)   (held-chord)
+        MachinePicker,    // Track + hold(SRC)  (held-chord)
+        GeneratorHub,     // hold(TapTempo)     (held-chord)
+        NoteEdit,         // SRC tap on a held step, via the inspector  (entered)
+        PLockClear,       // Func + step        (entered)
+        // Armed generators (step grid shows trigs; commit/cancel/escape).
+        // All three are chosen from the generator hub: cells 0, 3 and 4.
         Euclid,
         Melodic,
         Harmony,
         // Sticky MZ-band overlays (escape to exit):
-        Time,
-        Density,
-        Vel,
+        Time,             // Song/Scene + TRIG, toggling
+        Density,          // generator hub, cell 1
+        Vel,              // generator hub, cell 2
         SampleProps,      // pool sample-properties editor (entered from a pool row)
-        Cue,              // 6.4 cue console (Cue-held + Nav): flip grid + param page
+        Cue,              // 6.4 cue console: Cue scope + long-hold(AMP)
         Identity,         // 5.3 generative naming/colour editor for a Song/Scene/Sound
-        Browser,          // 5.3 Song->Scene / per-track Phrase browser (non-modal view)
+        Browser,          // 5.3 Song->Scene / per-track Phrase browser; Func+Song+MOD
     };
 
     // Highest-priority active modal derived from current UiState (read-only).

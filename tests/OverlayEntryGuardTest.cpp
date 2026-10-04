@@ -82,10 +82,39 @@ void runOverlayEntryGuardTests()
                 || trimmed.startsWith("/*"))
                 continue;
 
-            // `.overlay = Overlay::` -- an assignment to the field. Comparisons
-            // (`== Overlay::`) and reads are untouched; only writes matter.
-            if (!trimmed.contains(".overlay = Overlay::")
-                && !trimmed.contains("overlay = Overlay::"))
+            // Any ASSIGNMENT to the field, however the right-hand side is
+            // spelled. The first version of this matched the literal
+            // `.overlay = Overlay::` and therefore missed
+            //
+            //     ui.overlay = entering ? Overlay::Time : Overlay::None;
+            //
+            // in MetaBand.cpp -- a hand-rolled toggle doing exactly what this
+            // guard exists to stop, sitting in the tree while the guard
+            // reported clean. A guard that only catches the shape you thought
+            // of is worth less than it appears.
+            //
+            // Comparisons are excluded explicitly; `!=` cannot match because
+            // of the `!` between the name and the `=`.
+            if (!trimmed.contains("overlay =") || trimmed.contains("overlay =="))
+                continue;
+
+            // ...but only UiState's field. `overlay` is not a unique name --
+            // InspectorModel has one of its own, and `m.overlay = buildOverlayRegion(...)`
+            // is nothing to do with modal state. Narrowing by the right-hand
+            // side (an Overlay:: value, which covers the ternary form too) or
+            // by a receiver that is recognisably a UiState keeps the guard on
+            // its own subject.
+            //
+            // Residual gap, stated rather than papered over: an assignment from
+            // a variable of type Overlay through an unfamiliar receiver --
+            // `cfg.overlay = saved;` -- would not be caught. Everything in the
+            // tree today names either the type or a known receiver.
+            const bool namesOverlayValue = trimmed.contains("Overlay::");
+            const bool knownReceiver = trimmed.contains("ui.overlay =")
+                                       || trimmed.contains("uiState_.overlay =")
+                                       || trimmed.contains("state.overlay =")
+                                       || trimmed.contains("u.overlay =");
+            if (!namesOverlayValue && !knownReceiver)
                 continue;
 
             if (isSanctioned(rel))
