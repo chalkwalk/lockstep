@@ -102,6 +102,22 @@ add_subdirectory(modules/bungee EXCLUDE_FROM_ALL)
 # itself when building shared, so set it here for both static archives.
 set_target_properties(bungee_library pffft PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# MSVC does not define M_PI from <math.h> unless _USE_MATH_DEFINES is set first.
+# PFFFT's fftpack.c uses it in seven places, so the first Windows build ever
+# attempted died there -- in vendored third-party C, before reaching a line of
+# Lockstep.
+#
+# Defined from OUT HERE on purpose. THIRDPARTY.md's MPL-2.0 rule is that Bungee
+# modifications stay isolated and upstreamable, and MPL-2.0 copyleft is
+# file-level: editing fftpack.c would put that file's source under an obligation
+# for a one-line portability papercut. A compile definition applied from the
+# consuming project touches no vendored file at all, which is the same reason
+# the PIC property above is set here rather than patched in.
+if(MSVC)
+    target_compile_definitions(pffft PRIVATE _USE_MATH_DEFINES)
+    target_compile_definitions(bungee_library PRIVATE _USE_MATH_DEFINES)
+endif()
+
 # FluidLite — the SoundFont engine behind the `Tone` machine (4.10, DESIGN §29.3).
 # LGPL-2.1+ ("or any later version"), so GPLv3-compatible under static linking.
 #

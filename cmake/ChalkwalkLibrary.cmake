@@ -82,4 +82,37 @@ function(chalkwalk_add_library name submodule_path)
     # FluidLite patch is applied in the build we actually made.
     set(CHALKWALK_${upper}_TESTS ON CACHE BOOL "" FORCE)
     add_subdirectory("${root}" "${CMAKE_BINARY_DIR}/libs/${name}")
+
+    # A vendored library's headers are SYSTEM headers to everyone here.
+    #
+    # Every other vendored dependency already arrives this way -- bungee,
+    # fluidlite and signalsmith are all -isystem -- but these came in through
+    # add_subdirectory, which propagates their include directories as plain -I.
+    # So this project's -Werror applied to their internals, which was never the
+    # intent and was pure accident of how they are added.
+    #
+    # It cost a CI failure to notice: the first macOS run ever attempted died on
+    # five -Wsign-conversion errors inside chalkwalk-tape's Resampler.h, from
+    # `size_t * int` in its polyphase indexing. AppleClang diagnoses them and
+    # Ubuntu's Clang 21 does not, so a Linux-only project could not have seen
+    # this coming -- which is the entire argument for having the other two
+    # platforms in CI at all.
+    #
+    # This silences them HERE; it does not fix them. They are real conversions
+    # in a library we own, they want fixing in chalkwalk-tape where its own
+    # CI and its other consumer (Remanence) will benefit, and ROADMAP.md 6.8
+    # carries that item. What this does is stop one project's warning policy
+    # from being enforced on another project's source, which is not this
+    # repository's business.
+    #
+    # Note this does NOT weaken verification: each library's own Catch2 suite
+    # still runs inside our ctest, which is how this project checks its
+    # dependencies rather than assuming them. Warnings are not tests.
+    if(TARGET chalkwalk_${name})
+        get_target_property(_cw_inc chalkwalk_${name} INTERFACE_INCLUDE_DIRECTORIES)
+        if(_cw_inc)
+            set_target_properties(chalkwalk_${name} PROPERTIES
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_cw_inc}")
+        endif()
+    endif()
 endfunction()
