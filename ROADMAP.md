@@ -1700,6 +1700,32 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
         zero, and not before.
 - [ ] **Record the clang-tidy baseline** from the first green lint run, the way
       antiphon records its 142, then work it down.
+- [ ] **Fix the sign-conversions in `chalkwalk-tape`'s `Resampler.h`** (upstream,
+      not here). Five `size_t * int` sites in the polyphase indexing. AppleClang
+      errors on them under `-Wsign-conversion`; Ubuntu Clang 21 does not, which
+      is why they reached CI. Lockstep's first macOS build died on them.
+      - Worked around here by marking the chalkwalk libraries `SYSTEM`, which
+        was the correct fix for *this* repo — they are vendored, and every other
+        vendored dependency was already `-isystem`. But the conversions are real
+        and the library is ours, so they want fixing where its own CI and
+        Remanence both benefit.
+      - **Not already fixed upstream.** The working checkout is two commits
+        ahead (`e3d52bd` "Build on macOS and Windows", `63da1d4`) and neither
+        touches `Resampler.h` — those fixed `Bias.h`, `TapeEq.h`, `LossEffects.h`
+        and `HeadLengthLoss.h`. The sites are byte-identical at both commits.
+- [ ] **Decide what the `libs/tape` pin should be, and stop local builds lying
+      about it.** The submodule pins `80d9adf`; the local `build/` cache has
+      `CHALKWALK_TAPE_DIR` pointing at a working checkout at `63da1d4`, two
+      commits ahead and clean. So **every local build and test run has been
+      against the override, not the pin** — including the 6/6 baseline this arc
+      started from. CI has no override and builds the pin, so local green and CI
+      green are not the same claim.
+      - `cmake/ChalkwalkLibrary.cmake` warns about exactly this in its own
+        header comment ("THE SUBMODULE SHA NO LONGER DESCRIBES WHAT YOU BUILT")
+        and says: use an override to iterate, bump the submodule and re-verify
+        before calling anything done. The bump was never done.
+      - Either bump to `63da1d4` and re-verify, or clear the override and
+        confirm the pin still passes. Not both silently.
 - [ ] **P4 — documentation site.** Docusaurus; CNAME `lockstep.chalkwalkmusic.com`.
       `README.md` is already a 2365-line manual with a table of contents, so it
       is the source, not a thing to rewrite. **Decide first whether README
