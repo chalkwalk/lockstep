@@ -1700,10 +1700,9 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
       - A local run with clang-tidy **21** counts **16,926** over `src/` alone.
         Both are honest; they are different tools. Newer clang-tidy ships more
         checks in the families `.clang-tidy` enables, so the count rises with
-        the version. **The runner's clang-tidy is not pinned** (clang-format
-        is, via PyPI), which means this baseline will move when
-        `ubuntu-latest` moves, independent of the code. Pin it before treating
-        the number as a gate.
+        the version. *(Pinned 2026-10-04 to clang-tidy **18.1.8** from PyPI —
+        the major that produced the baseline, so the figure stays continuous.
+        Bump it deliberately and re-record the baseline in the same change.)*
       - Findings in a shared header count once per unit that includes it, so
         distinct issues are fewer than the total.
       - *(Done 2026-10-04.)* The CI step now runs every translation unit in

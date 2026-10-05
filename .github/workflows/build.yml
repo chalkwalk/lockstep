@@ -228,7 +228,7 @@ jobs:
             libasound2-dev libx11-dev libxcomposite-dev libxcursor-dev \
             libxext-dev libxinerama-dev libxrandr-dev libxrender-dev \
             libfreetype6-dev libfontconfig1-dev libcurl4-openssl-dev \
-            libgl1-mesa-dev libglu1-mesa-dev ninja-build clang-tidy
+            libgl1-mesa-dev libglu1-mesa-dev ninja-build
 
       # Pinned, and from PyPI rather than apt, because clang-format is not
       # stable across major versions -- 18 and 20 disagree about `({})` as a
@@ -237,6 +237,19 @@ jobs:
       # CONTRIBUTING.md, which tells contributors to install the same one.
       - name: Install clang-format
         run: pip install "clang-format==20.1.8"
+
+      # Pinned for the same reason, and from PyPI for the same reason. This was
+      # apt's clang-tidy, which is whatever ubuntu-latest ships -- 18 on the
+      # day the whole-tree baseline (14,611) was taken. Newer clang-tidy ships
+      # more checks in the families .clang-tidy enables, so an unpinned tool
+      # moves the count when the runner image moves, independent of the code,
+      # and a baseline that drifts on its own is not one.
+      #
+      # 18.1.8 rather than the clang-format version, because it is the major
+      # that produced the recorded baseline and keeps the figure continuous.
+      # Bump it deliberately, and re-record the baseline in the same change.
+      - name: Install clang-tidy
+        run: pip install "clang-tidy==18.1.8"
 
       # ADVISORY, and this is a measurement rather than a preference.
       #
@@ -294,6 +307,7 @@ jobs:
       - name: clang-tidy (advisory, whole tree)
         continue-on-error: true
         run: |
+          clang-tidy --version
           find src tools -name '*.cpp' -print0 \
             | xargs -0 -P 4 -n 1 clang-tidy -p build --quiet 2>&1 | tee tidy.log
           n=$(grep -cE 'warning:|error:' tidy.log || true)

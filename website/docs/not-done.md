@@ -65,9 +65,9 @@ written down rather than discovered:
   the codebase.
 - **clang-tidy is advisory.** CI's whole-tree count is **14,611 findings**
   across 73 translation units, with clang-tidy 18. (It used to report 2,227
-  from a glob that covered about five of them.) A newer clang-tidy counts more,
-  because it ships more checks, and the runner's version is not yet pinned —
-  so the figure will drift until it is. Findings in a shared header count once
+  from a glob that covered about five of them.) The tool is pinned to clang-tidy
+  18.1.8 so the figure measures the code rather than the runner image — a newer
+  clang-tidy counts more because it ships more checks. Findings in a shared header count once
   per unit that includes it, so distinct issues are fewer than the total.
 - **Link-time optimisation is off.** There is a circular dependency between two
   static archives (the engine names an editor symbol it does not own), and LTO
