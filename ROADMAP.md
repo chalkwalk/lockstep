@@ -10,25 +10,15 @@ satisfy, see `PRINCIPLES.md`. **Before adding a milestone here, confirm it is
 expressible within those principles and within the existing scope+verb grammar
 (DESIGN §13).**
 
-**Active focus (refreshed 2026-10-03):**
+**Active focus (refreshed 2026-10-04):**
 
-0. **`6.8` — Publication, then `6.9` — Modality.** The project is being taken
-   public, in the shape antiphon / arps-euclidya / star-canopy already use: CI on
-   Linux/macOS/Windows, a Docusaurus site at `lockstep.chalkwalkmusic.com`, docs
-   mirrored to the wiki. **"Lockstep" is the final name** and the first release
-   is **a beta with its gaps named** (both in the locked-decisions list).
-
-   Publication runs *first*, and the reason is specific: **nothing in this
-   codebase has ever been compiled on macOS or Windows.** That is the only
-   unbounded risk on the path to a beta, and CI sizes it in an afternoon.
-   `6.8` P3 is the schedule gate — read the result before promising a date.
-
-   `6.9` then closes the one real modality gap: entry and exit are enforced
-   asymmetrically, and ~200 mechanical cases will say what that has cost.
-
-   Plan: `docs/superpowers/plans/2026-10-03-publish-beta-build.md`.
-   *(P0 — the agent tooling AGENTS.md described but no repo in the ecosystem
-   actually had — shipped 2026-10-03.)*
+*Lockstep is public* (`6.8`, 2026-10-04): `github.com/chalkwalk/lockstep`, CI
+green on Linux, macOS and Windows in one run, docs at
+`lockstep.chalkwalkmusic.com` mirrored to the wiki. Published the way
+antiphon, arps-euclidya and star-canopy are — no tags or GitHub releases; the
+builds are CI's artefacts. *The modality arc (`6.9`) is also done*: one stuck
+mode found and fixed (Melodic could not be escaped), and a standing 150-case
+sweep. What remains is product work and a short list of debts, both below.
 
 1. **`5.3` — Song/Scene management UI.** Names, colours, browser and phrase
    copy/fork all ship (two play-test rounds landed 2026-07-16/17). What remains is
@@ -1438,7 +1428,7 @@ scopes use (reachable secondaries were invisible), and the §6.2 relocations
 landed: `TRACK` meta -> `Track+TRIG`, `GLOBAL` -> `Song+FX`, with `Func`
 pinned to COND/NOTE.
 
-## Phase 6 — Routing, FX & Platform  *[6.1/6.2/6.3/6.5 shipped; 6.4 shipped incl. access pass + 6.4a overlay tiers (Cue+Scene / Cue+MIDI-out deferred); 6.6 in progress; 6.7 waits for a second consumer; **6.8 active** (publication, P0 shipped); **6.9 shipped** (modality)]*
+## Phase 6 — Routing, FX & Platform  *[6.1/6.2/6.3/6.5 shipped; 6.4 shipped incl. access pass + 6.4a overlay tiers (Cue+Scene / Cue+MIDI-out deferred); 6.6 in progress; 6.7 waits for a second consumer; **6.8 shipped** (public); **6.9 shipped** (modality)]*
 
 The audio-input boundary and the machines it unlocks, the effects system, the cue
 bus, external controller surfaces, the machine-module ABI, and the beta polish.
@@ -1650,12 +1640,14 @@ Not a CLAP/VST3 sub-host; in-process, no IPC/sandbox.
       sample access, freeze ABI v1 with a golden-header CI test). Author 4.5 / 4.6
       against the SDK thereafter.
 
-### 6.8 — Publication: CI, site, public beta  *[active — P0 shipped 2026-10-03]*  *(was M9)*
+### 6.8 — Publication: CI, site, public  *[SHIPPED 2026-10-04 — remaining items are debts]*  *(was M9)*
 
 Getting Lockstep out, in the shape the three sibling projects already use:
 multi-platform CI, a Docusaurus site on GitHub Pages behind a CNAME, docs
-mirrored to the wiki. Build plan:
-`docs/superpowers/plans/2026-10-03-publish-beta-build.md`. The template is
+mirrored to the wiki. The build plan
+(`docs/superpowers/plans/2026-10-03-publish-beta-build.md`) is folded into
+this entry and deleted, per the maintenance convention; `git log -p` on it
+recovers the detail. The template is
 antiphon (`.github/workflows/{build,deploy,wiki-sync}.yml`) — read its workflow
 comments before writing ours; they record measured failures (MinGW vs MSVC, the
 `-g` artefact-size blowup, clang-format version skew) worth not rediscovering.
@@ -1814,8 +1806,16 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
 - [ ] **Turn on Enforce HTTPS** once GitHub finishes issuing the certificate
       for the custom domain. Enabling it before the cert exists breaks TLS,
       which is how it was found; enforcement is off until then.
-- [ ] **P6 — release honesty.** A page naming every gap (see the locked
-      decision), then tag the beta.
+- [x] **P6 — release honesty.** *(2026-10-04.)* `/docs/not-done` names every
+      gap — platforms as what is actually true, unfinished features, unrun ear
+      tests, internal debts — and ends with what is solid. Linked from the docs
+      front page.
+      - **"Then tag the beta" is dropped, by decision.** None of the sibling
+        projects has a single tag or GitHub release; their model is a public
+        repo with CI artefacts on every push, a docs site and a wiki, and
+        Lockstep now matches it. The version in `CMakeLists.txt` stays `0.0.1`.
+        A release ritual the rest of the ecosystem does not use would have been
+        invented here rather than followed.
 - [ ] Performance pass (voice CPU profile, choke-fade SIMD, voice cap).
 - [ ] Factory patch library.
 - [ ] Bundle ids, icons, About box. *(The rename item is closed — "Lockstep" is
