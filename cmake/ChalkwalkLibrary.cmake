@@ -98,12 +98,13 @@ function(chalkwalk_add_library name submodule_path)
     # this coming -- which is the entire argument for having the other two
     # platforms in CI at all.
     #
-    # This silences them HERE; it does not fix them. They are real conversions
-    # in a library we own, they want fixing in chalkwalk-tape where its own
-    # CI and its other consumer (Remanence) will benefit, and ROADMAP.md 6.8
-    # carries that item. What this does is stop one project's warning policy
-    # from being enforced on another project's source, which is not this
-    # repository's business.
+    # Those five are now fixed upstream (chalkwalk-tape 8138297), so this is no
+    # longer hiding anything known. It stays anyway, because it was never only
+    # a workaround: a vendored library's internals are not this repository's to
+    # police, and the next library pulled in this way should not be able to
+    # break the build over a warning class its own authors never enabled --
+    # chalkwalk-tape does not build with -Wsign-conversion, which is exactly
+    # why its CI never saw the five.
     #
     # Note this does NOT weaken verification: each library's own Catch2 suite
     # still runs inside our ctest, which is how this project checks its

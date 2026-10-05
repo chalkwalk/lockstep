@@ -1719,19 +1719,17 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
 - [x] **clang-format baseline confirmed in CI: 233 / 402** at the pinned
       20.1.8 — identical to the local measurement, so the figure is not an
       artifact of one machine's toolchain.
-- [ ] **Fix the sign-conversions in `chalkwalk-tape`'s `Resampler.h`** (upstream,
-      not here). Five `size_t * int` sites in the polyphase indexing. AppleClang
-      errors on them under `-Wsign-conversion`; Ubuntu Clang 21 does not, which
-      is why they reached CI. Lockstep's first macOS build died on them.
-      - Worked around here by marking the chalkwalk libraries `SYSTEM`, which
-        was the correct fix for *this* repo — they are vendored, and every other
-        vendored dependency was already `-isystem`. But the conversions are real
-        and the library is ours, so they want fixing where its own CI and
-        Remanence both benefit.
-      - **Not already fixed upstream.** The working checkout is two commits
-        ahead (`e3d52bd` "Build on macOS and Windows", `63da1d4`) and neither
-        touches `Resampler.h` — those fixed `Bias.h`, `TapeEq.h`, `LossEffects.h`
-        and `HeadLengthLoss.h`. The sites are byte-identical at both commits.
+- [x] **Sign-conversions in `chalkwalk-tape`'s `Resampler.h` fixed upstream**
+      *(2026-10-04, chalkwalk-tape `8138297`; pin bumped to it)*. Five
+      `size_t * int` stride computations, safe at runtime but fatal to any
+      consumer building with `-Wsign-conversion -Werror` — Lockstep's first
+      macOS build died on them. The stride is now cast explicitly, matching
+      how the file already casts its table size. The library itself does not
+      enable `-Wsign-conversion`, which is why its own CI never saw them; that
+      policy is its own and was left alone.
+      - Lockstep keeps including the chalkwalk libraries as `SYSTEM`. That was
+        never only a workaround: a vendored library's warnings are not this
+        repository's to enforce.
 - [x] **`libs/tape` pin bumped to `63da1d4`, and the override cleared**
       (2026-10-04). The submodule pinned `80d9adf` while this tree's `build/`
       cache pointed `CHALKWALK_TAPE_DIR` at a working checkout two commits
