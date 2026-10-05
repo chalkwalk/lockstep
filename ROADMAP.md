@@ -1838,9 +1838,10 @@ skipped the outgoing overlay's parameter reset.
 - **M2** — `ModalSweepTest`: every `Modal` entered by its real gesture, then ten
   interruptions each, asserting the surface cannot show a layer ranked below the
   active modal and that a bounded escape reaches rest with **every flag clear**.
-  15 of 16 driven, 150 cases; the table is exhaustive over `Modal` and fails if a
-  value is missing. `SampleProps` is undriven and says so — it needs a populated
-  pool, which is a fixture rather than a gesture.
+  **16 of 16 driven, 160 cases**; the table is exhaustive over `Modal` and fails
+  if a value is missing. `SampleProps` was last — it opens from the pool
+  overlay, so the sweep loads a sample, opens the pool from the rail, selects
+  the row and presses Props... with real clicks through the component tree.
 - **M3** — **the find: the melodic generator could not be escaped.** `kOverlays`
   had rows for Euclid and Harmony and none for Melodic, so `handleOverlayEvent`
   answered `NotConsumed` to everything and the universal escape did nothing. A
@@ -1852,7 +1853,7 @@ skipped the outgoing overlay's parameter reset.
 - **M4** — landed as Group I in `tests/CUJ_CATALOGUE.md`. A standing net: run it,
   add a row when a new modal ships.
 
-**Open, small:** drive `SampleProps` once a pool fixture exists.
+*(The one open item, driving `SampleProps`, is done — 16 of 16.)*
 
 ---
 

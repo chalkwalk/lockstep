@@ -85,7 +85,7 @@ For balance, because a page like this is misleading on its own. The test suite
 is six binaries and runs in about 70 seconds. Every row of the Critical User
 Journey catalogue is implemented. The gesture grammar is covered by a 125-row
 behavioural golden that is platform-independent and passes on all three
-platforms, and by a modal sweep that drives 15 of the 16 modal states through a
+platforms, and by a modal sweep that drives all 16 modal states through a
 battery of interruptions. Several of the guards in this codebase fail the
 *build* rather than a test, because the bugs they prevent were invisible on
 screen.

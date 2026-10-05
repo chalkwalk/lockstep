@@ -130,6 +130,12 @@ namespace lockstep
         {
             return ed.poolBtn_.getBounds();
         }
+        // The pool overlay itself, so a test can find its rows and toolbar buttons
+        // and click them as a person would. Exposing the component rather than its
+        // callbacks is deliberate: calling onEditProps directly would skip the very
+        // path (open the pool, select a row, press Props...) that the modal sweep
+        // exists to prove reachable.
+        static juce::Component& poolOverlay(LockstepEditor& ed) { return ed.poolOverlay_; }
         static juce::Rectangle<int> popover(const LockstepEditor& ed) { return ed.confirmPopoverRegion_; }
         static juce::Rectangle<int> mz(const LockstepEditor& ed)
         {

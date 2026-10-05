@@ -570,11 +570,17 @@ transport start/stop. After each, two assertions:
   "exactly one is active" is true by construction and proves nothing. What goes
   wrong is a modal left half-shut — field cleared, parameters still set.
 
-**Coverage is 15 of 16 and the test says so on every run.** The table is
-exhaustive over `Modal` and fails if a value is missing from it, so a new modal
-cannot be added without someone deciding how it is reached. `SampleProps` is the
-one undriven value: it opens from a Props button on a pool row, so it needs a
-populated pool — a fixture, not a gesture.
+**Coverage is 16 of 16, 160 cases.** The table is exhaustive over `Modal` and
+fails if a value is missing from it, so a new modal cannot be added without
+someone deciding how it is reached. A row with no entry gesture is allowed but
+prints its reason on every run, so a hole stays visible.
+
+`SampleProps` was the last to be driven, because it is not opened from the
+keyboard: load a sample, open the pool from the project rail, select the row,
+press **Props...**. The sweep does all of that through the component tree with
+real clicks rather than calling `onEditProps`, which would skip the path it
+exists to prove. The pool browser groups rows under non-selectable headers, so
+the gesture tries rows top-down rather than hard-coding where the sample lands.
 
 **What it found.** The melodic generator could not be escaped. `kOverlays` had
 descriptors for Euclid and Harmony and none for Melodic, which shipped between
@@ -582,8 +588,12 @@ them; with no descriptor `handleOverlayEvent` answered `NotConsumed` to every
 event, so the universal escape did nothing and only a Section press got you out.
 A `constexpr` check now requires every `Overlay` except `None` to have a row.
 
-*Harness notes, paid for once:* the generator hub needs the editor's timer ticked
-or a long hold is invisible; a held chord must not be released, and `GeneratorHub`
+*Harness notes, paid for once:* to click a component nested inside one of the
+editor's top-level children, map into that child and add its design-space
+position — mapping straight through `editor.getLocalPoint()` also applies the
+child's scale transform and returns physical pixels, which `clickDesign` then
+scales a second time; the generator hub needs the editor's timer ticked or a
+long hold is invisible; a held chord must not be released, and `GeneratorHub`
 correctly outranks the generator it launches while still down; the step inspector
 fires mid-hold from the timer, so the step stays pressed.
 

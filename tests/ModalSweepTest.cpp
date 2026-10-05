@@ -36,6 +36,8 @@
 #include "../src/ui/mode/FuncReskin.h"
 #include "../src/command/SurfaceLayer.h"
 
+#include <juce_gui_basics/juce_gui_basics.h>
+
 #include <cstdio>
 #include <functional>
 #include <vector>
@@ -67,6 +69,42 @@ namespace
         d.press(b, idx);
         d.advanceMs(GestureRecognizer::kLongPressMs + 60.0);
         d.editor().timerCallback();
+    }
+
+    // Find the first descendant of `root` of type T satisfying `pred`. Used to
+    // reach the pool overlay's own list and toolbar buttons by what they are,
+    // rather than by private member access, so the click goes through the
+    // component tree exactly as the mouse does.
+    template <typename T, typename Pred>
+    T* findDescendant(juce::Component& root, Pred&& pred)
+    {
+        for (auto* c : root.getChildren())
+        {
+            if (auto* t = dynamic_cast<T*>(c); t != nullptr && pred(*t))
+                return t;
+            if (auto* deeper = findDescendant<T>(*c, pred))
+                return deeper;
+        }
+        return nullptr;
+    }
+
+    // Click a point inside a component nested in one of the editor's top-level
+    // children, through the real mouse path.
+    //
+    // A top-level child's own bounds are design space -- the rail button's go
+    // straight to clickDesign -- but mapping a NESTED component through
+    // editor.getLocalPoint() also applies that top-level child's scale
+    // transform, so the result comes back already in physical pixels, and
+    // clickDesign then scales it a second time. The first version of this did
+    // exactly that and clicked off the edge of the pool overlay.
+    //
+    // So map into the top-level child (whose coordinates are design units) and
+    // add its design-space position.
+    void clickIn(UiDriver& d, juce::Component& topLevel, juce::Component& c,
+                 juce::Point<int> local)
+    {
+        const auto inTop = topLevel.getLocalPoint(&c, local);
+        d.clickDesign((topLevel.getPosition() + inTop).toFloat());
     }
 
     struct Row
@@ -224,10 +262,39 @@ namespace
               [](UiDriver& d) { d.press(CB::SongScope); holdLong(d, CB::Section, kSecMod); },
               nullptr },
 
-            // --- Still not driven ---------------------------------------------
-            { Modal::SampleProps, "SampleProps", nullptr,
-              "opened from a Props button on a pool row; needs a populated sample "
-              "pool and the pool overlay, which is a fixture rather than a gesture" },
+            // Opened from the pool overlay: load a sample, open the pool from the
+            // project rail, select the sample's row, press Props... -- the whole
+            // path a person takes, through the component tree, not a callback.
+            //
+            // The browser groups pool rows under non-selectable headers, so which
+            // display row the sample lands on is a layout fact this test should
+            // not hard-code. It tries rows top-down the way someone scanning the
+            // list would; Props on a header is a no-op that leaves the overlay
+            // open, so a miss simply moves on to the next row.
+            { Modal::SampleProps, "SampleProps",
+              [](UiDriver& d) {
+                  const auto wav = juce::File(LOCKSTEP_TEST_DIR)
+                                       .getChildFile("assets/drum_loop_110bpm.wav");
+                  d.proc().samplePool().load(wav.getFullPathName());
+
+                  auto& ed = d.editor();
+                  d.clickDesign(DispatchProbe::railPoolBtn(ed).getCentre().toFloat());
+
+                  auto& ov = DispatchProbe::poolOverlay(ed);
+                  auto* list = findDescendant<juce::ListBox>(ov, [](auto&) { return true; });
+                  auto* props = findDescendant<juce::TextButton>(
+                      ov, [](juce::TextButton& b) { return b.getButtonText() == "Props..."; });
+                  if (list == nullptr || props == nullptr)
+                      return;   // entry assertion reports the miss
+
+                  const int rowH = list->getRowHeight();
+                  for (int row = 0; row < 4 && activeModal(d.ui()) != Modal::SampleProps; ++row)
+                  {
+                      clickIn(d, ov, *list, { 12, row * rowH + rowH / 2 });
+                      clickIn(d, ov, *props, props->getLocalBounds().getCentre());
+                  }
+              },
+              nullptr },
         };
     }
 
