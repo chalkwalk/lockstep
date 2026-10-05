@@ -1700,8 +1700,10 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
         translation unit that includes it, so the number of *distinct* issues
         is smaller than 16,926 — but it is the number a blocking gate would
         have to reach zero against, so it is the one recorded.
-      - Widen the CI glob so the step reports the real figure rather than a
-        subset. It will look like a large regression and will not be one.
+      - *(Done 2026-10-04.)* The CI step now runs every translation unit in
+        `src/` and `tools/`, in parallel, with a Clang compile database, and
+        writes the count to the run summary. Its first run jumps from 2227; that
+        is the same code counted honestly, not a regression.
       - Read that figure carefully before reacting to it: the step runs
         `clang-tidy -p build src/*.cpp tools/*.cpp`, and that glob is **not
         recursive** — it matches only the handful of top-level translation

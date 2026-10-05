@@ -267,15 +267,37 @@ jobs:
           echo "### clang-format: $bad of $total files unformatted" >> "$GITHUB_STEP_SUMMARY"
           echo "Advisory while the backlog is worked down; see ROADMAP.md 6.8." >> "$GITHUB_STEP_SUMMARY"
 
+      # Clang named here for the same reason as the Linux build job: the compile
+      # database records the flags clang-tidy re-parses each file with, and a
+      # GCC database is not what this project's warning policy is written for.
       - name: Configure (for the compile database)
-        run: cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        run: >
+          cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
 
-      # Advisory too, for the same reason: the count at adoption is unmeasured,
-      # and a gate adopted at an unknown count is a gate that fails on its first
-      # run. The first green run of this step establishes the baseline; record
-      # it in ROADMAP.md 6.8 and work it down from there.
-      - name: clang-tidy (advisory)
+      # Advisory: the backlog is far from zero (ROADMAP 6.8).
+      #
+      # EVERY translation unit, recursively. This step used to run
+      # `src/*.cpp tools/*.cpp`, which is not recursive -- it covered about five
+      # top-level files plus their headers and reported 2227. Measured across
+      # all of src/, the figure is 16,926. Reporting the subset made the debt
+      # look an eighth of its size, and a gate that is one day meant to reach
+      # zero has to be counted against the whole tree from the start.
+      #
+      # Expect this number to jump on the first run after the change. It is
+      # not a regression; it is the same code counted honestly.
+      #
+      # Parallel, because each translation unit drags in JUCE and takes most of
+      # a minute on its own. Findings in a shared header are counted once per
+      # translation unit that includes it, so distinct issues are fewer than
+      # the total -- the total is still the number a gate would have to clear.
+      - name: clang-tidy (advisory, whole tree)
         continue-on-error: true
         run: |
-          clang-tidy -p build --quiet src/*.cpp tools/*.cpp 2>&1 | tee tidy.log
-          echo "findings: $(grep -cE 'warning:|error:' tidy.log || true)"
+          find src tools -name '*.cpp' -print0 \
+            | xargs -0 -P 4 -n 1 clang-tidy -p build --quiet 2>&1 | tee tidy.log
+          n=$(grep -cE 'warning:|error:' tidy.log || true)
+          tu=$(find src tools -name '*.cpp' | wc -l)
+          echo "findings: $n across $tu translation units"
+          echo "### clang-tidy: $n findings across $tu translation units" >> "$GITHUB_STEP_SUMMARY"
+          echo "Advisory while the backlog is worked down; see ROADMAP.md 6.8." >> "$GITHUB_STEP_SUMMARY"
