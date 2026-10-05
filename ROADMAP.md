@@ -1690,16 +1690,22 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
         risk, and it was deliberately **not** smuggled into CI setup.
       - The gate flips to blocking in the same change that takes the count to
         zero, and not before.
-- [ ] **Work down the clang-tidy backlog. Real baseline: 16,926 findings**
-      across all 67 translation units in `src/` (measured 2026-10-04).
+- [ ] **Work down the clang-tidy backlog. Baseline: 14,611 findings across 73
+      translation units** (CI, clang-tidy 18, first whole-tree run 2026-10-04).
       Antiphon's comparable number is 142.
-      - The CI step reported **2227**, and that figure was flattering rather
-        than wrong: its glob `src/*.cpp tools/*.cpp` is not recursive and
-        covered about five top-level units plus their headers. Widening it
-        measured 7.6x more. Findings in a shared header are counted once per
-        translation unit that includes it, so the number of *distinct* issues
-        is smaller than 16,926 — but it is the number a blocking gate would
-        have to reach zero against, so it is the one recorded.
+      - CI used to report **2227** from a glob that was not recursive and
+        covered about five units. The figure above is CI's own count over all
+        of `src/` and `tools/`, and it is the one a blocking gate would be held
+        to, so it is the one recorded.
+      - A local run with clang-tidy **21** counts **16,926** over `src/` alone.
+        Both are honest; they are different tools. Newer clang-tidy ships more
+        checks in the families `.clang-tidy` enables, so the count rises with
+        the version. **The runner's clang-tidy is not pinned** (clang-format
+        is, via PyPI), which means this baseline will move when
+        `ubuntu-latest` moves, independent of the code. Pin it before treating
+        the number as a gate.
+      - Findings in a shared header count once per unit that includes it, so
+        distinct issues are fewer than the total.
       - *(Done 2026-10-04.)* The CI step now runs every translation unit in
         `src/` and `tools/`, in parallel, with a Clang compile database, and
         writes the count to the run summary. Its first run jumps from 2227; that
@@ -1718,7 +1724,15 @@ comments before writing ours; they record measured failures (MinGW vs MSVC, the
         `.clang-tidy`) in the same change that takes the count to zero.
 - [x] **clang-format baseline confirmed in CI: 233 / 402** at the pinned
       20.1.8 — identical to the local measurement, so the figure is not an
-      artifact of one machine's toolchain.
+      artifact of one machine's toolchain. *(It read 236 / 403 on 2026-10-04
+      because three files written that day had not been formatted; they have
+      been, so new code no longer adds to the backlog.)*
+      - **For whoever does the full reformat:** clang-format with this
+        `.clang-format` is **not idempotent in one pass**. `ModalSweepTest.cpp`
+        still failed `--dry-run -Werror` after a first `-i` and was clean after
+        a second — `AlignConsecutiveShortCaseStatements` resettles on the
+        second pass. Run it until the dry run is clean, or the gate will fail
+        on a file that was "just formatted".
 - [x] **Sign-conversions in `chalkwalk-tape`'s `Resampler.h` fixed upstream**
       *(2026-10-04, chalkwalk-tape `8138297`; pin bumped to it)*. Five
       `size_t * int` stride computations, safe at runtime but fatal to any

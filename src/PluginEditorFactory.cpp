@@ -21,8 +21,7 @@
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     lockstep::setEditorFactory([](lockstep::LockstepProcessor& p)
-                                   -> juce::AudioProcessorEditor*
-                               { return new lockstep::LockstepEditor(p); });
+                                   -> juce::AudioProcessorEditor* { return new lockstep::LockstepEditor(p); });
 
     return new lockstep::LockstepProcessor();
 }

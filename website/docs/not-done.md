@@ -63,12 +63,12 @@ written down rather than discovered:
   project's own `.clang-format`. The tree was never run through it, and
   reformatting half the source in one commit would destroy `git blame` across
   the codebase.
-- **clang-tidy is advisory.** The whole-tree baseline is **16,926 findings**
-  across 67 translation units. CI reports 2,227 because its glob is not
-  recursive and covers about five of them; widening it measured 7.6× more.
-  Findings in a shared header count once per unit including it, so the number
-  of distinct issues is smaller — but that is the figure a blocking gate would
-  have to drive to zero.
+- **clang-tidy is advisory.** CI's whole-tree count is **14,611 findings**
+  across 73 translation units, with clang-tidy 18. (It used to report 2,227
+  from a glob that covered about five of them.) A newer clang-tidy counts more,
+  because it ships more checks, and the runner's version is not yet pinned —
+  so the figure will drift until it is. Findings in a shared header count once
+  per unit that includes it, so distinct issues are fewer than the total.
 - **Link-time optimisation is off.** There is a circular dependency between two
   static archives (the engine names an editor symbol it does not own), and LTO
   turns it from a link that works by luck into one that fails on some
