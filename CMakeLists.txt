@@ -134,6 +134,21 @@ include(cmake/ChalkwalkLibrary.cmake)
 chalkwalk_add_library(soundfont libs/soundfont)
 
 # ---------------------------------------------------------------------------
+# chalkwalk-dsp -- audio DSP primitives (MIT, JUCE-free, header-only).
+# Submodule: https://github.com/chalkwalk/chalkwalk-dsp
+#
+# The compressors and tilt in src/dsp/ are thin JUCE wrappers over its
+# `Compressor` and `TiltEq`: one copy of each, tested there against answers
+# known in advance, instead of one here and one there that disagree. (They did:
+# the bus compressor detected on the left side only, and its knee boosted just
+# below the threshold.)
+#
+# Added BEFORE tape, which reaches for chalkwalk-dsp for its own suite: the
+# first project to add it wins, so this pin is the one that describes the build.
+# ---------------------------------------------------------------------------
+chalkwalk_add_library(dsp libs/dsp)
+
+# ---------------------------------------------------------------------------
 # chalkwalk-tape -- the deck engine this project wrote and then outgrew.
 # MIT, JUCE-free: Medium, Heads, EraseHead, LayerStack, Seam, MarkerLane, Deck,
 # and the polyphase resampler with both the gather read and the scatter write.

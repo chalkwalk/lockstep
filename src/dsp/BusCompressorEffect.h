@@ -1,33 +1,38 @@
 #pragma once
 
 #include "../machine/IEffect.h"
+#include <chalkwalk/dsp/Compressor.h>
+#include <algorithm>
 #include <cmath>
-#include <numbers>
+#include <vector>
 
 namespace lockstep
 {
-    // Bus Compressor — feed-forward, soft knee (6dB), RMS-ish detector,
-    // program-dependent dual-time-constant release, sidechain HPF.
+    // Bus Compressor — feed-forward, 6 dB soft knee, 10 ms RMS detector on both
+    // sides, sidechain HPF, program-dependent release, parallel mix.
     // masterOnly = true.
+    //
+    // The compressor is chalkwalk-dsp's Compressor (libs/dsp), shared with the
+    // other projects; this is its JUCE face plus the dry/wet mix. Moving it
+    // there fixed two faults this effect had: its detector heard only the left
+    // side's high-passed signal, and its knee added up to ~0.2 dB just below
+    // the threshold.
     class BusCompressorEffect final : public IEffect
     {
         static constexpr int kFxSec = 5;
 
     public:
-        void prepare(double sampleRate, int /*maxBlockSize*/) override
+        void prepare(double sampleRate, int maxBlockSize) override
         {
             sr_ = sampleRate;
-            rmsZ_ = 0.0f;
-            gainZ_ = 1.0f;
-            hpfZ_[0] = hpfZ_[1] = 0.0f;
+            have_ = false;
+            comp_.reset();
+            const auto n = static_cast<std::size_t>(std::max(maxBlockSize, 1));
+            dry_[0].assign(n, 0.0f);
+            dry_[1].assign(n, 0.0f);
         }
 
-        void reset() override
-        {
-            rmsZ_ = 0.0f;
-            gainZ_ = 1.0f;
-            hpfZ_[0] = hpfZ_[1] = 0.0f;
-        }
+        void reset() override { comp_.reset(); }
 
         void process(juce::AudioBuffer<float>& buffer, int numSamples,
                      const ParamFrame& params) override
@@ -35,105 +40,59 @@ namespace lockstep
             const int numCh = buffer.getNumChannels();
             if (numCh == 0 || numSamples <= 0) return;
 
-            const float threshDb  = params.size() > 0
-                                        ? juce::jlimit(-36.0f, 0.0f, params[0])
-                                        : -18.0f;
-            // Ratio: continuous (log-scaled in the UI via paramSpec.skew).
-            const float ratio     = params.size() > 1
-                                        ? juce::jlimit(1.0f, 20.0f, params[1])
-                                        : 2.0f;
-            // Attack/release are continuous times in ms; 0 = Auto (program-dependent).
-            const float attackMs  = params.size() > 2
-                                        ? juce::jlimit(0.0f, 30.0f, params[2])
-                                        : 5.0f;
-            const float releaseMs = params.size() > 3
-                                        ? juce::jlimit(0.0f, 1200.0f, params[3])
-                                        : 250.0f;
-            const float schpfHz   = params.size() > 4
-                                        ? juce::jlimit(20.0f, 300.0f, params[4])
-                                        : 60.0f;
-            const float makeupDb  = params.size() > 5
-                                        ? juce::jlimit(0.0f, 12.0f, params[5])
-                                        : 0.0f;
-            const float mixTgt    = params.size() > 6
-                                        ? juce::jlimit(0.0f, 1.0f, params[6])
-                                        : 1.0f;
-
-            // 0 (the floor) selects Auto; small epsilon matches formatParamValue's
-            // minLabel threshold so the readout ("Auto") and behaviour agree.
-            const bool autoAtk = (attackMs  <= 1.0e-3f);
-            const bool autoRel = (releaseMs <= 1.0e-3f);
-            auto coefMs = [&](double ms) {
-                return 1.0f - std::exp(-1.0f / static_cast<float>(0.001 * ms * sr_));
+            const float in[6] = {
+                params.size() > 0 ? juce::jlimit(-36.0f, 0.0f, params[0]) : -18.0f,
+                params.size() > 1 ? juce::jlimit(1.0f, 20.0f, params[1]) : 2.0f,
+                params.size() > 2 ? juce::jlimit(0.0f, 30.0f, params[2]) : 5.0f,
+                params.size() > 3 ? juce::jlimit(0.0f, 1200.0f, params[3]) : 250.0f,
+                params.size() > 4 ? juce::jlimit(20.0f, 300.0f, params[4]) : 60.0f,
+                params.size() > 5 ? juce::jlimit(0.0f, 12.0f, params[5]) : 0.0f,
             };
-
-            const float threshLin   = juce::Decibels::decibelsToGain(threshDb);
-            const float makeupLin   = juce::Decibels::decibelsToGain(makeupDb);
-            // Auto attack = a quick program-independent default; auto release = a
-            // medium base that speeds up below threshold (applied per-sample below).
-            const float attCoef     = autoAtk ? coefMs(5.0)   : coefMs(attackMs);
-            const float relCoefBase = autoRel ? coefMs(400.0) : coefMs(releaseMs);
-            const float kneeDbHalf  = 3.0f;   // 6dB soft knee half-width
-
-            // Sidechain HPF coefficient.
-            const float hpfAlpha = 1.0f - std::exp(
-                -2.0f * std::numbers::pi_v<float> * schpfHz / static_cast<float>(sr_));
-
-            for (int n = 0; n < numSamples; ++n)
+            const float mix = params.size() > 6 ? juce::jlimit(0.0f, 1.0f, params[6]) : 1.0f;
+            if (!have_ || !std::equal(in, in + 6, last_))
             {
-                // Sum channels for sidechain, apply HPF.
-                float sc = 0.0f;
-                for (int c = 0; c < numCh; ++c)
-                    sc += buffer.getReadPointer(c)[n];
-                sc *= (numCh > 1) ? 0.5f : 1.0f;
+                std::copy(in, in + 6, last_);
+                have_ = true;
+                // 0 (the floor) selects Auto; the epsilon matches
+                // formatParamValue's minLabel threshold so the readout agrees.
+                const bool autoAtk = in[2] <= 1.0e-3f;
+                const bool autoRel = in[3] <= 1.0e-3f;
+                chalkwalk::dsp::Compressor::Settings s;
+                s.thresholdDb = in[0];
+                s.ratio = in[1];
+                s.kneeDb = 6.0;
+                s.attackMs = autoAtk ? 5.0 : in[2];
+                s.releaseMs = autoRel ? 400.0 : in[3];
+                s.autoRelease = autoRel;
+                s.detectorMs = 10.0;
+                s.sidechainHighPassHz = in[4];
+                s.makeupDb = in[5];
+                comp_.configure(sr_, s);
+            }
 
-                // SC HPF.
-                for (int c = 0; c < std::min(numCh, 2); ++c)
+            float* l = buffer.getWritePointer(0);
+            float* r = numCh > 1 ? buffer.getWritePointer(1) : nullptr;
+            if (mix >= 1.0f)
+            {
+                comp_.process(l, r, numSamples);
+                return;
+            }
+            // Parallel: keep the dry signal, in pieces no longer than the
+            // buffer prepare() made, so nothing allocates here.
+            const int chunk = static_cast<int>(dry_[0].size());
+            for (int off = 0; off < numSamples; off += chunk)
+            {
+                const int m = std::min(chunk, numSamples - off);
+                float* dl = dry_[0].data();
+                float* dr = dry_[1].data();
+                std::copy(l + off, l + off + m, dl);
+                if (r != nullptr) std::copy(r + off, r + off + m, dr);
+                comp_.process(l + off, r != nullptr ? r + off : nullptr, m);
+                for (int i = 0; i < m; ++i)
                 {
-                    hpfZ_[c] += hpfAlpha * (buffer.getReadPointer(c)[n] - hpfZ_[c]);
-                    if (c == 0) sc = buffer.getReadPointer(0)[n] - hpfZ_[0];
-                }
-
-                // RMS-ish: one-pole on squared signal (~10ms window).
-                const float rmsCoef = 1.0f - std::exp(-1.0f / static_cast<float>(0.01 * sr_));
-                rmsZ_ += rmsCoef * (sc * sc - rmsZ_);
-                const float rmsVal = std::sqrt(std::max(rmsZ_, 1e-12f));
-
-                // Auto-release: faster recovery when the signal sits below threshold.
-                float relCoef = relCoefBase;
-                if (autoRel && rmsVal < threshLin)
-                    relCoef *= 4.0f;
-                rmsZ_ = std::max(rmsZ_, 0.0f);  // denormal guard
-
-                // Soft-knee gain computation.
-                float gr = 1.0f;
-                if (rmsVal > 0.0f)
-                {
-                    const float dbIn  = juce::Decibels::gainToDecibels(rmsVal);
-                    const float dbOver = dbIn - threshDb;
-                    if (dbOver > -kneeDbHalf)
-                    {
-                        const float kneeFraction = (dbOver + kneeDbHalf) / (2.0f * kneeDbHalf);
-                        const float effectiveOver = dbOver > kneeDbHalf
-                            ? dbOver
-                            : dbOver * juce::jlimit(0.0f, 1.0f, kneeFraction);
-                        gr = juce::Decibels::decibelsToGain(-effectiveOver * (1.0f - 1.0f / ratio));
-                    }
-                }
-                // Attack while clamping to a lower gain, release while recovering —
-                // this is what makes Attack/Release actually do something (the gain
-                // envelope previously used a fixed smoothing and ignored both params).
-                const float envCoef = (gr < gainZ_) ? attCoef : relCoef;
-                gainZ_ += envCoef * (gr - gainZ_);
-                const float g = gainZ_ * makeupLin;
-                const float dry0 = numCh > 0 ? buffer.getReadPointer(0)[n] : 0.0f;
-                const float dry1 = numCh > 1 ? buffer.getReadPointer(1)[n] : dry0;
-                if (numCh > 0) buffer.getWritePointer(0)[n] = dry0 * (1.0f - mixTgt) + dry0 * g * mixTgt;
-                if (numCh > 1) buffer.getWritePointer(1)[n] = dry1 * (1.0f - mixTgt) + dry1 * g * mixTgt;
-                for (int c = 2; c < numCh; ++c)
-                {
-                    const float d = buffer.getReadPointer(c)[n];
-                    buffer.getWritePointer(c)[n] = d * (1.0f - mixTgt) + d * g * mixTgt;
+                    l[off + i] = dl[i] + mix * (l[off + i] - dl[i]);
+                    if (r != nullptr)
+                        r[off + i] = dr[i] + mix * (r[off + i] - dr[i]);
                 }
             }
         }
@@ -199,8 +158,9 @@ namespace lockstep
         static inline const std::string kId = "lockstep.buscomp.v1";
 
         double sr_ = 44100.0;
-        float rmsZ_ = 0.0f;
-        float gainZ_ = 1.0f;
-        float hpfZ_[2] = { 0.0f, 0.0f };
+        chalkwalk::dsp::Compressor comp_;
+        float last_[6] = {};
+        bool have_ = false;
+        std::vector<float> dry_[2];
     };
 }

@@ -1,13 +1,13 @@
 #pragma once
 
 #include "../machine/IEffect.h"
+#include <chalkwalk/dsp/TiltEq.h>
 #include <cmath>
-#include <numbers>
 
 namespace lockstep
 {
     // Master Utility — tilt EQ + M/S width + trim.
-    // Tilt: same one-pole shelf pivot as TiltEQEffect.
+    // Tilt: chalkwalk-dsp's TiltEq, as in TiltEQEffect (12 dB per unit).
     // Width: 0=mono, 1=unity, 2=double-wide (encode M/S, scale S, decode).
     // Trim: -12..+12 dB, smoothed.
     // masterOnly = true.
@@ -18,18 +18,16 @@ namespace lockstep
     public:
         void prepare(double sampleRate, int /*maxBlockSize*/) override
         {
-            sr_ = sampleRate;
             smoothCoef_ = 1.0f - std::exp(-1.0f / static_cast<float>(0.005 * sampleRate));
-            for (auto& z : lowZ_) z = 0.0f;
-            for (auto& z : tiltZ_) z = 0.0f;
+            tilt_.prepare(sampleRate, 700.0, 5.0);
+            tilt_.setTiltDb(0.0);
+            tilt_.reset();
+            lastTilt_ = 0.0f;
             for (auto& z : trimZ_) z = 1.0f;
             for (auto& z : widthZ_) z = 1.0f;
         }
 
-        void reset() override
-        {
-            for (auto& z : lowZ_) z = 0.0f;
-        }
+        void reset() override { tilt_.reset(); }
 
         void process(juce::AudioBuffer<float>& buffer, int numSamples,
                      const ParamFrame& params) override
@@ -48,42 +46,29 @@ namespace lockstep
                                              juce::jlimit(-12.0f, 12.0f, params[2]))
                                        : 1.0f;
 
-            const float alpha = static_cast<float>(
-                1.0 - std::exp(-2.0 * std::numbers::pi * 700.0 / sr_));
-
-            auto* dL = numCh > 0 ? buffer.getWritePointer(0) : nullptr;
+            auto* dL = buffer.getWritePointer(0);
             auto* dR = numCh > 1 ? buffer.getWritePointer(1) : nullptr;
+
+            if (tiltTgt != lastTilt_)
+            {
+                tilt_.setTiltDb(12.0 * tiltTgt);
+                lastTilt_ = tiltTgt;
+            }
+            tilt_.process(dL, dR, numSamples);
 
             for (int n = 0; n < numSamples; ++n)
             {
-                tiltZ_[0] += smoothCoef_ * (tiltTgt  - tiltZ_[0]);
                 trimZ_[0] += smoothCoef_ * (trimTgt  - trimZ_[0]);
                 widthZ_[0] += smoothCoef_ * (widthTgt - widthZ_[0]);
 
-                const float tilt = tiltZ_[0];
                 const float trim = trimZ_[0];
                 const float wid  = widthZ_[0];
 
-                if (dL)
-                {
-                    lowZ_[0] += alpha * (dL[n] - lowZ_[0]);
-                    const float hp = dL[n] - lowZ_[0];
-                    const float lg = juce::Decibels::decibelsToGain(-tilt * 6.0f);
-                    const float hg = juce::Decibels::decibelsToGain( tilt * 6.0f);
-                    dL[n] = (lowZ_[0] * lg + hp * hg) * trim;
-                }
-
-                if (dR)
-                {
-                    lowZ_[1] += alpha * (dR[n] - lowZ_[1]);
-                    const float hp = dR[n] - lowZ_[1];
-                    const float lg = juce::Decibels::decibelsToGain(-tilt * 6.0f);
-                    const float hg = juce::Decibels::decibelsToGain( tilt * 6.0f);
-                    dR[n] = (lowZ_[1] * lg + hp * hg) * trim;
-                }
+                dL[n] *= trim;
+                if (dR) dR[n] *= trim;
 
                 // M/S width (stereo only).
-                if (dL && dR)
+                if (dR)
                 {
                     const float m = (dL[n] + dR[n]) * 0.5f;
                     const float s = (dL[n] - dR[n]) * 0.5f * wid;
@@ -128,10 +113,9 @@ namespace lockstep
     private:
         static inline const std::string kId = "lockstep.mutility.v1";
 
-        double sr_ = 44100.0;
+        chalkwalk::dsp::TiltEq tilt_;
+        float lastTilt_ = 0.0f;
         float smoothCoef_ = 0.01f;
-        float lowZ_[2]   = { 0.0f, 0.0f };
-        float tiltZ_[1]  = { 0.0f };
         float trimZ_[1]  = { 1.0f };
         float widthZ_[1] = { 1.0f };
     };

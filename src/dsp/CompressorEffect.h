@@ -1,28 +1,32 @@
 #pragma once
 
 #include "../machine/IEffect.h"
+#include <chalkwalk/dsp/Compressor.h>
+#include <algorithm>
 #include <cmath>
 
 namespace lockstep
 {
     // Feed-forward peak compressor — stereo-linked detector, hard knee.
-    // Params: thresh (dB), ratio (stepped 2:1/4:1/8:1/20:1), attack (ms),
-    //         release (ms), makeup (dB).
+    // Params: thresh (dB), ratio (1..20, log-scaled), attack (ms, 0 = Auto),
+    //         release (ms, 0 = Auto), makeup (dB).
+    //
+    // The compressor is chalkwalk-dsp's Compressor (libs/dsp), shared with the
+    // other projects; this is its JUCE face. Attack and release act on the gain
+    // in dB (they used to act on a peak envelope, with a fixed 2 ms gain
+    // smoother after it). Auto attack is 5 ms; Auto release is 200 ms, four
+    // times faster once the signal is back under the threshold.
     class CompressorEffect final : public IEffect
     {
     public:
         void prepare(double sampleRate, int /*maxBlockSize*/) override
         {
             sampleRate_ = sampleRate;
-            envZ_ = 0.0f;
-            gainZ_ = 1.0f;
+            have_ = false;
+            comp_.reset();
         }
 
-        void reset() override
-        {
-            envZ_ = 0.0f;
-            gainZ_ = 1.0f;
-        }
+        void reset() override { comp_.reset(); }
 
         void process(juce::AudioBuffer<float>& buffer, int numSamples,
                      const ParamFrame& params) override
@@ -30,66 +34,35 @@ namespace lockstep
             const int numCh = buffer.getNumChannels();
             if (numCh == 0 || numSamples <= 0) return;
 
-            const float threshDb  = params.size() > 0
-                                        ? juce::jlimit(-48.0f, 0.0f, params[0])
-                                        : -18.0f;
-            // Ratio: continuous (log-scaled in the UI via paramSpec.skew).
-            const float ratio     = params.size() > 1
-                                        ? juce::jlimit(1.0f, 20.0f, params[1])
-                                        : 4.0f;
-            // Attack/release are continuous times in ms; 0 = Auto (program-dependent).
-            const float attackMs  = params.size() > 2
-                                        ? juce::jlimit(0.0f, 100.0f, params[2])
-                                        : 5.0f;
-            const float releaseMs = params.size() > 3
-                                        ? juce::jlimit(0.0f, 1000.0f, params[3])
-                                        : 120.0f;
-            const float makeupDb  = params.size() > 4
-                                        ? juce::jlimit(0.0f, 24.0f, params[4])
-                                        : 0.0f;
-
-            // 0 (the floor) selects Auto; small epsilon matches formatParamValue's
-            // minLabel threshold so the readout ("Auto") and behaviour agree.
-            const bool autoAtk = (attackMs  <= 1.0e-3f);
-            const bool autoRel = (releaseMs <= 1.0e-3f);
-            auto coefMs = [&](double ms) {
-                return 1.0f - std::exp(-1.0f / static_cast<float>(0.001 * ms * sampleRate_));
+            const float in[5] = {
+                params.size() > 0 ? juce::jlimit(-48.0f, 0.0f, params[0]) : -18.0f,
+                params.size() > 1 ? juce::jlimit(1.0f, 20.0f, params[1]) : 4.0f,
+                params.size() > 2 ? juce::jlimit(0.0f, 100.0f, params[2]) : 5.0f,
+                params.size() > 3 ? juce::jlimit(0.0f, 1000.0f, params[3]) : 120.0f,
+                params.size() > 4 ? juce::jlimit(0.0f, 24.0f, params[4]) : 0.0f,
             };
-
-            const float threshLin   = juce::Decibels::decibelsToGain(threshDb);
-            const float makeupLin   = juce::Decibels::decibelsToGain(makeupDb);
-            const float attCoef     = autoAtk ? coefMs(5.0)   : coefMs(attackMs);
-            const float relCoefBase = autoRel ? coefMs(200.0) : coefMs(releaseMs);
-            const float gainSmooth  = 1.0f - std::exp(
-                -1.0f / static_cast<float>(0.002 * sampleRate_));
-
-            for (int n = 0; n < numSamples; ++n)
+            if (!have_ || !std::equal(in, in + 5, last_))
             {
-                // Stereo-linked peak detector.
-                float peak = 0.0f;
-                for (int c = 0; c < numCh; ++c)
-                    peak = std::max(peak, std::abs(buffer.getReadPointer(c)[n]));
-
-                // Auto-release speeds up while the signal sits below threshold.
-                float relCoef = relCoefBase;
-                if (autoRel && envZ_ < threshLin)
-                    relCoef *= 4.0f;
-                const float coef = (peak > envZ_) ? attCoef : relCoef;
-                envZ_ += coef * (peak - envZ_);
-
-                float gr = 1.0f;
-                if (envZ_ > threshLin && envZ_ > 0.0f)
-                {
-                    const float dbOver   = juce::Decibels::gainToDecibels(envZ_) - threshDb;
-                    const float reducedDb = dbOver * (1.0f - 1.0f / ratio);
-                    gr = juce::Decibels::decibelsToGain(-reducedDb);
-                }
-                gainZ_ += gainSmooth * (gr - gainZ_);
-
-                const float g = gainZ_ * makeupLin;
-                for (int c = 0; c < numCh; ++c)
-                    buffer.getWritePointer(c)[n] *= g;
+                std::copy(in, in + 5, last_);
+                have_ = true;
+                // 0 (the floor) selects Auto; the epsilon matches
+                // formatParamValue's minLabel threshold so the readout agrees.
+                const bool autoAtk = in[2] <= 1.0e-3f;
+                const bool autoRel = in[3] <= 1.0e-3f;
+                chalkwalk::dsp::Compressor::Settings s;
+                s.thresholdDb = in[0];
+                s.ratio = in[1];
+                s.kneeDb = 0.0;
+                s.attackMs = autoAtk ? 5.0 : in[2];
+                s.releaseMs = autoRel ? 200.0 : in[3];
+                s.autoRelease = autoRel;
+                s.detectorMs = 0.0;  // peak
+                s.makeupDb = in[4];
+                comp_.configure(sampleRate_, s);
             }
+
+            comp_.process(buffer.getWritePointer(0),
+                          numCh > 1 ? buffer.getWritePointer(1) : nullptr, numSamples);
         }
 
         [[nodiscard]] int numParams() const override { return 5; }
@@ -143,7 +116,8 @@ namespace lockstep
         static constexpr int kFxSec = 5;
 
         double sampleRate_ = 44100.0;
-        float envZ_ = 0.0f;
-        float gainZ_ = 1.0f;
+        chalkwalk::dsp::Compressor comp_;
+        float last_[5] = {};
+        bool have_ = false;
     };
 }

@@ -20,3 +20,6 @@
 [submodule "libs/seed"]
 	path = libs/seed
 	url = https://github.com/chalkwalk/chalkwalk-seed.git
+[submodule "libs/dsp"]
+	path = libs/dsp
+	url = https://github.com/chalkwalk/chalkwalk-dsp.git

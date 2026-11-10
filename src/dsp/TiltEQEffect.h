@@ -1,30 +1,32 @@
 #pragma once
 
 #include "../machine/IEffect.h"
+#include <chalkwalk/dsp/TiltEq.h>
 #include <cmath>
-#include <numbers>
 
 namespace lockstep
 {
-    // Tilt EQ — complementary low/high shelf pair pivoted at ~700 Hz.
-    // One-pole shelves. tilt: -1 = +6dB low / -6dB high; +1 = reverse.
+    // Tilt EQ — complementary low/high shelf pair pivoted at 700 Hz.
+    // tilt: -1 = +6dB low / -6dB high; +1 = reverse.
     // gain: trim in dB applied after tilt.
+    //
+    // The filter is chalkwalk-dsp's TiltEq (libs/dsp), the one copy shared with
+    // the other projects; this is its JUCE face. Its tilt is the high-minus-low
+    // difference in dB, so this effect's +/-6 dB per side is 12 dB per unit.
     class TiltEQEffect final : public IEffect
     {
     public:
         void prepare(double sampleRate, int /*maxBlockSize*/) override
         {
-            sampleRate_ = sampleRate;
             smoothCoef_ = 1.0f - std::exp(-1.0f / static_cast<float>(0.005 * sampleRate));
-            for (auto& z : lowZ_) z = 0.0f;
-            for (auto& z : tiltZ_) z = 0.0f;
-            for (auto& z : gainZ_) z = 1.0f;
+            tilt_.prepare(sampleRate, 700.0, 5.0);
+            tilt_.setTiltDb(0.0);
+            tilt_.reset();
+            lastTilt_ = 0.0f;
+            gainZ_ = 1.0f;
         }
 
-        void reset() override
-        {
-            for (auto& z : lowZ_) z = 0.0f;
-        }
+        void reset() override { tilt_.reset(); }
 
         void process(juce::AudioBuffer<float>& buffer, int numSamples,
                      const ParamFrame& params) override
@@ -40,31 +42,21 @@ namespace lockstep
                                                juce::jlimit(-12.0f, 12.0f, params[1]))
                                          : 1.0f;
 
-            // One-pole LP shelf pivot at fc = 700 Hz.
-            const float alpha = static_cast<float>(
-                1.0 - std::exp(-2.0 * std::numbers::pi * 700.0 / sampleRate_));
-
-            for (int c = 0; c < std::min(numCh, 2); ++c)
+            // Positive tilt brightens: cut lows, boost highs.
+            if (tiltTarget != lastTilt_)
             {
-                auto* d = buffer.getWritePointer(c);
-                auto& lz = lowZ_[static_cast<std::size_t>(c)];
-                auto& tz = tiltZ_[static_cast<std::size_t>(c)];
-                auto& gz = gainZ_[static_cast<std::size_t>(c)];
+                tilt_.setTiltDb(12.0 * tiltTarget);
+                lastTilt_ = tiltTarget;
+            }
+            float* l = buffer.getWritePointer(0);
+            float* r = numCh > 1 ? buffer.getWritePointer(1) : nullptr;
+            tilt_.process(l, r, numSamples);
 
-                for (int n = 0; n < numSamples; ++n)
-                {
-                    tz += smoothCoef_ * (tiltTarget - tz);
-                    gz += smoothCoef_ * (gainTarget - gz);
-
-                    lz += alpha * (d[n] - lz);   // one-pole LP
-                    const float hp = d[n] - lz;   // HP = input - LP
-
-                    // Positive tilt brightens: cut lows, boost highs (matches the
-                    // header contract and user expectation that "up" = more treble).
-                    const float lowGain  = juce::Decibels::decibelsToGain(-tz * 6.0f);
-                    const float highGain = juce::Decibels::decibelsToGain( tz * 6.0f);
-                    d[n] = (lz * lowGain + hp * highGain) * gz;
-                }
+            for (int n = 0; n < numSamples; ++n)
+            {
+                gainZ_ += smoothCoef_ * (gainTarget - gainZ_);
+                l[n] *= gainZ_;
+                if (r != nullptr) r[n] *= gainZ_;
             }
             for (int c = 2; c < numCh; ++c)
                 buffer.copyFrom(c, 0, buffer, 0, 0, numSamples);
@@ -102,10 +94,9 @@ namespace lockstep
         static inline const std::string kId = "lockstep.tilteq.v1";
         static constexpr int kFxSec = 5;   // canonical FX section
 
-        double sampleRate_ = 44100.0;
+        chalkwalk::dsp::TiltEq tilt_;
+        float lastTilt_ = 0.0f;
         float smoothCoef_ = 0.01f;
-        float lowZ_[2] = { 0.0f, 0.0f };
-        float tiltZ_[2] = { 0.0f, 0.0f };
-        float gainZ_[2] = { 1.0f, 1.0f };
+        float gainZ_ = 1.0f;
     };
 }
